@@ -70,6 +70,9 @@ export class Ambience {
     this.light=light;
     if(!this.enabled||this.transition||this.context?.state!=='running'||this.isHidden()||!display?.active||
       !Number.isFinite(display.now)||!Number.isFinite(display.validUntil)||display.now>=display.validUntil)this.hold();
+    // A live visit can briefly wait at a commit boundary while its lease is valid.
+    // Keep only an already-heard call's candidate; no details play on held time.
+    else if(display.waitingForCommit)this.hold({preserveReply:true});
     else{
       this.syncBird(display);
       this.syncCottage(display);
@@ -91,8 +94,8 @@ export class Ambience {
     gain.cancelScheduledValues(0);gain.setValueAtTime(current,time);gain.setTargetAtTime(target,time,2);
     this.lastGainAt=time;this.gainTarget=target;
   }
-  hold(){
-    this.cancelBird();this.pendingReply=null;
+  hold({preserveReply=false}={}){
+    this.cancelBird();if(!preserveReply)this.pendingReply=null;
     this.cancelVoices(this.replyNodes);this.cancelVoices(this.cottageNodes);
     if(this.rustle&&(this.rustleTarget!==0||this.rustle.gain.value!==0)){
       this.rustle.gain.cancelScheduledValues(0);this.rustle.gain.setValueAtTime(0,this.context.currentTime);

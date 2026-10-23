@@ -95,11 +95,30 @@ try{
   for(const result of mixChecks)check(result.name,result.pass,result.detail);
   // Expose only references for this test response; production app.js is unchanged.
   const source=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
-  await p.route('**/app.js',route=>route.fulfill({contentType:'text/javascript',body:source+'\nwindow.__soundApp={audio,painter}; const originalUpdate=audio.update.bind(audio); audio.update=(light,rain,display)=>{window.__soundFrame=display;return originalUpdate(light,rain,display);};'}));
+  await p.route('**/app.js',route=>route.fulfill({contentType:'text/javascript',body:source+'\nwindow.__soundApp={audio,painter,client}; const originalUpdate=audio.update.bind(audio); audio.update=(light,rain,display)=>{window.__soundFrame=display;return originalUpdate(light,rain,display);};'}));
   await p.route('https://fonts.googleapis.com/**',route=>route.abort());
   await p.goto(base);await p.waitForFunction(()=>window.__soundFrame);
   check('Painting stays opt-in and passes shared sound inputs',await p.evaluate(()=>!__soundApp.audio.context&&Number.isFinite(__soundFrame.epoch)&&!!__soundFrame.cottage&&typeof __soundFrame.birdActive==='boolean'&&typeof __soundFrame.cottageActive==='boolean'));
   await p.locator('#sound-button').click();await p.waitForFunction(()=>window.__soundApp.audio.enabled);
+  const boundary=await p.evaluate(async()=>{
+    const {audio,client}=__soundApp,needsRefresh=client.needsRefresh,isExpired=client.isExpired;
+    // Exercise app.js's frame wiring with the two WorldClient wait states.
+    // The completed-call candidate itself is covered with real clock progression
+    // in sound.test.js; keep this fixture independent of live-world bird timing.
+    const candidate={id:'heard-call',start:client.now()+4000,end:client.now()+4700};
+    try{
+      audio.pendingReply=candidate;audio.replyCallEndsAt=audio.context.currentTime-1;
+      client.needsRefresh=()=>true;client.isExpired=()=>false;
+      await new Promise(resolve=>setTimeout(resolve,200));
+      const retained=__soundFrame.active&&__soundFrame.waitingForCommit&&audio.pendingReply===candidate;
+      const silent=audio.phraseNodes.size===0&&audio.replyNodes.size===0&&audio.cottageNodes.size===0&&audio.rustleTarget===0;
+      client.isExpired=()=>true;
+      await new Promise(resolve=>setTimeout(resolve,200));
+      const expired=!__soundFrame.active&&audio.pendingReply===null;
+      return {retained,silent,expired};
+    }finally{client.needsRefresh=needsRefresh;client.isExpired=isExpired;audio.hold();}
+  });
+  check('Painting preserves a heard reply during commit waits and clears it on lease expiry',Object.values(boundary).every(Boolean),boundary);
   await p.locator('#pause-button').click();await p.waitForFunction(()=>!window.__soundFrame.active);
   check('Pausing suppresses additions and retains the existing water bed',await p.evaluate(()=>__soundApp.audio.enabled&&__soundApp.audio.rustleTarget===0&&__soundApp.audio.context.state==='running'));
   await p.locator('#pause-button').click();await p.locator('#about-button').click();await p.locator('[data-light="day"]').click();

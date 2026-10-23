@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ambience } from '../public/sound.js';
+import {WorldClient} from '../public/world-client.js';
 import {createBirdState,BIRD_ID} from '../shared/bird.js';
 import {createCottageState} from '../shared/cottage.js';
 import {distantReply,rustleLevel} from '../public/ambient-score.js';
@@ -131,22 +132,79 @@ test('leaf automation stays bounded and hold silences it while retaining the wat
   await audio.toggle();
 });
 
-test('a distant answer follows a heard call across its completion snapshot without replay',async()=>{
+test('a distant answer survives WorldClient completion-boundary waits without replay',async()=>{
   const {audio,context,oscillators}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
-  await audio.toggle();context.currentTime=10;audio.update(1,0,display(bird));
+  let elapsed=0;
+  const client=new WorldClient({clock:()=>elapsed});
+  assert.equal(client.accept({serverTime:5800,validUntil:12000,nextCommitAt:6600,
+    world:{id:'test',epoch:0,revision:1,nest:{stage:'built'},bird}}),true);
+  const tick=at=>{
+    elapsed=at-5800;context.currentTime=10+elapsed/1000;
+    const shown=client.snapshot;
+    audio.update(1,0,{bird:shown.world.bird,now:client.now(),active:!client.isExpired(),
+      waitingForCommit:client.needsRefresh(),validUntil:Math.min(shown.validUntil,shown.nextCommitAt)});
+  };
+  await audio.toggle();tick(5800);
   assert.deepEqual(audio.pendingReply,reply);
-  context.currentTime=11.2;
-  bird.pending=null;
-  audio.update(1,0,{...display(bird,7000),validUntil:30000});
+  for(const at of [6600,6800,7200]){
+    tick(at);
+    assert.equal(client.needsRefresh(),true);assert.equal(client.isExpired(),false);
+    assert.equal(client.now(),6599,'the display clock is held before the boundary');
+    assert.equal(audio.replyNodes.size,0);assert.deepEqual(audio.pendingReply,reply);
+  }
+  assert.equal(client.accept({serverTime:7200,validUntil:30000,nextCommitAt:30000,
+    world:{...client.snapshot.world,revision:2,bird:{...bird,pending:null}}}),true);
+  tick(7200);
   assert.equal(audio.replyNodes.size,0);assert.deepEqual(audio.pendingReply,reply);
-  context.currentTime=14;
-  audio.update(1,0,{...display(bird,reply.start-200),validUntil:30000});
+  tick(reply.start-200);
   assert.equal(audio.replyNodes.size,2);assert.equal(oscillators.length,5);
-  assert.ok(Math.abs(oscillators[3].starts[0]-14.2)<.00001);
-  for(let i=0;i<100;i++)audio.update(1,0,{...display(bird,reply.start-100),validUntil:30000});
+  assert.ok(Math.abs(oscillators[3].starts[0]-(10+(reply.start-5800)/1000))<.00001);
+  for(let i=0;i<100;i++)tick(reply.start-100);
   assert.equal(oscillators.length,5);
   for(const voice of [...audio.replyNodes])voice.osc.onended();
   assert.equal(audio.replyNodes.size,0);await audio.toggle();
+});
+
+test('commit waits silence details and require fresh timing before an answer',async()=>{
+  for(const late of [false,true]){
+    const {audio,context,oscillators}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
+    await audio.toggle();audio.update(1,0,display(bird));context.currentTime=1;
+    audio.update(1,0,{...display(bird,6599),waitingForCommit:true});
+    assert.deepEqual(audio.pendingReply,reply);assert.equal(audio.phraseNodes.size,0);
+    const before={...display({...bird,pending:null},reply.start-100),validUntil:30000,epoch:-25000,
+      cottage:movingWindow(),cottageActive:true,waitingForCommit:true};
+    before.cottage.pending.motionStart=reply.start;before.cottage.pending.end=reply.start+4000;
+    context.currentTime=4;audio.update(1,0,before);
+    assert.equal(oscillators.length,3,'waiting never schedules a reply or casement');
+    assert.equal(audio.rustleTarget,0);assert.deepEqual(audio.pendingReply,reply);
+    audio.update(1,0,{...before,now:reply.start+(late?1:-100),waitingForCommit:false});
+    assert.equal(audio.replyNodes.size,late?0:2);assert.equal(audio.pendingReply,null);
+    await audio.toggle();
+  }
+});
+
+test('commit waits cannot preserve replies across canceled visits or expired timing',async()=>{
+  for(const mode of ['mute','hidden','pause','study','expired','invalid']){
+    const {audio,context,setHidden}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
+    await audio.toggle();audio.update(1,0,display(bird));context.currentTime=1;
+    const waiting={...display(bird,6599),waitingForCommit:true};
+    audio.update(1,0,waiting);assert.deepEqual(audio.pendingReply,reply);
+    if(mode==='mute'){await audio.toggle();await audio.toggle();}
+    else if(mode==='hidden'){setHidden(true);await audio.visibility();setHidden(false);await audio.visibility();}
+    else audio.update(1,0,{...waiting,...(mode==='invalid'?{validUntil:NaN}:{active:false})});
+    assert.equal(audio.pendingReply,null,mode);
+    audio.update(1,0,{...display({...bird,pending:null},reply.start-100),validUntil:30000});
+    assert.equal(audio.replyNodes.size,0,mode);await audio.toggle();
+  }
+});
+
+test('a commit wait before the audio call finishes cannot retain its answer',async()=>{
+  const {audio,context}=audioHarness(),bird=answeredBird();await audio.toggle();
+  audio.update(1,0,display(bird));assert.ok(audio.pendingReply);
+  context.currentTime=.1;
+  audio.update(1,0,{...display(bird,6599),waitingForCommit:true});
+  assert.equal(audio.pendingReply,null);assert.equal(audio.phraseNodes.size,0);
+  await audio.toggle();
 });
 
 test('missed calls, canceled visits, bad weather and short leases do not invent distant answers',async()=>{

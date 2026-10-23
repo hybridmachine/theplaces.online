@@ -112,7 +112,8 @@ function frame(timestamp){
     rendered=result;
     fieldNotes.update(shown,{live:pausedAt===null&&!study,valid:!client.needsRefresh(),study:!!study,paused:pausedAt!==null,visible:!document.hidden});
     if(result)audio.update(result.calendar.light,result.weather.rain,{bird:shown.world.bird,cottage:shown.world.cottage,epoch:shown.world.epoch,now:displayedNow,
-      active:pausedAt===null&&!study&&!client.needsRefresh(),birdActive:painter.birdActive,cottageActive:painter.cottageActive&&painter.motion,
+      active:pausedAt===null&&!study&&!client.isExpired(),waitingForCommit:client.needsRefresh(),
+      birdActive:painter.birdActive,cottageActive:painter.cottageActive&&painter.motion,
       validUntil:Math.min(shown.validUntil,shown.nextCommitAt??Infinity)});
   }
   if(keepView.pending)keepView.rendered(painter,rendered,{study,paused:pausedAt!==null,disconnected:client.isExpired(),reconnecting:connection!=='live'});

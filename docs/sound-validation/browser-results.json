@@ -20,7 +20,7 @@
       "name": "Actual lake study emits its selected sound",
       "pass": true,
       "detail": {
-        "peak": 0.038422148674726486,
+        "peak": 0.03841301426291466,
         "voices": 5,
         "context": "running"
       }
@@ -29,7 +29,7 @@
       "name": "Actual breeze study emits its selected sound",
       "pass": true,
       "detail": {
-        "peak": 0.017770230770111084,
+        "peak": 0.01776397041976452,
         "voices": 0,
         "context": "running"
       }
@@ -38,7 +38,7 @@
       "name": "Actual cottage study emits its selected sound",
       "pass": true,
       "detail": {
-        "peak": 0.029138687998056412,
+        "peak": 0.029139352962374687,
         "voices": 1,
         "context": "running"
       }
@@ -71,8 +71,8 @@
       "pass": true,
       "detail": {
         "peak": 0.05812791734933853,
-        "rms": 0.004382472418085474,
-        "stereoDifference": 0.0005045008341314246,
+        "rms": 0.004382472418568436,
+        "stereoDifference": 0.0005045008342308673,
         "finite": true,
         "maxRustle": 0.1549284326997837,
         "callVoices": 3,
@@ -87,8 +87,8 @@
       "pass": true,
       "detail": {
         "peak": 0.05812791734933853,
-        "rms": 0.004382472418085474,
-        "stereoDifference": 0.0005045008341314246,
+        "rms": 0.004382472418568436,
+        "stereoDifference": 0.0005045008342308673,
         "finite": true,
         "maxRustle": 0.1549284326997837,
         "callVoices": 3,
@@ -156,6 +156,15 @@
     {
       "name": "Painting stays opt-in and passes shared sound inputs",
       "pass": true
+    },
+    {
+      "name": "Painting preserves a heard reply during commit waits and clears it on lease expiry",
+      "pass": true,
+      "detail": {
+        "retained": true,
+        "silent": true,
+        "expired": true
+      }
     },
     {
       "name": "Pausing suppresses additions and retains the existing water bed",
