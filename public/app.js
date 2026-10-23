@@ -6,11 +6,13 @@ import { sceneText } from './scene-description.js';
 import {cottageDescription} from '/shared/cottage.js';
 import {birdDescription} from '/shared/bird.js';
 import {FieldNotes} from './field-notes.js';
+import {KeepView} from './keep-view.js';
 
 const $=selector=>document.querySelector(selector);
 const icons={
  bookmark:'<path d="M6 3h12v18l-6-4-6 4Z"/>',
  book:'<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Z"/><path d="M12 5v15"/>',
+ camera:'<path d="M3 7h5l2-3h4l2 3h5v13H3Z"/><circle cx="12" cy="13" r="4"/>',
  sound:'<path d="m11 4-5 4H3v8h3l5 4Z"/><path d="M15 9c2 2 2 4 0 6m3-9c4 3 4 9 0 12"/>',
  muted:'<path d="m11 4-5 4H3v8h3l5 4Z"/><path d="m16 9 5 6m0-6-5 6"/>',
  pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 4 12 8-12 8Z"/>',
@@ -23,10 +25,20 @@ icon($('#sound-button .icon'),'muted');
 const painter=new Painting($('#painting'),$('#life')),audio=new Ambience();
 const client=new WorldClient({onSnapshot:accept});
 const fieldNotes=new FieldNotes();
+const keepView=new KeepView({onDownload:url=>toast('Download started.',url)});
 let snapshot=null,pausedSnapshot=null,pausedAt=null,study=null,lastRender=0,lastLabels=0,connection='connecting',toastTimer,quietTimer;
 let followed=false;try{followed=localStorage.getItem('a-view:follow:lakeside-cottage')==='true';}catch{}
 const now=()=>pausedAt??client.now();
-function toast(text){clearTimeout(toastTimer);$('#toast').textContent=text;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
+function toast(text,imageURL){
+  clearTimeout(toastTimer);const target=$('#toast');target.textContent=text;
+  if(imageURL){const link=document.createElement('a');link.href=imageURL;link.target='_blank';link.rel='noopener';link.textContent='Open image';target.append(' ',link);}
+  target.classList.add('show');
+  const hide=()=>{
+    if(target.contains(document.activeElement)){toastTimer=setTimeout(hide,1000);return;}
+    target.classList.remove('show');target.querySelectorAll('a').forEach(link=>link.tabIndex=-1);
+  };
+  toastTimer=setTimeout(hide,imageURL?8000:3500);
+}
 function isDialogOpen(){return [...document.querySelectorAll('dialog')].some(d=>d.open);}
 function wake(){document.querySelectorAll('.chrome').forEach(e=>e.classList.remove('quiet'));clearTimeout(quietTimer);quietTimer=setTimeout(()=>{if(!isDialogOpen()&&!study&&!pausedAt&&connection==='live'&&!document.querySelector('.chrome :focus-visible'))document.querySelectorAll('.chrome').forEach(e=>e.classList.add('quiet'));},12_000);}
 addEventListener('pointermove',wake,{passive:true});addEventListener('pointerdown',wake,{passive:true});addEventListener('keydown',wake);addEventListener('focusin',wake);
@@ -94,13 +106,16 @@ function frame(timestamp){
   // Retain the fractional interval so 60 Hz timestamp rounding cannot turn the
   // 30 fps cap into a recurring three-refresh (20 fps) schedule.
   lastRender=timestamp-(timestamp-lastRender)%(1000/30);
+  let rendered=null;
   if(snapshot){
     const displayedNow=now(),shown=pausedSnapshot??snapshot,result=painter.render(shown,displayedNow,study);
+    rendered=result;
     fieldNotes.update(shown,{live:pausedAt===null&&!study,valid:!client.needsRefresh(),study:!!study,paused:pausedAt!==null,visible:!document.hidden});
     if(result)audio.update(result.calendar.light,result.weather.rain,{bird:shown.world.bird,now:displayedNow,
       active:pausedAt===null&&!study&&!client.needsRefresh()&&painter.birdActive,
       validUntil:Math.min(shown.validUntil,shown.nextCommitAt??Infinity)});
   }
+  if(keepView.pending)keepView.rendered(painter,rendered,{study,paused:pausedAt!==null,disconnected:client.isExpired(),reconnecting:connection!=='live'});
   if(timestamp-lastLabels>4000){lastLabels=timestamp;updateLabels();}
 }
 let dragging=false,previousX=0;
@@ -123,4 +138,4 @@ stream.onerror=()=>{connection='reconnecting';updateLabels();wake();};
 setInterval(()=>{if(!document.hidden)client.recover(connection!=='live').catch(()=>{connection='reconnecting';updateLabels();});},1000);
 wake();
 // A bfcache suspension keeps the renderer; permanent navigation releases it.
-addEventListener('pagehide',event=>{fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted)painter.dispose();});
+addEventListener('pagehide',event=>{fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted){keepView.dispose();painter.dispose();}});

@@ -52,7 +52,7 @@ The [familiar bird implementation plan](BIRD_FAMILIARITY_IMPLEMENTATION_PLAN.md)
 
 The [field notes implementation plan](FIELD_NOTES_IMPLEMENTATION_PLAN.md) is implemented as a short, optional “Since you were here” passage in the existing notes panel. Browser-local visit memory supplies the interval; committed events supply the facts. A bounded history lookup preserves older milestones after they leave the latest-20 note list. Copy/layout fixtures, history selection, visit memory, display-mode integration, and focused checks are recorded in [field-notes validation](docs/field-notes-validation/README.md).
 
-After field notes, “Keep this view” is the next recommended small addition. Wider ambience, quiet coincidences, mist, a visible resident, and a researched bird lifecycle remain separate options. This ordering is a planning recommendation, not a commitment to build every brainstorm item.
+“Keep this view,” the recommended addition after field notes, is now implemented in the checkout for review. The [storyboard](docs/storyboards/keep-this-view.pptx) covers the capture, optional personal note, and downloadable keepsake. The [implementation overview](README.md#keep-this-view) and [validation results](docs/keep-view-validation/README.md) describe capture fidelity, mode labels, browser-local lifetime, and recovery. Wider ambience, quiet coincidences, mist, a visible resident, and a researched bird lifecycle remain separate options. This ordering is a planning recommendation, not a commitment to build every brainstorm item.
 
 ## Shared implementation principles
 
