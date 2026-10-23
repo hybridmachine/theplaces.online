@@ -107,7 +107,7 @@ The world is shared by browsers connected to the same server. The application bi
 - `shared/field-notes.js`, `src/notes-store.js`: fixed factual wording, validated history intervals, and indexed milestone selection.
 - `public/world-client.js`: snapshot ordering, monotonic display time, action boundaries, and reconnect recovery.
 - `public/scene-description.js`: precise accessible descriptions and quiet announcements for meaningful changes.
-- `public/sound.js`: optional synthesized ambience.
+- `public/sound.js` and `public/ambient-score.js`: opt-in water, shared bird calls, sparse distant replies, wind-driven leaves, and action-timed casement sound.
 - `test/world.test.js`: timing, causality, restart, catch-up, and shared-state checks.
 - `test/world-client.test.js` and `test/sound.test.js`: response races, stalled streams, delivery consistency, announcements, concurrent audio toggles, and bounded automation.
 
@@ -148,6 +148,16 @@ The original small Canvas silhouette is retained. A 96 × 96 subject canvas appl
 The old eight-second local chirp timer is replaced by rare shared phrase actions, committed five seconds ahead. Sound remains off until explicitly enabled. Muting, pause, studies, hidden tabs, or expired timing cancel pending phrases; late arrivals skip missed calls. General water ambience remains cosmetic. The bird's three-note phrase is synthesized and does not claim an authentic species song.
 
 The developer study adds oak, roof, shelter, and flight fixtures, a bird-action time slider, and route/occluder guides. Run `scripts/check-bird-browser.mjs` with the same optional Playwright settings as the other browser suites; `BIRD_RECORD=1` also records real-speed routes using Playwright's optional FFmpeg component. `node scripts/check-bird-state.mjs` measures day/month/year catch-up. See [bird validation](docs/bird-validation/README.md), [combined engagement review](docs/engagement-validation/README.md), and [the implementation plan](BIRD_FAMILIARITY_IMPLEMENTATION_PLAN.md).
+
+## Listening by the lake
+
+The existing sound button now includes a restrained leaf layer, an occasional distant answer to the oak bird, and a soft casement creak. Leaf swells use the same elapsed-real-second gust sampler as the oak artwork; only the crest is audible (roughly 20% of a sampled hour), and rain softens them. A stable action-ID choice lets about 45% of heard bird calls receive a quieter two-note answer 3.4–4.7 real seconds later. This unnamed distant bird is cosmetic ambience, with no added inhabitant, history, or field-note facts. The casement creaks once as an existing committed opening/closing action starts moving; lights and hearth changes do not invent door sounds.
+
+Everything remains off until the visitor enables sound. Mute, hidden tabs, pause, private light studies, and invalid world timing cancel the new details; missed sounds are skipped. The existing water bed remains during pause and light studies. Reduced motion suppresses casement sound while its visible pose is held. Voices use a maximum 250 ms look-ahead, deduplicate shared actions, and disconnect on completion or cancellation. Stereo placement is subtle, with a mono fallback. No audio assets, runtime dependencies, world migrations, or server behavior are added.
+
+The private [listening study](http://127.0.0.1:4177/dev/sound-study.html) offers four 20-second fixtures: a distant answer, leaves, the casement, and rain. The selected detail plays on its own by default; **Include lake ambience** adds the quiet background for comparison. Bird and casement cues begin at two seconds, and the breeze fixture starts beside a gust crest. Live event frequency is unchanged. Water now has its own low-gain layer, so it cannot drown out the voices; short noise grains distinguish leaf rustle and rain patter. Run a local server on port 4177 (or use `/dev/sound-study.html` on your existing server), then press **Listen**. The fixtures never write to the world and stop when hidden.
+
+`scripts/check-sound-browser.mjs` uses optional Playwright, `SKY_PREVIEW_URL`, `BROWSER_EXECUTABLE`, and `SOUND_VALIDATION_DIR`; it checks actual study playback, compares each detail against background signal levels, and renders an audio sample. `scripts/check-sound-firefox.mjs` runs the same native signal comparison in installed Firefox with a temporary profile; `FIREFOX_EXECUTABLE` overrides its Windows default. The silent `/dev/sound-check.html` page also exposes those signal checks for manual browser review. See [sound validation](docs/sound-validation/README.md) for results and remaining listening/device review.
 
 ## Field notes and return visits
 
