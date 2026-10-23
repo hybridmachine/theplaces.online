@@ -1,0 +1,191 @@
+{
+  "results": [
+    {
+      "name": "Study loads with sound off and no audio context",
+      "pass": true
+    },
+    {
+      "name": "Explicit Listen starts native audio",
+      "pass": true
+    },
+    {
+      "name": "Stop closes the context and restores the selector",
+      "pass": true
+    },
+    {
+      "name": "Listening controls fit a narrow viewport",
+      "pass": true
+    },
+    {
+      "name": "Actual lake study emits its selected sound",
+      "pass": true,
+      "detail": {
+        "peak": 0.03841301426291466,
+        "voices": 5,
+        "context": "running"
+      }
+    },
+    {
+      "name": "Actual breeze study emits its selected sound",
+      "pass": true,
+      "detail": {
+        "peak": 0.01776397041976452,
+        "voices": 0,
+        "context": "running"
+      }
+    },
+    {
+      "name": "Actual cottage study emits its selected sound",
+      "pass": true,
+      "detail": {
+        "peak": 0.029139352962374687,
+        "voices": 1,
+        "context": "running"
+      }
+    },
+    {
+      "name": "Actual rain study emits its selected sound",
+      "pass": true,
+      "detail": {
+        "peak": 0.035037726163864136,
+        "voices": 0,
+        "context": "running"
+      }
+    },
+    {
+      "name": "All four studies can start and stop without accumulating contexts",
+      "pass": true
+    },
+    {
+      "name": "Native Web Audio schedules and cancels calls, replies and casement",
+      "pass": true,
+      "detail": {
+        "called": true,
+        "answered": true,
+        "creaked": true,
+        "canceled": true
+      }
+    },
+    {
+      "name": "20-second production synthesis is finite, quiet and unclipped",
+      "pass": true,
+      "detail": {
+        "peak": 0.05812791734933853,
+        "rms": 0.004382472418568436,
+        "stereoDifference": 0.0005045008342308673,
+        "finite": true,
+        "maxRustle": 0.1549284326997837,
+        "callVoices": 3,
+        "replyVoices": 2,
+        "cottageVoices": 1,
+        "seconds": 20,
+        "rate": 24000
+      }
+    },
+    {
+      "name": "Rendered study contains leaf swells, a call, an answer and a casement",
+      "pass": true,
+      "detail": {
+        "peak": 0.05812791734933853,
+        "rms": 0.004382472418568436,
+        "stereoDifference": 0.0005045008342308673,
+        "finite": true,
+        "maxRustle": 0.1549284326997837,
+        "callVoices": 3,
+        "replyVoices": 2,
+        "cottageVoices": 1,
+        "seconds": 20,
+        "rate": 24000
+      }
+    },
+    {
+      "name": "lake detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.03842344880104065,
+        "rms": 0.005635169469167035,
+        "maxWindowRms": 0.027172984395826168,
+        "backgroundRms": 0.0015855470992835778,
+        "marginDb": 24.67916383906462
+      }
+    },
+    {
+      "name": "reply detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.012768743559718132,
+        "rms": 0.0018599162555026285,
+        "maxWindowRms": 0.008992771532141647,
+        "backgroundRms": 0.0015855470992835778,
+        "marginDb": 15.074288250998809
+      }
+    },
+    {
+      "name": "cottage detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.023326173424720764,
+        "rms": 0.004893766306852746,
+        "maxWindowRms": 0.014730262572026443,
+        "backgroundRms": 0.0015855470992835778,
+        "marginDb": 19.36062681844896
+      }
+    },
+    {
+      "name": "breeze detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.026837583631277084,
+        "rms": 0.003656233843647438,
+        "maxWindowRms": 0.009003554568889054,
+        "backgroundRms": 0.0015855470992835778,
+        "marginDb": 15.084697073092153
+      }
+    },
+    {
+      "name": "rain detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.0381244421005249,
+        "rms": 0.002604912819628165,
+        "maxWindowRms": 0.008562491677383054,
+        "backgroundRms": 0.0015855470992835778,
+        "marginDb": 14.648420298684385
+      }
+    },
+    {
+      "name": "Painting stays opt-in and passes shared sound inputs",
+      "pass": true
+    },
+    {
+      "name": "Painting preserves a heard reply during commit waits and clears it on lease expiry",
+      "pass": true,
+      "detail": {
+        "retained": true,
+        "silent": true,
+        "expired": true
+      }
+    },
+    {
+      "name": "Pausing suppresses additions and retains the existing water bed",
+      "pass": true
+    },
+    {
+      "name": "Private light studies suppress shared sound actions",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion suppresses creaks for a held casement",
+      "pass": true
+    },
+    {
+      "name": "Painting mute suspends audio",
+      "pass": true
+    },
+    {
+      "name": "No uncaught browser errors",
+      "pass": true,
+      "detail": []
+    }
+  ]
+}

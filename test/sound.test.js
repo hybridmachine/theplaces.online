@@ -1,14 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Ambience } from '../public/sound.js';
+import {WorldClient} from '../public/world-client.js';
 import {createBirdState,BIRD_ID} from '../shared/bird.js';
+import {createCottageState} from '../shared/cottage.js';
+import {distantReply,rustleLevel} from '../public/ambient-score.js';
+import {soundStudyFrame,SOUND_STUDY_SECONDS} from '../public/dev/sound-fixtures.js';
 
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-function audioHarness() {
+function audioHarness(options={}) {
   let hidden = false;
   const oscillators=[];
   const gain = {
@@ -27,13 +31,14 @@ function audioHarness() {
     },
     createBuffer: (_channels, length) => ({ getChannelData: () => new Float32Array(length) }),
     createBufferSource: node,
-    createBiquadFilter: () => ({ ...node(), frequency: { value: 0 } }),
+    createBiquadFilter: () => ({ ...node(), frequency: { value: 0 }, Q: { value: 0 } }),
     async resume() { this.state = 'running'; },
     async suspend() { this.state = 'suspended'; },
   };
   const audio = new Ambience({
     createContext: () => context,
     isHidden: () => hidden,
+    ...options,
   });
   // Capture the actual master gain separately from transient phrase envelopes.
   const createGain=context.createGain;let master=null;
@@ -63,6 +68,215 @@ test('concurrent audio toggles coalesce without scheduling a local bird timer', 
   assert.equal(oscillators.length, 0);
   await audio.toggle();
   assert.equal(oscillators.length, 0);
+});
+
+test('the study presents each detail early and isolates it from lake ambience by default',()=>{
+  assert.equal(SOUND_STUDY_SECONDS,20);
+  const call=soundStudyFrame('lake',0),window=soundStudyFrame('cottage',0);
+  assert.equal(call.display.bird.pending.phraseStart-call.display.now,2000);
+  assert.equal(window.display.cottage.pending.motionStart-window.display.now,2000);
+  assert.equal(call.display.epoch,undefined);
+  assert.equal(window.display.epoch,undefined);
+  const breeze=soundStudyFrame('breeze',2);
+  assert.ok(rustleLevel(breeze.display.epoch,breeze.display.now)>.1);
+  assert.ok(soundStudyFrame('rain',0).rain>0);
+  assert.ok(Number.isFinite(soundStudyFrame('lake',0,{background:true}).display.epoch));
+});
+
+test('removing background water keeps detail voices and rain available with bounded automation',async()=>{
+  const {audio,context,oscillators}=audioHarness({background:false});await audio.toggle();
+  assert.equal(audio.water.gain.value,0);
+  audio.update(1,0,display(callingBird()));assert.equal(oscillators.length,3);
+  for(let frame=0;frame<600;frame++){
+    context.currentTime=frame/30;audio.update(1,(Math.sin(frame/60)+1)/2);
+    assert.ok(audio.rain.gain.events.length<=2);
+  }
+  assert.equal(audio.waterTarget,0);assert.ok(audio.rain.gain.targets<=40);assert.ok(audio.rainTarget>0);
+  audio.background=true;audio.update(1,.5);assert.equal(audio.waterTarget,.025);
+  await audio.toggle();
+});
+
+function answeredBird(){
+  for(let i=0;i<100;i++){const bird=callingBird(`reply-${i}`);if(distantReply(bird.pending))return bird;}
+  throw new Error('No answering fixture');
+}
+function movingWindow(){
+  const cottage=createCottageState(0,0);
+  cottage.pending={id:'window-1',actor:cottage.residentId,kind:'casement',room:'main',from:0,target:1,start:1000,motionStart:6000,end:10000};
+  return cottage;
+}
+
+test('leaf gusts share world time, leave substantial quiet, and attenuate in rain',()=>{
+  let quiet=0,peak=0;
+  for(let second=0;second<3600;second++){
+    const level=rustleLevel(0,second*1000);quiet+=level===0;peak=Math.max(peak,level);
+    assert.equal(level,rustleLevel(1700000000000,1700000000000+second*1000));
+    assert.ok(rustleLevel(0,second*1000,1)<=level);
+  }
+  assert.ok(quiet>3600*.7);assert.ok(peak>.1&&peak<=.22);
+  assert.equal(rustleLevel(undefined,1000),0);assert.equal(rustleLevel(0,NaN),0);
+});
+
+test('leaf automation stays bounded and hold silences it while retaining the water bed',async()=>{
+  const {audio,context,gain}=audioHarness();await audio.toggle();
+  let peak=0;
+  for(let frame=0;frame<1800;frame++){
+    context.currentTime=frame/30;
+    audio.update(1,0,{active:true,epoch:0,now:frame/30*1000,validUntil:100000});
+    peak=Math.max(peak,audio.rustleTarget);assert.ok(audio.rustle.gain.events.length<=2);
+  }
+  assert.ok(peak>0);assert.ok(audio.rustle.gain.targets<=120);
+  audio.hold();assert.equal(audio.rustle.gain.value,0);assert.ok(gain.targets>0);
+  audio.rustle.gain.value=.002;audio.hold();
+  assert.equal(audio.rustle.gain.value,0,'hold also cancels an envelope still fading toward zero');
+  await audio.toggle();
+});
+
+test('a distant answer survives WorldClient completion-boundary waits without replay',async()=>{
+  const {audio,context,oscillators}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
+  let elapsed=0;
+  const client=new WorldClient({clock:()=>elapsed});
+  assert.equal(client.accept({serverTime:5800,validUntil:12000,nextCommitAt:6600,
+    world:{id:'test',epoch:0,revision:1,nest:{stage:'built'},bird}}),true);
+  const tick=at=>{
+    elapsed=at-5800;context.currentTime=10+elapsed/1000;
+    const shown=client.snapshot;
+    audio.update(1,0,{bird:shown.world.bird,now:client.now(),active:!client.isExpired(),
+      waitingForCommit:client.needsRefresh(),validUntil:Math.min(shown.validUntil,shown.nextCommitAt)});
+  };
+  await audio.toggle();tick(5800);
+  assert.deepEqual(audio.pendingReply,reply);
+  for(const at of [6600,6800,7200]){
+    tick(at);
+    assert.equal(client.needsRefresh(),true);assert.equal(client.isExpired(),false);
+    assert.equal(client.now(),6599,'the display clock is held before the boundary');
+    assert.equal(audio.replyNodes.size,0);assert.deepEqual(audio.pendingReply,reply);
+  }
+  assert.equal(client.accept({serverTime:7200,validUntil:30000,nextCommitAt:30000,
+    world:{...client.snapshot.world,revision:2,bird:{...bird,pending:null}}}),true);
+  tick(7200);
+  assert.equal(audio.replyNodes.size,0);assert.deepEqual(audio.pendingReply,reply);
+  tick(reply.start-200);
+  assert.equal(audio.replyNodes.size,2);assert.equal(oscillators.length,5);
+  assert.ok(Math.abs(oscillators[3].starts[0]-(10+(reply.start-5800)/1000))<.00001);
+  for(let i=0;i<100;i++)tick(reply.start-100);
+  assert.equal(oscillators.length,5);
+  for(const voice of [...audio.replyNodes])voice.osc.onended();
+  assert.equal(audio.replyNodes.size,0);await audio.toggle();
+});
+
+test('commit waits silence details and require fresh timing before an answer',async()=>{
+  for(const late of [false,true]){
+    const {audio,context,oscillators}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
+    await audio.toggle();audio.update(1,0,display(bird));context.currentTime=1;
+    audio.update(1,0,{...display(bird,6599),waitingForCommit:true});
+    assert.deepEqual(audio.pendingReply,reply);assert.equal(audio.phraseNodes.size,0);
+    const before={...display({...bird,pending:null},reply.start-100),validUntil:30000,epoch:-25000,
+      cottage:movingWindow(),cottageActive:true,waitingForCommit:true};
+    before.cottage.pending.motionStart=reply.start;before.cottage.pending.end=reply.start+4000;
+    context.currentTime=4;audio.update(1,0,before);
+    assert.equal(oscillators.length,3,'waiting never schedules a reply or casement');
+    assert.equal(audio.rustleTarget,0);assert.deepEqual(audio.pendingReply,reply);
+    audio.update(1,0,{...before,now:reply.start+(late?1:-100),waitingForCommit:false});
+    assert.equal(audio.replyNodes.size,late?0:2);assert.equal(audio.pendingReply,null);
+    await audio.toggle();
+  }
+});
+
+test('commit waits cannot preserve replies across canceled visits or expired timing',async()=>{
+  for(const mode of ['mute','hidden','pause','study','expired','invalid']){
+    const {audio,context,setHidden}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);
+    await audio.toggle();audio.update(1,0,display(bird));context.currentTime=1;
+    const waiting={...display(bird,6599),waitingForCommit:true};
+    audio.update(1,0,waiting);assert.deepEqual(audio.pendingReply,reply);
+    if(mode==='mute'){await audio.toggle();await audio.toggle();}
+    else if(mode==='hidden'){setHidden(true);await audio.visibility();setHidden(false);await audio.visibility();}
+    else audio.update(1,0,{...waiting,...(mode==='invalid'?{validUntil:NaN}:{active:false})});
+    assert.equal(audio.pendingReply,null,mode);
+    audio.update(1,0,{...display({...bird,pending:null},reply.start-100),validUntil:30000});
+    assert.equal(audio.replyNodes.size,0,mode);await audio.toggle();
+  }
+});
+
+test('a commit wait before the audio call finishes cannot retain its answer',async()=>{
+  const {audio,context}=audioHarness(),bird=answeredBird();await audio.toggle();
+  audio.update(1,0,display(bird));assert.ok(audio.pendingReply);
+  context.currentTime=.1;
+  audio.update(1,0,{...display(bird,6599),waitingForCommit:true});
+  assert.equal(audio.pendingReply,null);assert.equal(audio.phraseNodes.size,0);
+  await audio.toggle();
+});
+
+test('missed calls, canceled visits, bad weather and short leases do not invent distant answers',async()=>{
+  for(const mode of ['late','hold','night','rain','lease','missed-reply','hidden','pause']){
+    const {audio,setHidden}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);await audio.toggle();
+    audio.update(1,0,display(bird,mode==='late'?6001:5800));
+    if(mode==='hold')audio.hold();
+    if(mode==='hidden'){setHidden(true);await audio.visibility();setHidden(false);await audio.visibility();}
+    if(mode==='pause')audio.update(1,0,{...display(bird),active:false});
+    bird.pending=null;
+    audio.update(mode==='night'?0:1,mode==='rain'?.5:0,{...display(bird,reply.start+(mode==='missed-reply'?1:-100)),validUntil:mode==='lease'?reply.start+50:30000});
+    assert.equal(audio.replyNodes.size,0,mode);await audio.toggle();
+  }
+});
+
+test('casement sound starts with committed motion, deduplicates, and releases nodes once',async()=>{
+  const {audio,context,oscillators}=audioHarness(),cottage=movingWindow(),before=structuredClone(cottage);
+  const frame={active:true,cottageActive:true,cottage,now:5800,validUntil:10000};
+  await audio.toggle();context.currentTime=4;
+  audio.update(1,0,{...frame,now:5000});assert.equal(oscillators.length,0);
+  audio.update(1,0,frame);assert.equal(audio.cottageNodes.size,1);assert.equal(oscillators[0].starts[0],4.2);
+  audio.update(1,0,structuredClone(frame));assert.equal(oscillators.length,1);assert.deepEqual(cottage,before);
+  const voice=[...audio.cottageNodes][0],ended=voice.osc.onended;let disconnects=0;
+  for(const node of [voice.osc,voice.gain,voice.filter])node.disconnect=()=>{disconnects++;};
+  audio.hold();audio.hold();ended();assert.equal(disconnects,3);assert.equal(audio.cottageNodes.size,0);
+  audio.update(1,0,frame);assert.equal(oscillators.length,1);await audio.toggle();
+});
+
+test('casement audio respects renderer, reduced-motion, lease and arrival boundaries',async()=>{
+  for(const mode of ['static','paused','late','lease','wrong-action','invalid']){
+    const {audio,oscillators}=audioHarness(),cottage=movingWindow();await audio.toggle();
+    if(mode==='wrong-action')cottage.pending.kind='light';
+    if(mode==='invalid')cottage.pending.motionStart=NaN;
+    audio.update(1,0,{active:mode!=='paused',cottageActive:mode!=='static',cottage,now:mode==='late'?6001:5800,validUntil:mode==='lease'?6100:10000});
+    assert.equal(oscillators.length,0,mode);await audio.toggle();
+  }
+});
+
+test('mute, hide and inactive display stop all new voices and preserve opt-in',async()=>{
+  for(const mode of ['mute','hidden','inactive','expired']){
+    const {audio,context,setHidden}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);await audio.toggle();
+    audio.update(1,0,display(bird));bird.pending=null;
+    context.currentTime=4;
+    const cottage=movingWindow();cottage.pending.motionStart=reply.start;cottage.pending.end=reply.start+4000;
+    const frame={...display(bird,reply.start-100),cottage,cottageActive:true,validUntil:30000};
+    audio.update(1,0,frame);assert.equal(audio.replyNodes.size,2);assert.equal(audio.cottageNodes.size,1);
+    if(mode==='mute')await audio.toggle();
+    else if(mode==='hidden'){setHidden(true);await audio.visibility();}
+    else audio.update(1,0,{...frame,...(mode==='expired'?{validUntil:frame.now}:{active:false})});
+    assert.equal(audio.replyNodes.size,0,mode);assert.equal(audio.cottageNodes.size,0,mode);
+    if(audio.enabled)await audio.toggle();
+  }
+});
+
+test('a renderer disappearing before the call sounds cannot leave a distant answer',async()=>{
+  const {audio,context}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);await audio.toggle();
+  audio.update(1,0,display(bird));assert.ok(audio.pendingReply);
+  context.currentTime=.05;
+  audio.update(1,0,{...display(bird,5850),birdActive:false});assert.equal(audio.pendingReply,null);
+  context.currentTime=4;bird.pending=null;
+  audio.update(1,0,{...display(bird,reply.start-100),validUntil:30000});assert.equal(audio.replyNodes.size,0);
+  await audio.toggle();
+});
+
+test('a shortened snapshot lease cancels a queued distant answer',async()=>{
+  const {audio,context}=audioHarness(),bird=answeredBird(),reply=distantReply(bird.pending);await audio.toggle();
+  audio.update(1,0,display(bird));context.currentTime=4;bird.pending=null;
+  const frame={...display(bird,reply.start-100),validUntil:30000};audio.update(1,0,frame);
+  assert.equal(audio.replyNodes.size,2);
+  audio.update(1,0,{...frame,validUntil:reply.start+50});assert.equal(audio.replyNodes.size,0);
+  audio.update(1,0,frame);assert.equal(audio.replyNodes.size,0);
+  await audio.toggle();
 });
 
 test('a rejected resume releases the transition without starting a phrase', async () => {

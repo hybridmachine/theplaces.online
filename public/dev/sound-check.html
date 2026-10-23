@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Sound signal checks</title>
+<style>body{margin:32px;background:#18281e;color:#edf0dc;font:16px/1.5 monospace}pre{white-space:pre-wrap}a{color:inherit}</style>
+<h1>Sound signal checks</h1><p>Silent native Web Audio rendering. This checks signal levels, not artistic quality.</p>
+<pre id="results">Rendering…</pre><a href="sound-study.html">Open the listening study</a>
+<script type="module">
+import {measureSoundMix,soundMixChecks} from './sound-mix-check.js';
+try{
+  const results=soundMixChecks(await measureSoundMix());
+  document.querySelector('#results').textContent=(results.every(r=>r.pass)?'PASS':'FAIL')+'\n'+navigator.userAgent+'\n\n'+results.map(r=>`${r.pass?'PASS':'FAIL'} ${r.name}\n  Peak: ${r.detail.peak.toFixed(4)} · Detail margin: ${r.detail.marginDb.toFixed(1)} dB`).join('\n\n');
+}catch(error){document.querySelector('#results').textContent='FAIL\n'+error.stack;}
+</script></html>

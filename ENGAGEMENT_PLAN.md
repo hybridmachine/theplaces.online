@@ -1,6 +1,6 @@
 # A View — quiet engagement
 
-Status: brainstorm recorded September 19, 2026; updated September 22. Weather traces, cottage life, and the familiar bird are implemented and merged ([PR #5](https://github.com/hybridmachine/a-view/pull/5), [PR #6](https://github.com/hybridmachine/a-view/pull/6), and [PR #7](https://github.com/hybridmachine/a-view/pull/7)). Continuous celestial motion is also merged in [PR #8](https://github.com/hybridmachine/a-view/pull/8). Local “Since you were here” field notes are now implemented on `codex/field-notes`, with validation linked below. The reports retain the human-viewing and physical-device coverage limits; production deployment is separate.
+Status: brainstorm recorded September 19, 2026; updated October 22. Weather traces, cottage life, and the familiar bird are implemented and merged ([PR #5](https://github.com/hybridmachine/a-view/pull/5), [PR #6](https://github.com/hybridmachine/a-view/pull/6), and [PR #7](https://github.com/hybridmachine/a-view/pull/7)). Continuous celestial motion is merged in [PR #8](https://github.com/hybridmachine/a-view/pull/8), field notes in [PR #9](https://github.com/hybridmachine/theplaces.online/pull/9), and “Keep this view” in [PR #10](https://github.com/hybridmachine/theplaces.online/pull/10). The first wider-ambience listening study is implemented locally. The reports retain the human-listening, viewing, and physical-device coverage limits; production deployment is separate.
 
 ## Creative direction
 
@@ -48,11 +48,17 @@ The existing bird now has a preferred oak perch, a sheltered resting location, a
 
 The [familiar bird implementation plan](BIRD_FAMILIARITY_IMPLEMENTATION_PLAN.md) details the art pilot, routine, version-4 migration, legacy nest handover, shared timing, occlusion, display modes, field-note facts, audio, delivery milestones, and acceptance checks. It preserves the completed nest and defers eggs, breeding, aging, and a complete species lifecycle to a separate researched plan.
 
-## Field notes that remember visits — implemented for review
+## Field notes that remember visits — implemented and merged
 
 The [field notes implementation plan](FIELD_NOTES_IMPLEMENTATION_PLAN.md) is implemented as a short, optional “Since you were here” passage in the existing notes panel. Browser-local visit memory supplies the interval; committed events supply the facts. A bounded history lookup preserves older milestones after they leave the latest-20 note list. Copy/layout fixtures, history selection, visit memory, display-mode integration, and focused checks are recorded in [field-notes validation](docs/field-notes-validation/README.md).
 
-“Keep this view,” the recommended addition after field notes, is now implemented in the checkout for review. The [storyboard](docs/storyboards/keep-this-view.pptx) covers the capture, optional personal note, and downloadable keepsake. The [implementation overview](README.md#keep-this-view) and [validation results](docs/keep-view-validation/README.md) describe capture fidelity, mode labels, browser-local lifetime, and recovery. Wider ambience, quiet coincidences, mist, a visible resident, and a researched bird lifecycle remain separate options. This ordering is a planning recommendation, not a commitment to build every brainstorm item.
+“Keep this view,” the recommended addition after field notes, is merged in PR #10. The [storyboard](docs/storyboards/keep-this-view.pptx) covers the capture, optional personal note, and downloadable keepsake. The [implementation overview](README.md#keep-this-view) and [validation results](docs/keep-view-validation/README.md) describe capture fidelity, mode labels, browser-local lifetime, and recovery.
+
+## Wider ambience — first listening study implemented locally
+
+The first [sound study](README.md#listening-by-the-lake) adds gust-driven leaves, sparse distant answers to heard bird calls, and a soft creak tied to the cottage's existing casement action. All remain opt-in, with generous gaps. A private listening page provides four short fixtures; [validation](docs/sound-validation/README.md) includes a rendered audio sample. The distant bird remains cosmetic ambience, and the cottage gains no invented door action or new resident behavior. Listening on real speakers/headphones and broader browser/device review remain before release.
+
+Quiet coincidences are the next brainstorm option. Mist, a visible resident, and a researched bird lifecycle remain separate extensions. This ordering is a planning recommendation, not a commitment to build every brainstorm item.
 
 ## Shared implementation principles
 
