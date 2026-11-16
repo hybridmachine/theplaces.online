@@ -1,0 +1,282 @@
+{
+  "results": [
+    {
+      "name": "Default page loads without three.js and hides #space",
+      "pass": true,
+      "detail": {
+        "threeRequests": [],
+        "spaceHidden": true,
+        "requests": 53
+      }
+    },
+    {
+      "name": "?space=1 arrives at the arrival pose",
+      "pass": true,
+      "detail": {
+        "state": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "arrival": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "gl": {
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+          "frame": 2,
+          "calls": 14,
+          "triangles": 242274,
+          "points": 0,
+          "lines": 0
+        }
+      }
+    },
+    {
+      "name": "Holding W for 2 s walks 2.2–3.2 m east",
+      "pass": true,
+      "detail": {
+        "east": 2.8007000000000004,
+        "drift": 1.7149341451859966e-16,
+        "heldSeconds": 2.00959225,
+        "expectedAtWalkingPace": 2.8134291499999997,
+        "before": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "after": {
+          "position": [
+            2.8007000000000004,
+            1.7149341451859966e-16
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "name": "Shift+W for 40 s from four headings stays on walkable ground",
+      "pass": true,
+      "detail": [
+        {
+          "yaw": 0,
+          "seconds": 40.086294499999994,
+          "samples": 161,
+          "unwalkable": [],
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            0,
+            23.999999999999968
+          ],
+          "travelled": 23.999999999999968
+        },
+        {
+          "yaw": 1.5707963267948966,
+          "seconds": 40.120900083,
+          "samples": 161,
+          "unwalkable": [],
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            25.440983004916887,
+            1.5578109202066774e-15
+          ],
+          "travelled": 25.440983004916887
+        },
+        {
+          "yaw": 3.141592653589793,
+          "seconds": 40.12994045800001,
+          "samples": 161,
+          "unwalkable": [],
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            1.0706236935641222e-15,
+            -8.74230589839888
+          ],
+          "travelled": 8.74230589839888
+        },
+        {
+          "yaw": 4.71238898038469,
+          "seconds": 40.1190585,
+          "samples": 161,
+          "unwalkable": [],
+          "start": [
+            0,
+            0
+          ],
+          "end": [
+            -13.999999999999984,
+            -2.5717582782094373e-15
+          ],
+          "travelled": 13.999999999999984
+        }
+      ]
+    },
+    {
+      "name": "Opening #about-dialog while W is held stops walking",
+      "pass": true,
+      "detail": {
+        "walkedBeforeDialog": 0.4659199999332433,
+        "dialogStart": {
+          "position": [
+            3.2666199999332437,
+            2.0002278634744879e-16
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "dialogEnd": {
+          "position": [
+            3.2666199999332437,
+            2.0002278634744879e-16
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "name": "After 3.5 s still, a reload returns to the same place",
+      "pass": true,
+      "detail": {
+        "stopped": {
+          "position": [
+            4.029393343614778,
+            -0.3043267903215342
+          ],
+          "yaw": 2.4500763266232344,
+          "pitch": 0.2
+        },
+        "remembered": {
+          "position": [
+            4.029393343614778,
+            -0.3043267903215342
+          ],
+          "yaw": 2.4500763266232344,
+          "pitch": 0.2
+        },
+        "storedBeforeReload": {
+          "version": 1,
+          "position": [
+            4.029393343614778,
+            -0.3043267903215342
+          ],
+          "yaw": 2.4500763266232344,
+          "pitch": 0.2,
+          "savedAt": 1794798228246
+        }
+      }
+    },
+    {
+      "name": "Forget visit memory returns the next visit to the arrival pose",
+      "pass": true,
+      "detail": {
+        "state": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "storedAfterForget": null
+      }
+    },
+    {
+      "name": "Forget visit memory on the default page forgets the place for the next 3D visit",
+      "pass": true,
+      "detail": {
+        "walkedState": {
+          "position": [
+            1,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "seeded": {
+          "version": 1,
+          "position": [
+            1,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0,
+          "savedAt": 1794798238548
+        },
+        "storedAfterForget": null,
+        "state": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "name": "Without WebGL2 the 2D view is shown",
+      "pass": true,
+      "detail": {
+        "spaceHidden": true,
+        "painting": true,
+        "fallback": true,
+        "webgl2Refused": 1,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "WebGL context loss returns to the 2D view within 2 s",
+      "pass": true,
+      "detail": {
+        "spaceHidden": true,
+        "painting": true,
+        "fallback": true,
+        "seconds": 0.02175
+      }
+    },
+    {
+      "name": "At 390 × 844 the vertical field of view is ≤ 75° and the frame is drawn",
+      "pass": true,
+      "detail": {
+        "fov": 75,
+        "width": 390,
+        "height": 844,
+        "centre": [
+          105,
+          115,
+          107,
+          255
+        ],
+        "corner": [
+          156,
+          172,
+          181,
+          255
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

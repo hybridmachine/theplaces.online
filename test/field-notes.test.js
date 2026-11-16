@@ -279,6 +279,18 @@ test('reset and forget notices clear only after a fresh live baseline is establi
   }
 });
 
+test('the storage sentence mentions the yard only while the 3D view is the painter',()=>{
+  const {a}=snapshots(),root=fakeRoot(),panel=new FieldNotes({root,memory:new VisitMemory({local:storage(),session:storage()})});
+  panel.update(a,{live:true,valid:true});
+  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory stays in this browser.');
+  panel.inYard=true;panel.render();
+  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory and your place in the yard stay in this browser.');
+  panel.inYard=false;panel.render();
+  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory stays in this browser.');
+  const unavailable=new FieldNotes({root:fakeRoot(),memory:new VisitMemory({})});unavailable.inYard=true;unavailable.update(a,{live:true,valid:true});
+  assert.equal(unavailable.root.querySelector('#visit-storage').textContent,'Visits cannot be remembered on this browser. These notes are available for this visit.');
+});
+
 test('client accepts a newer replacement world but rejects malformed notes identity',()=>{
   const one=new WorldStore(':memory:',epoch),two=new WorldStore(':memory:',epoch+100_000);
   try{

@@ -61,3 +61,8 @@ docs/coincidences-validation/*.png
 !docs/coincidences-validation/ripple-day.png
 !docs/coincidences-validation/portrait-default.png
 docs/coincidences-validation/*.webm
+
+# Regenerable walkable-yard captures; retain the arrival and remembered-place frames.
+docs/space-validation/*.png
+!docs/space-validation/arrival.png
+!docs/space-validation/remembered.png

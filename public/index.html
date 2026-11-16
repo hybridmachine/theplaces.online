@@ -16,6 +16,7 @@
     <img id="fallback" src="/assets/lakeside-day.png" alt="An old stone cottage beneath a spreading oak. A worn path curves through wildflowers toward a still lake, with soft hills beyond.">
     <canvas id="painting" aria-hidden="true"></canvas>
     <canvas id="life" aria-hidden="true"></canvas>
+    <canvas id="space" aria-hidden="true" hidden></canvas>
     <div class="edge-shade" aria-hidden="true"></div>
     <p id="scene-description" class="sr-only">Connecting to Stillwater Valley.</p>
     <p id="scene-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -35,6 +36,7 @@
       <p class="conditions"><span id="season">Late spring</span><span class="separator">·</span><span id="weather">A gentle afternoon</span><span class="separator">·</span><time id="world-time">15:30</time></p>
     </div>
     <div class="tools" role="group" aria-label="View controls">
+      <button class="tool" id="arrival-button" aria-label="Return to the painting's view" data-tip="Return to the painting's view" hidden><span class="icon" data-icon="frame"></span><span class="tool-label">Return</span></button>
       <button class="tool" id="follow-button" aria-label="Follow this place" aria-pressed="false" data-tip="Follow this place"><span class="icon" data-icon="bookmark"></span><span class="tool-label">Follow</span></button>
       <button class="tool" id="notes-button" aria-label="Open field notes" data-tip="Field notes"><span class="icon" data-icon="book"></span><span class="tool-label">Field notes</span><span id="note-dot" hidden></span></button>
       <button class="tool" id="keep-button" aria-label="Keep this view" data-tip="Keep this view"><span class="icon" data-icon="camera"></span><span class="tool-label">Keep this view</span></button>
