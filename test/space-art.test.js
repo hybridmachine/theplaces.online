@@ -4,7 +4,7 @@ import {readFileSync, readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {SPACE_ART, artFiles, cellRect} from '../shared/lakeside-space-art.js';
 
-const BUNDLE_COMPLETE = false;
+const BUNDLE_COMPLETE = true;
 
 test('every art slot names one distinct WebP file', () => {
   const files = artFiles();

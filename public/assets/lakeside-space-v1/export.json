@@ -54,8 +54,8 @@
       "alpha": false,
       "seed": 17,
       "source": "painted",
-      "bytes": 87054,
-      "sha256": "63801f5758ddd6e5d5398f757813e99132a8d4cdc01236d28ad7def82c3a8580"
+      "bytes": 80250,
+      "sha256": "6eddae74cd63e7f2ff055b4121c3b08a40f2bd59a4255fa6c5998c83fd6a4db0"
     },
     {
       "slot": "bark",
@@ -100,6 +100,39 @@
       "source": "painted",
       "bytes": 56902,
       "sha256": "f612333ca318dc1bd6858fe6fec35e54faf6bf68859525a13631f6559e804983"
+    },
+    {
+      "slot": "door",
+      "file": "door.webp",
+      "width": 256,
+      "height": 512,
+      "alpha": false,
+      "seed": 47,
+      "source": "painted",
+      "bytes": 9444,
+      "sha256": "0d0b7f17101ad294e93d5e91b4860ec856a2dba3cfec964c849ffc205f81acda"
+    },
+    {
+      "slot": "window",
+      "file": "window.webp",
+      "width": 256,
+      "height": 256,
+      "alpha": false,
+      "seed": 53,
+      "source": "painted",
+      "bytes": 6364,
+      "sha256": "a4ee9593864189e7ddd77a8516df864174a676e85079f847f93054b1de1772af"
+    },
+    {
+      "slot": "cards",
+      "file": "cards.webp",
+      "width": 2048,
+      "height": 2048,
+      "alpha": true,
+      "seed": 59,
+      "source": "painted",
+      "bytes": 296870,
+      "sha256": "b005786a271cb8530d09ce113fca8f65f1fc5cbdb2cae4b21ef9e61e72ba09cb"
     }
   ]
 }

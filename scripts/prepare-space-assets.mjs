@@ -31,10 +31,12 @@ try {
   const page = await browser.newPage();
   page.on('pageerror', e => console.error('page error:', e.message));
   await page.route(`${origin}**`, async route => {
-    const path = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
-    if (path === '') return route.fulfill({contentType: types.html, body: '<!doctype html><meta charset="utf-8"><title>painter</title>'});
-    if (!served(path) || path.includes('..') || !existsSync(at(path))) return route.fulfill({status: 404, body: ''});
-    route.fulfill({contentType: types[path.split('.').pop()] ?? 'application/octet-stream', body: await readFile(at(path))});
+    try {
+      const path = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
+      if (path === '') return await route.fulfill({contentType: types.html, body: '<!doctype html><meta charset="utf-8"><title>painter</title>'});
+      if (!served(path) || path.includes('..') || !existsSync(at(path))) return await route.fulfill({status: 404, body: ''});
+      await route.fulfill({contentType: types[path.split('.').pop()] ?? 'application/octet-stream', body: await readFile(at(path))});
+    } catch { await route.fulfill({status: 404, body: ''}).catch(() => {}); }
   });
   await page.goto(origin);
   await page.evaluate(async () => {
@@ -78,18 +80,29 @@ try {
   console.log(`${files.length} files, ${total} bytes of ${SPACE_ART.budgetBytes}`);
   if (total > SPACE_ART.budgetBytes) { failed = true; console.error('over budget'); }
 
-  // Contact sheet: each texture tiled 2 × 2 at reduced size with its slot name, so seams show.
+  // Contact sheet: each surface tiled 2 × 2 so seams show, each panel once, and the card atlas over a mid-grey and a sky-blue ground.
   const sheet = await page.evaluate(async tiles => {
-    const cell = 256, pad = 12, label = 22, cols = 4, rows = Math.ceil(tiles.length / cols);
-    const c = document.createElement('canvas'); c.width = cols * (2 * cell + pad) + pad; c.height = rows * (2 * cell + label + pad) + pad;
-    const g = c.getContext('2d'); g.fillStyle = '#e8e4da'; g.fillRect(0, 0, c.width, c.height);
-    for (const [k, t] of tiles.entries()) {
-      const image = new Image(); image.src = `data:image/webp;base64,${t.data}`; await image.decode();
-      const s = cell / Math.max(t.width, t.height), w = t.width * s, h = t.height * s;
-      const x = pad + (k % cols) * (2 * cell + pad), y = pad + Math.floor(k / cols) * (2 * cell + label + pad);
-      if (t.alpha) for (let q = 0; q < 64; q++) { g.fillStyle = (q + (q >> 3)) % 2 ? '#bbb' : '#fff'; g.fillRect(x + (q % 8) * 64, y + (q >> 3) * 64, 64, 64); }
-      for (const [i, j] of [[0, 0], [1, 0], [0, 1], [1, 1]]) g.drawImage(image, x + i * w, y + j * h, w, h);
-      g.fillStyle = '#222'; g.font = '16px sans-serif'; g.fillText(`${t.slot} (${t.width}×${t.height}, ${t.source})`, x, y + 2 * cell + 17);
+    const cell = 80, box = 2 * cell, atlas = 400, pad = 10, label = 18, cols = 5;
+    const small = tiles.filter(t => !t.alpha), cards = tiles.filter(t => t.alpha), rows = Math.ceil(small.length / cols);
+    const c = document.createElement('canvas'); c.width = Math.max(cols * (box + pad), cards.length * 2 * (atlas + pad)) + pad;
+    c.height = rows * (box + label + pad) + (cards.length ? atlas + label + pad : 0) + pad;
+    const g = c.getContext('2d'); g.fillStyle = '#e8e4da'; g.fillRect(0, 0, c.width, c.height); g.font = '13px sans-serif';
+    const load = async t => { const image = new Image(); image.src = `data:image/webp;base64,${t.data}`; await image.decode(); return image; };
+    const caption = (t, x, y, more = '') => { g.fillStyle = '#222'; g.fillText(`${t.slot} ${t.width}×${t.height} ${t.source}${more}`, x, y); };
+    for (const [k, t] of small.entries()) {
+      const image = await load(t), x = pad + (k % cols) * (box + pad), y = pad + Math.floor(k / cols) * (box + label + pad);
+      if (t.slot in {door: 1, window: 1}) { const s = box / Math.max(t.width, t.height); g.drawImage(image, x, y, t.width * s, t.height * s); }
+      else for (const [i, j] of [[0, 0], [1, 0], [0, 1], [1, 1]]) g.drawImage(image, x + i * cell, y + j * cell, cell, cell);
+      caption(t, x, y + box + 14);
+    }
+    for (const [k, t] of cards.entries()) { // cut at alpha 0.5, as the scene draws cards
+      const cut = document.createElement('canvas'); cut.width = cut.height = atlas; const cg = cut.getContext('2d', {willReadFrequently: true});
+      cg.drawImage(await load(t), 0, 0, atlas, atlas); const d = cg.getImageData(0, 0, atlas, atlas);
+      for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] >= 128 ? 255 : 0; cg.putImageData(d, 0, 0);
+      for (const [q, [ground, name]] of [['#808080', 'grey'], ['#9fb8d0', 'sky']].entries()) {
+        const x = pad + (2 * k + q) * (atlas + pad), y = pad + rows * (box + label + pad);
+        g.fillStyle = ground; g.fillRect(x, y, atlas, atlas); g.drawImage(cut, x, y); caption(t, x, y + atlas + 14, ` over ${name}, cut at 0.5`);
+      }
     }
     return [...await window.encode(c, 'image/png')];
   }, await Promise.all(files.map(async f => ({...f, data: (await readFile(new URL(f.file, out))).toString('base64')}))));
