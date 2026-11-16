@@ -11,9 +11,12 @@ import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
 import {SkyDome} from './sky-dome.js';
 import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
+import {PainterlyPass} from './painterly-pass.js';
 
 export {toThree};
 
+// The painterly pass at full or reduced filter resolution, or off (the scene drawn straight to the canvas).
+const PASS_SCALE = {full: 1, light: .6, off: null};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
 // Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
@@ -35,7 +38,7 @@ export class SpaceView {
     this.keyCancel = () => { if (this.keys.moving()) this.glideFrom = null; };
     document.addEventListener('visibilitychange', this.visibility); addEventListener('keydown', this.keyCancel);
     this.birdRenderer = {valid: false}; this.birdActive = false; this.cottageActive = false; this.coincidenceActive = false;
-    this.renderer = null; this.disposed = false; this.failed = false;
+    this.renderer = null; this.pass = null; this.passMode = 'full'; this.disposed = false; this.failed = false;
     this.media = matchMedia('(prefers-reduced-motion: reduce)'); this.motion = !this.media.matches;
     // As in Painting: reduced motion holds the celestial and cloud-motion clocks; light and weather stay live.
     this.frozenMotion = null; this.lastMotion = null; this.frozenCelestial = null; this.lastCelestial = null; this.celestialStudy = null;
@@ -47,8 +50,10 @@ export class SpaceView {
     this.media.addEventListener('change', this.motionChanged);
     this.resize = () => {
       if (!this.renderer) return;
-      this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
+      const ratio = Math.min(devicePixelRatio || 1, 1.6);
+      this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(innerWidth, innerHeight, false);
+      this.pass.setSize(innerWidth, innerHeight, ratio);
       this.camera.aspect = innerWidth / innerHeight; this.camera.fov = verticalFov(this.camera.aspect);
       this.camera.updateProjectionMatrix();
     };
@@ -85,10 +90,16 @@ export class SpaceView {
     this.colours = {day: {}, night: {}};
     for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
+    this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode);
     this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();
     await this.sky.load(); // never rejects; a missing atlas leaves a clear sky
     return !this.disposed;
+  }
+  setPass(mode) {
+    if (!(mode in PASS_SCALE)) throw new Error(`Unknown painterly pass mode ${mode}`);
+    this.passMode = mode;
+    if (PASS_SCALE[mode]) this.pass?.setScale(PASS_SCALE[mode]);
   }
   panBy() {} // Dragging pans only the 2D painting; here it looks (lookBy).
   // Grab-style: dragging right turns the view left, dragging down tilts it up.
@@ -140,7 +151,8 @@ export class SpaceView {
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
     this.yard.setSky({zenith, horizon});
     this.applyLight(c, w, bodies, horizon);
-    this.renderer.render(this.scene, this.camera);
+    if (this.passMode === 'off') this.renderer.render(this.scene, this.camera);
+    else this.pass.render(this.scene, this.camera);
     return conditions;
   }
   // Hemisphere light from the sky, one directional light from the sun by day and the moon by night, fog in the horizon colour.
@@ -164,6 +176,7 @@ export class SpaceView {
     removeEventListener('resize', this.resize); this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
     this.yard?.dispose(); this.art?.dispose(); this.sky?.dispose(); this.hemisphere?.dispose(); this.direct?.dispose();
+    this.pass?.dispose(); this.pass = null;
     this.renderer?.dispose(); this.renderer = null;
   }
 }
