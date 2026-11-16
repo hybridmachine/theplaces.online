@@ -1,4 +1,4 @@
-import {toThree} from './blockout.js';
+import {toThree} from './geometry.js';
 import {skyLighting} from '../../shared/sky.js';
 
 // The shared sky drawn round the camera: clear-sky gradient, stars, sun and moon, then two cloud layers.

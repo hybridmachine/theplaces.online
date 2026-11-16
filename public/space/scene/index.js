@@ -1,16 +1,15 @@
 import {buildCabin} from './cabin.js';
 import {buildCover} from './cover.js';
 import {buildGround} from './ground.js';
-import {blockoutHills} from '../blockout.js';
+import {buildHills} from './hills.js';
 import {buildOak, buildWoods} from './trees.js';
 
 // The painted yard as named parts: terrain, lake, wall, cabin, oak, woods, cover, hills. `art` is the loaded bundle
-// (art-loader.js); the scene uses its textures but leaves them to the bundle's own dispose. The hills are still
-// the blockout's flat stand-in until their painted builder replaces them.
+// (art-loader.js); the scene uses its textures but leaves them to the bundle's own dispose.
 export function buildScene(THREE, {space, dressing, art}) {
   const ground = buildGround(THREE, {space, dressing, art}), cover = buildCover(THREE, {space, dressing, art}).object;
   const parts = {terrain: ground.terrain, lake: ground.lake, wall: ground.wall, cabin: buildCabin(THREE, {space, dressing, art}).object, oak: buildOak(THREE, {space, dressing, art}).object,
-    woods: buildWoods(THREE, {space, dressing, art}).object, cover, hills: blockoutHills(THREE, space)};
+    woods: buildWoods(THREE, {space, dressing, art}).object, cover, hills: buildHills(THREE, {space, dressing, art}).object};
   const group = new THREE.Group(); group.name = 'yard';
   group.add(...Object.values(parts));
   return {group, parts,

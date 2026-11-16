@@ -129,3 +129,16 @@ test('ground cover draws exactly what the layout scatters, in three draw calls',
   }
   assert.equal(cover.children.length, 3); scene.dispose();
 });
+import {existsSync} from 'node:fs';
+test('the blockout is gone and the far hills close the view all round', () => {
+  assert.equal(existsSync(new URL('../public/space/blockout.js', import.meta.url)), false);
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), hills = scene.parts.hills;
+  for (const [x, y] of [[0, 0], [-10, 20], [30, 20], [-12, -8]]) {
+    const eye = [x, y, terrainHeight(S, x, y) + S.eyeHeight];
+    for (let k = 0; k < 72; k++) {
+      const a = k / 72 * Math.PI * 2, far = [x + Math.sin(a) * 2000, y + Math.cos(a) * 2000, eye[2] + 2000 * Math.tan(.5 * Math.PI / 180)];
+      assert.ok(firstHit(hills, eye, far).hit, `gap in the hills at bearing ${k * 5} from ${x},${y}`);
+    }
+  }
+  scene.dispose();
+});
