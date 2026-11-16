@@ -2,7 +2,7 @@ import { clockLabel, viewConditions } from '/shared/world.js';
 import { Painting } from './painting.js';
 import { Ambience } from './sound.js';
 import { WorldClient } from './world-client.js';
-import { sceneText } from './scene-description.js';
+import { SceneDescriber } from './scene-description.js';
 import {cottageDescription} from '/shared/cottage.js';
 import {birdDescription} from '/shared/bird.js';
 import {FieldNotes} from './field-notes.js';
@@ -76,6 +76,9 @@ document.addEventListener('fullscreenchange',()=>{$('#fullscreen-button').setAtt
 document.querySelectorAll('[data-light]').forEach(button=>button.onclick=()=>{if(!snapshot)return;audio.hold();study=button.dataset.light;$('#about-dialog').close();document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateLabels();wake();});
 $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed','false'));if(pausedAt!==null)$('#pause-button').click();updateLabels();wake();};
 
+const setText=(selector,text)=>{if($(selector).textContent!==text)$(selector).textContent=text;};
+const scene=new SceneDescriber({describe:text=>setText('#scene-description',text),announce:text=>setText('#scene-announcement',text)});
+const sceneOptions=()=>({study,paused:pausedAt!==null,disconnected:client.isExpired(),staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
 function accept(data){
   // WorldClient has checked ordering and anchored the shared clock before this callback.
   snapshot=data;connection='live';
@@ -97,9 +100,7 @@ function updateLabels(){
   const nest=shownSnapshot.world.nest;
   $('#nest-detail').textContent=nest.stage==='built'?'A completed nest rests in the oak.':`${nest.materials} strands gathered. The work continues.`;
   $('#bird-detail').textContent=study?'The bird is omitted from this private light study.':birdDescription(shownSnapshot.world.bird,shownSnapshot.world.action,now(),{reducedMotion:!painter.motion,unavailable:!painter.birdRenderer.valid});
-  const {description,announcement}=sceneText(shownSnapshot,now(),{study,paused:pausedAt!==null,disconnected:stale,staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
-  if($('#scene-description').textContent!==description)$('#scene-description').textContent=description;
-  if($('#scene-announcement').textContent!==announcement)$('#scene-announcement').textContent=announcement;
+  scene.update(shownSnapshot,now(),sceneOptions());
 }
 function frame(timestamp){
   requestAnimationFrame(frame);if(document.hidden||timestamp-lastRender<1000/30)return;
@@ -110,6 +111,8 @@ function frame(timestamp){
   if(snapshot){
     const displayedNow=now(),shown=pausedSnapshot??snapshot,result=painter.render(shown,displayedNow,study);
     rendered=result;
+    // Ripple visibility follows the drawn frame, not the four-second label timer.
+    scene.rendered(shown,displayedNow,sceneOptions());
     fieldNotes.update(shown,{live:pausedAt===null&&!study,valid:!client.needsRefresh(),study:!!study,paused:pausedAt!==null,visible:!document.hidden});
     if(result)audio.update(result.calendar.light,result.weather.rain,{bird:shown.world.bird,cottage:shown.world.cottage,epoch:shown.world.epoch,now:displayedNow,
       active:pausedAt===null&&!study&&!client.isExpired(),waitingForCommit:client.needsRefresh(),

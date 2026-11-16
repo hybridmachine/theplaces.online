@@ -10,6 +10,8 @@ SWITCHING=0
 PREVIOUS=
 BACKUP_WORK=
 BACKUP_PENDING=
+LAST_BACKUP=
+ACTIVATION_BACKUP=
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
 set_link() {
@@ -58,8 +60,26 @@ backup() {
     # Some SQLite builds retain an unused SHM file even after switching to DELETE.
     rm -f "$temporary-wal" "$temporary-shm"
     BACKUP_PENDING=
+    LAST_BACKUP=$destination
     printf 'Backup: %s\n' "$destination"
     find "$BACKUP_DIR" -maxdepth 1 -type f -name 'world-*.sqlite' -mtime +14 -delete
+}
+# A release that fails after startup may already have migrated the world to a
+# version the previous release cannot open. Put back the backup taken just
+# before activation, keeping the replaced files for inspection.
+restore_world() {
+    local backup_file=$1 kept file
+    [[ -f $backup_file ]] || return 1
+    [[ $(sqlite3 -readonly "$backup_file" 'PRAGMA quick_check;') == ok ]] || return 1
+    [[ $(sqlite3 -readonly "$backup_file" 'SELECT id FROM world;') == stillwater ]] || return 1
+    systemctl stop a-view || true
+    kept="$BACKUP_DIR/failed-activation-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    mkdir -m 0700 "$kept"
+    for file in "$DATA_DIR/world.sqlite" "$DATA_DIR/world.sqlite-wal" "$DATA_DIR/world.sqlite-shm"; do
+        if [[ -e $file ]]; then mv "$file" "$kept/"; fi
+    done
+    install -o a-view -g a-view -m 0640 "$backup_file" "$DATA_DIR/world.sqlite"
+    printf 'World restored from %s; the replaced files are in %s.\n' "$backup_file" "$kept" >&2
 }
 recover() {
     local status=$?
@@ -72,6 +92,9 @@ recover() {
             systemctl reset-failed a-view || true
             if set_link current "$PREVIOUS" && systemctl restart a-view && health; then
                 printf 'Previous release restored and healthy.\n' >&2
+            elif [[ -n $ACTIVATION_BACKUP ]] && printf 'Previous release is unhealthy with the current world; restoring the pre-activation backup.\n' >&2 &&
+                restore_world "$ACTIVATION_BACKUP" && { systemctl reset-failed a-view || true; } && systemctl restart a-view && health; then
+                printf 'Previous release restored and healthy with the pre-activation world.\n' >&2
             else
                 printf 'Recovery failed. Inspect sudo journalctl -u a-view.\n' >&2
             fi
@@ -87,7 +110,9 @@ activate() {
     local release=$1
     PREVIOUS=$(readlink -f "$APP_ROOT/current" || true)
     [[ -d $PREVIOUS ]] || PREVIOUS=
+    LAST_BACKUP=
     backup
+    ACTIVATION_BACKUP=$LAST_BACKUP
     SWITCHING=1
     set_link current "$release"
     systemctl reset-failed a-view || true

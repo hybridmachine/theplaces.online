@@ -22,3 +22,20 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
     announcement: `${prefix}${conditions}${disconnected ? ' Connection lost; holding the last consistent view.' : ''}`,
   };
 }
+
+// The label timer and snapshot arrival can run before the frame that starts or
+// stops drawing a ripple. This keeps the description in step with what was drawn.
+export class SceneDescriber {
+  constructor({describe,announce}){this.describe=describe;this.announce=announce;this.ripple=null;}
+  update(snapshot,now,options,{announce=true}={}){
+    const {description,announcement}=sceneText(snapshot,now,options);
+    this.ripple=!!options.coincidenceActive;this.describe(description);
+    if(announce)this.announce(announcement);
+  }
+  // Call after each frame with the rendered snapshot and its displayed time.
+  // The live announcement keeps the cadence of update().
+  rendered(snapshot,now,options){
+    if(!!options.coincidenceActive===this.ripple)return false;
+    this.update(snapshot,now,options,{announce:false});return true;
+  }
+}
