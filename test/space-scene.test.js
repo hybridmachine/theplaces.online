@@ -48,3 +48,51 @@ test('sheets face the side asked for, tubes face outward, and merging keeps ever
   assert.equal(merged.index.count, 4 * 2 * 6 + t.index.count + 6);
   assert.ok(['position', 'normal', 'uv', 'color'].every(a => merged.getAttribute(a)));
 });
+
+import {eyePosition} from '../shared/walker.js';
+import {terrainHeight} from '../shared/space.js';
+const fromThree = v => [v.x, -v.z, v.y];
+
+// First surface hit by a ray from `eye` toward `target`, among the meshes of `objects` (one object or an array), left in place in the scene.
+function firstHit(objects, eye, target) {
+  const list = [].concat(objects); for (const o of list) o.updateWorldMatrix(true, true);
+  const origin = new THREE.Vector3(...toThree(eye)), dir = new THREE.Vector3(...toThree(target)).sub(origin).normalize();
+  const ray = new THREE.Raycaster(origin, dir); ray.params.Points = {threshold: 0};
+  const hits = [];
+  for (const object of list) object.traverse(o => { if (o.isMesh) { const side = o.material.side; o.material.side = THREE.DoubleSide; hits.push(...ray.intersectObject(o, false).map(h => ({...h, side}))); o.material.side = side; } });
+  hits.sort((a, b) => a.distance - b.distance);
+  return {hit: hits[0], dir};
+}
+test('the cabin is solid from every side a visitor can stand', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin, [cx, cy] = S.cabin.center;
+  const solid = ['walls', 'roof', 'chimney'].map(name => cabin.getObjectByName(name));
+  for (let k = 0; k < 36; k++) {
+    const a = k / 36 * Math.PI * 2, x = cx + Math.sin(a) * 9, y = cy + Math.cos(a) * 9;
+    const eye = [x, y, terrainHeight(S, x, y) + S.eyeHeight];
+    for (const z of [.6, 1.5, 2.4]) {
+      const {hit, dir} = firstHit(solid, eye, [cx, cy, terrainHeight(S, cx, cy) + z]);
+      assert.ok(hit, `nothing drawn at bearing ${k * 10}, height ${z}`);
+      const facing = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0;
+      assert.ok(facing || hit.side === THREE.DoubleSide, `inside-out surface at bearing ${k * 10}, height ${z} on ${hit.object.name}`);
+      assert.notEqual(hit.side === THREE.DoubleSide && hit.object.name === 'walls', true, 'walls must be single-sided');
+    }
+  }
+  scene.dispose();
+});
+test('the cabin walls stay inside the collider, clear of where a visitor can stand', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), walls = scene.parts.cabin.getObjectByName('walls');
+  const box = S.colliders.find(c => c.type === 'box'), u = [Math.sin(box.yaw), Math.cos(box.yaw)], v = [Math.cos(box.yaw), -Math.sin(box.yaw)];
+  walls.updateMatrixWorld(true);
+  const p = walls.geometry.getAttribute('position'), w = new THREE.Vector3(); let checked = 0;
+  for (let i = 0; i < p.count; i++) {
+    w.fromBufferAttribute(p, i).applyMatrix4(walls.matrixWorld); const [x, y, z] = fromThree(w);
+    if (z > terrainHeight(S, x, y) + S.eyeHeight + .5) continue;
+    const dx = x - box.center[0], dy = y - box.center[1];
+    assert.ok(Math.abs(dx * u[0] + dy * u[1]) <= box.half[0] - .15 && Math.abs(dx * v[0] + dy * v[1]) <= box.half[1] - .15, `${x},${y}`); checked++;
+  }
+  assert.ok(checked > 50); scene.dispose();
+});
+test('the cabin has a door and two windows in front and one small window behind', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  assert.equal(scene.parts.cabin.getObjectByName('openings').children.length, 4); scene.dispose();
+});

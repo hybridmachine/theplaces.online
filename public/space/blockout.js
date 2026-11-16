@@ -1,11 +1,11 @@
 import {terrainHeight} from '../../shared/space.js';
 import {toThree} from './geometry.js';
 
-// The flat-coloured stand-ins for the parts of the yard not painted yet: cabin, oak, woods and hills. Each builder makes its
+// The flat-coloured stand-ins for the parts of the yard not painted yet: oak, woods and hills. Each builder makes its
 // own materials; dispose a part by disposing the geometry and material of every mesh in it.
 export {toThree};
 
-const COLOURS = {stone: '#b9a67c', slate: '#5f6468', dark: '#2e2a25', bark: '#4a3f33', leaf: '#4f6340', hills: '#7f958f', woods: '#4b5b43'};
+const COLOURS = {bark: '#4a3f33', leaf: '#4f6340', hills: '#7f958f', woods: '#4b5b43'};
 const DEG = Math.PI / 180, MIN_GROUND = .3;
 const materials = (THREE, ...names) => Object.fromEntries(names.map(k => [k, new THREE.MeshLambertMaterial({color: COLOURS[k]})]));
 // A unit icosahedron as a flat list of triangle corners, for blobs.
@@ -44,50 +44,6 @@ function solid() {
       return mesh;
     }
   };
-}
-
-// A vertical prism over a convex footprint (any winding) from `low` to `high`, with or without a top.
-function prism(s, footprint, low, high, top = true) {
-  const mid = footprint.reduce((m, p) => [m[0] + p[0] / footprint.length, m[1] + p[1] / footprint.length], [0, 0]);
-  const lo = Array.isArray(low) ? low : footprint.map(() => low), hi = Array.isArray(high) ? high : footprint.map(() => high);
-  footprint.forEach((a, i) => {
-    const j = (i + 1) % footprint.length, b = footprint[j], m = [(a[0] + b[0]) / 2 - mid[0], (a[1] + b[1]) / 2 - mid[1], 0];
-    s.face([[...a, lo[i]], [...b, lo[j]], [...b, hi[j]], [...a, hi[i]]], m);
-  });
-  if (top) s.face(footprint.map((p, i) => [...p, hi[i]]), [0, 0, 1]);
-}
-
-export function blockoutCabin(THREE, space) {
-  const m = materials(THREE, 'stone', 'slate', 'dark');
-  const {center: c, size: [long, short], yaw, wallHeight, ridgeHeight} = space.cabin;
-  const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], L = long / 2, W = short / 2;
-  const floor = terrainHeight(space, ...c);
-  const at = (a, b, z = 0) => [c[0] + a * u[0] + b * v[0], c[1] + a * u[1] + b * v[1], z];
-  // Walls reach below the lowest ground along the footprint, so the slope shows no gap under them.
-  let base = floor;
-  for (let k = 0; k <= 8; k++) for (const [a, b] of [[-L + k * L / 4, -W], [-L + k * L / 4, W], [-L, -W + k * W / 4], [L, -W + k * W / 4]])
-    base = Math.min(base, terrainHeight(space, ...at(a, b)));
-  base -= .2;
-  const eave = floor + wallHeight, ridge = floor + ridgeHeight;
-  const walls = solid(), roof = solid(), openings = solid();
-  prism(walls, [at(-L, -W), at(L, -W), at(L, W), at(-L, W)].map(p => p.slice(0, 2)), base, eave, false);
-  for (const e of [-1, 1]) walls.face([at(e * L, -W, eave), at(e * L, W, eave), at(e * L, 0, ridge)], [e * u[0], e * u[1], 0]);
-  for (const side of [-1, 1]) roof.face([at(-L, side * W, eave), at(L, side * W, eave), at(L, 0, ridge), at(-L, 0, ridge)], [side * v[0], side * v[1], 1]);
-  // Chimney: a stone stack rising through the roof near one gable end.
-  const ch = [[L - 1.1, -.4], [L - .3, -.4], [L - .3, .4], [L - 1.1, .4]].map(([a, b]) => at(a, b).slice(0, 2));
-  prism(walls, ch, eave, ridge + 1);
-  // Door and windows: dark cards just proud of the long face that looks toward the arrival position.
-  const front = dot([v[0], v[1], 0], [space.arrival.position[0] - c[0], space.arrival.position[1] - c[1], 0]) > 0 ? 1 : -1;
-  const card = (sign, a, halfWidth, z0, z1) => {
-    const b = sign * (W + .02), out = [sign * v[0], sign * v[1], 0];
-    openings.face([at(a - halfWidth, b, z0), at(a + halfWidth, b, z0), at(a + halfWidth, b, z1), at(a - halfWidth, b, z1)], out);
-  };
-  card(front, 0, .5, floor, floor + 2);
-  for (const a of [-2.6, 2.6]) card(front, a, .5, floor + .9, floor + 1.9);
-  card(-front, 0, .3, floor + 1.2, floor + 1.8);
-  const group = new THREE.Group(); group.name = 'cabin';
-  group.add(walls.mesh(THREE, m.stone), roof.mesh(THREE, m.slate), openings.mesh(THREE, m.dark));
-  return group;
 }
 
 export function blockoutOak(THREE, space) {
