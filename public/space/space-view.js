@@ -1,24 +1,36 @@
 import * as THREE from '../assets/vendor/three-0.170.0.module.js';
 import {buildBlockout, toThree} from './blockout.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
-import {eyePosition} from '../../shared/walker.js';
+import {WALK, eyePosition, glide, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
 import {SkyDome} from './sky-dome.js';
+import {WalkKeys} from './walk-keys.js';
+import {PlaceMemory} from './place-memory.js';
 
 export {toThree};
 
-const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009;
+const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
 // Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
   night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
+const pose = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch});
 const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 export class SpaceView {
   constructor(canvas, {space = LAKESIDE_SPACE, sky = SCENES[0].sky, onFailure} = {}) {
     this.canvas = canvas; this.space = space; this.skyConfig = sky; this.onFailure = onFailure;
-    this.state = {position: [...space.arrival.position], yaw: space.arrival.yaw, pitch: space.arrival.pitch};
+    this.state = pose(space.arrival);
+    // Walking: held keys, drag deltas gathered since the last frame, an optional glide home, and the remembered place.
+    this.keys = new WalkKeys(window, {blocked: () => [...document.querySelectorAll('dialog')].some(d => d.open)});
+    let storage = null; try { storage = localStorage; } catch {}
+    this.memory = new PlaceMemory({storage, space});
+    this.placed = false; this.look = [0, 0]; this.looked = false; this.glideFrom = null; this.glideStart = 0; this.lastStep = null;
+    this.visibility = () => { if (document.hidden) this.keys.release(); };
+    // Registered after WalkKeys, so a walking key tap shorter than a frame still cancels a glide.
+    this.keyCancel = () => { if (this.keys.moving()) this.glideFrom = null; };
+    document.addEventListener('visibilitychange', this.visibility); addEventListener('keydown', this.keyCancel);
     this.birdRenderer = {valid: false}; this.birdActive = false; this.cottageActive = false; this.coincidenceActive = false;
     this.renderer = null; this.disposed = false; this.failed = false;
     this.media = matchMedia('(prefers-reduced-motion: reduce)'); this.motion = !this.media.matches;
@@ -46,6 +58,7 @@ export class SpaceView {
   }
   async init() {
     if (this.disposed) return false;
+    this.state = pose(this.memory.load() ?? this.space.arrival); this.placed = true;
     const gl = this.canvas.getContext('webgl2', {antialias: true, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
@@ -62,9 +75,37 @@ export class SpaceView {
     await this.sky.load(); // never rejects; a missing atlas leaves a clear sky
     return !this.disposed;
   }
-  panBy() {} // Dragging pans only the 2D painting; walking arrives in a later task.
+  panBy() {} // Dragging pans only the 2D painting; here it looks (lookBy).
+  // Grab-style: dragging right turns the view left, dragging down tilts it up.
+  lookBy(dx, dy) {
+    this.look[0] -= dx * LOOK_PER_PIXEL; this.look[1] += dy * LOOK_PER_PIXEL;
+    this.looked = true; this.glideFrom = null;
+  }
+  returnToArrival() {
+    this.look = [0, 0];
+    if (this.motion) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
+    else { this.glideFrom = null; this.state = pose(this.space.arrival); }
+  }
+  // Before init has loaded the remembered place, the arrival pose must not overwrite it.
+  flushPlace() { if (this.placed) this.memory.flush(this.state); }
+  forgetPlace() { this.memory.forget(); }
+  // Advances the visitor by the real time since the previous frame; the world's clock (paused or studied) plays no part.
+  step() {
+    const t = performance.now(), dt = this.lastStep === null ? 0 : (t - this.lastStep) / 1000;
+    this.lastStep = t;
+    const keys = this.keys.input(), walking = this.keys.moving(), look = this.look, looked = this.looked;
+    this.look = [0, 0]; this.looked = false;
+    if (walking) this.glideFrom = null;
+    if (this.glideFrom) {
+      const k = (t - this.glideStart) / (WALK.glideSeconds * 1000);
+      this.state = glide(this.glideFrom, this.space.arrival, k);
+      if (k >= 1) this.glideFrom = null;
+    } else this.state = stepWalker(this.space, this.state, {...keys, look}, dt);
+    this.memory.note(this.state, walking || looked || this.glideFrom !== null);
+  }
   render(snapshot, now, study = null) {
     if (!this.renderer || this.disposed || this.failed || !snapshot) return;
+    this.step();
     const epoch = snapshot.world.epoch, conditions = viewConditions(epoch, now, study), {calendar: c, weather: w} = conditions;
     // A deliberate study selection may choose a new still sky in reduced motion.
     if (study !== this.celestialStudy) { this.frozenCelestial = null; this.celestialStudy = study; }
@@ -101,6 +142,7 @@ export class SpaceView {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
     removeEventListener('resize', this.resize); this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
     this.blockout?.dispose(); this.sky?.dispose(); this.hemisphere?.dispose(); this.direct?.dispose();

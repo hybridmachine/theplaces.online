@@ -36,6 +36,7 @@
       <p class="conditions"><span id="season">Late spring</span><span class="separator">·</span><span id="weather">A gentle afternoon</span><span class="separator">·</span><time id="world-time">15:30</time></p>
     </div>
     <div class="tools" role="group" aria-label="View controls">
+      <button class="tool" id="arrival-button" aria-label="Return to the painting's view" data-tip="Return to the painting's view" hidden><span class="icon" data-icon="frame"></span><span class="tool-label">Return</span></button>
       <button class="tool" id="follow-button" aria-label="Follow this place" aria-pressed="false" data-tip="Follow this place"><span class="icon" data-icon="bookmark"></span><span class="tool-label">Follow</span></button>
       <button class="tool" id="notes-button" aria-label="Open field notes" data-tip="Field notes"><span class="icon" data-icon="book"></span><span class="tool-label">Field notes</span><span id="note-dot" hidden></span></button>
       <span class="tool-divider"></span>
@@ -77,7 +78,7 @@
     <h3 class="notes-section-heading">Recent notes</h3>
     <ol id="event-list" class="event-list"></ol>
     <p class="panel-footnote">These notes follow what has happened in the shared world.</p>
-    <p id="visit-storage" class="subtle">Visit memory stays in this browser.</p>
+    <p id="visit-storage" class="subtle">Visit memory and your place in the yard stay in this browser.</p>
     <button id="forget-visits" class="notes-link">Forget visit memory</button>
   </dialog>
 

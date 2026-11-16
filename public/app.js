@@ -15,7 +15,8 @@ const icons={
  muted:'<path d="m11 4-5 4H3v8h3l5 4Z"/><path d="m16 9 5 6m0-6-5 6"/>',
  pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 4 12 8-12 8Z"/>',
  expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
- close:'<path d="m6 6 12 12M18 6 6 18"/>',check:'<path d="m4 12 5 5L20 6"/>'
+ close:'<path d="m6 6 12 12M18 6 6 18"/>',check:'<path d="m4 12 5 5L20 6"/>',
+ frame:'<path d="M3 5h18v14H3Z"/><path d="m3 16 5-5 4 4 3-3 6 6"/>'
 };
 function icon(element,name){element.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;}
 document.querySelectorAll('[data-icon]').forEach(element=>icon(element,element.dataset.icon));
@@ -64,6 +65,9 @@ if(!document.fullscreenEnabled)$('#fullscreen-button').hidden=true;
 $('#fullscreen-button').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('Fullscreen is not available in this browser.');}};
 document.addEventListener('fullscreenchange',()=>{$('#fullscreen-button').setAttribute('aria-label',document.fullscreenElement?'Leave fullscreen':'Enter fullscreen');});
 document.querySelectorAll('[data-light]').forEach(button=>button.onclick=()=>{if(!snapshot)return;audio.hold();study=button.dataset.light;$('#about-dialog').close();document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateLabels();wake();});
+$('#arrival-button').onclick=()=>painter.returnToArrival?.();
+// FieldNotes owns the onclick; this also forgets the visitor's place in the yard.
+$('#forget-visits').addEventListener('click',()=>painter.forgetPlace?.());
 $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed','false'));if(pausedAt!==null)$('#pause-button').click();updateLabels();wake();};
 
 function accept(data){
@@ -105,13 +109,14 @@ function frame(timestamp){
   }
   if(timestamp-lastLabels>4000){lastLabels=timestamp;updateLabels();}
 }
-let dragging=false,previousX=0;
-$('#world').addEventListener('pointerdown',e=>{dragging=true;previousX=e.clientX;$('#world').setPointerCapture(e.pointerId);});
-$('#world').addEventListener('pointermove',e=>{if(dragging){painter.panBy(e.clientX-previousX);previousX=e.clientX;}});
+let dragging=false,previousX=0,previousY=0;
+$('#world').addEventListener('pointerdown',e=>{dragging=true;previousX=e.clientX;previousY=e.clientY;$('#world').setPointerCapture(e.pointerId);});
+// The 3D view looks with a drag; the painting pans.
+$('#world').addEventListener('pointermove',e=>{if(dragging){const dx=e.clientX-previousX,dy=e.clientY-previousY;if(painter.lookBy)painter.lookBy(dx,dy);else painter.panBy(dx);previousX=e.clientX;previousY=e.clientY;}});
 $('#world').addEventListener('pointerup',()=>dragging=false);$('#world').addEventListener('pointercancel',()=>dragging=false);
 document.addEventListener('visibilitychange',()=>{
   audio.visibility().catch(error=>console.warn('Audio visibility update failed',error));
-  if(document.hidden){fieldNotes.visible=false;fieldNotes.cancel();fieldNotes.memory.flush(true);}
+  if(document.hidden){painter.flushPlace?.();fieldNotes.visible=false;fieldNotes.cancel();fieldNotes.memory.flush(true);}
   else refresh().catch(()=>{connection='reconnecting';updateLabels();});
 });
 addEventListener('storage',event=>fieldNotes.storageChanged(event));
@@ -120,7 +125,11 @@ async function openSpace(){
   try{const {SpaceView}=await import('./space/space-view.js');return new SpaceView($('#space'),{onFailure:()=>usePainting().catch(error=>console.error(error))});}
   catch(error){console.warn('The 3D view is unavailable; showing the painting.',error);return new Painting($('#painting'),$('#life'));}
 }
-function showSpace(on){$('#space').hidden=!on;for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
+let walkHinted=false;
+function showSpace(on){
+  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#world').classList.toggle('walkable',on);
+  if(on&&!walkHinted){walkHinted=true;toast('Walk with W A S D. Drag to look.');}
+  for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
 function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
 async function startPainter(){
   if(painter instanceof Painting)return painter.init();
@@ -138,4 +147,4 @@ stream.onerror=()=>{connection='reconnecting';updateLabels();wake();};
 setInterval(()=>{if(!document.hidden)client.recover(connection!=='live').catch(()=>{connection='reconnecting';updateLabels();});},1000);
 wake();
 // A bfcache suspension keeps the renderer; permanent navigation releases it.
-addEventListener('pagehide',event=>{fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted)painter.dispose();});
+addEventListener('pagehide',event=>{painter.flushPlace?.();fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted)painter.dispose();});

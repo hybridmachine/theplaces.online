@@ -100,7 +100,7 @@ export class FieldNotes {
     this.$('#retry-notes').hidden=!this.error;
     this.$('#notes-mode').textContent=this.study?'Shared-world history · This light study is private.':this.paused?'Notes held with your paused view.':!this.valid?'Showing the last available history.':'';
     this.$('#notes-mode').hidden=!this.$('#notes-mode').textContent;
-    this.$('#visit-storage').textContent=this.memory.available?'Visit memory stays in this browser.':'Visits cannot be remembered on this browser. These notes are available for this visit.';
+    this.$('#visit-storage').textContent=this.memory.available?'Visit memory and your place in the yard stay in this browser.':'Visits cannot be remembered on this browser. These notes are available for this visit.';
     const key=`${this.snapshot.notes?.id}:${this.snapshot.events?.[0]?.seq??0}:${this.snapshot.world.epoch}`;
     if(key!==this.listKey){
       this.listKey=key;const list=this.$('#event-list');list.replaceChildren();
