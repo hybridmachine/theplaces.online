@@ -91,3 +91,9 @@ Prepared September 20, 2026. This release retains the original procedural Canvas
 `shared/lakeside-bird.js` records native-pixel nest, oak-perch, roof-perch, and shelter anchors, reversible cubic flight curves, continuous perspective scale, and an eight-point fixed-bark occluder. These routes avoid the moving foliage patches. `public/bird-renderer.js` draws only the small subject into a 96 × 96 scratch canvas, removes coverage hidden by the fixed trunk, then composites it with the painting's crop and pan transform. It never repairs or repaints scenery over another layer. The roof body anchor was lowered four native pixels after contact review so its feet meet the ridge.
 
 The voice reuses the existing synthesized three-note motif, now scheduled from the bird's committed shared action. It is an artistic sound study without a species attribution. [Route and perch evidence](docs/bird-validation/README.md) records the review and remaining device limits.
+
+## Quiet lake ripple, version 1
+
+Prepared September 23, 2026. The ripple uses procedural displacement of the existing registered lake brushwork and a small broken-arc light/dark contribution. No new generated imagery or runtime texture is added. `shared/lakeside-coincidences.js` fixes three open-water ellipses in native artwork coordinates; `public/ripple-shader.js` defines the bounded wave shape. Shape variation comes from the committed episode seed. All original paintings and optional bundles remain unchanged.
+
+The effect has zero contribution at both endpoints and stays inside each approved water footprint. The largest footprint is 64 × 20 native pixels. The [location sheet](docs/coincidences-validation/locations.png) and [daytime frame](docs/coincidences-validation/ripple-day.png) show the production-renderer study. These are shader-generated study captures, not replacement painting assets.

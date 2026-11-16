@@ -54,3 +54,10 @@ docs/field-notes-validation/*.png
 !docs/field-notes-validation/long-absence.png
 !docs/field-notes-validation/portrait.png
 !docs/field-notes-validation/narrow-portrait.png
+
+# Regenerable ripple study frames and real-speed recordings.
+docs/coincidences-validation/*.png
+!docs/coincidences-validation/locations.png
+!docs/coincidences-validation/ripple-day.png
+!docs/coincidences-validation/portrait-default.png
+docs/coincidences-validation/*.webm

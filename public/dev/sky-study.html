@@ -24,6 +24,12 @@ aside{position:fixed;top:14px;left:14px;width:290px;max-height:calc(100vh - 28px
 <label>Horizon alignment <input id="horizon" type="range" min=".2" max=".6" value=".43" step=".005"></label>
 </details>
 <label>Bird action seconds <input id="birdTime" type="range" min="0" max="9" step=".01" value="0"></label>
+<details open><summary>Quiet ripple study</summary>
+<label>Location <select id="rippleLocation"><option value="">No ripple</option value="shore-reflection">Shore reflection</option><option value="open-water">Open water</option><option value="near-water">Near water</option></select></label>
+<label>Ripple seconds <input id="rippleTime" type="range" min="0" max="10" step=".01" value="4"></label>
+<button id="ripplePlay">Play one ripple</button>
+<label><input id="rippleGuides" type="checkbox"> Show approved water footprints</label>
+</details>
 <label><input id="birdGuides" type="checkbox"> Show bird anchors, routes, and fixed bark</label>
 <label>Surface memory <select id="surface"><option value="dry">Dry ground</option><option value="wet">After rain</option><option value="drying">Drying</option></select></label>
 <label>Main room light <input id="mainLight" type="range" min="0" max="1" step=".05" value="0"></label>

@@ -4,12 +4,16 @@ import { calendar, realTime, SCENES, viewConditions } from '/shared/world.js';
 import { runFoliagePixelChecks } from './foliage-checks.js';
 import {surfaceFixture} from '/shared/surface-weather.js';
 import {birdFixture} from '/shared/bird.js';
+import {coincidenceFixture} from '/shared/coincidences.js';
 import {celestialPose} from '/shared/sky.js';
 import {DEG,horizontalDirection} from '/shared/celestial.js';
 import {SKY_CAMERA,projectDirection,intersectsView} from '/shared/celestial-projection.js';
 
 const $=id=>document.getElementById(id);
 export const fixtures={
+  'Quiet ripple':{hour:15.5,cover:.18,motion:12,rippleLocation:'shore-reflection',rippleTime:4},
+  'Ripple at dusk':{hour:19.5,cover:.18,motion:12,rippleLocation:'shore-reflection',rippleTime:4},
+  'Ripple in rain':{hour:15.5,cover:.9,motion:12,rippleLocation:'shore-reflection',rippleTime:4},
   'Equinox sunrise':{day:80,hour:6.48,cover:.12,fixed:false},
   'Summer sunrise':{day:171,hour:4.65,cover:.12,fixed:false},
   'Winter sunrise':{day:354,hour:8.6,cover:.12,fixed:false},
@@ -48,6 +52,7 @@ const painter=new Painting($('painting'),$('life'));
 const snapshot={world:{epoch:0,nest:{materials:6},action:null}};
 const state={hour:0,cover:0,time:1000,motion:1000,moonX:.78,moonY:.16,debug:0,fixed:true,far:true,near:true,rain:0,playing:false,foliageWind:null,foliageRest:false,foliagePilot:false,foliageGuides:false,surface:'dry',mainLight:0,secondLight:0,opening:0};
 Object.assign(state,{bird:null,birdTime:0,birdGuides:false});
+Object.assign(state,{rippleLocation:'',rippleTime:4,ripplePlaying:false,rippleGuides:false});
 const cameraDefaults={bearing:SKY_CAMERA.bearing/DEG,pitch:SKY_CAMERA.pitch/DEG,fov:SKY_CAMERA.horizontalFov/DEG,horizon:SKY_CAMERA.centerY};
 Object.assign(state,{day:135,calendarPlaying:false,calendarRate:720,skyGuides:false,...cameraDefaults});
 let lastFrame=0,lastMotionFrame=0,lastUpdate=0;
@@ -62,10 +67,18 @@ function render(){
     camera,celestialTime:selected.calendar.total,
     surface:surfaceFixture(state.surface),
     bird:birdFixture(state.bird,state.birdTime*1000),
+    coincidence:state.rippleLocation?coincidenceFixture(state.rippleTime,state.rippleLocation):null,
     cottagePose:{main:state.mainLight,second:state.secondLight,open:state.opening},
     moon:state.fixed?{x:state.moonX,y:state.moonY,phase:.5,visible:true}:null,debug:state.debug,visibleLayers:[+state.far,+state.near],
     foliageWind:state.foliageWind,foliageRest:state.foliageRest,foliageOnly:state.foliagePilot?['oak-east','grass-shore-west']:null});
   if(state.skyGuides&&painter.celestialState)drawSkyGuides(selected.calendar,camera);
+  if(state.rippleGuides){
+    const ctx=painter.ctx;ctx.save();ctx.strokeStyle='#ffe4a0';ctx.fillStyle='#ffe4a0';ctx.lineWidth=1;ctx.font='12px system-ui';
+    for(const [id,p]of Object.entries(painter.scene.coincidences.locations)){
+      const [x,y]=painter.point(p.center[0]/painter.scene.width,p.center[1]/painter.scene.height);
+      ctx.beginPath();ctx.ellipse(x,y,p.radius[0]*painter.scale,p.radius[1]*painter.scale,0,0,Math.PI*2);ctx.stroke();ctx.fillText(id,x-20,y-15);
+    }ctx.restore();
+  }
   if(state.foliageGuides){
     const ctx=painter.ctx;ctx.save();ctx.strokeStyle='#ffe4a0';ctx.fillStyle='#ffe4a0';ctx.font='12px system-ui';
     for(const p of painter.scene.foliage.patches){
@@ -142,10 +155,12 @@ function sync(){
   for(const name of ['mainLight','secondLight','opening'])$(name).value=state[name];
   $('birdTime').value=state.birdTime;$('birdGuides').checked=state.birdGuides;
   $('skyGuides').checked=state.skyGuides;
+  $('rippleLocation').value=state.rippleLocation;$('rippleTime').value=state.rippleTime;$('rippleGuides').checked=state.rippleGuides;
+  $('ripplePlay').textContent=state.ripplePlaying?'Pause ripple':'Play one ripple';
   $('calendarPlay').textContent=state.calendarPlaying?'Pause sky':'Play sky';
   render();
 }
-function fixture(name){Object.assign(state,{day:135,fixed:true,...cameraDefaults,calendarPlaying:false,foliageWind:null,foliageRest:false,foliagePilot:false,surface:'dry',mainLight:0,secondLight:0,opening:0,bird:null,birdTime:0},fixtures[name],{time:1000,rain:name==='Daytime overcast'?.7:0,moonX:.78,moonY:.16});$('fixture').value=name;sync();}
+function fixture(name){Object.assign(state,{day:135,fixed:true,...cameraDefaults,calendarPlaying:false,foliageWind:null,foliageRest:false,foliagePilot:false,surface:'dry',mainLight:0,secondLight:0,opening:0,bird:null,birdTime:0,rippleLocation:'',rippleTime:4,ripplePlaying:false},fixtures[name],{time:1000,rain:['Daytime overcast','Ripple in rain'].includes(name)?.7:0,moonX:.78,moonY:.16});$('fixture').value=name;sync();}
 $('fixture').onchange=()=>fixture($('fixture').value);
 for(const name of ['hour','cover','time','motion','moonX','moonY','debug','day','calendarRate','bearing','pitch','fov','horizon'])$(name).oninput=()=>{const value=+$(name).value;if(Number.isFinite(value)){state[name]=value;render();}};
 for(const name of ['fixed','far','near','foliageRest','foliagePilot','foliageGuides'])$(name).oninput=()=>{state[name]=$(name).checked;render();};
@@ -154,6 +169,10 @@ $('surface').oninput=()=>{state.surface=$('surface').value;render();};
 for(const name of ['mainLight','secondLight','opening'])$(name).oninput=()=>{state[name]=+$(name).value;render();};
 $('birdTime').oninput=()=>{state.birdTime=+$('birdTime').value;render();};
 $('birdGuides').oninput=()=>{state.birdGuides=$('birdGuides').checked;render();};
+$('rippleLocation').oninput=()=>{state.rippleLocation=$('rippleLocation').value;render();};
+$('rippleTime').oninput=()=>{state.rippleTime=+$('rippleTime').value;state.ripplePlaying=false;sync();};
+$('rippleGuides').oninput=()=>{state.rippleGuides=$('rippleGuides').checked;render();};
+$('ripplePlay').onclick=()=>{state.ripplePlaying=!state.ripplePlaying;if(state.ripplePlaying){state.rippleTime=0;state.rippleLocation||='shore-reflection';}sync();};
 $('play').onclick=()=>{state.playing=!state.playing;$('play').textContent=state.playing?'Pause crossing':'Play crossing';};
 $('calendarPlay').onclick=()=>{state.calendarPlaying=!state.calendarPlaying;state.fixed=false;sync();};
 $('skyGuides').oninput=()=>{state.skyGuides=$('skyGuides').checked;render();};
@@ -165,6 +184,7 @@ $('world').onpointerup=$('world').onpointercancel=()=>{drag=null;};
 addEventListener('keydown',e=>{if(e.key.toLowerCase()==='h'&&!/input|select/i.test(e.target.tagName))document.querySelector('aside').classList.toggle('hidden');});
 function frame(timestamp){
   requestAnimationFrame(frame);if(document.hidden||timestamp-lastFrame<1000/30)return;
+  if(state.ripplePlaying&&lastMotionFrame){state.rippleTime=Math.min(10,state.rippleTime+Math.min(1,(timestamp-lastMotionFrame)/1000));$('rippleTime').value=state.rippleTime;if(state.rippleTime===10){state.ripplePlaying=false;$('ripplePlay').textContent='Play one ripple';}}
   if(state.playing&&lastMotionFrame){const elapsed=Math.min(1,(timestamp-lastMotionFrame)/1000);state.time+=elapsed;state.motion+=elapsed;state.birdTime+=elapsed;}
   if(state.calendarPlaying&&lastMotionFrame){const hours=state.hour+Math.min(1,(timestamp-lastMotionFrame)/1000)*state.calendarRate/3600;
     state.day+=Math.floor(hours/24);state.hour=hours%24;$('day').value=state.day;$('hour').value=state.hour;}
@@ -173,7 +193,8 @@ function frame(timestamp){
   if(timestamp-lastUpdate>1000){lastUpdate=timestamp;$('celestial-status').textContent=celestialStatus();$('state').textContent=JSON.stringify({version:2,...state,ready:painter.ready,failure:painter.failure,
     layers:painter.cloudState,stats:painter.renderer?.stats,foliageFailure:painter.foliageFailure,foliage:painter.foliageState,foliageStats:painter.foliageRenderer?.stats},null,2);}
 }
-await painter.init();fixture('Equinox sunrise');requestAnimationFrame(frame);
+await painter.init();const requestedFixture=new URL(location.href).searchParams.get('fixture');
+fixture(Object.hasOwn(fixtures,requestedFixture)?requestedFixture:'Equinox sunrise');requestAnimationFrame(frame);
 addEventListener('pagehide',()=>painter.dispose(),{once:true});
 
 // All numeric fixtures use the production SkyRenderer and FRAGMENT shader.

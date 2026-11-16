@@ -60,6 +60,12 @@ The first [sound study](README.md#listening-by-the-lake) adds gust-driven leaves
 
 Quiet coincidences are the next brainstorm option. Mist, a visible resident, and a researched bird lifecycle remain separate extensions. This ordering is a planning recommendation, not a commitment to build every brainstorm item.
 
+## Occasional, quiet coincidences — implemented for review
+
+The first release in the [quiet coincidences implementation plan](QUIET_COINCIDENCES_IMPLEMENTATION_PLAN.md) is implemented: a brief fish ripple subtly disturbs the painted lake at one of three authored water locations. Sparse, condition-dependent opportunities follow shared world time, with no arrival trigger, sound cue, field note, or unread indicator. The art pilot, version-5 continuity model, and automated checks are recorded in [coincidences validation](docs/coincidences-validation/README.md). Human viewing and physical-device review remain before deployment.
+
+The drifting leaf and window light remain separate later pilots. The leaf needs a plausible arrival, drift, and exit; a window highlight needs compatible sun/pane geometry and cloud transmission. Neither should be introduced as an arbitrary animation detached from the place's conditions.
+
 ## Shared implementation principles
 
 - **One world and one history.** Consequential changes originate in the server simulation and survive restarts and unobserved time. Browsers sample that history rather than creating their own versions.

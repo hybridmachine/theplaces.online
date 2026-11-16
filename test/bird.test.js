@@ -150,7 +150,7 @@ test('v3 upgrade preserves active, future, final, and historical deliveries with
       const history=store.db.prepare('SELECT * FROM events ORDER BY seq').all();store.close();
       store=new WorldStore(file,upgradeAt);
       const migrated=JSON.parse(store.db.prepare('SELECT state FROM world').get().state);
-      assert.equal(migrated.version,4);assert.deepEqual(migrated.action,old.action);assert.deepEqual(migrated.nest,old.nest);
+      assert.equal(migrated.version,5);assert.deepEqual(migrated.action,old.action);assert.deepEqual(migrated.nest,old.nest);
       assert.deepEqual(migrated.environment,old.environment);assert.deepEqual(migrated.cottage,old.cottage);
       assert.deepEqual(store.db.prepare('SELECT * FROM events ORDER BY seq').all(),history);
       assert.equal(migrated.bird.introducedAt,upgradeAt);

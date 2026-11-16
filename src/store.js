@@ -4,9 +4,10 @@ import { advanceSurface, createSurfaceState, surfaceTime, validSurfaceState, MAX
 import {createCottageState, validCottageState, cottageBoundary, decideCottage, completeCottage} from '../shared/cottage.js';
 import {createBirdState,validBirdState,birdBoundary,decideBird,completeBird} from '../shared/bird.js';
 import {initializeNotes,notesHistory,summarizeNotes} from './notes-store.js';
+import {createCoincidenceState,validCoincidenceState,coincidenceBoundary,decideCoincidence,completeCoincidence} from '../shared/coincidences.js';
 
 export const MAX_WORLD_BOUNDARIES=120_000;
-export const nextCommitAt=state=>Math.min(state.action?.end??Infinity,birdBoundary(state.bird),cottageBoundary(state.cottage));
+export const nextCommitAt=state=>Math.min(state.action?.end??Infinity,birdBoundary(state.bird),cottageBoundary(state.cottage),coincidenceBoundary(state.coincidences));
 
 export class WorldStore {
   constructor(path, now = Date.now()) {
@@ -18,7 +19,7 @@ export class WorldStore {
     try {
       if (!this.db.prepare('SELECT id FROM world WHERE id=?').get('stillwater')) {
         const start = now + 12_000;
-        const state = { id: 'stillwater', version: 4, epoch: now, updatedAt: now, environment: createSurfaceState(now), cottage:createCottageState(now,now), bird:createBirdState(now), nest: { id: 'oak-nest-01', materials: 3, stage: 'building' }, action: { id: 'delivery-4', start, end: start + ACTION_DURATION }, revision: 1 };
+        const state = { id: 'stillwater', version: 5, epoch: now, updatedAt: now, environment: createSurfaceState(now), cottage:createCottageState(now,now), bird:createBirdState(now), coincidences:createCoincidenceState(now,now), nest: { id: 'oak-nest-01', materials: 3, stage: 'building' }, action: { id: 'delivery-4', start, end: start + ACTION_DURATION }, revision: 1 };
         this.db.prepare('INSERT INTO world VALUES (?,?)').run('stillwater', JSON.stringify(state));
         this.db.prepare('INSERT INTO events(id,at,type,text) VALUES (?,?,?,?)').run('world-opened', now, 'world.opened', 'Our first view of Stillwater. A small nest is already taking shape in the old oak.');
       }
@@ -34,7 +35,10 @@ export class WorldStore {
       if(current.version===3){
         current.version=4;current.bird=createBirdState(Math.max(now,current.updatedAt),current.nest.stage!=='built');current.revision++;
       }
-      if (current.version !== 4 || !validSurfaceState(current.environment) || !validCottageState(current.cottage) || !validBirdState(current.bird) ||
+      if(current.version===4){
+        current.version=5;current.coincidences=createCoincidenceState(current.epoch,Math.max(now,current.updatedAt));current.revision++;
+      }
+      if (current.version !== 5 || !validSurfaceState(current.environment) || !validCottageState(current.cottage) || !validBirdState(current.bird) || !validCoincidenceState(current.coincidences) ||
         (current.bird.mode==='routine'&&(current.action||current.nest.stage!=='built'))) {
         throw new Error('Unsupported world version or environment');
       }
@@ -51,7 +55,7 @@ export class WorldStore {
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const state = JSON.parse(this.db.prepare('SELECT state FROM world WHERE id=?').get('stillwater').state);
-      if (state.version !== 4) throw new Error('Unsupported world version');
+      if (state.version !== 5) throw new Error('Unsupported world version');
       let changed = false;
       const target=Math.min(now,surfaceTime(state.environment)+MAX_SURFACE_TICKS*SURFACE_TICK_MS);
       let processed=0,lastBoundary=state.updatedAt;
@@ -62,8 +66,8 @@ export class WorldStore {
       const insertEvent=this.db.prepare('INSERT INTO events(id,at,type,text,payload,noteVisible) VALUES (?,?,?,?,?,?)');
       const record=event=>insertEvent.run(event.id,event.at,event.type,event.text,JSON.stringify(event.payload),event.noteVisible);
       let insertDelivery;
-      // Canonical ties: environment, nest delivery, bird/cottage completion,
-      // bird/cottage decision. No subsystem runs ahead during catch-up.
+      // Canonical ties: environment, nest, bird/cottage/coincidence completion,
+      // bird/cottage/coincidence decision. Existing relative order is preserved.
       while (nextCommitAt(state)<=target && processed<MAX_WORLD_BOUNDARIES) {
         const at=nextCommitAt(state);advanceEnvironment(at);lastBoundary=at;processed++;
         if(state.action&&state.action.end===at){
@@ -90,11 +94,19 @@ export class WorldStore {
           record(event);
           state.revision++;changed=true;
         }
+        if(state.coincidences.pending?.end===at){
+          const result=completeCoincidence(state.coincidences,at);state.coincidences=result.state;
+          record(result.event);state.revision++;changed=true;
+        }
         if(state.bird.nextDecisionAt===at){
           const result=decideBird(state.bird,state.epoch,at,{building:!!state.action||state.nest.stage!=='built'});
           state.bird=result.state;if(result.event)record(result.event);state.revision++;changed=true;
         }
         if(state.cottage.nextDecisionAt===at){state.cottage=decideCottage(state.cottage,state.epoch,at);state.revision++;changed=true;}
+        if(state.coincidences.nextDecisionAt===at){
+          const result=decideCoincidence(state.coincidences,state.epoch,at);state.coincidences=result.state;
+          if(result.event)record(result.event);state.revision++;changed=true;
+        }
         state.updatedAt=Math.max(state.updatedAt,at);
       }
       advanceEnvironment(nextCommitAt(state)<=target?lastBoundary:target);

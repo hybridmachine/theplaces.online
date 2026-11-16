@@ -1,5 +1,6 @@
 import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {WorldStore} from '../src/store.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{}),...(process.env.SKY_GPU==='metal'?{args:['--enable-gpu','--use-gl=angle','--use-angle=metal']}:{} )});
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4174',directory='docs/weather-validation';
@@ -92,7 +93,7 @@ try{
   }
   const visitor=await browser.newPage();
   visitor.on('pageerror',error=>errors.push(`visitor: ${error.message}`));
-  const seed=await (await visitor.request.get(`${base}/api/world`)).json();
+  const store=new WorldStore(':memory:',1_800_000_000_000),seed=store.snapshot(1_800_000_000_000);store.close();
   let response=structuredClone(seed);
   await visitor.route('**/api/world',route=>route.fulfill({json:response}));
   await visitor.route('**/api/stream',route=>route.abort());
@@ -102,7 +103,8 @@ try{
   await visitor.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
   await visitor.waitForFunction(()=>document.querySelector('#scene-description').textContent.includes('shallow hollow'));
   check('Environmental revisions keep field notes quiet',await visitor.locator('#note-dot').evaluate(node=>node.hidden));
-  response={...response,serverTime:response.serverTime+1000,events:[{seq:999,id:'test-note',at:response.serverTime,type:'test',text:'A committed observation.'},...response.events]};
+  const note={seq:response.notes.head.seq+1,id:'test-note',at:response.serverTime+1000,type:'test',text:'A committed observation.'};
+  response={...response,serverTime:note.at,notes:{...response.notes,head:{seq:note.seq,id:note.id}},events:[note,...response.events]};
   await visitor.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
   await visitor.waitForFunction(()=>!document.querySelector('#note-dot').hidden);
   await visitor.locator('#notes-button').click();

@@ -8,6 +8,7 @@ import {loadCottageAssets, CottageRenderer} from './cottage-renderer.js';
 import {sampleCottage, cottageFixture, smokePuffs} from '/shared/cottage.js';
 import {sampleBird} from '/shared/bird.js';
 import {BirdRenderer} from './bird-renderer.js';
+import {sampleCoincidence} from '/shared/coincidences.js';
 
 export class Painting {
   constructor(canvas, lifeCanvas, { scene = SCENES[0], fallback = document.querySelector('#fallback') } = {}) {
@@ -99,6 +100,7 @@ export class Painting {
   }
   render(snapshot,now,study=null,preview=null){
     if(this.disposed||!snapshot)return;
+    this.coincidenceActive=false;
     const epoch=snapshot.world.epoch;
     const {calendar:c,weather:w}=preview?.conditions??viewConditions(epoch,now,study);
     // A deliberate study selection may choose a new still sky in reduced motion.
@@ -127,6 +129,7 @@ export class Painting {
         }catch(error){this.restoreIntactForeground(error);}
       }
       const skyOptions={calendar:c,weather:w,realSeconds,motionSeconds,crop:this.crop,offset:this.offset,
+        ripple:this.motion&&this.scene.coincidences?sampleCoincidence(preview?.coincidence?.state??(!study?snapshot.world.coincidences:null),preview?.coincidence?.now??now,this.scene.coincidences):null,
         celestialTime,camera:preview?.camera,moon:preview?.moon,debug:preview?.debug,visibleLayers:preview?.visibleLayers};
       this.cloudState=this.renderer.draw(skyOptions);
       this.celestialState=this.renderer.celestialPose;
@@ -154,6 +157,7 @@ export class Painting {
       }
       if(!preview?.debug)this.completeFrame=true;
       this.canvas.style.visibility='visible';this.canvas.classList.add('ready');
+      this.coincidenceActive=!!this.renderer.rippleActive;
     }
     const seconds=motionSeconds;
     this.ctx.clearRect(0,0,this.width,this.height);

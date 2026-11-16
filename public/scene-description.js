@@ -2,8 +2,9 @@ import { clockLabel, viewConditions } from '../shared/world.js';
 import {sampleSurface, surfaceDescription, surfaceFixture} from '../shared/surface-weather.js';
 import {cottageDescription} from '../shared/cottage.js';
 import {birdDescription} from '../shared/bird.js';
+import {sampleCoincidence} from '../shared/coincidences.js';
 
-export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false } = {}) {
+export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false, coincidenceActive = false } = {}) {
   const { calendar, weather } = viewConditions(snapshot.world.epoch, now, study);
   const nest = snapshot.world.nest.stage === 'built'
     ? 'A completed nest rests in the oak.'
@@ -14,9 +15,27 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
   const cottage=study?'':cottageDescription(snapshot.world.cottage);
   const cottageText=cottage?`${staticCottage?' The cottage is shown as a static painting. Shared cottage state: ':' '}${cottage}`:'';
   const bird=study?'':birdDescription(snapshot.world.bird,snapshot.world.action,now,{reducedMotion,unavailable:birdUnavailable});
+  const ripple=!study&&!reducedMotion&&coincidenceActive&&sampleCoincidence(snapshot.world.coincidences,now)?' A small ripple is spreading on the lake.':'';
   return {
-    description: `${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${paused ? ' This view is paused.' : ''}`,
+    description: `${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${ripple}${paused ? ' This view is paused.' : ''}`,
     // Keep the exact clock available for inspection without announcing every minute.
     announcement: `${prefix}${conditions}${disconnected ? ' Connection lost; holding the last consistent view.' : ''}`,
   };
+}
+
+// The label timer and snapshot arrival can run before the frame that starts or
+// stops drawing a ripple. This keeps the description in step with what was drawn.
+export class SceneDescriber {
+  constructor({describe,announce}){this.describe=describe;this.announce=announce;this.ripple=null;}
+  update(snapshot,now,options,{announce=true}={}){
+    const {description,announcement}=sceneText(snapshot,now,options);
+    this.ripple=!!options.coincidenceActive;this.describe(description);
+    if(announce)this.announce(announcement);
+  }
+  // Call after each frame with the rendered snapshot and its displayed time.
+  // The live announcement keeps the cadence of update().
+  rendered(snapshot,now,options){
+    if(!!options.coincidenceActive===this.ripple)return false;
+    this.update(snapshot,now,options,{announce:false});return true;
+  }
 }

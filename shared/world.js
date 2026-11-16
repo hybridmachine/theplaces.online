@@ -3,6 +3,7 @@ import { LAKESIDE_FOLIAGE } from './lakeside-foliage.js';
 import { LAKESIDE_WEATHER } from './lakeside-weather.js';
 import { LAKESIDE_COTTAGE } from './lakeside-cottage.js';
 import { LAKESIDE_BIRD } from './lakeside-bird.js';
+import {LAKESIDE_COINCIDENCES} from './lakeside-coincidences.js';
 import { solarDeclination } from './solar.js';
 import { CELESTIAL_MODEL } from './celestial.js';
 import { SKY_CAMERA } from './celestial-projection.js';
@@ -27,6 +28,7 @@ export const SCENES = [{
   surfaceWeather: LAKESIDE_WEATHER,
   cottageLife: LAKESIDE_COTTAGE,
   birdLife: LAKESIDE_BIRD,
+  coincidences: LAKESIDE_COINCIDENCES,
   sky: {
     version: 1, seed: 617, atlasSize: [2048, 1024],
     celestial: CELESTIAL_MODEL, camera: SKY_CAMERA,

@@ -1,4 +1,5 @@
 import { celestialPose, sampleCloudLayers, skyLighting } from '/shared/sky.js';
+import {rippleFragment} from './ripple-shader.js';
 
 export const VERTEX = `attribute vec2 position;
 varying vec2 vUv;
@@ -154,6 +155,21 @@ export class SkyRenderer {
     } catch(error) { this.dispose();throw error; }
   }
   location(name){if(!this.locations.has(name))this.locations.set(name,this.gl.getUniformLocation(this.program,name));return this.locations.get(name);}
+  prepareRipple(){
+    if(this.rippleProgram||this.rippleFailure)return;
+    const gl=this.gl,program=gl.createProgram(),shaders=[];
+    try{
+      for(const [type,source]of [[gl.VERTEX_SHADER,VERTEX],[gl.FRAGMENT_SHADER,rippleFragment(FRAGMENT)]]){
+        const shader=gl.createShader(type);shaders.push(shader);gl.shaderSource(shader,source);gl.compileShader(shader);
+        if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(shader)||'Ripple shader compilation failed');
+        gl.attachShader(program,shader);
+      }
+      gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program)||'Ripple linking failed');
+      this.rippleProgram=program;this.rippleShaders=shaders;this.rippleLocations=new Map();
+    }catch(error){
+      shaders.forEach(shader=>gl.deleteShader(shader));gl.deleteProgram(program);this.rippleFailure=error.message;
+    }
+  }
   replaceForeground(images){
     images.forEach((image,index)=>{this.gl.activeTexture(this.gl.TEXTURE0+index);this.gl.bindTexture(this.gl.TEXTURE_2D,this.textures[index]);this.upload(image);});
   }
@@ -230,7 +246,29 @@ export class SkyRenderer {
     this.gl.activeTexture(this.gl.TEXTURE0+5);this.gl.bindTexture(this.gl.TEXTURE_2D,this.textures[5]);this.upload(this.celestialCanvas);
     this.stats.celestialUploads++;this.stats.uploadMs+=performance.now()-start;
   }
-  draw({calendar,weather,realSeconds,motionSeconds=realSeconds,celestialTime=calendar.total,camera=this.scene.sky.camera,crop=[1,1],offset=[0,0],moon,debug=0,visibleLayers=[1,1],effects=1,synthetic=false,uniforms={}}) {
+  draw(options) {
+    const {ripple=null,...rest}=options;
+    this.rippleActive=false;
+    const {crop=[1,1],offset=[0,0]}=options;
+    if(ripple&&ripple.center.some((n,i)=>n+ripple.radius[i]<offset[i]*[this.scene.width,this.scene.height][i]||
+      n-ripple.radius[i]>(offset[i]+crop[i])*[this.scene.width,this.scene.height][i]))return this.drawFrame(rest);
+    if(ripple&&!options.debug&&options.effects!==0)this.prepareRipple();
+    if(!ripple||options.debug||options.effects===0||!this.rippleProgram||this.rippleFailure)return this.drawFrame(rest);
+    const baseline=this.program,locations=this.locations;
+    let states;
+    try{
+      this.program=this.rippleProgram;this.locations=this.rippleLocations;
+      states=this.drawFrame({...rest,uniforms:{...rest.uniforms,
+        rippleBounds:[ripple.center[0]/this.scene.width,ripple.center[1]/this.scene.height,ripple.radius[0]/this.scene.width,ripple.radius[1]/this.scene.height],
+        ripplePhase:[ripple.age,ripple.variation]}});
+      if(this.gl.getError()!==this.gl.NO_ERROR)throw new Error('Ripple draw failed');
+      this.rippleActive=true;
+    }catch(error){this.rippleFailure=error.message;}
+    finally{this.program=baseline;this.locations=locations;}
+    // Redraw the complete baseline frame after an optional-program failure.
+    return this.rippleActive?states:this.drawFrame(rest);
+  }
+  drawFrame({calendar,weather,realSeconds,motionSeconds=realSeconds,celestialTime=calendar.total,camera=this.scene.sky.camera,crop=[1,1],offset=[0,0],moon,debug=0,visibleLayers=[1,1],effects=1,synthetic=false,uniforms={}}) {
     if(!synthetic)this.updateCelestial(calendar,moon,celestialTime,camera);
     const gl=this.gl;gl.useProgram(this.program);gl.disable(gl.BLEND);
     gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);const position=gl.getAttribLocation(this.program,'position');gl.enableVertexAttribArray(position);gl.vertexAttribPointer(position,2,gl.FLOAT,false,0,0);
@@ -265,6 +303,9 @@ export class SkyRenderer {
     for(const shader of this.shaders)gl.deleteShader(shader);
     if(this.buffer)gl.deleteBuffer(this.buffer);
     if(this.program)gl.deleteProgram(this.program);
+    if(this.rippleProgram)gl.deleteProgram(this.rippleProgram);
+    for(const shader of this.rippleShaders??[])gl.deleteShader(shader);
+    this.rippleProgram=null;this.rippleShaders=[];this.rippleLocations?.clear();this.rippleActive=false;
     this.textures=[];this.shaders=[];this.buffer=null;this.program=null;this.locations.clear();
     if(this.celestialCanvas)this.celestialCanvas.width=this.celestialCanvas.height=1;
     this.celestialCanvas=null;this.celestialContext=null;

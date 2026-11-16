@@ -82,7 +82,7 @@ test('notes metadata persists across restart without changing simulation version
   try{
     let store=new WorldStore(file,epoch);const a=store.snapshot(epoch);store.close();
     store=new WorldStore(file,epoch+1);const b=store.snapshot(epoch);store.close();
-    assert.deepEqual(a,b);assert.equal(b.world.version,4);
+    assert.deepEqual(a,b);assert.equal(b.world.version,5);
   }finally{rmSync(directory,{recursive:true,force:true});}
 });
 

@@ -1,0 +1,58 @@
+[
+  {
+    "suite": "sky",
+    "report": "sky-results.json",
+    "checks": 17,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "display",
+    "report": "display-results.json",
+    "checks": 12,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "foliage",
+    "report": "foliage-results.json",
+    "checks": 40,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "weather",
+    "report": "weather-results.json",
+    "checks": 16,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "cottage",
+    "report": "cottage-results.json",
+    "checks": 30,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "bird",
+    "report": "bird-results.json",
+    "checks": 18,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "celestial",
+    "report": "celestial-results.json",
+    "checks": 34,
+    "samples": null,
+    "passed": true
+  },
+  {
+    "suite": "engagement",
+    "report": "engagement-results.json",
+    "checks": 0,
+    "samples": 711,
+    "passed": true
+  }
+]

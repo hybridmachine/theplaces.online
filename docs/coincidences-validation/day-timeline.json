@@ -1,0 +1,182 @@
+[
+  {
+    "at": 1800000317748,
+    "type": "cottage.casement",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-1\",\"room\":\"main\",\"target\":1,\"start\":1800000300000,\"end\":1800000317748}"
+  },
+  {
+    "at": 1800000611592,
+    "type": "cottage.casement",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-2\",\"room\":\"main\",\"target\":0,\"start\":1800000600000,\"end\":1800000611592}"
+  },
+  {
+    "at": 1800000930000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-1\",\"kind\":\"flight\",\"from\":\"nest\",\"to\":\"oak-perch\",\"routeId\":\"nest:oak-perch\",\"routeVersion\":1,\"phaseSeed\":2.3185956779023233,\"phrase\":null,\"phraseStart\":null,\"start\":1800000930000,\"end\":1800000934000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800000934000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-1\",\"kind\":\"flight\",\"from\":\"nest\",\"to\":\"oak-perch\",\"routeId\":\"nest:oak-perch\",\"routeVersion\":1,\"phaseSeed\":2.3185956779023233,\"phrase\":null,\"phraseStart\":null,\"start\":1800000930000,\"end\":1800000934000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800000947028,
+    "type": "cottage.hearth",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-3\",\"room\":\"main\",\"target\":true,\"start\":1800000930000,\"end\":1800000947028}"
+  },
+  {
+    "at": 1800000960000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-2\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":2.8265709838784967,\"phrase\":null,\"phraseStart\":null,\"start\":1800000960000,\"end\":1800000966000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800000966000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-2\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":2.8265709838784967,\"phrase\":null,\"phraseStart\":null,\"start\":1800000960000,\"end\":1800000966000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800001306697,
+    "type": "cottage.light",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-5\",\"room\":\"second\",\"target\":true,\"start\":1800001290000,\"end\":1800001306697}"
+  },
+  {
+    "at": 1800001817150,
+    "type": "cottage.hearth",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-6\",\"room\":\"main\",\"target\":false,\"start\":1800001800000,\"end\":1800001817150}"
+  },
+  {
+    "at": 1800001931036,
+    "type": "cottage.light",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-7\",\"room\":\"main\",\"target\":false,\"start\":1800001920000,\"end\":1800001931036}"
+  },
+  {
+    "at": 1800002260101,
+    "type": "cottage.light",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-8\",\"room\":\"second\",\"target\":false,\"start\":1800002250000,\"end\":1800002260101}"
+  },
+  {
+    "at": 1800003882671,
+    "type": "cottage.hearth",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-9\",\"room\":\"main\",\"target\":true,\"start\":1800003870000,\"end\":1800003882671}"
+  },
+  {
+    "at": 1800003990000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-3\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":6.265732353816881,\"phrase\":null,\"phraseStart\":null,\"start\":1800003990000,\"end\":1800003996000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800003996000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-3\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":6.265732353816881,\"phrase\":null,\"phraseStart\":null,\"start\":1800003990000,\"end\":1800003996000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800004050000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-4\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":0.5868275409111208,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800004055000,\"start\":1800004050000,\"end\":1800004055600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800004055600,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-4\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":0.5868275409111208,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800004055000,\"start\":1800004050000,\"end\":1800004055600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800004244635,
+    "type": "cottage.hearth",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-10\",\"room\":\"main\",\"target\":false,\"start\":1800004230000,\"end\":1800004244635}"
+  },
+  {
+    "at": 1800004260000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-5\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":1.2357798317417243,\"phrase\":null,\"phraseStart\":null,\"start\":1800004260000,\"end\":1800004266000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800004266000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-5\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":1.2357798317417243,\"phrase\":null,\"phraseStart\":null,\"start\":1800004260000,\"end\":1800004266000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005010000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-6\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":4.272540242690682,\"phrase\":null,\"phraseStart\":null,\"start\":1800005010000,\"end\":1800005016000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005016000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-6\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":4.272540242690682,\"phrase\":null,\"phraseStart\":null,\"start\":1800005010000,\"end\":1800005016000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005070000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-7\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":2.3180755152983203,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800005075000,\"start\":1800005070000,\"end\":1800005075600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005075600,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-7\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":2.3180755152983203,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800005075000,\"start\":1800005070000,\"end\":1800005075600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005501827,
+    "type": "cottage.casement",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-11\",\"room\":\"main\",\"target\":1,\"start\":1800005490000,\"end\":1800005501827}"
+  },
+  {
+    "at": 1800005580000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-8\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":1.648548948086522,\"phrase\":null,\"phraseStart\":null,\"start\":1800005580000,\"end\":1800005586000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005586000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-8\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":1.648548948086522,\"phrase\":null,\"phraseStart\":null,\"start\":1800005580000,\"end\":1800005586000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800005801532,
+    "type": "cottage.casement",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-12\",\"room\":\"main\",\"target\":0,\"start\":1800005790000,\"end\":1800005801532}"
+  },
+  {
+    "at": 1800006046825,
+    "type": "cottage.casement",
+    "payload": "{\"actor\":\"lakeside-resident-01\",\"action\":\"cottage-v1-lakeside-resident-01-13\",\"room\":\"main\",\"target\":1,\"start\":1800006030000,\"end\":1800006046825}"
+  },
+  {
+    "at": 1800006120000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-9\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":3.5331947179361984,\"phrase\":null,\"phraseStart\":null,\"start\":1800006120000,\"end\":1800006126000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800006126000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-9\",\"kind\":\"flight\",\"from\":\"oak-shelter\",\"to\":\"oak-perch\",\"routeId\":\"oak-shelter:oak-perch\",\"routeVersion\":1,\"phaseSeed\":3.5331947179361984,\"phrase\":null,\"phraseStart\":null,\"start\":1800006120000,\"end\":1800006126000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800006180000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-10\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":0.17470914787441788,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800006185000,\"start\":1800006180000,\"end\":1800006185600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800006185600,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-10\",\"kind\":\"call\",\"from\":\"oak-perch\",\"to\":\"oak-perch\",\"routeId\":null,\"routeVersion\":null,\"phaseSeed\":0.17470914787441788,\"phrase\":\"oak-phrase-1\",\"phraseStart\":1800006185000,\"start\":1800006180000,\"end\":1800006185600,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800006240000,
+    "type": "coincidence.started",
+    "payload": "{\"id\":\"coincidence-v1-1800000000000-104\",\"kind\":\"fish-ripple\",\"rulesVersion\":1,\"layoutVersion\":1,\"locationId\":\"open-water\",\"start\":1800006240000,\"end\":1800006249092,\"variationSeed\":576062875}"
+  },
+  {
+    "at": 1800006249092,
+    "type": "coincidence.completed",
+    "payload": "{\"id\":\"coincidence-v1-1800000000000-104\",\"kind\":\"fish-ripple\",\"rulesVersion\":1,\"layoutVersion\":1,\"locationId\":\"open-water\",\"start\":1800006240000,\"end\":1800006249092,\"variationSeed\":576062875}"
+  },
+  {
+    "at": 1800006810000,
+    "type": "bird.action-started",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-11\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":3.5183660227300932,\"phrase\":null,\"phraseStart\":null,\"start\":1800006810000,\"end\":1800006816000,\"rulesVersion\":1}"
+  },
+  {
+    "at": 1800006816000,
+    "type": "bird.action-completed",
+    "payload": "{\"birdId\":\"oak-bird-01\",\"actionId\":\"bird-v1-oak-bird-01-11\",\"kind\":\"flight\",\"from\":\"oak-perch\",\"to\":\"oak-shelter\",\"routeId\":\"oak-perch:oak-shelter\",\"routeVersion\":1,\"phaseSeed\":3.5183660227300932,\"phrase\":null,\"phraseStart\":null,\"start\":1800006810000,\"end\":1800006816000,\"rulesVersion\":1}"
+  }
+]
