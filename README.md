@@ -171,3 +171,16 @@ Accepted episodes and their timing persist in version-5 world state. Restart, ca
 The shader locally displaces existing lake paint with subdued broken arcs, using the existing seven sky textures. An optional shader failure redraws the original sky program; context loss retains the original-painting fallback. Local pause holds the phase; reduced motion and private light studies omit it. There is no sound, field note, unread signal, or automatic announcement. Current descriptive text mentions a ripple only while the effect is being drawn within the crop. The default narrow portrait crop can exclude all three sites; panning reveals the lake without relocating events.
 
 `shared/coincidences.js` owns decisions, state validation, boundaries, and phase sampling; `shared/lakeside-coincidences.js` records the fixed water geometry. The [developer study](http://127.0.0.1:4181/dev/sky-study.html?fixture=Quiet%20ripple) has location/phase controls, a one-ripple playback button, and footprint guides. Use the port of your running server; start it against a temporary database for testing. `node scripts/check-coincidences-state.mjs` measures cadence and day/month/year catch-up. `scripts/check-coincidences-browser.mjs` defaults to port 4181 and accepts the existing optional Playwright/browser settings plus `COINCIDENCE_VALIDATION_DIR`; `COINCIDENCE_RECORD=1` records a short real-speed clip with Playwright's optional FFmpeg component. See [validation evidence](docs/coincidences-validation/README.md) and [the implementation plan](QUIET_COINCIDENCES_IMPLEMENTATION_PLAN.md).
+
+## Walking the yard (preview)
+
+Open **http://127.0.0.1:4173/?space=1** to walk the yard in 3D under the shared sky. The painting stays the default; without `?space=1` the page never loads three.js.
+
+- **W A S D** or the arrow keys walk; hold **Shift** to walk faster.
+- **Q** and **E** turn; drag to look around.
+- **Return** goes back to the painting's view.
+- Standing still for a few seconds remembers where you stopped, in this browser only; the next visit starts there. **Forget visit memory** in Field notes also forgets the place. Your position never reaches the server.
+
+Without WebGL2, or if the 3D context is lost, the page returns to the painting.
+
+This is an untextured blockout: flat muted colours, no painterly pass, roughly 242,000 triangles in about a dozen draw calls. No frame-rate measurement has been taken on a phone or an integrated GPU, and headless browser checks are not a performance measurement. `scripts/check-space-browser.mjs` defaults to port 4190 and accepts the existing optional Playwright/browser settings plus `SPACE_VALIDATION_DIR`. See [validation evidence](docs/space-validation/README.md).
