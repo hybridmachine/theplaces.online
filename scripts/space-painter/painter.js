@@ -245,16 +245,24 @@ const MARGIN = 8, FRINGE_ALPHA = 8; // clear border per cell; 8-bit alpha of the
 // off in colour, so the outline breaks where one stroke hands over to the next. Returns false (drawing nothing) if any part would
 // leave the cell's clear margin.
 function blade(g, x, y, {len, lean, curl = 0, width, color, rib = false}, n, r) {
-  const steps = Math.max(4, Math.min(12, Math.round(len / (width * 1.6)))), spine = []; let a = lean, px = x, py = y;
+  const steps = Math.max(5, Math.min(18, Math.round(len / (width * 1.5)))), spine = []; let a = lean, px = x, py = y;
   for (let q = 0; q <= steps; q++) { spine.push([px, py, a]); px += Math.sin(a) * len / steps; py -= Math.cos(a) * len / steps; a += curl / steps; }
-  const half = q => width / 2 * (1 - q / steps) ** .7 + 1;
+  const half = q => width / 2 * (1 - q / steps) ** .7 * 1.25 + 2;
   if (spine.some(([u, v], q) => u - half(q) < MARGIN + 4 || u + half(q) > n - MARGIN - 4 || v - half(q) < MARGIN + 4 || v > n - MARGIN)) return false;
   const seg = len / steps;
   for (let q = 0; q < steps; q++) {
-    const [u0, v0, a0] = spine[q], [u1, v1] = spine[q + 1], t = (q + .5) / steps, last = q === steps - 1;
-    const shade = .62 + .56 * t ** .8, w = width * (1 - t) ** .7 * (1.05 + r() * .2) + 1.5;
-    dab(g, (u0 + u1) / 2, (v0 + v1) / 2, {angle: a0 - Math.PI / 2 + (r() - .5) * .06, len: seg * (last ? 1.15 : 1.7), width: Math.max(2, w), color: jitter(r, mul(color, shade), .12),
-      alpha: 1, bristles: 3, bend: (r() - .5) * .25, taper: last ? 1 : .55, ridge: rib && t > .3 ? .45 : 0}, r);
+    const [u0, v0, a0] = spine[q], [u1, v1] = spine[q + 1], t = (q + .5) / steps, last = q === steps - 1, angle = a0 - Math.PI / 2;
+    // Each stroke differs in width, sits a little off the spine and alternates lighter and darker, so the outline steps where
+    // one stroke hands over to the next instead of running as one smooth curve.
+    const shade = (.62 + .56 * t ** .8) * (q % 2 ? .9 : 1.08) * (.94 + r() * .12), w = width * (1 - t) ** .7 * (.85 + r() * .4) + 1.5, off = (r() - .5) * .35 * w;
+    const cx = (u0 + u1) / 2 - Math.sin(angle) * off, cy = (v0 + v1) / 2 + Math.cos(angle) * off;
+    dab(g, cx, cy, {angle: angle + (r() - .5) * .1, len: seg * (last ? 1.15 : 1.45 + r() * .4), width: Math.max(2, w), color: jitter(r, mul(color, shade), .1),
+      alpha: 1, bristles: 3, bend: (r() - .5) * .4, taper: last ? 1 : .5, ridge: rib && t > .3 ? .45 : 0}, r);
+    if (!last && r() < .22) { // a nick or dry-bristle trail off one edge, pointing on up the blade
+      const side = r() < .5 ? -1 : 1, e = w * (.45 + r() * .15);
+      dab(g, cx - Math.sin(angle) * side * e, cy + Math.cos(angle) * side * e, {angle: angle + side * (.04 + r() * .08), len: seg * (.6 + r() * .5), width: Math.max(1.5, w * (.25 + r() * .2)),
+        color: jitter(r, mul(color, shade * (.9 + r() * .25)), .12), alpha: 1, bristles: 1, taper: .9}, r);
+    }
   }
   return true;
 }
@@ -289,14 +297,21 @@ function leafMass(g, r, n, {lobes, holes = [], floor = n, count, leaf, rosette, 
   }
 }
 
-// Lobes for one oak spray: an uneven fan of lobes reaching out, up and a little down from the heart of the clump, kept inside the cell.
+// Lobes for one oak spray: a large heart, then three or four branches of lobes reaching out and up from it, each lobe overlapping
+// the one it grows from, then a few lobes filling between them, so the spray is one connected, lobed mass with an irregular
+// outline. Every lobe records its parent so the twigs can follow the same branching.
 function oakLobes(r, n) {
-  const k = n / 512, lobes = [], count = 7 + (r() * 4 | 0), lean = (r() - .5) * .7;
-  for (let q = 0; q < count; q++) {
-    const rad = (32 + r() * 40) * k, ang = -Math.PI / 2 + lean + (q / (count - 1) - .5) * 3.8 + (r() - .5) * .5, dist = (80 + r() * 95) * k;
-    lobes.push({x: clamp(n / 2 + Math.cos(ang) * dist * 1.25, rad + 40 * k, n - rad - 40 * k), y: clamp(n * .55 + Math.sin(ang) * dist * .85, rad + 36 * k, n - rad - 44 * k), rad});
+  const k = n / 512, heart = {x: n / 2, y: n * .6, rad: 70 * k, parent: null}, lobes = [heart], branches = 3 + (r() * 2 | 0), lean = (r() - .5) * .4;
+  const grow = (p, ang) => {
+    const rad = (36 + r() * 32) * k, d = (p.rad + rad) * (.55 + r() * .2), x = p.x + Math.cos(ang) * d * 1.3, y = p.y + Math.sin(ang) * d * .8;
+    if (x < rad + 34 * k || x > n - rad - 34 * k || y < rad + 30 * k || y > n * .6 + 46 * k) return null;
+    const l = {x, y, rad, parent: p}; lobes.push(l); return l;
+  };
+  for (let b = 0; b < branches; b++) {
+    const dir = -Math.PI / 2 + lean + (b / (branches - 1) - .5) * 3 + (r() - .5) * .3;
+    for (let p = heart, q = 0, steps = 2 + (r() * 3 | 0); p && q < steps; q++) p = grow(p, dir + (r() - .5) * .6);
   }
-  lobes.push({x: n / 2, y: n * .56, rad: 58 * k}); // the heart of the spray, so no lobe floats free
+  for (let q = 0, fill = 3 + (r() * 3 | 0); q < fill * 4 && lobes.length < 8 + branches * 4; q++) grow(lobes[r() * lobes.length | 0], -Math.PI / 2 + (r() - .5) * 3);
   return lobes;
 }
 
@@ -328,16 +343,24 @@ const CARDS = {
   // Lobed, lacy oak sprays: small leaves in uneven rosettes, yellow-green where lit, olive beneath, sky through small gaps.
   oak(g, r, n, i, s) {
     const lobes = oakLobes(r, n), k = n / 512, holes = [];
-    for (let q = 0; q < 9 + (r() * 5 | 0); q++) { const l = lobes[r() * lobes.length | 0]; holes.push([l.x + (r() - .5) * l.rad * 1.4, l.y + (r() - .5) * l.rad * 1.4, (8 + r() * 13) * k]); }
-    // Twigs, seen only in the shadowed lower half through the gaps: each starts somewhere in the heart of the spray (never below the
-    // mass) and stops short inside a lower or side lobe; the lit top has none.
-    const heart = lobes[lobes.length - 1]; g.lineCap = 'round'; g.strokeStyle = css(mul(s.bark.mean, .6));
-    for (const l of lobes.slice(0, -1)) {
-      if (l.y < heart.y - heart.rad * .4) continue;
-      const sx = heart.x + (r() - .5) * heart.rad * 1.2, sy = heart.y + (r() - .2) * heart.rad * .5, ex = sx + (l.x - sx) * (.6 + r() * .25), ey = sy + (l.y - sy) * (.6 + r() * .25);
-      g.lineWidth = (2 + r() * 2) * k; g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo((sx + ex) / 2, Math.min(sy, ey) - 8 * k, ex, ey); g.stroke();
+    for (let q = 0, want = 9 + (r() * 4 | 0); q < want * 6 && holes.length < want; q++) { // small sky gaps, kept apart so none merge into a void
+      const l = lobes[r() * lobes.length | 0], h = [l.x + (r() - .5) * l.rad, l.y + (r() - .5) * l.rad, (8 + r() * 7) * k];
+      if (holes.every(([x, y, hr]) => Math.hypot(x - h[0], y - h[1]) > hr + h[2] + 34 * k)) holes.push(h); }
+    let area = 0; // leaf count follows the mass's area so every spray is equally dense
+    for (let y = 0; y < n; y += 8) for (let x = 0; x < n; x += 8) if (lobes.some(l => Math.hypot(x - l.x, y - l.y) < l.rad)) area += 64;
+    const leaves = canvas(n), lg = leaves.getContext('2d', {willReadFrequently: true});
+    leafMass(lg, r, n, {lobes, holes, count: area * .0062, leaf: [10 * k, 19 * k], rosette: true, light: s.leafLight, mid: s.leaf, dark: s.leafDark, contrast: .8, calm: .2, taper: .75});
+    // Twigs follow the branching from each lobe's parent to it, only in the shadowed lower part (the lit top has none), and only
+    // where leaves cover both ends, so a twig shows through gaps in the mass but never ends in open sky. Leaves go over them.
+    const cover = leaves.getContext('2d').getImageData(0, 0, n, n).data, covered = (x, y) => {
+      for (let dy = -3; dy <= 3; dy += 3) for (let dx = -3; dx <= 3; dx += 3) if (cover[((Math.round(y + dy) * n) + Math.round(x + dx)) * 4 + 3] < 200) return false; return true; };
+    const heart = lobes[0]; g.lineCap = 'round'; g.strokeStyle = css(mul(s.bark.mean, .6));
+    for (const l of lobes.slice(1)) {
+      const p = l.parent, sx = p.x + (r() - .5) * p.rad * .3, sy = p.y + (r() - .5) * p.rad * .3, ex = l.x + (r() - .5) * l.rad * .3, ey = l.y + (r() - .5) * l.rad * .3;
+      if (l.y < heart.y - heart.rad * .5 || !covered(sx, sy) || !covered(ex, ey)) continue;
+      g.lineWidth = (2 + r() * 2) * k; g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo((sx + ex) / 2, Math.min(sy, ey) - 6 * k, ex, ey); g.stroke();
     }
-    leafMass(g, r, n, {lobes, holes, count: 440 * k * k, leaf: [10 * k, 19 * k], rosette: true, light: s.leafLight, mid: s.leaf, dark: s.leafDark, contrast: .8, calm: .2, taper: .75});
+    g.drawImage(leaves, 0, 0);
   },
   // Distant tree masses: broad, flat-bottomed domes in a narrow sage-to-moss range, blunt strokes, softly lit tops.
   woods(g, r, n, i, s) {

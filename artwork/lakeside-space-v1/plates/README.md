@@ -20,6 +20,6 @@ node scripts/prepare-space-assets.mjs --only cards
 
 When the plate is accepted, `public/assets/lakeside-space-v1/export.json` records `"source": "plate"` for that slot.
 
-If the plate has the wrong dimensions, or (for `cards`) no transparent pixel, the command exits non-zero. Its message names the slot and the size it wants, for example `cards: plate is 1024×1024, want 2048×2048`.
+A plate the exporter cannot use makes the command exit non-zero, with a message that names the slot. For the wrong dimensions, the message also gives the size it wants, for example `cards: plate is 1024×1024, want 2048×2048`. For a `cards` plate with no transparent pixel it reads `cards: plate has no transparent pixel`.
 
 Remove the plate and run the same command to go back to the painted version.
