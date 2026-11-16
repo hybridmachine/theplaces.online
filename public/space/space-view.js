@@ -1,13 +1,13 @@
-import {Color, Mesh, MeshBasicMaterial, PerspectiveCamera, PlaneGeometry, Scene, WebGLRenderer} from '../assets/vendor/three-0.170.0.module.js';
+import * as THREE from '../assets/vendor/three-0.170.0.module.js';
+import {buildBlockout, toThree} from './blockout.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {eyePosition} from '../../shared/walker.js';
 import {viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 
-// World axes are x east, y north, z up; three's are X east, Y up, Z south.
-export const toThree = ([x, y, z]) => [x, z, -y];
+export {toThree};
 
-const MAX_VERTICAL_FOV = 75, GROUND = '#5d6a45', SKY = '#aab6b0';
+const MAX_VERTICAL_FOV = 75, SKY = '#aab6b0';
 const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 export class SpaceView {
@@ -38,12 +38,12 @@ export class SpaceView {
     const gl = this.canvas.getContext('webgl2', {antialias: true, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
-    this.renderer = new WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
-    this.scene = new Scene(); this.scene.background = new Color(SKY);
-    this.camera = new PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
-    // Blockout ground: one flat plane at the lake surface, reaching to the far plane.
-    this.ground = new Mesh(new PlaneGeometry(8000, 8000), new MeshBasicMaterial({color: GROUND}));
-    this.ground.rotation.x = -Math.PI / 2; this.scene.add(this.ground);
+    this.renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
+    this.scene = new THREE.Scene(); this.scene.background = new THREE.Color(SKY);
+    this.camera = new THREE.PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
+    this.blockout = buildBlockout(THREE, this.space); this.scene.add(this.blockout.group);
+    // Temporary neutral light so the Lambert blockout is visible; Task 8 replaces it with the real sky lighting.
+    this.light = new THREE.HemisphereLight('#ffffff', '#8a8a8a', 2.6); this.scene.add(this.light);
     addEventListener('resize', this.resize); this.resize();
     return true;
   }
@@ -61,7 +61,7 @@ export class SpaceView {
     this.disposed = true;
     removeEventListener('resize', this.resize); this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
-    this.ground?.geometry.dispose(); this.ground?.material.dispose();
+    this.blockout?.dispose(); this.light?.dispose();
     this.renderer?.dispose(); this.renderer = null;
   }
 }
