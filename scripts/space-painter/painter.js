@@ -245,23 +245,27 @@ const MARGIN = 8, FRINGE_ALPHA = 8; // clear border per cell; 8-bit alpha of the
 // off in colour, so the outline breaks where one stroke hands over to the next. Returns false (drawing nothing) if any part would
 // leave the cell's clear margin.
 function blade(g, x, y, {len, lean, curl = 0, width, color, rib = false}, n, r) {
-  const steps = Math.max(5, Math.min(18, Math.round(len / (width * 1.5)))), spine = []; let a = lean, px = x, py = y;
-  for (let q = 0; q <= steps; q++) { spine.push([px, py, a]); px += Math.sin(a) * len / steps; py -= Math.cos(a) * len / steps; a += curl / steps; }
-  const half = q => width / 2 * (1 - q / steps) ** .7 * 1.25 + 2;
+  // Uneven steps along a curling spine, so strokes differ in length and their joins fall irregularly.
+  const steps = Math.max(5, Math.min(18, Math.round(len / (width * 1.5)))), weights = Array.from({length: steps}, () => .55 + r() * .9), total = weights.reduce((p, q) => p + q, 0);
+  const spine = []; let a = lean, px = x, py = y;
+  for (let q = 0; q <= steps; q++) { spine.push([px, py, a]); if (q === steps) break; const d = len * weights[q] / total; px += Math.sin(a) * d; py -= Math.cos(a) * d; a += curl * weights[q] / total; }
+  const half = q => width / 2 * (1 - q / steps) ** .7 * 1.25 + 4;
   if (spine.some(([u, v], q) => u - half(q) < MARGIN + 4 || u + half(q) > n - MARGIN - 4 || v - half(q) < MARGIN + 4 || v > n - MARGIN)) return false;
-  const seg = len / steps;
   for (let q = 0; q < steps; q++) {
-    const [u0, v0, a0] = spine[q], [u1, v1] = spine[q + 1], t = (q + .5) / steps, last = q === steps - 1, angle = a0 - Math.PI / 2;
-    // Each stroke differs in width, sits a little off the spine and alternates lighter and darker, so the outline steps where
-    // one stroke hands over to the next instead of running as one smooth curve.
-    const shade = (.62 + .56 * t ** .8) * (q % 2 ? .9 : 1.08) * (.94 + r() * .12), w = width * (1 - t) ** .7 * (.85 + r() * .4) + 1.5, off = (r() - .5) * .35 * w;
+    const [u0, v0, a0] = spine[q], [u1, v1] = spine[q + 1], t = (q + .5) / steps, last = q === steps - 1, angle = a0 - Math.PI / 2, seg = Math.hypot(u1 - u0, v1 - v0);
+    // Each stroke takes its own seeded tone and a slight warm or cool cast, and its width and place on the spine step by at least
+    // a pixel or two however thin the blade is, so even narrow arching leaves break in tone and outline along their length.
+    const base = width * (1 - t) ** .7, thin = base < 9, spread = thin ? .56 : .3;
+    const shade = (.62 + .56 * t ** .8) * (1 - spread / 2 + r() * spread), cast = r() < .5 ? [176, 150, 86] : [70, 98, 52];
+    const w = Math.max(2, base * (.85 + r() * .4) + (r() - .5) * 2.4 + 1.5), off = (r() - .5) * Math.max(.35 * w, 3.2);
+    const col = jitter(r, mix(mul(color, shade), cast, r() * (thin ? .4 : .16)), .06);
     const cx = (u0 + u1) / 2 - Math.sin(angle) * off, cy = (v0 + v1) / 2 + Math.cos(angle) * off;
-    dab(g, cx, cy, {angle: angle + (r() - .5) * .1, len: seg * (last ? 1.15 : 1.45 + r() * .4), width: Math.max(2, w), color: jitter(r, mul(color, shade), .1),
+    dab(g, cx, cy, {angle: angle + (r() - .5) * .12, len: seg * (last ? 1.15 : 1.25 + r() * .5), width: w, color: col,
       alpha: 1, bristles: 3, bend: (r() - .5) * .4, taper: last ? 1 : .5, ridge: rib && t > .3 ? .45 : 0}, r);
-    if (!last && r() < .22) { // a nick or dry-bristle trail off one edge, pointing on up the blade
-      const side = r() < .5 ? -1 : 1, e = w * (.45 + r() * .15);
-      dab(g, cx - Math.sin(angle) * side * e, cy + Math.cos(angle) * side * e, {angle: angle + side * (.04 + r() * .08), len: seg * (.6 + r() * .5), width: Math.max(1.5, w * (.25 + r() * .2)),
-        color: jitter(r, mul(color, shade * (.9 + r() * .25)), .12), alpha: 1, bristles: 1, taper: .9}, r);
+    if (!last && r() < (thin ? .3 : .2)) { // a nick or dry-bristle trail standing a pixel or two off one edge, pointing on up the blade
+      const side = r() < .5 ? -1 : 1, e = w * .5 + .5 + r();
+      dab(g, cx - Math.sin(angle) * side * e, cy + Math.cos(angle) * side * e, {angle: angle + side * (.04 + r() * .08), len: Math.max(5, seg * (.4 + r() * .4)), width: Math.max(2, w * (.25 + r() * .2)),
+        color: jitter(r, mul(col, .88 + r() * .3), .08), alpha: 1, bristles: 1, taper: .9}, r);
     }
   }
   return true;
