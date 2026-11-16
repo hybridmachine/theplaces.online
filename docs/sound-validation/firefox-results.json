@@ -1,0 +1,60 @@
+{
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0",
+  "results": [
+    {
+      "name": "lake detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.038419853895902634,
+        "rms": 0.005635079373204201,
+        "maxWindowRms": 0.027167010851285704,
+        "backgroundRms": 0.0015855470736651789,
+        "marginDb": 24.677254316050778
+      }
+    },
+    {
+      "name": "reply detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.01277049258351326,
+        "rms": 0.0018599887973326564,
+        "maxWindowRms": 0.008993873144162105,
+        "backgroundRms": 0.0015855470736651789,
+        "marginDb": 15.075352345248428
+      }
+    },
+    {
+      "name": "cottage detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.023582467809319496,
+        "rms": 0.004953767899734197,
+        "maxWindowRms": 0.014911162873467361,
+        "backgroundRms": 0.0015855470736651789,
+        "marginDb": 19.466647471544757
+      }
+    },
+    {
+      "name": "breeze detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.026837535202503204,
+        "rms": 0.003656227810961766,
+        "maxWindowRms": 0.009003398531814335,
+        "backgroundRms": 0.0015855470736651789,
+        "marginDb": 15.084546680381234
+      }
+    },
+    {
+      "name": "rain detail stands above the lake background",
+      "pass": true,
+      "detail": {
+        "peak": 0.038124389946460724,
+        "rms": 0.002604910906822962,
+        "maxWindowRms": 0.008562478147871408,
+        "backgroundRms": 0.0015855470736651789,
+        "marginDb": 14.648406714523787
+      }
+    }
+  ]
+}

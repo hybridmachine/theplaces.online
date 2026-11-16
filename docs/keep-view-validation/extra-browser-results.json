@@ -1,0 +1,97 @@
+{
+  "results": [
+    {
+      "name": "GPU portrait capture preserves visitor panning",
+      "pass": true,
+      "detail": {
+        "mean": 0.4814201300279499,
+        "max": 4
+      }
+    },
+    {
+      "name": "Fallback portrait capture preserves visitor panning",
+      "pass": true,
+      "detail": {
+        "mean": 0.4817436808846761,
+        "max": 4
+      }
+    },
+    {
+      "name": "High-DPI capture has bounded dimensions and the viewport aspect",
+      "pass": true,
+      "detail": {
+        "width": 2560,
+        "height": 1564
+      }
+    },
+    {
+      "name": "High-DPI portrait preserves backing resolution",
+      "pass": true,
+      "detail": {
+        "width": 624,
+        "height": 1350
+      }
+    },
+    {
+      "name": "Modal keyboard focus stays inside (1)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (2)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (3)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (4)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (5)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (6)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (7)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (8)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (9)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (10)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (11)",
+      "pass": true
+    },
+    {
+      "name": "Modal keyboard focus stays inside (12)",
+      "pass": true
+    },
+    {
+      "name": "GPU context loss cannot alter an existing capture",
+      "pass": true
+    },
+    {
+      "name": "Capture after context loss identifies the visible fallback",
+      "pass": true
+    },
+    {
+      "name": "Faded download toast has no invisible tab stop",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

@@ -2,15 +2,17 @@ import { clockLabel, viewConditions } from '/shared/world.js';
 import { Painting } from './painting.js';
 import { Ambience } from './sound.js';
 import { WorldClient } from './world-client.js';
-import { sceneText } from './scene-description.js';
+import { SceneDescriber } from './scene-description.js';
 import {cottageDescription} from '/shared/cottage.js';
 import {birdDescription} from '/shared/bird.js';
 import {FieldNotes} from './field-notes.js';
+import {KeepView} from './keep-view.js';
 
 const $=selector=>document.querySelector(selector);
 const icons={
  bookmark:'<path d="M6 3h12v18l-6-4-6 4Z"/>',
  book:'<path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Z"/><path d="M12 5v15"/>',
+ camera:'<path d="M3 7h5l2-3h4l2 3h5v13H3Z"/><circle cx="12" cy="13" r="4"/>',
  sound:'<path d="m11 4-5 4H3v8h3l5 4Z"/><path d="M15 9c2 2 2 4 0 6m3-9c4 3 4 9 0 12"/>',
  muted:'<path d="m11 4-5 4H3v8h3l5 4Z"/><path d="m16 9 5 6m0-6-5 6"/>',
  pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 4 12 8-12 8Z"/>',
@@ -26,10 +28,20 @@ let painter=new URLSearchParams(location.search).get('space')==='1'?await openSp
 const audio=new Ambience();
 const client=new WorldClient({onSnapshot:accept});
 const fieldNotes=new FieldNotes();
+const keepView=new KeepView({onDownload:url=>toast('Download started.',url)});
 let snapshot=null,pausedSnapshot=null,pausedAt=null,study=null,lastRender=0,lastLabels=0,connection='connecting',toastTimer,quietTimer;
 let followed=false;try{followed=localStorage.getItem('a-view:follow:lakeside-cottage')==='true';}catch{}
 const now=()=>pausedAt??client.now();
-function toast(text){clearTimeout(toastTimer);$('#toast').textContent=text;$('#toast').classList.add('show');toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),3500);}
+function toast(text,imageURL){
+  clearTimeout(toastTimer);const target=$('#toast');target.textContent=text;
+  if(imageURL){const link=document.createElement('a');link.href=imageURL;link.target='_blank';link.rel='noopener';link.textContent='Open image';target.append(' ',link);}
+  target.classList.add('show');
+  const hide=()=>{
+    if(target.contains(document.activeElement)){toastTimer=setTimeout(hide,1000);return;}
+    target.classList.remove('show');target.querySelectorAll('a').forEach(link=>link.tabIndex=-1);
+  };
+  toastTimer=setTimeout(hide,imageURL?8000:3500);
+}
 function isDialogOpen(){return [...document.querySelectorAll('dialog')].some(d=>d.open);}
 function wake(){document.querySelectorAll('.chrome').forEach(e=>e.classList.remove('quiet'));clearTimeout(quietTimer);quietTimer=setTimeout(()=>{if(!isDialogOpen()&&!study&&!pausedAt&&connection==='live'&&!document.querySelector('.chrome :focus-visible'))document.querySelectorAll('.chrome').forEach(e=>e.classList.add('quiet'));},12_000);}
 addEventListener('pointermove',wake,{passive:true});addEventListener('pointerdown',wake,{passive:true});addEventListener('keydown',wake);addEventListener('focusin',wake);
@@ -70,6 +82,9 @@ $('#arrival-button').onclick=()=>painter.returnToArrival?.();
 $('#forget-visits').addEventListener('click',()=>{try{localStorage.removeItem('a-view:place:lakeside-cottage');}catch{}painter.forgetPlace?.();});
 $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed','false'));if(pausedAt!==null)$('#pause-button').click();updateLabels();wake();};
 
+const setText=(selector,text)=>{if($(selector).textContent!==text)$(selector).textContent=text;};
+const scene=new SceneDescriber({describe:text=>setText('#scene-description',text),announce:text=>setText('#scene-announcement',text)});
+const sceneOptions=()=>({study,paused:pausedAt!==null,disconnected:client.isExpired(),staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
 function accept(data){
   // WorldClient has checked ordering and anchored the shared clock before this callback.
   snapshot=data;connection='live';
@@ -91,22 +106,26 @@ function updateLabels(){
   const nest=shownSnapshot.world.nest;
   $('#nest-detail').textContent=nest.stage==='built'?'A completed nest rests in the oak.':`${nest.materials} strands gathered. The work continues.`;
   $('#bird-detail').textContent=study?'The bird is omitted from this private light study.':birdDescription(shownSnapshot.world.bird,shownSnapshot.world.action,now(),{reducedMotion:!painter.motion,unavailable:!painter.birdRenderer.valid});
-  const {description,announcement}=sceneText(shownSnapshot,now(),{study,paused:pausedAt!==null,disconnected:stale,staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
-  if($('#scene-description').textContent!==description)$('#scene-description').textContent=description;
-  if($('#scene-announcement').textContent!==announcement)$('#scene-announcement').textContent=announcement;
+  scene.update(shownSnapshot,now(),sceneOptions());
 }
 function frame(timestamp){
   requestAnimationFrame(frame);if(document.hidden||timestamp-lastRender<1000/30)return;
   // Retain the fractional interval so 60 Hz timestamp rounding cannot turn the
   // 30 fps cap into a recurring three-refresh (20 fps) schedule.
   lastRender=timestamp-(timestamp-lastRender)%(1000/30);
+  let rendered=null;
   if(snapshot){
     const displayedNow=now(),shown=pausedSnapshot??snapshot,result=painter.render(shown,displayedNow,study);
+    rendered=result;
+    // Ripple visibility follows the drawn frame, not the four-second label timer.
+    scene.rendered(shown,displayedNow,sceneOptions());
     fieldNotes.update(shown,{live:pausedAt===null&&!study,valid:!client.needsRefresh(),study:!!study,paused:pausedAt!==null,visible:!document.hidden});
-    if(result)audio.update(result.calendar.light,result.weather.rain,{bird:shown.world.bird,now:displayedNow,
-      active:pausedAt===null&&!study&&!client.needsRefresh()&&painter.birdActive,
+    if(result)audio.update(result.calendar.light,result.weather.rain,{bird:shown.world.bird,cottage:shown.world.cottage,epoch:shown.world.epoch,now:displayedNow,
+      active:pausedAt===null&&!study&&!client.isExpired(),waitingForCommit:client.needsRefresh(),
+      birdActive:painter.birdActive,cottageActive:painter.cottageActive&&painter.motion,
       validUntil:Math.min(shown.validUntil,shown.nextCommitAt??Infinity)});
   }
+  if(keepView.pending)keepView.rendered(painter,rendered,{study,paused:pausedAt!==null,disconnected:client.isExpired(),reconnecting:connection!=='live'});
   if(timestamp-lastLabels>4000){lastLabels=timestamp;updateLabels();}
 }
 let dragging=false,previousX=0,previousY=0;
@@ -126,8 +145,9 @@ async function openSpace(){
   catch(error){console.warn('The 3D view is unavailable; showing the painting.',error);return new Painting($('#painting'),$('#life'));}
 }
 let walkHinted=false;
+// Keep this view composites the 2D painting, so the 3D view does not offer it yet.
 function showSpace(on){
-  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#world').classList.toggle('walkable',on);fieldNotes.inYard=on;fieldNotes.render();
+  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#keep-button').hidden=on;$('#world').classList.toggle('walkable',on);fieldNotes.inYard=on;fieldNotes.render();
   if(on&&!walkHinted){walkHinted=true;toast('Walk with W A S D. Drag to look.');}
   for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
 function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
@@ -147,4 +167,4 @@ stream.onerror=()=>{connection='reconnecting';updateLabels();wake();};
 setInterval(()=>{if(!document.hidden)client.recover(connection!=='live').catch(()=>{connection='reconnecting';updateLabels();});},1000);
 wake();
 // A bfcache suspension keeps the renderer; permanent navigation releases it.
-addEventListener('pagehide',event=>{painter.flushPlace?.();fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted)painter.dispose();});
+addEventListener('pagehide',event=>{painter.flushPlace?.();fieldNotes.cancel();fieldNotes.memory.flush(true);if(!event.persisted){keepView.dispose();painter.dispose();}});

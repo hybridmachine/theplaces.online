@@ -93,6 +93,52 @@ test('failed health check restores and restarts the previous release', t => {
   assert.equal(readFileSync(join(f.directory, 'services.log'), 'utf8').match(/restart a-view/g).length, 3);
 });
 
+test('a failed release that already migrated the world is recovered with the pre-activation backup', { skip: !sqliteAvailable && 'sqlite3 CLI is required' }, t => {
+  const f = fixture(t), path = join(f.directory, 'data/world.sqlite');
+  const worldState = file => {
+    const db = new DatabaseSync(file, { readOnly: true });
+    try { return JSON.parse(db.prepare('SELECT state FROM world').get().state); } finally { db.close(); }
+  };
+  // A version-4 world, as the previous release left it: no coincidence state.
+  new WorldStore(path, 1_800_000_000_000).close();
+  const db = new DatabaseSync(path), v4 = JSON.parse(db.prepare('SELECT state FROM world').get().state);
+  delete v4.coincidences; v4.version = 4;
+  db.prepare('UPDATE world SET state=?').run(JSON.stringify(v4)); db.close();
+  // The running previous release keeps the WAL database open, as the service does.
+  const running = new DatabaseSync(path);
+  t.after(() => running.close());
+  running.prepare('SELECT id FROM world').get();
+  const first = f.run('deploy "$TEST_ARCHIVE" first');
+  assert.equal(first.status, 0, first.stderr + first.stdout);
+
+  // The new release starts, commits the version-5 migration, then fails its
+  // health check. The previous release only opens a version-4 world.
+  const storeUrl = new URL('../src/store.js', import.meta.url).href;
+  const result = f.run(`
+systemctl() {
+    printf '%s\\n' "$*" >> "$TEST_DIRECTORY/services.log"
+    if [[ $1 == restart && $(readlink "$APP_ROOT/current") == *next* ]]; then
+        "$TEST_NODE" --input-type=module -e 'const {WorldStore}=await import(process.argv[1]);new WorldStore(process.argv[2]).close();' '${storeUrl}' "$DATA_DIR/world.sqlite"
+    fi
+}
+health() {
+    [[ $(readlink "$APP_ROOT/current") != *next* ]] || return 1
+    "$TEST_NODE" --input-type=module -e 'import {DatabaseSync} from "node:sqlite";const db=new DatabaseSync(process.argv[1],{readOnly:true});const v=JSON.parse(db.prepare("SELECT state FROM world").get().state).version;db.close();process.exit(v===4?0:1);' "$DATA_DIR/world.sqlite"
+}
+deploy "$TEST_ARCHIVE" next`);
+  assert.notEqual(result.status, 0);
+  assert.equal(f.current(), join(f.directory, 'app/releases/first'));
+  assert.match(result.stderr, /restoring the pre-activation backup/);
+  assert.match(result.stderr, /Previous release restored and healthy with the pre-activation world/);
+  assert.deepEqual(worldState(path), v4);
+  const kept = readdirSync(join(f.directory, 'backups')).filter(name => name.startsWith('failed-activation-'));
+  assert.equal(kept.length, 1);
+  assert.equal(worldState(join(f.directory, 'backups', kept[0], 'world.sqlite')).version, 5);
+  const services = readFileSync(join(f.directory, 'services.log'), 'utf8');
+  assert.match(services, /stop a-view/);
+  assert.equal(services.match(/restart a-view/g).length, 4);
+});
+
 test('failed first deployment stops the service and removes the failed active link', t => {
   const f = fixture(t);
   const result = f.run('deploy "$TEST_ARCHIVE" bad-release');

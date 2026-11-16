@@ -1,0 +1,190 @@
+{
+  "results": [
+    {
+      "name": "Composite matches the displayed WebGL, life canvas and scene shading",
+      "pass": true,
+      "detail": {
+        "mean": 0.4823828125,
+        "max": 4
+      }
+    },
+    {
+      "name": "Capture has a live label",
+      "pass": true
+    },
+    {
+      "name": "Note editing, live clock advance and resize retain capture pixels and metadata",
+      "pass": true
+    },
+    {
+      "name": "Download uses the prepared PNG bytes",
+      "pass": true
+    },
+    {
+      "name": "PNG filename records the captured world time and mode",
+      "pass": true,
+      "detail": "lakeside-cottage-year-1-day-136-1643-live-1792713318267.png"
+    },
+    {
+      "name": "Postcard preserves painting pixels without controls or caption overlap",
+      "pass": true
+    },
+    {
+      "name": "Download closes dialog and restores focus",
+      "pass": true
+    },
+    {
+      "name": "Acknowledgement does not claim completed saving",
+      "pass": true
+    },
+    {
+      "name": "A previous download remains available if the browser did not save it",
+      "pass": true
+    },
+    {
+      "name": "Closing releases temporary image URLs but retains the latest download",
+      "pass": true
+    },
+    {
+      "name": "320px: all view controls fit and retain touch targets",
+      "pass": true
+    },
+    {
+      "name": "320px: dialog fits without horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "320px: short viewport keeps actions reachable and capture intact",
+      "pass": true
+    },
+    {
+      "name": "320px: Escape returns keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "390px: all view controls fit and retain touch targets",
+      "pass": true
+    },
+    {
+      "name": "390px: dialog fits without horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "390px: short viewport keeps actions reachable and capture intact",
+      "pass": true
+    },
+    {
+      "name": "390px: Escape returns keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "800px: all view controls fit and retain touch targets",
+      "pass": true
+    },
+    {
+      "name": "800px: dialog fits without horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "800px: short viewport keeps actions reachable and capture intact",
+      "pass": true
+    },
+    {
+      "name": "800px: Escape returns keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "1440px: all view controls fit and retain touch targets",
+      "pass": true
+    },
+    {
+      "name": "1440px: dialog fits without horizontal overflow",
+      "pass": true
+    },
+    {
+      "name": "1440px: short viewport keeps actions reachable and capture intact",
+      "pass": true
+    },
+    {
+      "name": "1440px: Escape returns keyboard focus",
+      "pass": true
+    },
+    {
+      "name": "Paused and reduced-motion labels survive together",
+      "pass": true
+    },
+    {
+      "name": "Private study retains paused state and identifies study time",
+      "pass": true
+    },
+    {
+      "name": "Closing preserves private study and pause",
+      "pass": true
+    },
+    {
+      "name": "Expired connection produces a held-view label",
+      "pass": true
+    },
+    {
+      "name": "Fallback with world: pixels match visible original painting and overlays",
+      "pass": true,
+      "detail": {
+        "mean": 0.482500244140625,
+        "max": 4
+      }
+    },
+    {
+      "name": "Fallback with world: honest caption",
+      "pass": true
+    },
+    {
+      "name": "Fallback without world: pixels match visible original painting and overlays",
+      "pass": true,
+      "detail": {
+        "mean": 0.482500244140625,
+        "max": 4
+      }
+    },
+    {
+      "name": "Fallback without world: honest caption",
+      "pass": true
+    },
+    {
+      "name": "Failed capture shows no invented preview or downloadable image",
+      "pass": true
+    },
+    {
+      "name": "Explicit recapture recovers a complete frame",
+      "pass": true
+    },
+    {
+      "name": "Encoding failure retains preview and note",
+      "pass": true
+    },
+    {
+      "name": "Export retry uses the same capture",
+      "pass": true
+    },
+    {
+      "name": "Download dispatch failure keeps dialog and Open image fallback",
+      "pass": true
+    },
+    {
+      "name": "Cancel releases unused object URLs",
+      "pass": true
+    },
+    {
+      "name": "An older encoding cannot enable a stale download",
+      "pass": true
+    },
+    {
+      "name": "Closing during encoding prevents late URLs and dialog resurrection",
+      "pass": true
+    },
+    {
+      "name": "A new capture works after cancelling pending work",
+      "pass": true
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Listening by the lake · A View</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100svh;background:#1d2a26;color:#f3eee1;font:16px/1.6 system-ui}body::before{content:"";position:fixed;inset:0;z-index:-1;background:linear-gradient(90deg,#14251be8,#14251b22),url('../assets/lakeside-day.png') center/cover}
+main{width:min(440px,calc(100% - 40px));margin:clamp(28px,10vh,100px) 0 28px clamp(20px,6vw,100px);padding:28px;background:#17271dee;border:1px solid #c4c9a33d;border-radius:10px;box-shadow:0 12px 60px #09150d55}h1{font:36px/1.13 Georgia,serif;margin:8px 0 18px;font-weight:normal}.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#c1c7ae}p{color:#d1d6c3}label{display:block;margin-top:24px;font-size:14px}select,button{font:inherit;border-radius:5px}select{display:block;width:100%;padding:10px;margin:8px 0 18px;color:#f3eee1;background:#283a2d;border:1px solid #798972}button{padding:10px 22px;cursor:pointer;border:1px solid #d0d6ad;background:#d0d6ad;color:#203020}button:disabled{opacity:.6;cursor:default}:focus-visible{outline:3px solid #fbefb8;outline-offset:4px}#status{min-height:52px;font-size:14px;color:#d0d6ad}a{color:#e3e8c8;text-underline-offset:4px}.footnote{font-size:13px;border-top:1px solid #c4c9a333;padding-top:16px;margin-top:24px}
+</style>
+<main>
+<span class="eyebrow">A View · sound study</span>
+<h1>Listening by<br>the lake.</h1>
+<p>A little water, a passing breeze, and room for silence. Four short studies from the lakeside cottage.</p>
+<label for="scene">A moment to hear</label>
+<select id="scene"><option value="lake">A call across the lake</option><option value="breeze">Leaves in the breeze</option><option value="cottage">The cottage casement</option><option value="rain">Passing rain</option></select>
+<p id="description">A three-note call at 2 seconds, followed by a quieter answer around 6 seconds.</p>
+<label style="margin:0 0 18px"><input id="background" type="checkbox"> Include lake ambience</label>
+<button id="listen" type="button" aria-pressed="false">Listen</button>
+<p id="status" role="status">Sound is off. Each study lasts 20 seconds.</p>
+<span id="remaining" aria-hidden="true"></span>
+<p class="footnote">These are private listening studies. They leave the shared world undisturbed.</p>
+<a href="/">Return to the painting</a>
+</main>
+<script type="module" src="./sound-study.js"></script>
+</html>

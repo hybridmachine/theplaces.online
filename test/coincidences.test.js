@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {WorldStore} from '../src/store.js';
 import {WorldClient} from '../public/world-client.js';
-import {sceneText} from '../public/scene-description.js';
+import {sceneText,SceneDescriber} from '../public/scene-description.js';
 import {calendar,weather} from '../shared/world.js';
 import {LAKESIDE_COINCIDENCES,validCoincidenceArt} from '../shared/lakeside-coincidences.js';
 import {createCoincidenceState,validCoincidenceState,decideCoincidence,completeCoincidence,sampleCoincidence,coincidenceFixture,COINCIDENCE_REST_MS} from '../shared/coincidences.js';
@@ -139,5 +139,26 @@ test('ripples do not add notes or announcements, and descriptions follow visible
     assert.match(sceneText(active,now,{coincidenceActive:true,paused:true}).description,/small ripple.*paused/);
     assert.doesNotMatch(sceneText(active,action.end,{coincidenceActive:true}).description,/small ripple/);
     const facts=store.notes({identity:active.notes,after:before.notes.head,through:active.notes.head});assert.equal(facts.facts.length,0);
+  }finally{store.close();}
+});
+
+test('the description follows the drawn ripple between label refreshes, without a new announcement',()=>{
+  const store=new WorldStore(':memory:',epoch);
+  try{
+    const action=firstAction(),active=store.snapshot(action.start+3000),now=active.serverTime;
+    const described=[],announced=[];
+    const scene=new SceneDescriber({describe:text=>described.push(text),announce:text=>announced.push(text)});
+    // Label refresh while the renderer is drawing the ripple, held by a pause.
+    scene.update(active,now,{paused:true,coincidenceActive:true});
+    assert.match(described.at(-1),/small ripple.*paused/);assert.equal(announced.length,1);
+    // Further frames with the same drawn state write nothing.
+    assert.equal(scene.rendered(active,now,{paused:true,coincidenceActive:true}),false);assert.equal(described.length,1);
+    // A resize crops the ripple out: the next frame stops drawing it at the same held time.
+    assert.equal(scene.rendered(active,now,{paused:true,coincidenceActive:false}),true);
+    assert.doesNotMatch(described.at(-1),/small ripple/);assert.match(described.at(-1),/paused/);
+    // Panning back draws it again before any label timer fires.
+    assert.equal(scene.rendered(active,now,{paused:true,coincidenceActive:true}),true);
+    assert.match(described.at(-1),/small ripple/);
+    assert.equal(announced.length,1);
   }finally{store.close();}
 });

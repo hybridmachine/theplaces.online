@@ -44,7 +44,7 @@ Setup starts Caddy before the first app deployment; a temporary 502 is expected 
 
 `deploy` checks and tests the current checkout, uploads only `package.json`, `src/`, `shared/`, and `public/`, then creates a new release. It deploys your current files, including uncommitted edits; review `git status` before running. It does not upload `.env`, `.git`, `data/`, or `node_modules/`. It uses a timestamp, Git revision, and random suffix to identify the release.
 
-The host takes a consistent world backup, switches the active release symlink atomically, restarts the single application service, and checks both `/` and a valid `/api/world` response. Failure restores the previous app release and reports whether recovery succeeded. A failed first deployment stops the service. Expect a short interruption during restarts; open browsers reconnect their event stream. This is not a zero-downtime, multi-process deployment.
+The host takes a consistent world backup, switches the active release symlink atomically, restarts the single application service, and checks both `/` and a valid `/api/world` response. Failure restores the previous app release and reports whether recovery succeeded. If the failed release had already migrated the world to a version the previous release cannot open, recovery also restores the backup taken just before activation and keeps the replaced database files in `/var/backups/a-view/failed-activation-*` for inspection. A failed first deployment stops the service. Expect a short interruption during restarts; open browsers reconnect their event stream. This is not a zero-downtime, multi-process deployment.
 
 ## Choose the initial world
 
