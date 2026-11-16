@@ -22,7 +22,7 @@ const jitter = (k, seed) => hash(k, 7, seed);
 
 // The slow tint laid over the meadow: warm and cool drifts tens of metres across, lighter and darker patches inside them.
 const WARM = [1.1, 1.04, .8], COOL = [.84, .96, 1];
-function groundTint(x, y) {
+export function groundTint(x, y) {
   const n = .5 * noise(x / 46, y / 46, 11) + .32 * noise(x / 17, y / 17, 12) + .18 * noise(x / 6.5, y / 6.5, 13), t = smooth(.28, .72, n);
   const k = .84 + .3 * noise(x / 23 + 50, y / 23, 14);
   return COOL.map((c, i) => (c + (WARM[i] - c) * t) * k);

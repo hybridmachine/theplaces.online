@@ -2,7 +2,7 @@ import {terrainHeight} from '../../../shared/space.js';
 import {scatter} from '../../../shared/lakeside-dressing.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {cardMaterial, toThree} from '../geometry.js';
-import {noise} from './ground.js';
+import {groundTint} from './ground.js';
 
 // Ground cover: grass, reeds and flowers where the dressing scatters them. Each kind is one InstancedMesh of two crossed,
 // fixed cards (body from every side, base at the ground), alpha-tested; every instance picks its own atlas cell through a
@@ -12,25 +12,18 @@ const clamp01 = t => Math.max(0, Math.min(1, t));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const hash = (i, seed) => { let h = Math.imul(i, 374761393) + Math.imul(seed, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 
-// The meadow's slow tint, as the ground lays it (ground.js), so a tuft takes the colour of the paint it grows from.
-const WARM = [1.1, 1.04, .8], COOL = [.84, .96, 1];
-function meadowTint(x, y) {
-  const n = .5 * noise(x / 46, y / 46, 11) + .32 * noise(x / 17, y / 17, 12) + .18 * noise(x / 6.5, y / 6.5, 13), t = clamp01((n - .28) / .44);
-  const k = .84 + .3 * noise(x / 23 + 50, y / 23, 14);
-  return mix(COOL, WARM, t * t * (3 - 2 * t)).map(c => c * k);
-}
-
 // Per kind: the atlas cells, the card's height in metres at scale 1 (the painted shape fills most of its square cell), how much
-// of that is width, how far it sinks below the ground, how much of its foot dissolves (a tuft's blades are dense at the foot,
-// and where a flat card meets the slope that reads as a hard-edged plinth), and its linear colour at the top.
+// of that is width and how much wider the lowest tufts spread, how far it sinks below the ground, how much of its foot
+// dissolves (a tuft's blades are dense at the foot, and where a flat card meets the slope that reads as a hard-edged plinth),
+// and its linear colour at the top, the grass taking the ground's own tint (ground.js) so it never drifts from the meadow.
 const KINDS = {
-  grass: {cells: SPACE_ART.cards.cells.grass, size: .85, wide: 1.3, sink: .06, fade: 1, seed: 81,
-    colour: (x, y, r) => mix([.66, .7, .48], [.8, .78, .5], r[0]).map((c, i) => c * meadowTint(x, y)[i] * (.86 + .22 * r[1]))},
-  reeds: {cells: SPACE_ART.cards.cells.reeds, size: 1.8, wide: .9, sink: .06, fade: .6, seed: 82,
+  grass: {cells: SPACE_ART.cards.cells.grass, size: .85, wide: 1.3, spread: .9, sink: .06, fade: 1, seed: 81,
+    colour: (x, y, r) => mix([.68, .66, .46], [.82, .75, .48], r[0]).map((c, i) => c * groundTint(x, y)[i] * (.86 + .22 * r[1]))},
+  reeds: {cells: SPACE_ART.cards.cells.reeds, size: 1.8, wide: .9, spread: 0, sink: .06, fade: .6, seed: 82,
     colour: (x, y, r) => mix([.74, .8, .6], [.9, .86, .62], r[0]).map(c => c * (.88 + .2 * r[1]))},
   // The art table's cell list is 'flower'; the scatter kind is 'flowers'.
-  flowers: {cells: SPACE_ART.cards.cells.flower, size: .82, wide: 1, sink: .03, fade: 0, seed: 83,
-    colour: (x, y, r) => mix([1, .97, .88], [1.04, 1, .82], r[0]).map(c => c * (.9 + .14 * r[1]))},
+  flowers: {cells: SPACE_ART.cards.cells.flower, size: .8, wide: 1, spread: 0, sink: .03, fade: 0, seed: 83,
+    colour: (x, y, r) => mix([.9, .86, .74], [.95, .9, .68], r[0]).map(c => c * (.85 + .15 * r[1]))},
 };
 const BASE_SHADE = .72, CELL = SPACE_ART.cards.cell / SPACE_ART.cards.size;
 
@@ -55,6 +48,8 @@ function crossedCards(THREE) {
 
 // The card material, reading per instance `cell` = (u, v of the cell's corner, how much of the foot dissolves). The foot thins
 // out from the darker paint first, so the lit blades reach down into the ground and the dense base never shows as an edge.
+// The thresholds (.04–.3 of the height, weighted by .5 + 1.2 × luminance) are tuned to the grass cells' current paint: if the
+// atlas is re-exported with darker or lighter blade bases, look down at the ground again and retune them.
 function coverMaterial(THREE, atlas) {
   const m = cardMaterial(THREE, atlas, SPACE_ART), card = m.onBeforeCompile;
   m.onBeforeCompile = (s, renderer) => {
@@ -78,9 +73,11 @@ export function buildCover(THREE, {space, dressing, art}) {
     const items = scatter(space, dressing, kind), geometry = crossedCards(THREE), cells = new Float32Array(items.length * 3);
     const mesh = new THREE.InstancedMesh(geometry, material, items.length); mesh.name = kind;
     items.forEach(({x, y, scale: s, turn, cell}, i) => {
-      const r = [hash(i, spec.seed), hash(i, spec.seed + 100), hash(i, spec.seed + 200)], h = spec.size * s;
-      // a little uneven in height and width, and mirrored half the time, so neighbouring tufts of one cell differ
-      const tall = h * (.9 + .2 * r[2]), wide = h * spec.wide * (1.1 - .2 * r[2]) * (r[1] < .5 ? -1 : 1);
+      const r = [hash(i, spec.seed), hash(i, spec.seed + 100), hash(i, spec.seed + 200), hash(i, spec.seed + 300)], h = spec.size * s;
+      // a little uneven in height and width, and mirrored half the time, so neighbouring tufts of one cell differ; low tufts
+      // spread wider than they stand, so a sward of them closes over the ground like brushed grass rather than standing as spikes
+      const spread = 1 + spec.spread * clamp01((.65 - s) / .3);
+      const tall = h * (.9 + .2 * r[2]), wide = h * spec.wide * spread * (1.1 - .2 * r[2]) * (r[3] < .5 ? -1 : 1);
       at.set(...toThree([x, y, terrainHeight(space, x, y) - spec.sink * tall])); q.setFromAxisAngle(up, -turn); scale.set(wide, tall, Math.abs(wide));
       mesh.setMatrixAt(i, matrix.compose(at, q, scale));
       mesh.setColorAt(i, colour.setRGB(...spec.colour(x, y, r)));

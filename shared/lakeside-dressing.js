@@ -16,7 +16,7 @@ export const LAKESIDE_DRESSING = deep({
               {id: 'back', face: 'back', along: .5, sill: 1.2, width: .6, height: .6}],
     chimney: {along: 3.8, size: .8, rise: 1.05}},
   oak: {clumps: 24, canopyHeight: 9.6},
-  cover: {grass: 7000, reeds: 260, flowers: 90, lowRadius: 6},
+  cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
 });
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
@@ -166,13 +166,18 @@ export function scatter(space, dressing, kind) {
     }
     return out;
   }
-  for (let guard = 0; out.length < want && guard < want * 400; guard++) {
+  // Grass is laid twice: the yard-wide scatter, then (from its own stream, so the first does not move) a thick sward of low
+  // tufts around the arrival spot, so the foreground there reads as continuous brushed grass rather than tufts on bare ground.
+  const nearWant = kind === 'grass' ? Math.min(want, dressing.cover.nearGrass ?? 0) : 0, nearR = stream(dressing.seed, 'grass-near'), reach = low + 3;
+  for (let guard = 0; out.length < want - nearWant && guard < want * 400; guard++) {
     const x = x0 + r() * (x1 - x0), y = y0 + r() * (y1 - y0);
     if (r() > thin(x, y) || !onLand(x, y)) continue;
     const nearOak = Math.hypot(x - ox, y - oy) < 4.5, verge = lineDist(dressing.path, [x, y]) < dressing.pathHalfWidth + 1.4;
     const wild = clamp01((nearOak ? .4 : 0) + (verge ? .35 : 0) + (lineDist(w, [x, y], true) < 3 ? .4 : 0) + (noise(x * .3, y * .3, 1) - .4) * 1.4);
     if (kind === 'flowers') {
-      if (r() > wild * wild || Math.hypot(x - ax, y - ay) < low) continue;
+      // sparse: wild places first, and the path's verges (cream umbels line it in the painting), the foreground included
+      const keep = Math.max(wild * wild, verge ? .3 : 0);
+      if (r() > keep || Math.hypot(x - ax, y - ay) < low * .4) continue; // none right at the visitor's feet
       out.push({x, y, scale: .8 + r() * .4, turn: r() * TAU, cell: Math.floor(r() * cells)});
       continue;
     }
@@ -181,6 +186,13 @@ export function scatter(space, dressing, kind) {
     const t = smooth(low, low + 4, Math.hypot(x - ax, y - ay));
     const scale = (.35 + .25 * r()) * (1 - t) + (.7 + .3 * wild + .3 * r()) * t;
     out.push({x, y, scale, turn: r() * TAU, cell: Math.floor(r() * cells)});
+  }
+  for (let guard = 0; out.length < want && guard < nearWant * 400; guard++) {
+    const a = nearR() * TAU, d = reach * Math.sqrt(nearR()), x = ax + Math.sin(a) * d, y = ay + Math.cos(a) * d;
+    if (!onLand(x, y)) continue;
+    // as low as the scatter keeps the arrival spot, rising a little toward the edge of the sward
+    const scale = .32 + .2 * nearR() + .08 * smooth(low * .5, reach, d);
+    out.push({x, y, scale: Math.min(scale, .6), turn: nearR() * TAU, cell: Math.floor(nearR() * cells)});
   }
   return out;
 }
