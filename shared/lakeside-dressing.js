@@ -80,14 +80,16 @@ export function groundBlend(space, dressing, x, y) {
 }
 
 // The oak's limbs as authored: azimuth (degrees clockwise from north), where it leaves the trunk and where its tip is
-// (metres above the ground at the trunk), how far out it reaches, and how many clumps it carries. The low, long limbs
-// reach toward the cabin (east) and the lake (south); the higher ones are shorter, so the outline is broad but uneven.
+// (metres above the ground at the trunk), how far out it reaches, and how many clumps it carries. A ring of low, spreading
+// limbs, two or three metres apart at the tips so their clumps run together into one broad canopy, the longest reaching
+// toward the cabin (east) and the lake (south); a few higher, shorter ones and the crown fill it above.
 const OAK_LIMBS = [
-  {az: 84, base: 3.4, reach: 6.9, tip: 6.9, clumps: 3}, {az: 172, base: 3.7, reach: 6.3, tip: 7.3, clumps: 3},
-  {az: 128, base: 4.3, reach: 5.1, tip: 8.5, clumps: 3}, {az: 28, base: 4.7, reach: 4.3, tip: 9.4, clumps: 3},
-  {az: 232, base: 4.1, reach: 4.9, tip: 8.7, clumps: 3}, {az: 298, base: 5.0, reach: 3.7, tip: 10.2, clumps: 2},
-  {az: 342, base: 5.4, reach: 3.1, tip: 11.1, clumps: 2}, {az: 62, base: 5.7, reach: 2.6, tip: 11.9, clumps: 2},
-  {az: 200, base: 6.6, reach: 1.3, tip: 12.7, clumps: 3},
+  {az: 84, base: 3.0, reach: 7.0, tip: 5.6, clumps: 3}, {az: 128, base: 3.9, reach: 5.8, tip: 5.8, clumps: 2},
+  {az: 172, base: 2.9, reach: 5.4, tip: 5.8, clumps: 2}, {az: 215, base: 4.3, reach: 4.4, tip: 6.4, clumps: 2},
+  {az: 262, base: 3.4, reach: 4.6, tip: 6.0, clumps: 2}, {az: 312, base: 2.8, reach: 4.8, tip: 5.8, clumps: 2},
+  {az: 355, base: 4.1, reach: 4.4, tip: 6.0, clumps: 2}, {az: 40, base: 3.3, reach: 5.0, tip: 5.9, clumps: 2},
+  {az: 104, base: 4.4, reach: 3.6, tip: 8.4, clumps: 2}, {az: 236, base: 4.8, reach: 3.0, tip: 8.8, clumps: 2},
+  {az: 10, base: 5.4, reach: 1.6, tip: 10.4, clumps: 3},
 ];
 
 // The oak as named parts: trunk and limbs are polylines of [x, y, z, radius]; every clump names the limb it sits on.

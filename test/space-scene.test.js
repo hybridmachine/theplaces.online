@@ -96,3 +96,27 @@ test('the cabin has a door and two windows in front and one small window behind'
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
   assert.equal(scene.parts.cabin.getObjectByName('openings').children.length, 4); scene.dispose();
 });
+import {oakPlan} from '../shared/lakeside-dressing.js';
+test('the oak trunk is solid from all round and stays inside its collider', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), trunk = scene.parts.oak.getObjectByName('trunk'), [ox, oy] = S.oak.position;
+  assert.notEqual(trunk.material.side, THREE.DoubleSide);
+  for (let k = 0; k < 24; k++) {
+    const a = k / 24 * Math.PI * 2, x = ox + Math.sin(a) * 4, y = oy + Math.cos(a) * 4, eye = [x, y, terrainHeight(S, x, y) + S.eyeHeight];
+    const {hit, dir} = firstHit(trunk, eye, [ox, oy, terrainHeight(S, ox, oy) + 1.4]);
+    assert.ok(hit, `no trunk at bearing ${k * 15}`);
+    assert.ok(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0, `inside-out at ${k * 15}`);
+  }
+  trunk.updateMatrixWorld(true); const p = trunk.geometry.getAttribute('position'), w = new THREE.Vector3(), r = S.colliders.find(c => c.type === 'circle').radius;
+  for (let i = 0; i < p.count; i++) { w.fromBufferAttribute(p, i).applyMatrix4(trunk.matrixWorld); const [x, y, z] = fromThree(w);
+    if (z < terrainHeight(S, ox, oy) + S.eyeHeight + .5) assert.ok(Math.hypot(x - ox, y - oy) <= r - .1, `${x},${y},${z}`); }
+  scene.dispose();
+});
+test('every planned clump has leaves, and the leaves never face the camera', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), leaves = scene.parts.oak.getObjectByName('leaves');
+  assert.deepEqual(leaves.userData.clumps.map(c => c.id).sort(), oakPlan(S, D).clumps.map(c => c.id).sort());
+  assert.ok(leaves.userData.clumps.every(c => c.count >= 6));
+  assert.equal(leaves.material.transparent, false); assert.ok(leaves.material.alphaTest > 0);
+  // Fixed in the world: an ordinary mesh with no per-frame hook that could turn it toward the camera.
+  assert.equal(leaves.isMesh, true); assert.equal(leaves.onBeforeRender, THREE.Object3D.prototype.onBeforeRender);
+  scene.dispose();
+});
