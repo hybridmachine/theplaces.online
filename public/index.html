@@ -37,6 +37,7 @@
     <div class="tools" role="group" aria-label="View controls">
       <button class="tool" id="follow-button" aria-label="Follow this place" aria-pressed="false" data-tip="Follow this place"><span class="icon" data-icon="bookmark"></span><span class="tool-label">Follow</span></button>
       <button class="tool" id="notes-button" aria-label="Open field notes" data-tip="Field notes"><span class="icon" data-icon="book"></span><span class="tool-label">Field notes</span><span id="note-dot" hidden></span></button>
+      <button class="tool" id="keep-button" aria-label="Keep this view" data-tip="Keep this view"><span class="icon" data-icon="camera"></span><span class="tool-label">Keep this view</span></button>
       <span class="tool-divider"></span>
       <button class="tool icon-only" id="sound-button" aria-label="Turn on sound" aria-pressed="false" data-tip="Sound off"><span class="icon" data-icon="sound"></span></button>
       <button class="tool icon-only" id="pause-button" aria-label="Pause this view" aria-pressed="false" data-tip="Pause this view"><span class="icon" data-icon="pause"></span></button>
@@ -46,6 +47,29 @@
 
   <div id="welcome" class="welcome">Stay a little. There is no hurry.</div>
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="keep-dialog" class="panel keep-panel" aria-labelledby="keep-heading">
+    <button class="close-panel" aria-label="Close"><span class="icon" data-icon="close"></span></button>
+    <h2 id="keep-heading" tabindex="-1" autofocus>Keep this view</h2>
+    <div id="keep-details" hidden>
+      <div class="keep-summary">
+        <canvas id="keep-preview" role="img" aria-label="Captured view"></canvas>
+        <div class="keep-caption"><h3 id="keep-title"></h3><p id="keep-region"></p><p id="keep-date"></p><p id="keep-mode"></p></div>
+      </div>
+      <p>Your view is held here. The world carries on.</p>
+      <label for="keep-note">A note to remember it by <span>(optional)</span></label>
+      <textarea id="keep-note" rows="3" maxlength="160" placeholder="What caught your eye?" aria-describedby="keep-count keep-note-help"></textarea>
+      <div class="keep-note-info"><span id="keep-note-help">Your note appears beneath the painting.</span><span id="keep-count">0 / 160</span></div>
+    </div>
+    <p id="keep-status" role="status" aria-live="polite"></p>
+    <div class="keep-actions">
+      <button id="keep-cancel" class="keep-secondary">Cancel</button>
+      <button id="keep-retry-capture" class="keep-primary" hidden>Try capture again</button>
+      <button id="keep-retry-export" class="keep-primary" hidden>Try download again</button>
+      <button id="keep-download" class="keep-primary" disabled>Download image</button>
+    </div>
+    <div class="keep-links"><a id="keep-open-image" target="_blank" rel="noopener" hidden>Open image</a><a id="keep-last-image" target="_blank" rel="noopener" hidden>Open last downloaded image</a></div>
+  </dialog>
 
   <dialog id="about-dialog" class="panel about-panel" aria-labelledby="about-heading">
     <button class="close-panel" aria-label="Close"><span class="icon" data-icon="close"></span></button>

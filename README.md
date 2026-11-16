@@ -108,7 +108,7 @@ The world is shared by browsers connected to the same server. The application bi
 - `shared/field-notes.js`, `src/notes-store.js`: fixed factual wording, validated history intervals, and indexed milestone selection.
 - `public/world-client.js`: snapshot ordering, monotonic display time, action boundaries, and reconnect recovery.
 - `public/scene-description.js`: precise accessible descriptions and quiet announcements for meaningful changes.
-- `public/sound.js`: optional synthesized ambience.
+- `public/sound.js` and `public/ambient-score.js`: opt-in water, shared bird calls, sparse distant replies, wind-driven leaves, and action-timed casement sound.
 - `test/world.test.js`: timing, causality, restart, catch-up, and shared-state checks.
 - `test/world-client.test.js` and `test/sound.test.js`: response races, stalled streams, delivery consistency, announcements, concurrent audio toggles, and bounded automation.
 
@@ -150,6 +150,16 @@ The old eight-second local chirp timer is replaced by rare shared phrase actions
 
 The developer study adds oak, roof, shelter, and flight fixtures, a bird-action time slider, and route/occluder guides. Run `scripts/check-bird-browser.mjs` with the same optional Playwright settings as the other browser suites; `BIRD_RECORD=1` also records real-speed routes using Playwright's optional FFmpeg component. `node scripts/check-bird-state.mjs` measures day/month/year catch-up. See [bird validation](docs/bird-validation/README.md), [combined engagement review](docs/engagement-validation/README.md), and [the implementation plan](BIRD_FAMILIARITY_IMPLEMENTATION_PLAN.md).
 
+## Listening by the lake
+
+The existing sound button now includes a restrained leaf layer, an occasional distant answer to the oak bird, and a soft casement creak. Leaf swells use the same elapsed-real-second gust sampler as the oak artwork; only the crest is audible (roughly 20% of a sampled hour), and rain softens them. A stable action-ID choice lets about 45% of heard bird calls receive a quieter two-note answer 3.4–4.7 real seconds later. This unnamed distant bird is cosmetic ambience, with no added inhabitant, history, or field-note facts. The casement creaks once as an existing committed opening/closing action starts moving; lights and hearth changes do not invent door sounds.
+
+Everything remains off until the visitor enables sound. Mute, hidden tabs, pause, private light studies, and expired world timing cancel the new details; missed sounds are skipped. A brief wait for a committed snapshot silences details but retains a heard call's potential answer while the snapshot lease is valid. That answer requires fresh timing before it can play and is skipped if its start has passed. The existing water bed remains during pause and light studies. Reduced motion suppresses casement sound while its visible pose is held. Voices use a maximum 250 ms look-ahead, deduplicate shared actions, and disconnect on completion or cancellation. Stereo placement is subtle, with a mono fallback. No audio assets, runtime dependencies, world migrations, or server behavior are added.
+
+The private [listening study](http://127.0.0.1:4177/dev/sound-study.html) offers four 20-second fixtures: a distant answer, leaves, the casement, and rain. The selected detail plays on its own by default; **Include lake ambience** adds the quiet background for comparison. Bird and casement cues begin at two seconds, and the breeze fixture starts beside a gust crest. Live event frequency is unchanged. Water now has its own low-gain layer, so it cannot drown out the voices; short noise grains distinguish leaf rustle and rain patter. Run a local server on port 4177 (or use `/dev/sound-study.html` on your existing server), then press **Listen**. The fixtures never write to the world and stop when hidden.
+
+`scripts/check-sound-browser.mjs` uses optional Playwright, `SKY_PREVIEW_URL`, `BROWSER_EXECUTABLE`, and `SOUND_VALIDATION_DIR`; it checks actual study playback, compares each detail against background signal levels, and renders an audio sample. `scripts/check-sound-firefox.mjs` runs the same native signal comparison in installed Firefox with a temporary profile; `FIREFOX_EXECUTABLE` overrides its Windows default. The silent `/dev/sound-check.html` page also exposes those signal checks for manual browser review. See [sound validation](docs/sound-validation/README.md) for results and remaining listening/device review.
+
 ## Field notes and return visits
 
 Opening **Field notes** on a return visit shows up to two short observations about recorded changes since the previous live view. Nest completion, the established branch habit, the first roof visit, additional nest material, and a main-room light are eligible. Current observations and the latest 20 notes remain below the recap. Older milestones are retrieved separately, so a long absence does not lose them behind repeated cottage notes. The writing uses fixed, factual templates.
@@ -159,6 +169,18 @@ Visit memory stays in this browser. A new navigation begins a visit, a reload pr
 The read-only `/api/notes` endpoint validates a scene/history identity and event-ID/sequence anchors for an exclusive-start, inclusive-end interval. It returns at most two typed facts with supporting references. Identity metadata and an event index are additive SQLite changes; field notes do not themselves alter simulation rules or event scheduling. A replaced world or incompatible cursor starts a fresh baseline. The endpoint never advances the simulation or stores a visitor profile. Existing snapshots still carry only 20 recent notes plus compact history metadata.
 
 Run `node scripts/check-field-notes-state.mjs` for month/year query measurements. `scripts/check-field-notes-browser.mjs` uses the same optional Playwright, `SKY_PREVIEW_URL`, `BROWSER_EXECUTABLE`, and `SKY_GPU` configuration as the existing suites; its default preview port is 4175. `NOTES_VALIDATION_DIR` selects the output directory. It includes desktop/portrait copy fixtures, reloads, pause, studies, request failure/retry, storage denial, and cross-tab reading. See [field-notes validation](docs/field-notes-validation/README.md) and [the implementation plan](FIELD_NOTES_IMPLEMENTATION_PLAN.md).
+
+## Keep this view
+
+**Keep this view** captures the next complete displayed frame and opens a held preview. Add an optional note of up to 160 characters, then choose **Download image** for a PNG with the painting, place, world date, and view mode. The caption sits below the painting. The capture preserves the current pan and viewport crop; the painted image is limited to 2560 pixels on its longest edge. Controls, dialogs, and notifications stay out of the image.
+
+The renderer copies the visible WebGL painting, Canvas inhabitants and weather, and scene shading together before the GPU drawing buffer clears. The original image participates when the painting is fading in or running in fallback mode. The captured pixels and calendar stay fixed while the visitor types, the viewport resizes, or the world advances. No extra capture readbacks run during ordinary viewing.
+
+Paused views keep their held time. Private light studies identify the selected study and its displayed study time. Disconnected views and static fallback carry explicit labels, including combinations of these modes. A fallback without a world snapshot has no invented world date. Reduced motion keeps the pose already on screen. Closing the dialog preserves the previous viewing mode and returns focus to the control.
+
+Failed capture offers an explicit recapture. Failed encoding or download dispatch retains the image and note for retry. **Open image** lets the browser handle saving directly; after a download starts, **Open last downloaded image** remains available in the dialog until the next download or navigation. The acknowledgement says “Download started,” because the page cannot confirm that the browser saved a file. Notes and images stay in memory for this visit, with no upload, database change, saved-view gallery, or new dependency.
+
+The [storyboard](docs/storyboards/keep-this-view.pptx) records the intended experience. `public/view-capture.js` handles compositing, caption layout, and immutable metadata; `public/keep-view.js` owns the dialog and asynchronous export lifecycle. `scripts/check-keep-view-browser.mjs` checks the real renderer, downloads, modes, retries, keyboard focus, and narrow layouts using optional development-only Playwright and Sharp. It accepts `SKY_PREVIEW_URL` (default port 4176), `BROWSER_EXECUTABLE`, `SKY_GPU`, and `KEEP_VALIDATION_DIR`. See [validation results](docs/keep-view-validation/README.md).
 
 ## Quiet coincidences
 
