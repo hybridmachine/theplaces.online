@@ -142,7 +142,7 @@ export function buildOak(THREE, {space, dressing, art}) {
 // one behind another. Each ribbon follows the wall at its own distance, rounding the corners and wandering a little in and out,
 // so from anywhere in the yard some part of every stretch is turned toward the eye and the band has body seen along it. A
 // ribbon has no ends to show: the cells repeat end to end along it (either way round, in no fixed order), and where it nears the
-// lake it sinks into the ground. Tone, height and light all vary smoothly along the band — by place, never by piece — so nothing
+// lake the wood thins out: the trees stand lower and in separate clumps, smaller toward the water, then none. Tone, height and light all vary smoothly along the band — by place, never by piece — so nothing
 // steps where two cells meet; the ribbons behind stand taller, paler and bluer. Crown height follows the planned clumps, evened
 // out over a wide neighbourhood so no tree stands clear. Fixed in the world, alpha-tested like every card.
 const WOODS = {
@@ -154,7 +154,10 @@ const WOODS = {
   corner: 12,                 // metres of the band's wandering spent rounding each corner of the wall
   mass: .6,                   // the share of a woods cell's height its mass fills below the top line (from the cell's painting)
   inset: 16 / 512,            // the cell's clear border plus the eight pixels past which its painting repeats
-  shore: [2, 17],             // metres from the water over which a ribbon rises out of the ground
+  cover: [.8, 3.6],            // the plan's cover (clumps within about 7 m) over which the wood thins out to nothing
+  shore: [3, 26],             // and the metres from the water over which it does
+  tree: 3.2,                  // metres of ribbon one tree takes where the wood thins
+  stagger: 14,                // how many metres farther back the farthest ribbon gives out than the nearest
 };
 
 export function buildWoods(THREE, {space, dressing, art}) {
@@ -168,6 +171,7 @@ export function buildWoods(THREE, {space, dressing, art}) {
   // the planned clumps give the band its depth and its crown heights (each clump's centre stands at .55 of its height)
   const reach = plan.map(c => beyond(c.center)), near = Math.min(...reach) + 2.5, far = Math.max(...reach) - 2;
   const talls = plan.map(c => (c.center[2] - terrainHeight(space, c.center[0], c.center[1])) / .55), mean = talls.reduce((s, v) => s + v, 0) / talls.length;
+  const cover = (x, y) => plan.reduce((s, c) => s + Math.exp(-((c.center[0] - x) ** 2 + (c.center[1] - y) ** 2) / 98), 0);
   const crowns = (x, y) => { let sum = .3 * mean, weight = .3;
     plan.forEach((c, i) => { const k = Math.exp(-((c.center[0] - x) ** 2 + (c.center[1] - y) ** 2) / 200); sum += k * talls[i]; weight += k; });
     return sum / weight / mean; };
@@ -186,30 +190,49 @@ export function buildWoods(THREE, {space, dressing, art}) {
   };
   const position = [], normal = [], uv = [], color = [], index = [];
   for (let j = 0; j < WOODS.layers; j++) {
-    const f = j / (WOODS.layers - 1), pts = outline(near + (far - near) * f), top = WOODS.top[0] + (WOODS.top[1] - WOODS.top[0]) * f;
-    // each ribbon stops its own distance short of the water, so their ends do not pile into one slope
-    const back = 3.5 * hash(j, 1, 77);
+    const f = j / (WOODS.layers - 1), reach = near + (far - near) * f, middle = (near + far) / 2, pts = outline(reach), top = WOODS.top[0] + (WOODS.top[1] - WOODS.top[0]) * f;
+    // each ribbon gives out its own distance short of the water, the tall ones behind first, so the wood comes down toward the
+    // lake row by row and no common edge forms
+    const back = WOODS.stagger * (f + .15 * hash(j, 1, 77));
+    const treePhase = hash(j, 3, 77);
     const tile = WOODS.tile[0] + (WOODS.tile[1] - WOODS.tile[0]) * f, phase = hash(j, 0, 77) * tile;
     // where the ribbon stands `s` metres along its line: [x, y, outward x, outward y]. The band's edge wanders in bays and points
     // that every ribbon follows (so they never cross), each straying a little more by itself.
     const place = s => {
       const q = s / .25, k = Math.min(pts.length - 2, Math.floor(q)), t = q - k, [x, y, ox, oy, run] = pts[k].map((v, c) => v + (pts[k + 1][c] - v) * t);
       const stray = WOODS.wander * (3 * (noise(run / 12, 0, 78) - .5) + 1.2 * (noise(run / 5.5, 0, 86) - .5) + .5 * (noise(s / 5, j * 9.7, 79) - .5));
-      return [x + ox * stray, y + oy * stray, ox, oy];
+      return [x + ox * stray, y + oy * stray, ox, oy, x + ox * (middle - reach), y + oy * (middle - reach), run];
     };
     // the ribbon's own length to each half-metre of its line, so the cells keep their width wherever it swings in or out
     const span = (pts.length - 1) * .25, lengths = [0];
     for (let s = .5, p = place(0); s <= span; s += .5) { const q = place(s); lengths.push(lengths.at(-1) + Math.hypot(q[0] - p[0], q[1] - p[1])); p = q; }
     const lineAt = l => { let k = 0; while (k < lengths.length - 2 && lengths[k + 1] < l) k++; return (k + (l - lengths[k]) / (lengths[k + 1] - lengths[k])) * .5; };
-    // one upright of the ribbon, `l` metres along it: foot and head, the colour at each, and the normal it is lit with
+    // How much of the wood stands at the `i`th tree's width of this ribbon (0 none, 1 whole), judged once at its middle so the
+    // top stays level across a tree and comes down toward the water in steps of whole trees, never as one slope. The wood gives
+    // out where the plan's clumps do (judged at the middle of the band, so every ribbon thins together and none is left
+    // standing alone) and wherever a ribbon comes close to the water; there the trees stand lower and in separate clumps,
+    // smaller toward the water, then none. The clumps are placed by a noise measured along the wall, which the ribbons share,
+    // so a gap in one is a gap in all.
+    const stands = new Map(), standing = i => {
+      if (!stands.has(i)) {
+        const [x, y, , , mx, my, run] = place(lineAt(Math.max(0, Math.min(lengths.at(-1), (i + .5 - treePhase) * WOODS.tree)))), ragged = noise(run / 7, j * 3.1, 85) - .5;
+        const sparse = smoothstep(...WOODS.cover, cover(mx, my) + ragged), dry = smoothstep(...WOODS.shore, shoreDistance(space, x, y) - back + 5 * ragged);
+        const whole = Math.min(sparse, dry), clumps = 4 * whole * (1 - whole) * (noise(run / 7, 3.7, 88) - .5 + .5 * (noise(run / 2.9, 9.1, 89) - .5));
+        stands.set(i, clamp01(1.2 * whole - .08 + 1.1 * clumps));
+      }
+      return stands.get(i);
+    };
+    // one upright of the ribbon, `l` metres along it: foot and head (always plumb, the foot just under the ground, so the cell is
+    // never sheared sideways), the colour at each, and the normal it is lit with
     const upright = l => {
-      const s = lineAt(l), [x, y, ox, oy] = place(s), rise = smoothstep(...WOODS.shore, shoreDistance(space, x, y) - back + 9 * (noise(s / 5, j * 3.1, 85) - .5) + 4 * (noise(s / 2.2, j * 3.1, 87) - .5));
-      const h = top * crowns(x, y) * (1 + .26 * (noise(s / 24, j * 5.3, 80) - .5) + .16 * (noise(s / 8.5, j * 5.3, 81) - .5));
-      // the cell's mass stands from just under the ground to the crown height; near the water the whole card sinks instead
-      const ground = terrainHeight(space, x, y) - .5 - (1 - rise) * (h + 3), tall = (h + .5) / WOODS.mass;
+      const s = lineAt(l), [x, y, ox, oy] = place(s);
+      // level across each tree, eased into the next over the last half of its width
+      const at = l / WOODS.tree + treePhase, tree = Math.floor(at), stand = standing(tree) + (standing(tree + 1) - standing(tree)) * smoothstep(.5, 1, at - tree);
+      const h = top * crowns(x, y) * (1 + .26 * (noise(s / 24, j * 5.3, 80) - .5) + .16 * (noise(s / 8.5, j * 5.3, 81) - .5)) * stand;
+      const ground = terrainHeight(space, x, y) - .5, tall = (h + .5) / WOODS.mass;
       const base = mix(mix(SAGE, MOSS, noise(x * .045, y * .045, 71)), FAR, WOODS.haze[0] + (WOODS.haze[1] - WOODS.haze[0]) * f + .08 * (noise(x * .03, y * .03, 72) - .5))
         .map(v => v * (.95 + .1 * noise(x * .07, y * .07, 73)));
-      return {rise, foot: [x, y, ground], head: [x, y, ground + tall], base, lit: V.norm([-ox * .35, -oy * .35, 1])};
+      return {stand, foot: [x, y, ground], head: [x, y, ground + tall], base, lit: V.norm([-ox * .35, -oy * .35, 1])};
     };
     const length = lengths.at(-1), cols = Math.round(tile / WOODS.step), dl = tile / cols;
     for (let n = 0; n * tile - phase < length; n++) {
@@ -218,7 +241,7 @@ export function buildWoods(THREE, {space, dressing, art}) {
         const l0 = n * tile - phase + c * dl, l1 = l0 + dl;
         if (l0 < 0 || l1 > length) continue;
         const a = upright(l0), b = upright(l1);
-        if (a.rise <= 0 && b.rise <= 0) continue;
+        if (a.stand <= 0 && b.stand <= 0) continue;
         const at = position.length / 3;
         for (const [p, e, high] of [[a, c / cols, 0], [b, (c + 1) / cols, 0], [b, (c + 1) / cols, 1], [a, c / cols, 1]]) {
           position.push(...toThree(high ? p.head : p.foot)); normal.push(...toThree(p.lit)); color.push(...p.base.map(v => v * (high ? 1 : .84)));
