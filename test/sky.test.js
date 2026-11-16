@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { integratedWind, sampleWind } from '../shared/wind.js';
-import { celestialPose, cloudAlpha, cloudDensity, sampleCloudLayers } from '../shared/sky.js';
+import { celestialPose, skyBodies, cloudAlpha, cloudDensity, sampleCloudLayers } from '../shared/sky.js';
 import { calendar, SCENES, viewConditions, weather } from '../shared/world.js';
 
 const config=SCENES[0].sky;
@@ -74,4 +74,17 @@ test('moon contrast survives daylight and fixture phase shading follows illumina
   assert.ok(moon.opacity>0);
   assert.ok(Math.abs(moon.illumination-.5)<1e-12);
   assert.ok(moon.light[0]>.99);
+});
+
+test('camera-free sky bodies agree with the projected pose', () => {
+  for (const now of [0, 4e6, 9.1e7, 3.3e8, 1.2e9]) {
+    const c = calendar(0, now), pose = celestialPose(c), sky = skyBodies(c);
+    assert.equal(sky.night, pose.night);
+    assert.equal(sky.sun.opacity, pose.sun.opacity); assert.equal(sky.sun.warmth, pose.sun.warmth);
+    assert.equal(sky.moon.opacity, pose.moon.opacity); assert.equal(sky.moon.phase, pose.moon.phase);
+    assert.deepEqual(sky.sun.direction, pose.sun.apparentDirection);
+    assert.equal(sky.stars.length, pose.stars.length);
+    sky.stars.forEach((s, i) => assert.equal(s.opacity, pose.stars[i].opacity));
+    assert.ok(Math.abs(Math.hypot(...sky.moon.direction) - 1) < 1e-9);
+  }
 });
