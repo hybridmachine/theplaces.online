@@ -605,3 +605,29 @@ Expected: ten `PASS` lines, exit code 0. Fix the view, not the check, for any fa
 git add scripts/check-space-browser.mjs docs/space-validation .gitignore package.json README.md
 git commit -m "Check the walkable blockout in a browser"
 ```
+
+## Carried forward
+
+Found in the final whole-branch review and left for later phases.
+
+**Phase 2**
+- Test that the cabin and oak colliders contain their mesh footprints with margin (this also covers box orientation).
+- Tests for edge slowdown and keyboard turn in the walker.
+- `skyBodies` asserts for `angularDiameter`, illumination and `sunDirection`.
+- Tests for `toThree`, `verticalFov` and `skyColours`.
+- A unit test for `SpaceView.step()` decisions.
+- An automated blockout build test.
+- Release the WebGL2 context if init throws after `getContext`.
+- Do not await the cloud atlas in init, and do not step the walker before the view is shown.
+- Stars vanish on small drawing buffers: floor the area attenuation.
+- The hemisphere light ignores cloud, so rain is too bright.
+- The cloud repeat count round the dome needs the owner's eye.
+
+**Phase 4**
+- `WALK.maxStep` could rise to about 0.25 s (the walker already sub-steps every 0.1 m with a walkable test), keeping real-time walking down to about 4 fps, ahead of the 20 fps fallback gate.
+- Touch input.
+- Accessibility descriptions for the 3D view.
+- Phone and integrated-GPU frame-rate measurement (the scene is about 242k triangles, mostly terrain skirt).
+
+**Plan correction**
+- Task 8's "dawn shows the sun straight ahead over the eastern ridge" was wrong for late spring at 49° N: sunrise azimuth is about 62°.
