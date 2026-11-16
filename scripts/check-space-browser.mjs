@@ -62,12 +62,13 @@ try{
   }));
   check('Shift+W for 40 s from four headings stays on walkable ground',walks.every(w=>!w.unwalkable.length&&w.seconds>=40&&w.samples>=150&&w.travelled>1),walks);
 
-  // 5. An open dialog holds the walker still even while W stays down.
-  await page.keyboard.down('KeyW');await page.waitForTimeout(300);
+  // 5. An open dialog holds the walker still even while W stays down (and W is shown to be live first).
+  const keyStart=await state(page);await page.keyboard.down('KeyW');await page.waitForTimeout(300);const keyMoved=await state(page);
+  const walkedBeforeDialog=Math.hypot(keyMoved.position[0]-keyStart.position[0],keyMoved.position[1]-keyStart.position[1]);
   await page.evaluate(()=>document.querySelector('#about-dialog').showModal());await page.waitForTimeout(100);
   const dialogStart=await state(page);await page.waitForTimeout(1000);const dialogEnd=await state(page);
   await page.keyboard.up('KeyW');await page.evaluate(()=>document.querySelector('#about-dialog').close());
-  check('Opening #about-dialog while W is held stops walking',near(dialogStart,dialogEnd,0),{dialogStart,dialogEnd});
+  check('Opening #about-dialog while W is held stops walking',walkedBeforeDialog>.1&&near(dialogStart,dialogEnd,0),{walkedBeforeDialog,dialogStart,dialogEnd});
 
   // 6. Walk, turn and look, stand still, reload: the place is remembered.
   await hold(page,['KeyW','KeyE'],600);
@@ -85,7 +86,20 @@ try{
   check('Forget visit memory returns the next visit to the arrival pose',near(forgotten,arrival,1e-9),{state:forgotten,storedAfterForget:afterForget});
   await page.context().close();
 
-  // 8. No WebGL2: the painting.
+  // 8. Forget visit memory on the default painting page also forgets the place.
+  const painted=await visitor();await painted.goto(`${base}/?space=1&check`);await ready(painted);
+  const walkedState=await painted.evaluate(()=>{window.__space.state={...window.__space.state,position:[1,0]};return structuredClone(window.__space.state);});
+  await painted.waitForFunction(()=>localStorage.getItem('a-view:place:lakeside-cottage')!==null,null,{timeout:10_000});
+  const seeded=await painted.evaluate(()=>localStorage.getItem('a-view:place:lakeside-cottage'));
+  await painted.goto(base);await painted.waitForLoadState('load');
+  await painted.locator('#notes-button').click();await painted.locator('#forget-visits').click();await painted.keyboard.press('Escape');
+  const paintedAfterForget=await painted.evaluate(()=>localStorage.getItem('a-view:place:lakeside-cottage'));
+  await painted.goto(`${base}/?space=1&check`);await ready(painted);const paintedReturn=await state(painted);
+  check('Forget visit memory on the default page forgets the place for the next 3D visit',!!seeded&&paintedAfterForget===null&&near(paintedReturn,arrival,1e-9),
+    {walkedState,seeded:seeded&&JSON.parse(seeded),storedAfterForget:paintedAfterForget,state:paintedReturn});
+  await painted.context().close();
+
+  // 9. No WebGL2: the painting.
   const flat=await visitor(viewport,()=>{const original=HTMLCanvasElement.prototype.getContext;window.__webgl2Refused=0;
     HTMLCanvasElement.prototype.getContext=function(type,...rest){if(type==='webgl2'){window.__webgl2Refused++;return null;}return original.call(this,type,...rest);};});
   await flat.goto(`${base}/?space=1&check`);await flat.waitForLoadState('load');await flat.waitForTimeout(4000);
@@ -93,7 +107,7 @@ try{
   check('Without WebGL2 the 2D view is shown',flatView.spaceHidden&&(flatView.painting||flatView.fallback)&&refused>0&&!flat.own.length,{...flatView,webgl2Refused:refused,pageErrors:flat.own});
   await flat.context().close();
 
-  // 9. Context loss returns to the painting within 2 s.
+  // 10. Context loss returns to the painting within 2 s.
   const lost=await visitor();await lost.goto(`${base}/?space=1&check`);await ready(lost);
   const lossStart=performance.now();
   await lost.evaluate(()=>window.__space.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
@@ -102,7 +116,7 @@ try{
   check('WebGL context loss returns to the 2D view within 2 s',returned&&lostView.spaceHidden&&(lostView.painting||lostView.fallback),{...lostView,seconds:lossSeconds});
   await lost.context().close();
 
-  // 10. Portrait phone viewport: field of view capped, frame drawn.
+  // 11. Portrait phone viewport: field of view capped, frame drawn.
   const phone=await visitor({width:390,height:844});await phone.goto(`${base}/?space=1&check`);await ready(phone);
   const portrait=await phone.evaluate(()=>{const s=window.__space,g=s.renderer.getContext();s.renderer.render(s.scene,s.camera);
     const read=(x,y)=>{const b=new Uint8Array(4);g.readPixels(x,y,1,1,g.RGBA,g.UNSIGNED_BYTE,b);return [...b];};

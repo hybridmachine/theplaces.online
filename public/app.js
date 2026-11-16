@@ -66,8 +66,8 @@ $('#fullscreen-button').onclick=async()=>{try{if(document.fullscreenElement)awai
 document.addEventListener('fullscreenchange',()=>{$('#fullscreen-button').setAttribute('aria-label',document.fullscreenElement?'Leave fullscreen':'Enter fullscreen');});
 document.querySelectorAll('[data-light]').forEach(button=>button.onclick=()=>{if(!snapshot)return;audio.hold();study=button.dataset.light;$('#about-dialog').close();document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateLabels();wake();});
 $('#arrival-button').onclick=()=>painter.returnToArrival?.();
-// FieldNotes owns the onclick; this also forgets the visitor's place in the yard.
-$('#forget-visits').addEventListener('click',()=>painter.forgetPlace?.());
+// FieldNotes owns the onclick; this also forgets the visitor's place in the yard, whichever painter is live.
+$('#forget-visits').addEventListener('click',()=>{try{localStorage.removeItem('a-view:place:lakeside-cottage');}catch{}painter.forgetPlace?.();});
 $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed','false'));if(pausedAt!==null)$('#pause-button').click();updateLabels();wake();};
 
 function accept(data){
@@ -127,7 +127,7 @@ async function openSpace(){
 }
 let walkHinted=false;
 function showSpace(on){
-  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#world').classList.toggle('walkable',on);
+  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#world').classList.toggle('walkable',on);fieldNotes.inYard=on;fieldNotes.render();
   if(on&&!walkHinted){walkHinted=true;toast('Walk with W A S D. Drag to look.');}
   for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
 function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
