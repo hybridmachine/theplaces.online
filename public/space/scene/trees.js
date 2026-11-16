@@ -138,42 +138,38 @@ export function buildOak(THREE, {space, dressing, art}) {
   return {object, dispose: () => disposeAll(object)};
 }
 
-// The woods: each planned clump a tree-like mass of fixed cards standing toward the yard, in a narrow sage-to-moss range,
-// paler and bluer the farther past the wall, with a dark stroke or two of trunk beneath.
+// The woods: a tree line seen across the wall, built from wide cards of the `woods` cells (each a broad mass with a feathered
+// top) standing in the three planned rows. Every card spans several metres and overlaps its neighbours by well over a third,
+// so no single crown's outline survives; a row shares one height range (the back row taller, paler and bluer, the front row
+// lower and darker) that swells and dips only slowly along the band, so nothing stands clear of it. The cards are fixed in the
+// world at varied yaw so they never line up into one flat screen, and the three rows give the band depth seen along it. (Cards
+// standing across the rows were tried and dropped: seen edge-on from the yard they drew as thin poles.)
+const WOODS_ROWS = [{offset: 8, top: 6.4, haze: 0, shade: .95}, {offset: 14, top: 7.6, haze: .2, shade: 1}, {offset: 20, top: 8.8, haze: .4, shade: 1.03}];
+// The share of a woods card's height its mass fills below the feathered top line (from the cell's painting).
+const WOODS_MASS = .6;
+
 export function buildWoods(THREE, {space, dressing, art}) {
-  const plan = woodsPlan(space, dressing), r = stream(dressing.seed + 22), cells = SPACE_ART.cards.cells, cards = cardBatch(SPACE_ART);
-  const w = space.wall, yard = [w.reduce((s, p) => s + p[0], 0) / w.length, w.reduce((s, p) => s + p[1], 0) / w.length];
-  const SAGE = [1.22, 1.3, 1.12], MOSS = [1.24, 1.28, .9], FAR = [1.6, 1.72, 1.85], TRUNK = [.07, .06, .045];
-  const far = Math.max(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
-  const near = Math.min(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
-  // Each crown's height is mostly its neighbours' (within 9 m), so heights vary gently along the band and no tree stands clear.
-  const planned = plan.map(c => (c.center[2] - terrainHeight(space, c.center[0], c.center[1])) / .55);
-  const heights = plan.map((c, i) => {
-    let sum = 0, weight = 0;
-    plan.forEach((o, j) => { const w = Math.max(0, 1 - Math.hypot(o.center[0] - c.center[0], o.center[1] - c.center[1]) / 9); sum += w * planned[j]; weight += w; });
-    return Math.min(10, (.35 * planned[i] + .65 * sum / weight) * (.92 + .16 * hash(i, 3, 73)));
-  });
+  const plan = woodsPlan(space, dressing), cells = SPACE_ART.cards.cells, cards = cardBatch(SPACE_ART), w = space.wall;
+  const SAGE = [1.22, 1.3, 1.12], MOSS = [1.24, 1.28, .9], FAR = [1.6, 1.72, 1.85];
+  // the nearest wall edge to a point: its direction, the normal into the yard, and how far beyond it the point is
+  const area = w.reduce((s, p, k) => s + p[0] * w[(k + 1) % w.length][1] - w[(k + 1) % w.length][0] * p[1], 0);
+  const nearestEdge = ([x, y]) => w.map((a, i) => {
+    const b = w[(i + 1) % w.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+    const t = clamp01(((x - a[0]) * d[0] + (y - a[1]) * d[1]) / len), dist = Math.hypot(x - a[0] - d[0] * t * len, y - a[1] - d[1] * t * len);
+    return {d, inward: area > 0 ? [-d[1], d[0]] : [d[1], -d[0]], dist};
+  }).reduce((m, e) => e.dist < m.dist ? e : m);
+  const card = (centre, along, inward, half, height, row, i, k) => {
+    const ground = Math.min(...[-1, 0, 1].map(f => terrainHeight(space, centre[0] + along[0] * half * f, centre[1] + along[1] * half * f)));
+    const hh = height / WOODS_MASS / 2, base = mix(mix(SAGE, MOSS, noise(centre[0] * .08, centre[1] * .08, 71)), FAR, row.haze).map(v => v * row.shade);
+    cards.add([centre[0], centre[1], ground - .4 + hh], [along[0] * half, along[1] * half, 0], [0, 0, hh], cells.woods[(i + k) % 2],
+      base.map(v => v * .82), base, V.norm([inward[0], inward[1], 1]), hash(i, k, 75) < .5);
+  };
   plan.forEach((clump, i) => {
-    const [x, y] = clump.center, ground = terrainHeight(space, x, y), tall = heights[i], R = clump.radius;
-    const d = clamp01((Math.hypot(x - yard[0], y - yard[1]) - near) / (far - near)), hue = mix(SAGE, MOSS, noise(x * .08, y * .08, 71));
-    const base = mix(hue, FAR, .6 * d), toYard = V.norm([yard[0] - x, yard[1] - y, 0]);
-    const n = Math.round(10 + R * 4 + tall * 2.2);
-    for (let k = 0; k < n; k++) {
-      // a crown from a quarter of the way up, wide low and narrowing high, its cards thinning and shrinking toward the top so it
-      // never tiers; the cells' feathered upper edges make the skyline; every fourth card is low in the understorey so no sky
-      // shows under the mass
-      const h = r() ** 1.6, spread = R * 1.25 * (1 - .55 * h) * Math.sqrt(r()), a = r() * TAU;
-      const c = [x + Math.sin(a) * spread, y + Math.cos(a) * spread, ground + tall * (k % 4 ? .26 + .6 * h : .1 + .2 * h)];
-      const turn = (r() - .5) * 1.6, normal = V.norm([toYard[0] * Math.cos(turn) - toYard[1] * Math.sin(turn), toYard[0] * Math.sin(turn) + toYard[1] * Math.cos(turn), (r() - .5) * .3]);
-      const [right, up0] = basis(normal), lean = (r() - .5) * .3, up = V.add(V.scale(up0, Math.cos(lean)), right, Math.sin(lean)), across = V.norm(V.cross(up, normal));
-      const size = (1.5 + r() * 1.0) * (.75 + .25 * R / 4) * (1 - .3 * h), k0 = (.9 + .12 * h) * (.95 + r() * .1);
-      cards.add(c, V.scale(across, size * 1.05), V.scale(up, size), cells.woods[k % 2], base.map(v => v * k0 * .85), base.map(v => v * k0),
-        V.norm(V.add(toYard, [0, 0, 1])), r() < .5);
-    }
-    for (let k = 0; k < 2; k++) {
-      const tx = x + (r() - .5) * R * .6, ty = y + (r() - .5) * R * .6, toward = V.norm([yard[0] - tx, yard[1] - ty, 0]), g = terrainHeight(space, tx, ty);
-      cards.add([tx, ty, g + tall * .2], [-toward[1] * .07, toward[0] * .07, 0], [0, 0, tall * .2], cells.dab[0], mix(TRUNK, FAR, .1 * d), mix(TRUNK, FAR, .1 * d), toward);
-    }
+    const [x, y] = clump.center, edge = nearestEdge([x, y]);
+    const row = WOODS_ROWS.reduce((m, r) => Math.abs(r.offset - edge.dist) < Math.abs(m.offset - edge.dist) ? r : m);
+    const yaw = (hash(i, 1, 74) - .5) * .7, along = [edge.d[0] * Math.cos(yaw) - edge.d[1] * Math.sin(yaw), edge.d[0] * Math.sin(yaw) + edge.d[1] * Math.cos(yaw)];
+    const height = row.top * (.84 + .3 * noise(x / 26, y / 26, 76) + .06 * hash(i, 2, 74)), half = 7 + 2 * hash(i, 3, 74);
+    card([x, y], along, edge.inward, half, height, row, i, 0);
   });
   const object = new THREE.Group(); object.name = 'woods';
   const masses = new THREE.Mesh(cards.geometry(THREE), cardMaterial(THREE, art.cards, SPACE_ART)); masses.name = 'masses';

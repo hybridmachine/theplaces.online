@@ -23,14 +23,16 @@ const jitter = (rand, c, k = .08) => c.map(v => v * (1 + (rand() - .5) * k));
 // rejections it gives up and takes any pixel).
 function sampler(paint, rects, rand, keep = null, tries = 40) {
   const areas = rects.map(r => r[2] * r[3]), total = areas.reduce((a, b) => a + b, 0);
-  const raw = () => {
-    let t = rand() * total, k = 0; while (t > areas[k] && k < rects.length - 1) t -= areas[k++];
-    const r = rects[k], x = r[0] + (rand() * r[2] | 0), y = r[1] + (rand() * r[3] | 0), i = (y * paint.width + x) * 4;
+  const raw = q => {
+    let t = q() * total, k = 0; while (t > areas[k] && k < rects.length - 1) t -= areas[k++];
+    const r = rects[k], x = r[0] + (q() * r[2] | 0), y = r[1] + (q() * r[3] | 0), i = (y * paint.width + x) * 4;
     return [paint.data[i], paint.data[i + 1], paint.data[i + 2]];
   };
-  const pick = () => { for (let n = 0; n < tries; n++) { const c = raw(); if (!keep || keep(c)) return c; } return raw(); };
+  const pickWith = q => { for (let n = 0; n < tries; n++) { const c = raw(q); if (!keep || keep(c)) return c; } return raw(q); };
+  const pick = () => pickWith(rand);
   const mean = [0, 0, 0]; for (let n = 0; n < 3000; n++) { const c = pick(); for (let q = 0; q < 3; q++) mean[q] += c[q] / 3000; }
-  return {pick, mean};
+  // The same colours and mean, picked from another stream, so a card cell's picks never move any other cell's.
+  return {pick, mean, using: q => ({pick: () => pickWith(q), mean})};
 }
 
 function canvas(w, h = w) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -370,27 +372,32 @@ const CARDS = {
     }
     g.drawImage(leaves, 0, 0);
   },
-  // Distant tree masses: a flat-bottomed cluster of overlapping crowns whose tops rise and fall unevenly across the cell (so a
-  // card's upper edge is never one level line), in a narrow sage-to-moss range with blunt strokes. The outline is feathered
-  // rather than domed: narrow strokes of uneven length flick outward from the upper outline along its normal, in the mass's
-  // own middle tones, so the skyline breaks softly like the painting's distant trees.
+  // A tree line seen from a distance: one low, broad mass across most of the cell, its base on the cell's bottom edge, and an
+  // uneven, feathered top line with detail at every scale (layered noise, then strokes of many lengths flicking up from it) and
+  // no single hummock. Low contrast inside: close mid sage and moss tones, a slightly lighter band along the top, darker toward
+  // the base, no light speckle.
   woods(g, r, n, i, s) {
-    const k = n / 512, count = 6 + (r() * 3 | 0), floor = n * (.86 + r() * .05), lobes = [];
-    for (let q = 0; q < count; q++) {
-      const rad = (34 + r() * 34) * k, rx = rad * (1.05 + r() * .4), x = clamp(40 * k + (q + .5) / count * (n - 80 * k) + (r() - .5) * 30 * k, rx + 28 * k, n - rx - 28 * k);
-      lobes.push({x, y: clamp(n * (.42 + r() * .26), rad + 80 * k, n), rad, rx, column: true});
+    const k = n / 512, left = MARGIN + 6 * k, right = n - MARGIN - 6 * k, foot = n - MARGIN - 1, waves = [];
+    for (const [period, amp] of [[n * 1.3, 40], [n * .45, 20], [n * .17, 10], [n * .07, 6], [n * .03, 3]]) waves.push([period, amp * k, r() * TAU]);
+    const crest = n * (.38 + r() * .06), topY = x => crest + waves.reduce((y, [p, a, ph]) => y + a * Math.sin(x / p * TAU + ph), 0)
+      + 50 * k * Math.max(0, 1 - Math.min(x - left, right - x) / (110 * k)) ** 2; // the ends dip a little, so a card's edge never cuts square
+    const tone = (from, depth) => mul(mix(from.pick(), from.mean, .75), 1.06 - .24 * depth);
+    // the body, in blunt strokes from the base up, each a close neighbour of the mean, darker toward the base
+    const side = [r() * TAU, r() * TAU], ragged = (y, e) => (40 + 26 * Math.sin(y / (37 * k) + side[e]) + 16 * Math.sin(y / (13 * k) + 2 * side[e]) + 8 * Math.sin(y / (5 * k) + 3 * side[e])) * k;
+    for (let q = 0, strokes = 4200 * k * k; q < strokes; q++) {
+      const x = left + r() * (right - left), y0 = topY(x), y = y0 + 6 * k + r() * (foot - y0 - 6 * k), depth = (y - y0) / (foot - y0);
+      const from = depth < .18 ? (r() < .25 ? s.woodsLight : s.woods) : depth > .7 ? (r() < .5 ? s.woodsDark : s.woods) : s.woods;
+      const len = (10 + r() * 14) * k;
+      if (x < left + ragged(y, 0) || x > right - ragged(y, 1)) continue; // the ends break unevenly instead of cutting square
+      dab(g, x, y, {angle: (r() - .5) * 1.4 + (r() < .5 ? 0 : Math.PI), len, width: len * (.6 + r() * .3), color: jitter(r, tone(from, depth), .05), alpha: 1, bristles: 3,
+        bend: (r() - .5) * .6, taper: .6}, r);
     }
-    leafMass(g, r, n, {lobes, floor, count: 1300 * k * k, leaf: [16 * k, 30 * k], rosette: false, light: s.woodsLight, mid: s.woods, dark: s.woodsDark, contrast: .5, calm: .45, taper: .6});
-    // the band's upper edge across the cell, and its slope, from the same lobes leafMass filled
-    const top = x => lobes.reduce((t, l) => { const u = (x - l.x) / l.rx; return Math.abs(u) < 1 ? Math.min(t, l.y - l.rad * Math.sqrt(1 - u * u)) : t; }, Infinity);
-    for (let q = 0, flicks = 240 * k; q < flicks; q++) {
-      const x = 40 * k + r() * (n - 80 * k), y0 = top(x);
-      if (!Number.isFinite(y0)) continue;
-      const slope = (top(x + 6 * k) - top(x - 6 * k)) / (12 * k), lean = Number.isFinite(slope) ? Math.atan(slope) : 0;
-      const len = (10 + r() ** 2 * 38) * k, angle = -Math.PI / 2 + lean + (r() - .5) * 1.2, inset = (4 + r() * 16) * k;
-      const lit = r() < .25, col = mix(lit ? s.woodsLight.pick() : s.woods.pick(), s.woods.mean, .6);
-      dab(g, x + Math.cos(angle) * len * .35, y0 + inset + Math.sin(angle) * len * .35, {angle, len, width: len * (.28 + r() * .2), color: jitter(r, col, .08),
-        alpha: 1, bristles: 2, bend: (r() - .5) * .6, taper: .85}, r);
+    // the feathered top: many narrow strokes of very different lengths flicking up from the line, lit a touch more than the body
+    for (let q = 0, flicks = 1100 * k; q < flicks; q++) {
+      const x = left + 4 * k + r() * (right - left - 8 * k), y0 = topY(x), slope = (topY(x + 4 * k) - topY(x - 4 * k)) / (8 * k);
+      const len = (5 + r() ** 2.2 * 26) * k, angle = -Math.PI / 2 + Math.atan(slope) * .6 + (r() - .5) * 1.0;
+      dab(g, x + Math.cos(angle) * len * .3, y0 + (2 + r() * 6) * k + Math.sin(angle) * len * .3, {angle, len, width: len * (.3 + r() * .2),
+        color: jitter(r, tone(r() < .3 ? s.woodsLight : s.woods, .08), .05), alpha: 1, bristles: 2, bend: (r() - .5) * .5, taper: .9}, r);
     }
   },
   // Neutral light dabs (the scene tints them): one long loaded stroke, or a pair; ragged where the bristles run dry.
@@ -460,6 +467,14 @@ function seedStalk(g, r, n, x, foot, len, lean, color) {
     dab(g, px + side * 5 * k, py, {angle: -Math.PI / 2 + lean + side * (.3 + r() * .4), len: (12 + r() * 10) * k, width: (4 + r() * 3) * k, color: mul(color, .85 + r() * .3), alpha: 1, bristles: 1, taper: .9}, r); }
 }
 
+// Where each card cell's random stream starts, as a number of steps along the cards seed's stream (index = atlas cell). Every cell
+// paints and picks its colours from its own stream, so changing one cell's painting can never move another's. These are the
+// points the atlas's old shared running stream had reached when each cell began, so the approved cells paint exactly as they
+// were; to re-roll one cell, change its entry.
+const STEP = 0x6D2B79F5;
+const CELL_STREAMS = Object.freeze([2462901, 2533051, 2591138, 2648799, 2706628, 2729369, 2753604, 2753605, 2753606, 2754081, 2754478, 2754914,
+  2889858, 2890570]);
+
 function paintCards(paint, r) {
   const {size, cell: n, cells} = SPACE_ART.cards, atlas = canvas(size), ag = atlas.getContext('2d'), per = size / n;
   const leafy = c => c[1] >= c[2] * 1.12 && c[1] >= c[0] * .85, S = (name, keep) => sampler(paint, REGIONS[name], r, keep, 2000);
@@ -469,8 +484,11 @@ function paintCards(paint, r) {
     woodsDark: S('woods', c => leafy(c) && c[1] >= c[0] && lum(c) > 45 && lum(c) <= 85), meadow: S('meadow', greenish), cream: S('meadow', c => lum(c) > 190),
     reeds: S('reeds', c => c[1] >= c[2] * 1.15 && c[1] >= c[0] * .95 && lum(c) > 60 && lum(c) < 165)};
   for (const [kind, list] of Object.entries(cells)) list.forEach((index, i) => {
+    // The cell's own stream: its first number seeds its painting, the rest pick its colours. Nothing else draws from it.
+    const own = rng(Math.imul(CELL_STREAMS[index], STEP) + SEEDS.cards | 0), seed = own() * 4294967296 | 0;
+    const picks = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.using(own)]));
     const c = canvas(n), g = c.getContext('2d', {willReadFrequently: true});
-    CARDS[kind](g, rng(r() * 4294967296 | 0), n, i, s);
+    CARDS[kind](g, rng(seed), n, i, picks);
     ag.putImageData(finishCard(g, n), (index % per) * n, Math.floor(index / per) * n);
   });
   return atlas;
