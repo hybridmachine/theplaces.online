@@ -1,0 +1,111 @@
+{
+  "node": "v26.7.0",
+  "epoch": 1800000000000,
+  "results": [
+    {
+      "realDays": 1,
+      "seedOffset": 0,
+      "elapsedMs": 15.123291000000002,
+      "yields": 0,
+      "episodes": 13,
+      "gapMinutes": {
+        "min": 14,
+        "median": 105,
+        "mean": 106.58333333333333,
+        "max": 217
+      },
+      "activePercent": 0.14331597222222223,
+      "quietWindowPercent": 95.47353760445682,
+      "quietDaylightWindowPercent": 92.53554502369668,
+      "overlapsWithBirdOrCottage": 0,
+      "stateBytes": 158,
+      "snapshotBytes": 14718,
+      "events": 26,
+      "databaseBytes": 241664
+    },
+    {
+      "realDays": 30,
+      "seedOffset": 0,
+      "elapsedMs": 249.162125,
+      "yields": 0,
+      "episodes": 366,
+      "gapMinutes": {
+        "min": 13,
+        "median": 96,
+        "mean": 116.9945205479452,
+        "max": 931
+      },
+      "activePercent": 0.14124097222222223,
+      "quietWindowPercent": 95.76349662005741,
+      "quietDaylightWindowPercent": 91.49547854267942,
+      "overlapsWithBirdOrCottage": 68,
+      "stateBytes": 159,
+      "snapshotBytes": 15472,
+      "events": 732,
+      "databaseBytes": 5046272
+    },
+    {
+      "realDays": 30,
+      "seedOffset": 1,
+      "elapsedMs": 607.36725,
+      "yields": 0,
+      "episodes": 356,
+      "gapMinutes": {
+        "min": 13,
+        "median": 103,
+        "mean": 121.49577464788733,
+        "max": 681
+      },
+      "activePercent": 0.13797689043209876,
+      "quietWindowPercent": 95.88387813686452,
+      "quietDaylightWindowPercent": 91.51115989754848,
+      "overlapsWithBirdOrCottage": 64,
+      "stateBytes": 159,
+      "snapshotBytes": 15472,
+      "events": 712,
+      "databaseBytes": 5033984
+    },
+    {
+      "realDays": 30,
+      "seedOffset": 987654,
+      "elapsedMs": 774.245958,
+      "yields": 0,
+      "episodes": 360,
+      "gapMinutes": {
+        "min": 13,
+        "median": 98,
+        "mean": 120.008356545961,
+        "max": 812
+      },
+      "activePercent": 0.1376673225308642,
+      "quietWindowPercent": 95.83294749513844,
+      "quietDaylightWindowPercent": 91.43798024149287,
+      "overlapsWithBirdOrCottage": 52,
+      "stateBytes": 159,
+      "snapshotBytes": 15472,
+      "events": 720,
+      "databaseBytes": 5033984
+    },
+    {
+      "realDays": 365,
+      "seedOffset": 0,
+      "elapsedMs": 7753.464166,
+      "yields": 10,
+      "episodes": 4374,
+      "gapMinutes": {
+        "min": 13,
+        "median": 101,
+        "mean": 120.16784815915847,
+        "max": 935
+      },
+      "activePercent": 0.13863361555048198,
+      "quietWindowPercent": 95.83958020989505,
+      "quietDaylightWindowPercent": 91.53406807630155,
+      "overlapsWithBirdOrCottage": 707,
+      "stateBytes": 160,
+      "snapshotBytes": 15525,
+      "events": 8748,
+      "databaseBytes": 61505536
+    }
+  ]
+}

@@ -85,7 +85,7 @@ function updateLabels(){
   const nest=shownSnapshot.world.nest;
   $('#nest-detail').textContent=nest.stage==='built'?'A completed nest rests in the oak.':`${nest.materials} strands gathered. The work continues.`;
   $('#bird-detail').textContent=study?'The bird is omitted from this private light study.':birdDescription(shownSnapshot.world.bird,shownSnapshot.world.action,now(),{reducedMotion:!painter.motion,unavailable:!painter.birdRenderer.valid});
-  const {description,announcement}=sceneText(shownSnapshot,now(),{study,paused:pausedAt!==null,disconnected:stale,staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid});
+  const {description,announcement}=sceneText(shownSnapshot,now(),{study,paused:pausedAt!==null,disconnected:stale,staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
   if($('#scene-description').textContent!==description)$('#scene-description').textContent=description;
   if($('#scene-announcement').textContent!==announcement)$('#scene-announcement').textContent=announcement;
 }

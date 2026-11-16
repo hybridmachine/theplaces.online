@@ -1,0 +1,640 @@
+{
+  "results": [
+    {
+      "name": "Ripples never alter pixels beyond approved water footprints",
+      "pass": true,
+      "detail": [
+        {
+          "location": "shore-reflection",
+          "hour": 0,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 0,
+          "seconds": 1,
+          "changed": 34,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 0,
+          "seconds": 4,
+          "changed": 92,
+          "outside": 0,
+          "maxDifference": 6,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 0,
+          "seconds": 7,
+          "changed": 112,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 0,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 5,
+          "seconds": 1,
+          "changed": 57,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 5,
+          "seconds": 4,
+          "changed": 166,
+          "outside": 0,
+          "maxDifference": 7,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 5,
+          "seconds": 7,
+          "changed": 185,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 12,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 12,
+          "seconds": 1,
+          "changed": 62,
+          "outside": 0,
+          "maxDifference": 5,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 12,
+          "seconds": 4,
+          "changed": 186,
+          "outside": 0,
+          "maxDifference": 10,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 12,
+          "seconds": 7,
+          "changed": 201,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 12,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 19.5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 19.5,
+          "seconds": 1,
+          "changed": 43,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 19.5,
+          "seconds": 4,
+          "changed": 135,
+          "outside": 0,
+          "maxDifference": 6,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 19.5,
+          "seconds": 7,
+          "changed": 145,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "shore-reflection",
+          "hour": 19.5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 0,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 0,
+          "seconds": 1,
+          "changed": 19,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 0,
+          "seconds": 4,
+          "changed": 56,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 0,
+          "seconds": 7,
+          "changed": 72,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 0,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 5,
+          "seconds": 1,
+          "changed": 43,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 5,
+          "seconds": 4,
+          "changed": 192,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 5,
+          "seconds": 7,
+          "changed": 181,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 12,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 12,
+          "seconds": 1,
+          "changed": 68,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 12,
+          "seconds": 4,
+          "changed": 222,
+          "outside": 0,
+          "maxDifference": 5,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 12,
+          "seconds": 7,
+          "changed": 210,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 12,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 19.5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 19.5,
+          "seconds": 1,
+          "changed": 38,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 19.5,
+          "seconds": 4,
+          "changed": 132,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 19.5,
+          "seconds": 7,
+          "changed": 138,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "open-water",
+          "hour": 19.5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 0,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 0,
+          "seconds": 1,
+          "changed": 25,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 0,
+          "seconds": 4,
+          "changed": 102,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 0,
+          "seconds": 7,
+          "changed": 93,
+          "outside": 0,
+          "maxDifference": 1,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 0,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 5,
+          "seconds": 1,
+          "changed": 69,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 5,
+          "seconds": 4,
+          "changed": 239,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 5,
+          "seconds": 7,
+          "changed": 274,
+          "outside": 0,
+          "maxDifference": 3,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 12,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 12,
+          "seconds": 1,
+          "changed": 80,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 12,
+          "seconds": 4,
+          "changed": 281,
+          "outside": 0,
+          "maxDifference": 5,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 12,
+          "seconds": 7,
+          "changed": 308,
+          "outside": 0,
+          "maxDifference": 4,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 12,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 19.5,
+          "seconds": 0,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 19.5,
+          "seconds": 1,
+          "changed": 52,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 19.5,
+          "seconds": 4,
+          "changed": 199,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 19.5,
+          "seconds": 7,
+          "changed": 209,
+          "outside": 0,
+          "maxDifference": 2,
+          "error": 0
+        },
+        {
+          "location": "near-water",
+          "hour": 19.5,
+          "seconds": 10,
+          "changed": 0,
+          "outside": 0,
+          "maxDifference": 0,
+          "error": 0
+        }
+      ]
+    },
+    {
+      "name": "Start/end frames exactly match the undisturbed painting",
+      "pass": true
+    },
+    {
+      "name": "Every location has a readable but bounded daylight disturbance",
+      "pass": true
+    },
+    {
+      "name": "Ripple display: paused",
+      "pass": true
+    },
+    {
+      "name": "Ripple display: reduced",
+      "pass": true
+    },
+    {
+      "name": "Ripple display: resumed",
+      "pass": true
+    },
+    {
+      "name": "Ripple display: fallback",
+      "pass": true
+    },
+    {
+      "name": "Ripple display: invalidArt",
+      "pass": true
+    },
+    {
+      "name": "Optional shader compile failure still renders the baseline sky",
+      "pass": true,
+      "detail": {
+        "failed": true,
+        "baseline": true
+      }
+    },
+    {
+      "name": "Context loss omits the ripple and restoration samples the displayed phase",
+      "pass": true,
+      "detail": {
+        "held": true,
+        "restored": true
+      }
+    },
+    {
+      "name": "Optional ripple uses the existing seven sky textures",
+      "pass": true,
+      "detail": {
+        "baseline": {
+          "median": 0.40000003576278687,
+          "p95": 1.300000011920929
+        },
+        "ripple": {
+          "median": 1.2000000476837158,
+          "p95": 2
+        },
+        "textures": 7,
+        "staticUploads": 7
+      }
+    },
+    {
+      "name": "Two visitors show identical committed ripple pixels",
+      "pass": true
+    },
+    {
+      "name": "Pause preserves the ripple and its description after shared completion",
+      "pass": true
+    },
+    {
+      "name": "Hidden coincidence commits do not change the unread indicator",
+      "pass": true
+    },
+    {
+      "name": "Resume skips the completed episode",
+      "pass": true
+    },
+    {
+      "name": "Private studies omit the live coincidence",
+      "pass": true
+    },
+    {
+      "name": "Reduced-motion visitors receive no moving-ripple description",
+      "pass": true
+    },
+    {
+      "name": "No browser exceptions",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

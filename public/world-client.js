@@ -1,6 +1,7 @@
 import {validCottageState} from '../shared/cottage.js';
 import {validBirdState,birdBoundary} from '../shared/bird.js';
 import {validHistory,sameIdentity} from '../shared/field-notes.js';
+import {validCoincidenceState,coincidenceBoundary,COINCIDENCE_DECISION_MS} from '../shared/coincidences.js';
 
 async function fetchSnapshot() {
   const response = await fetch('/api/world', {
@@ -11,10 +12,13 @@ async function fetchSnapshot() {
   return response.json();
 }
 
-const expectedBoundary=data=>Math.min(data.world.action?.end??Infinity,birdBoundary(data.world.bird),data.world.cottage?.pending?.end??Infinity,data.world.cottage?.nextDecisionAt??Infinity);
+const expectedBoundary=data=>Math.min(data.world.action?.end??Infinity,birdBoundary(data.world.bird),data.world.cottage?.pending?.end??Infinity,data.world.cottage?.nextDecisionAt??Infinity,coincidenceBoundary(data.world.coincidences));
 const boundary=data=>Math.min(data.nextCommitAt??Infinity,expectedBoundary(data));
 function validSnapshot(data){
   if(!data?.world||!Number.isFinite(data.serverTime)||!Number.isFinite(data.validUntil)||data.validUntil<data.serverTime||!Number.isSafeInteger(data.world.revision)||data.world.revision<0)return false;
+  if(data.world.version!==undefined&&(!Number.isInteger(data.world.version)||data.world.version<1||data.world.version>5))return false;
+  if((data.world.version>=5||data.world.coincidences)&&(!validCoincidenceState(data.world.coincidences)||
+    data.world.coincidences.introducedAt>data.serverTime||data.world.coincidences.nextDecisionAt-COINCIDENCE_DECISION_MS>data.serverTime))return false;
   if(data.notes!==undefined&&(!validHistory(data.notes)||data.notes.worldId!==data.world.id||data.notes.epoch!==data.world.epoch))return false;
   if(data.world.cottage&&!validCottageState(data.world.cottage))return false;
   if((data.world.version>=4||data.world.bird)&&!validBirdState(data.world.bird))return false;

@@ -1,5 +1,6 @@
 import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {WorldStore} from '../src/store.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{}),...(process.env.SKY_GPU==='metal'?{args:['--enable-gpu','--use-gl=angle','--use-angle=metal']}:{} )});
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4174',directory='docs/cottage-validation';
@@ -114,22 +115,30 @@ try{
   const visitor=await page();await visitor.route('**/lakeside-cottage-v1/*.png',route=>route.abort());await visitor.goto(base);
   await visitor.waitForFunction(()=>document.querySelector('#scene-description').textContent.includes('static painting'));
   check('Accessible description identifies the static cottage fallback',(await visitor.locator('#scene-description').textContent()).includes('static painting. Shared cottage state: '));await visitor.close();
-  const pausedVisitor=await page(),seed=await (await pausedVisitor.request.get(`${base}/api/world`)).json();
-  const nextDecisionAt=seed.world.cottage.introducedAt+(Math.ceil((seed.serverTime-seed.world.cottage.introducedAt)/30_000)+10)*30_000;
-  seed.nextCommitAt=nextDecisionAt;seed.validUntil=nextDecisionAt;seed.world.action=null;
-  if(seed.world.bird)seed.world.bird.nextDecisionAt=seed.world.bird.introducedAt+Math.ceil((nextDecisionAt-seed.world.bird.introducedAt)/30_000)*30_000;
-  Object.assign(seed.world.cottage,{pending:null,nextDecisionAt,rooms:{main:false,second:false}});
-  let response=structuredClone(seed);
+  const pausedVisitor=await page(),store=new WorldStore(':memory:',1_800_000_000_000);
+  let seed,lit;
+  try{
+    let snapshot=store.snapshot(1_800_000_000_000);
+    for(let i=0;i<4000;i++){
+      const action=snapshot.world.cottage.pending;
+      if(action?.kind==='light'&&action.room==='main'&&action.target){seed=store.snapshot(action.end-1);lit=store.snapshot(action.end+1);break;}
+      snapshot=store.snapshot(snapshot.nextCommitAt);
+    }
+  }finally{store.close();}
+  if(!seed)throw new Error('Missing committed main-room light fixture');
+  await pausedVisitor.addInitScript(()=>Object.defineProperty(performance,'now',{value:()=>10000}));
+  let response=seed;
   await pausedVisitor.route('**/api/world',route=>route.fulfill({json:response}));await pausedVisitor.route('**/api/stream',route=>route.abort());
   await pausedVisitor.goto(base);await pausedVisitor.waitForSelector('#painting.ready');
   await pausedVisitor.waitForFunction(()=>document.querySelector('#cottage-detail').textContent.includes('windows are dark'));
   await pausedVisitor.locator('#pause-button').click();const pausedText=await pausedVisitor.locator('#cottage-detail').textContent();
-  response={...seed,serverTime:seed.serverTime+60_000,world:{...seed.world,revision:seed.world.revision+1,cottage:{...seed.world.cottage,rooms:{main:true,second:false}}},
-    events:[{seq:(seed.events[0]?.seq??0)+1,id:'pause-test',at:seed.serverTime+60_000,type:'test',text:'A committed pause-test observation.'},...seed.events]};
+  response=lit;const refreshed=pausedVisitor.waitForResponse('**/api/world');
   await pausedVisitor.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
-  await pausedVisitor.waitForFunction(()=>!document.querySelector('#note-dot').hidden);
+  await refreshed;await pausedVisitor.waitForTimeout(200);
   check('Paused cottage observation holds while a newer snapshot is accepted',(await pausedVisitor.locator('#cottage-detail').textContent())===pausedText);
+  check('Pause holds the displayed note history as well as the cottage',await pausedVisitor.locator('#note-dot').isHidden());
   await pausedVisitor.locator('#pause-button').click();
+  await pausedVisitor.waitForFunction(()=>!document.querySelector('#note-dot').hidden);
   check('Resuming cottage observation rejoins the current shared room state',(await pausedVisitor.locator('#cottage-detail').textContent()).includes('main room'));
   await pausedVisitor.close();
   if(process.env.COTTAGE_RECORD==='1'){
