@@ -67,3 +67,5 @@ docs/space-validation/*.png
 !docs/space-validation/arrival.png
 !docs/space-validation/remembered.png
 !docs/space-validation/art-sheet.png
+# Review captures (scripts/capture-space-review.mjs) stay local until chosen.
+docs/space-validation/review/

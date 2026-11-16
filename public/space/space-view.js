@@ -1,6 +1,9 @@
 import * as THREE from '../assets/vendor/three-0.170.0.module.js';
-import {buildBlockout, toThree} from './blockout.js';
+import {toThree} from './geometry.js';
+import {loadSpaceArt} from './art-loader.js';
+import {buildScene} from './scene/index.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
+import {LAKESIDE_DRESSING} from '../../shared/lakeside-dressing.js';
 import {WALK, eyePosition, glide, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
@@ -19,8 +22,8 @@ const pose = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch:
 const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 export class SpaceView {
-  constructor(canvas, {space = LAKESIDE_SPACE, sky = SCENES[0].sky, onFailure} = {}) {
-    this.canvas = canvas; this.space = space; this.skyConfig = sky; this.onFailure = onFailure;
+  constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, sky = SCENES[0].sky, onFailure} = {}) {
+    this.canvas = canvas; this.space = space; this.dressing = dressing; this.skyConfig = sky; this.onFailure = onFailure;
     this.state = pose(space.arrival);
     // Walking: held keys, drag deltas gathered since the last frame, an optional glide home, and the remembered place.
     this.keys = new WalkKeys(window, {blocked: () => [...document.querySelectorAll('dialog')].some(d => d.open)});
@@ -62,15 +65,27 @@ export class SpaceView {
     const gl = this.canvas.getContext('webgl2', {antialias: true, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
-    this.renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
+    const renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
+    // The yard is drawn from its art bundle; without it the painting is shown instead. The renderer is published (and
+    // frames drawn) only once the scene exists.
+    let art;
+    try { art = await loadSpaceArt(THREE, renderer); }
+    catch (error) {
+      console.warn("The yard's art could not be loaded; showing the painting.", error);
+      this.canvas.removeEventListener('webglcontextlost', this.contextLost); renderer.dispose();
+      return false;
+    }
+    if (this.disposed) { art.dispose(); renderer.dispose(); return false; }
+    this.art = art;
     this.scene = new THREE.Scene(); this.scene.fog = new THREE.FogExp2('#d3d3bf', FOG_DENSITY);
     this.camera = new THREE.PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
-    this.blockout = buildBlockout(THREE, this.space); this.scene.add(this.blockout.group);
+    this.yard = buildScene(THREE, {space: this.space, dressing: this.dressing, art}); this.scene.add(this.yard.group);
     this.sky = new SkyDome(THREE, this.skyConfig); this.scene.add(this.sky.object3d);
     this.hemisphere = new THREE.HemisphereLight(); this.direct = new THREE.DirectionalLight(); this.scene.add(this.hemisphere, this.direct);
     this.colours = {day: {}, night: {}};
     for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
+    this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();
     await this.sky.load(); // never rejects; a missing atlas leaves a clear sky
     return !this.disposed;
@@ -122,7 +137,8 @@ export class SpaceView {
     this.camera.rotation.y = -this.state.yaw; this.camera.rotation.x = this.state.pitch;
     const bodies = skyBodies(c, {seed: this.skyConfig.seed, model: this.skyConfig.celestial, worldMs: celestialTime});
     const clouds = sampleCloudLayers({realSeconds, motionSeconds, weather: w, config: this.skyConfig});
-    const {horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
+    const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
+    this.yard.setSky({zenith, horizon});
     this.applyLight(c, w, bodies, horizon);
     this.renderer.render(this.scene, this.camera);
     return conditions;
@@ -147,7 +163,7 @@ export class SpaceView {
     this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
     removeEventListener('resize', this.resize); this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
-    this.blockout?.dispose(); this.sky?.dispose(); this.hemisphere?.dispose(); this.direct?.dispose();
+    this.yard?.dispose(); this.art?.dispose(); this.sky?.dispose(); this.hemisphere?.dispose(); this.direct?.dispose();
     this.renderer?.dispose(); this.renderer = null;
   }
 }
