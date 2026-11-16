@@ -1,7 +1,7 @@
 // Review captures of the 3D yard from named poses under the light studies:
-//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|plain] [--study day|dawn|dusk|night|rain]
+//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|light|plain] [--study day|dawn|dusk|night|rain]
 // Saves <pose>-<study>-<tier>.png (1440 × 810) to docs/space-validation/review/. Needs a server (SKY_PREVIEW_URL, default
-// http://127.0.0.1:4190). --tier is recorded in the file name; it takes effect once the view has tiers.
+// http://127.0.0.1:4190). --tier starts the view locked at that tier (?tier=) and is recorded in the file name.
 import {createRequire} from 'node:module';
 import {mkdir} from 'node:fs/promises';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
@@ -45,8 +45,10 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
   page.on('requestfailed', r => { if (!r.url().startsWith('https://fonts.')) errors.push(`${r.url()} ${r.failure()?.errorText}`); });
-  await page.goto(`${base}/?space=1&check`);
+  await page.goto(`${base}/?space=1&check&tier=${tier}`);
   await page.waitForFunction(() => window.__space?.renderer && !document.querySelector('#space').hidden && window.__space.lastStep !== null, null, {timeout: 30_000});
+  const shownTier = await page.evaluate(() => window.__space.tier);
+  if (shownTier !== tier) throw new Error(`The view is on the ${shownTier} tier, not ${tier}.`);
   // The study buttons do nothing until the first world snapshot has arrived, so press until one takes.
   await page.waitForFunction(s => { const b = document.querySelector(`[data-light="${s}"]`); b.click(); return b.getAttribute('aria-pressed') === 'true'; }, study, {timeout: 15_000, polling: 250});
   // The interface stays out of the picture.
