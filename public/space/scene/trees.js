@@ -1,11 +1,11 @@
-import {terrainHeight} from '../../../shared/space.js';
+import {shoreDistance, terrainHeight} from '../../../shared/space.js';
 import {oakPlan, woodsPlan} from '../../../shared/lakeside-dressing.js';
-import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
-import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, tube, V} from '../geometry.js';
+import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
+import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V} from '../geometry.js';
 
 // The old oak and the woods beyond the wall, in paint. The oak is a forked, tapering trunk wound outward and drawn single-sided,
-// limbs and twigs as bark tubes, and its clumps as fixed leaf cards in one merged mesh; the woods are soft masses of fixed
-// cards that pale and cool with distance. Cards never turn to face the camera. World axes x east, y north, z up, metres.
+// limbs and twigs as bark tubes, and its clumps as fixed leaf cards in one merged mesh; the woods are long fixed ribbons of
+// painted woodland that pale and cool with distance. Cards never turn to face the camera. World axes x east, y north, z up, metres.
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
 const clamp01 = t => Math.max(0, Math.min(1, t));
@@ -138,41 +138,101 @@ export function buildOak(THREE, {space, dressing, art}) {
   return {object, dispose: () => disposeAll(object)};
 }
 
-// The woods: a tree line seen across the wall, built from wide cards of the `woods` cells (each a broad mass with a feathered
-// top) standing in the three planned rows. Every card spans several metres and overlaps its neighbours by well over a third,
-// so no single crown's outline survives; a row shares one height range (the back row taller, paler and bluer, the front row
-// lower and darker) that swells and dips only slowly along the band, so nothing stands clear of it. The cards are fixed in the
-// world at varied yaw so they never line up into one flat screen, and the three rows give the band depth seen along it. (Cards
-// standing across the rows were tried and dropped: seen edge-on from the yard they drew as thin poles.)
-const WOODS_ROWS = [{offset: 8, top: 6.4, haze: 0, shade: .95}, {offset: 14, top: 7.6, haze: .2, shade: 1}, {offset: 20, top: 8.8, haze: .4, shade: 1.03}];
-// The share of a woods card's height its mass fills below the feathered top line (from the cell's painting).
-const WOODS_MASS = .6;
+// The woods: one soft band of woodland round the yard's land sides, built as a few long ribbons of the `woods` cells standing
+// one behind another. Each ribbon follows the wall at its own distance, rounding the corners and wandering a little in and out,
+// so from anywhere in the yard some part of every stretch is turned toward the eye and the band has body seen along it. A
+// ribbon has no ends to show: the cells repeat end to end along it (either way round, in no fixed order), and where it nears the
+// lake it sinks into the ground. Tone, height and light all vary smoothly along the band — by place, never by piece — so nothing
+// steps where two cells meet; the ribbons behind stand taller, paler and bluer. Crown height follows the planned clumps, evened
+// out over a wide neighbourhood so no tree stands clear. Fixed in the world, alpha-tested like every card.
+const WOODS = {
+  layers: 5, step: 1.25,      // ribbons, and metres between a ribbon's uprights
+  top: [4.6, 11],             // crown height of the nearest and the farthest ribbon, metres
+  tile: [11, 14],             // metres of ribbon one cell covers, nearest and farthest
+  haze: [.02, .6],            // how far the nearest and the farthest ribbon pale toward the distance
+  wander: 2,                  // how far the band's edge strays from its line, metres (about ±1.5, at most ±4.7)
+  corner: 12,                 // metres of the band's wandering spent rounding each corner of the wall
+  mass: .6,                   // the share of a woods cell's height its mass fills below the top line (from the cell's painting)
+  inset: 16 / 512,            // the cell's clear border plus the eight pixels past which its painting repeats
+  shore: [2, 17],             // metres from the water over which a ribbon rises out of the ground
+};
 
 export function buildWoods(THREE, {space, dressing, art}) {
-  const plan = woodsPlan(space, dressing), cells = SPACE_ART.cards.cells, cards = cardBatch(SPACE_ART), w = space.wall;
-  const SAGE = [1.22, 1.3, 1.12], MOSS = [1.24, 1.28, .9], FAR = [1.6, 1.72, 1.85];
-  // the nearest wall edge to a point: its direction, the normal into the yard, and how far beyond it the point is
-  const area = w.reduce((s, p, k) => s + p[0] * w[(k + 1) % w.length][1] - w[(k + 1) % w.length][0] * p[1], 0);
-  const nearestEdge = ([x, y]) => w.map((a, i) => {
-    const b = w[(i + 1) % w.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
-    const t = clamp01(((x - a[0]) * d[0] + (y - a[1]) * d[1]) / len), dist = Math.hypot(x - a[0] - d[0] * t * len, y - a[1] - d[1] * t * len);
-    return {d, inward: area > 0 ? [-d[1], d[0]] : [d[1], -d[0]], dist};
-  }).reduce((m, e) => e.dist < m.dist ? e : m);
-  const card = (centre, along, inward, half, height, row, i, k) => {
-    const ground = Math.min(...[-1, 0, 1].map(f => terrainHeight(space, centre[0] + along[0] * half * f, centre[1] + along[1] * half * f)));
-    const hh = height / WOODS_MASS / 2, base = mix(mix(SAGE, MOSS, noise(centre[0] * .08, centre[1] * .08, 71)), FAR, row.haze).map(v => v * row.shade);
-    cards.add([centre[0], centre[1], ground - .4 + hh], [along[0] * half, along[1] * half, 0], [0, 0, hh], cells.woods[(i + k) % 2],
-      base.map(v => v * .82), base, V.norm([inward[0], inward[1], 1]), hash(i, k, 75) < .5);
+  const plan = woodsPlan(space, dressing), w = space.wall, cells = SPACE_ART.cards.cells.woods;
+  const SAGE = [1.1, 1.17, 1.04], MOSS = [1.21, 1.2, .93], FAR = [1.42, 1.56, 1.7];
+  const smoothstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+  const ccw = w.reduce((s, p, k) => s + p[0] * w[(k + 1) % w.length][1] - w[(k + 1) % w.length][0] * p[1], 0) > 0;
+  const edges = w.map((a, i) => { const b = w[(i + 1) % w.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+    return {a, b, d, len, out: ccw ? [d[1], -d[0]] : [-d[1], d[0]]}; });
+  const beyond = ([x, y]) => Math.min(...edges.map(({a, d, len}) => { const t = clamp01(((x - a[0]) * d[0] + (y - a[1]) * d[1]) / len); return Math.hypot(x - a[0] - d[0] * t * len, y - a[1] - d[1] * t * len); }));
+  // the planned clumps give the band its depth and its crown heights (each clump's centre stands at .55 of its height)
+  const reach = plan.map(c => beyond(c.center)), near = Math.min(...reach) + 2.5, far = Math.max(...reach) - 2;
+  const talls = plan.map(c => (c.center[2] - terrainHeight(space, c.center[0], c.center[1])) / .55), mean = talls.reduce((s, v) => s + v, 0) / talls.length;
+  const crowns = (x, y) => { let sum = .3 * mean, weight = .3;
+    plan.forEach((c, i) => { const k = Math.exp(-((c.center[0] - x) ** 2 + (c.center[1] - y) ** 2) / 200); sum += k * talls[i]; weight += k; });
+    return sum / weight / mean; };
+  // the wall's outline pushed out by `d` with rounded corners, as points a quarter-metre apart: [x, y, outward x, outward y, metres
+  // along the wall] (the last runs on at the same rate round a corner whatever `d` is, so every ribbon shares it)
+  const outline = d => {
+    const pts = []; let run = 0;
+    edges.forEach((e, i) => {
+      for (let t = 0; t < e.len; t += .25) pts.push([e.a[0] + e.d[0] * t + e.out[0] * d, e.a[1] + e.d[1] * t + e.out[1] * d, ...e.out, run + t]);
+      const next = edges[(i + 1) % edges.length], a0 = Math.atan2(e.out[1], e.out[0]); let turn = Math.atan2(next.out[1], next.out[0]) - a0;
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+      for (let k = 0, n = Math.max(1, Math.ceil(Math.abs(turn) * d / .25)); k < n; k++) { const a = a0 + turn * k / n; pts.push([e.b[0] + Math.cos(a) * d, e.b[1] + Math.sin(a) * d, Math.cos(a), Math.sin(a), run + e.len + WOODS.corner * k / n]); }
+      run += e.len + WOODS.corner;
+    });
+    return pts;
   };
-  plan.forEach((clump, i) => {
-    const [x, y] = clump.center, edge = nearestEdge([x, y]);
-    const row = WOODS_ROWS.reduce((m, r) => Math.abs(r.offset - edge.dist) < Math.abs(m.offset - edge.dist) ? r : m);
-    const yaw = (hash(i, 1, 74) - .5) * .7, along = [edge.d[0] * Math.cos(yaw) - edge.d[1] * Math.sin(yaw), edge.d[0] * Math.sin(yaw) + edge.d[1] * Math.cos(yaw)];
-    const height = row.top * (.84 + .3 * noise(x / 26, y / 26, 76) + .06 * hash(i, 2, 74)), half = 7 + 2 * hash(i, 3, 74);
-    card([x, y], along, edge.inward, half, height, row, i, 0);
-  });
+  const position = [], normal = [], uv = [], color = [], index = [];
+  for (let j = 0; j < WOODS.layers; j++) {
+    const f = j / (WOODS.layers - 1), pts = outline(near + (far - near) * f), top = WOODS.top[0] + (WOODS.top[1] - WOODS.top[0]) * f;
+    // each ribbon stops its own distance short of the water, so their ends do not pile into one slope
+    const back = 3.5 * hash(j, 1, 77);
+    const tile = WOODS.tile[0] + (WOODS.tile[1] - WOODS.tile[0]) * f, phase = hash(j, 0, 77) * tile;
+    // where the ribbon stands `s` metres along its line: [x, y, outward x, outward y]. The band's edge wanders in bays and points
+    // that every ribbon follows (so they never cross), each straying a little more by itself.
+    const place = s => {
+      const q = s / .25, k = Math.min(pts.length - 2, Math.floor(q)), t = q - k, [x, y, ox, oy, run] = pts[k].map((v, c) => v + (pts[k + 1][c] - v) * t);
+      const stray = WOODS.wander * (3 * (noise(run / 12, 0, 78) - .5) + 1.2 * (noise(run / 5.5, 0, 86) - .5) + .5 * (noise(s / 5, j * 9.7, 79) - .5));
+      return [x + ox * stray, y + oy * stray, ox, oy];
+    };
+    // the ribbon's own length to each half-metre of its line, so the cells keep their width wherever it swings in or out
+    const span = (pts.length - 1) * .25, lengths = [0];
+    for (let s = .5, p = place(0); s <= span; s += .5) { const q = place(s); lengths.push(lengths.at(-1) + Math.hypot(q[0] - p[0], q[1] - p[1])); p = q; }
+    const lineAt = l => { let k = 0; while (k < lengths.length - 2 && lengths[k + 1] < l) k++; return (k + (l - lengths[k]) / (lengths[k + 1] - lengths[k])) * .5; };
+    // one upright of the ribbon, `l` metres along it: foot and head, the colour at each, and the normal it is lit with
+    const upright = l => {
+      const s = lineAt(l), [x, y, ox, oy] = place(s), rise = smoothstep(...WOODS.shore, shoreDistance(space, x, y) - back + 9 * (noise(s / 5, j * 3.1, 85) - .5) + 4 * (noise(s / 2.2, j * 3.1, 87) - .5));
+      const h = top * crowns(x, y) * (1 + .26 * (noise(s / 24, j * 5.3, 80) - .5) + .16 * (noise(s / 8.5, j * 5.3, 81) - .5));
+      // the cell's mass stands from just under the ground to the crown height; near the water the whole card sinks instead
+      const ground = terrainHeight(space, x, y) - .5 - (1 - rise) * (h + 3), tall = (h + .5) / WOODS.mass;
+      const base = mix(mix(SAGE, MOSS, noise(x * .045, y * .045, 71)), FAR, WOODS.haze[0] + (WOODS.haze[1] - WOODS.haze[0]) * f + .08 * (noise(x * .03, y * .03, 72) - .5))
+        .map(v => v * (.95 + .1 * noise(x * .07, y * .07, 73)));
+      return {rise, foot: [x, y, ground], head: [x, y, ground + tall], base, lit: V.norm([-ox * .35, -oy * .35, 1])};
+    };
+    const length = lengths.at(-1), cols = Math.round(tile / WOODS.step), dl = tile / cols;
+    for (let n = 0; n * tile - phase < length; n++) {
+      const [u0, v0, du, dv] = cellRect(cells[hash(j, n, 83) < .5 ? 0 : 1]), flip = hash(j, n, 84) < .5;
+      for (let c = 0; c < cols; c++) {
+        const l0 = n * tile - phase + c * dl, l1 = l0 + dl;
+        if (l0 < 0 || l1 > length) continue;
+        const a = upright(l0), b = upright(l1);
+        if (a.rise <= 0 && b.rise <= 0) continue;
+        const at = position.length / 3;
+        for (const [p, e, high] of [[a, c / cols, 0], [b, (c + 1) / cols, 0], [b, (c + 1) / cols, 1], [a, c / cols, 1]]) {
+          position.push(...toThree(high ? p.head : p.foot)); normal.push(...toThree(p.lit)); color.push(...p.base.map(v => v * (high ? 1 : .84)));
+          uv.push(u0 + du * (WOODS.inset + (1 - 2 * WOODS.inset) * (flip ? 1 - e : e)), v0 + dv * (high ? 1 : WOODS.inset));
+        }
+        index.push(at, at + 1, at + 2, at, at + 2, at + 3);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  for (const [name, array, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) geometry.setAttribute(name, new THREE.Float32BufferAttribute(array, size));
+  geometry.setIndex(index);
   const object = new THREE.Group(); object.name = 'woods';
-  const masses = new THREE.Mesh(cards.geometry(THREE), cardMaterial(THREE, art.cards, SPACE_ART)); masses.name = 'masses';
+  const masses = new THREE.Mesh(geometry, cardMaterial(THREE, art.cards, SPACE_ART)); masses.name = 'masses';
   object.add(masses);
   return {object, dispose: () => disposeAll(object)};
 }

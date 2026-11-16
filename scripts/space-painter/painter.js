@@ -372,32 +372,68 @@ const CARDS = {
     }
     g.drawImage(leaves, 0, 0);
   },
-  // A tree line seen from a distance: one low, broad mass across most of the cell, its base on the cell's bottom edge, and an
-  // uneven, feathered top line with detail at every scale (layered noise, then strokes of many lengths flicking up from it) and
-  // no single hummock. Low contrast inside: close mid sage and moss tones, a slightly lighter band along the top, darker toward
-  // the base, no light speckle.
+  // A stretch of distant woodland, made to repeat: the scene lays these cells end to end (either way round) along curved bands,
+  // so the mass runs edge to edge, everything is periodic across the cell's used width, and every cell's top line crosses that
+  // width's ends at the same height. The top line is the heads of a few broad, shallow crowns of uneven width and height with
+  // rougher detail at four finer scales over them, softened by blunt dabs and a few short flicks. Inside, every stroke is
+  // a close neighbour of one mid tone: each crown a little lighter on its head and a little darker beneath, rows of them
+  // overlapping down the mass, with broad soft patches of tone between; no light speckle, no dark row.
   woods(g, r, n, i, s) {
-    const k = n / 512, left = MARGIN + 6 * k, right = n - MARGIN - 6 * k, foot = n - MARGIN - 1, waves = [];
-    for (const [period, amp] of [[n * 1.3, 40], [n * .45, 20], [n * .17, 10], [n * .07, 6], [n * .03, 3]]) waves.push([period, amp * k, r() * TAU]);
-    const crest = n * (.38 + r() * .06), topY = x => crest + waves.reduce((y, [p, a, ph]) => y + a * Math.sin(x / p * TAU + ph), 0)
-      + 50 * k * Math.max(0, 1 - Math.min(x - left, right - x) / (110 * k)) ** 2; // the ends dip a little, so a card's edge never cuts square
-    const tone = (from, depth) => mul(mix(from.pick(), from.mean, .75), 1.06 - .24 * depth);
-    // the body, in blunt strokes from the base up, each a close neighbour of the mean, darker toward the base
-    const side = [r() * TAU, r() * TAU], ragged = (y, e) => (40 + 26 * Math.sin(y / (37 * k) + side[e]) + 16 * Math.sin(y / (13 * k) + 2 * side[e]) + 8 * Math.sin(y / (5 * k) + 3 * side[e])) * k;
-    for (let q = 0, strokes = 4200 * k * k; q < strokes; q++) {
-      const x = left + r() * (right - left), y0 = topY(x), y = y0 + 6 * k + r() * (foot - y0 - 6 * k), depth = (y - y0) / (foot - y0);
-      const from = depth < .18 ? (r() < .25 ? s.woodsLight : s.woods) : depth > .7 ? (r() < .5 ? s.woodsDark : s.woods) : s.woods;
-      const len = (10 + r() * 14) * k;
-      if (x < left + ragged(y, 0) || x > right - ragged(y, 1)) continue; // the ends break unevenly instead of cutting square
-      dab(g, x, y, {angle: (r() - .5) * 1.4 + (r() < .5 ? 0 : Math.PI), len, width: len * (.6 + r() * .3), color: jitter(r, tone(from, depth), .05), alpha: 1, bristles: 3,
-        bend: (r() - .5) * .6, taper: .6}, r);
+    const k = n / 512, inset = MARGIN + 8, P = n - 2 * inset, foot = n - MARGIN - 1, mid = s.woods.mean, line = n * .4;
+    const smooth = f => f * f * (3 - 2 * f), turn = x => ((x - inset) / P % 1 + 1) % 1, clamp01 = f => Math.max(0, Math.min(1, f));
+    const wave = count => { const v = Array.from({length: count}, () => r() - .5);
+      return x => { const t = turn(x) * count, a = Math.floor(t) % count; return v[a] + (v[(a + 1) % count] - v[a]) * smooth(t - Math.floor(t)); }; };
+    // crowns: [centre x, head y, half-width, depth], broad and shallow, of uneven width and height, repeating every period
+    const row = (count, y, spread, wide) => Array.from({length: count}, () => { const rx = (wide[0] + r() ** 1.5 * (wide[1] - wide[0])) * k;
+      return [inset + r() * P, y + (r() - .5) * spread * k, rx, (.5 + r() * .3) * rx]; });
+    const heads = [[inset, line, 84 * k, 46 * k], ...row(3, line + 10 * k, 80, [62, 150])];
+    const rows = [heads, row(4, line + 84 * k, 60, [60, 130]), row(4, line + 166 * k, 60, [60, 130]), row(3, line + 252 * k, 40, [70, 130])];
+    // how far below a crown's outline a point lies, in crown depths (∞ outside its width)
+    const under = ([cx, cy, rx, ry], x, y) => { const d = Math.abs(((x - cx) / P % 1 + 1.5) % 1 - .5) * P / rx; return d >= 1 ? Infinity : (y - cy) / ry - d ** 3; };
+    const fine = [[7, 12], [15, 9], [31, 6], [63, 4]].map(([count, amp]) => [wave(count), amp * k]), rough = x => fine.reduce((y, [w, a]) => y + a * w(x), 0);
+    const saddle = wave(3), over = (list, x, y) => { for (const c of list) { const t = under(c, x, c[1]); if (t <= 0) y = Math.min(y, c[1] - t * c[3]); } return y; };
+    const broad = x => over(heads, x, line + (58 + 30 * saddle(x)) * k);
+    // smaller heads ride on the broad ones, so the line is lobed rather than a row of single domes
+    for (let q = 0, lobes = 5 + r() * 4; q < lobes; q++) { const x = inset + 40 * k + r() * (P - 80 * k), rx = (18 + r() ** 2 * 50) * k; heads.push([x, broad(x) + (4 - r() * 16) * k, rx, (.5 + r() * .35) * rx]); }
+    const raw = x => over(heads, x, broad(x)) + rough(x);
+    // every cell's line is eased to the same height where the period turns over, so any two meet
+    const seam = line - raw(inset), topY = x => { const d = Math.abs(turn(x) - .5) * 2; return Math.max(MARGIN + 40 * k, raw(x) + seam * smooth(clamp01((d - .7) / .3))); };
+    // broad patches of tone, periodic across the cell
+    const cols = 5, bands = 5, patch = Array.from({length: cols * bands}, () => r() - .5), at = (a, b) => patch[(b % bands) * cols + a % cols];
+    const patches = (x, y) => { const u = turn(x) * cols, v = y / n * bands, a = Math.floor(u), b = Math.floor(v), fu = smooth(u - a), fv = smooth(v - b);
+      return at(a, b) * (1 - fu) * (1 - fv) + at(a + 1, b) * fu * (1 - fv) + at(a, b + 1) * (1 - fu) * fv + at(a + 1, b + 1) * fu * fv; };
+    // the tone at a point: the nearest crown over it (lower rows stand in front) lights its head and shades beneath, the shade
+    // fading out lower down into whatever stands behind
+    const shade = (c, x, y, lit) => { const t = under(c, x, y); if (t <= -.2 || t >= 2.4) return lit; return lit + (.1 - .2 * smooth(clamp01(t / 1.5)) - lit) * (1 - smooth(clamp01((t - 1.3) / 1.1))); };
+    const tone = (x, y) => {
+      let lit = 0;
+      for (const list of rows) for (const c of list) lit = shade(c, x, y, lit);
+      // toward the ends of the period only the crown every cell shares is left, so any two cells meet in the same tones
+      const own = smooth(clamp01((.5 - Math.abs(turn(x) - .5)) * P / (56 * k)));
+      return 1 - .05 * clamp01((y - line) / (foot - line)) + shade(heads[0], x, y, 0) * (1 - own) + (lit + .09 * patches(x, y)) * own;
+    };
+    const colour = (x, y) => jitter(r, mul(mix(s.woods.pick(), mid, .84), tone(x, y)), .035);
+    // every stroke is drawn again one period over where it nears an end, so the cell repeats without a join
+    const wrapped = (x, y, stroke) => { const seed = r() * 4294967296 | 0; for (const o of [0, P, -P]) if (x + o > -40 * k && x + o < n + 40 * k) dab(g, x + o, y, stroke, rng(seed)); };
+    g.fillStyle = css(mul(mid, .98)); g.beginPath(); g.moveTo(0, foot);
+    for (let x = 0; x <= n; x += 2) g.lineTo(x, topY(x) + 3 * k);
+    g.lineTo(n, foot); g.fill();
+    // the edge: blunt dabs sitting on the line, turned every way, and a few short flicks out of it
+    for (let q = 0, lumps = 1500 * k; q < lumps; q++) {
+      const x = inset + r() * P, len = (6 + r() * 12) * k, y = topY(x) + (r() * 8 - 2) * k;
+      wrapped(x, y, {angle: r() * TAU, len, width: len * (.55 + r() * .3), color: colour(x, y), alpha: 1, bristles: 2, bend: (r() - .5) * .5, taper: .5});
     }
-    // the feathered top: many narrow strokes of very different lengths flicking up from the line, lit a touch more than the body
-    for (let q = 0, flicks = 1100 * k; q < flicks; q++) {
-      const x = left + 4 * k + r() * (right - left - 8 * k), y0 = topY(x), slope = (topY(x + 4 * k) - topY(x - 4 * k)) / (8 * k);
-      const len = (5 + r() ** 2.2 * 26) * k, angle = -Math.PI / 2 + Math.atan(slope) * .6 + (r() - .5) * 1.0;
-      dab(g, x + Math.cos(angle) * len * .3, y0 + (2 + r() * 6) * k + Math.sin(angle) * len * .3, {angle, len, width: len * (.3 + r() * .2),
-        color: jitter(r, tone(r() < .3 ? s.woodsLight : s.woods, .08), .05), alpha: 1, bristles: 2, bend: (r() - .5) * .5, taper: .9}, r);
+    for (let q = 0, flicks = 240 * k; q < flicks; q++) {
+      const x = inset + r() * P, len = (5 + r() ** 2 * 9) * k, angle = -Math.PI / 2 + (r() - .5) * 1.5, y = topY(x) + 3 * k;
+      wrapped(x + Math.cos(angle) * len * .3, y + Math.sin(angle) * len * .3, {angle, len, width: len * (.35 + r() * .2), color: colour(x, y), alpha: 1, bristles: 1, bend: (r() - .5) * .5, taper: .85});
+    }
+    // the body, in blunt strokes turned every way, laid from the top down so nearer crowns' heads lie over what stands behind
+    const marks = [];
+    for (let q = 0, strokes = 6000 * k * k; q < strokes; q++) { const x = inset + r() * P, y0 = topY(x) + 5 * k; marks.push([x, y0 + r() * (foot - y0)]); }
+    marks.sort((a, b) => a[1] - b[1]);
+    for (const [x, y] of marks) {
+      const len = (10 + r() * 14) * k;
+      wrapped(x, y, {angle: r() * TAU, len, width: len * (.6 + r() * .3), color: colour(x, y), alpha: 1, bristles: 2, bend: (r() - .5) * .6, taper: .6});
     }
   },
   // Neutral light dabs (the scene tints them): one long loaded stroke, or a pair; ragged where the bristles run dry.
@@ -468,11 +504,12 @@ function seedStalk(g, r, n, x, foot, len, lean, color) {
 }
 
 // Where each card cell's random stream starts, as a number of steps along the cards seed's stream (index = atlas cell). Every cell
-// paints and picks its colours from its own stream, so changing one cell's painting can never move another's. These are the
+// paints and picks its colours from its own stream, so changing one cell's painting can never move another's. Most are the
 // points the atlas's old shared running stream had reached when each cell began, so the approved cells paint exactly as they
-// were; to re-roll one cell, change its entry.
+// were; the two woods cells (4, 5) start far along, millions of steps from each other and from every other cell, so their picks
+// never run into another cell's. To re-roll one cell, change its entry.
 const STEP = 0x6D2B79F5;
-const CELL_STREAMS = Object.freeze([2462901, 2533051, 2591138, 2648799, 2706628, 2729369, 2753604, 2753605, 2753606, 2754081, 2754478, 2754914,
+const CELL_STREAMS = Object.freeze([2462901, 2533051, 2591138, 2648799, 41000003, 67000001, 2753604, 2753605, 2753606, 2754081, 2754478, 2754914,
   2889858, 2890570]);
 
 function paintCards(paint, r) {
