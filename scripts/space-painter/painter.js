@@ -370,19 +370,28 @@ const CARDS = {
     }
     g.drawImage(leaves, 0, 0);
   },
-  // Distant tree masses: a broad, flat-bottomed band of several overlapping crowns at uneven heights, wider than tall, with a
-  // ragged top of small lobes breaking the skyline, in a narrow sage-to-moss range, blunt strokes, softly lit tops.
+  // Distant tree masses: a flat-bottomed cluster of overlapping crowns whose tops rise and fall unevenly across the cell (so a
+  // card's upper edge is never one level line), in a narrow sage-to-moss range with blunt strokes. The outline is feathered
+  // rather than domed: narrow strokes of uneven length flick outward from the upper outline along its normal, in the mass's
+  // own middle tones, so the skyline breaks softly like the painting's distant trees.
   woods(g, r, n, i, s) {
     const k = n / 512, count = 6 + (r() * 3 | 0), floor = n * (.86 + r() * .05), lobes = [];
     for (let q = 0; q < count; q++) {
-      const rad = (30 + r() * 26) * k, rx = rad * (1.5 + r() * .5), x = clamp(40 * k + (q + .5) / count * (n - 80 * k) + (r() - .5) * 24 * k, rx + 28 * k, n - rx - 28 * k);
-      lobes.push({x, y: clamp(n * (.5 + r() * .2), rad + 28 * k, n), rad, rx, column: true});
-    }
-    for (let q = 0, tufts = 7 + (r() * 5 | 0); q < tufts; q++) { // small lobes riding the tops, so no crown ends in a clean dome
-      const base = lobes[r() * count | 0], rad = (12 + r() * 14) * k, x = clamp(base.x + (r() - .5) * base.rx * 1.6, rad + 28 * k, n - rad - 28 * k);
-      lobes.push({x, y: clamp(base.y - base.rad * (.7 + r() * .5), rad + 28 * k, n), rad, rx: rad * (.8 + r() * .6)});
+      const rad = (34 + r() * 34) * k, rx = rad * (1.05 + r() * .4), x = clamp(40 * k + (q + .5) / count * (n - 80 * k) + (r() - .5) * 30 * k, rx + 28 * k, n - rx - 28 * k);
+      lobes.push({x, y: clamp(n * (.42 + r() * .26), rad + 80 * k, n), rad, rx, column: true});
     }
     leafMass(g, r, n, {lobes, floor, count: 1300 * k * k, leaf: [16 * k, 30 * k], rosette: false, light: s.woodsLight, mid: s.woods, dark: s.woodsDark, contrast: .5, calm: .45, taper: .6});
+    // the band's upper edge across the cell, and its slope, from the same lobes leafMass filled
+    const top = x => lobes.reduce((t, l) => { const u = (x - l.x) / l.rx; return Math.abs(u) < 1 ? Math.min(t, l.y - l.rad * Math.sqrt(1 - u * u)) : t; }, Infinity);
+    for (let q = 0, flicks = 240 * k; q < flicks; q++) {
+      const x = 40 * k + r() * (n - 80 * k), y0 = top(x);
+      if (!Number.isFinite(y0)) continue;
+      const slope = (top(x + 6 * k) - top(x - 6 * k)) / (12 * k), lean = Number.isFinite(slope) ? Math.atan(slope) : 0;
+      const len = (10 + r() ** 2 * 38) * k, angle = -Math.PI / 2 + lean + (r() - .5) * 1.2, inset = (4 + r() * 16) * k;
+      const lit = r() < .25, col = mix(lit ? s.woodsLight.pick() : s.woods.pick(), s.woods.mean, .6);
+      dab(g, x + Math.cos(angle) * len * .35, y0 + inset + Math.sin(angle) * len * .35, {angle, len, width: len * (.28 + r() * .2), color: jitter(r, col, .08),
+        alpha: 1, bristles: 2, bend: (r() - .5) * .6, taper: .85}, r);
+    }
   },
   // Neutral light dabs (the scene tints them): one long loaded stroke, or a pair; ragged where the bristles run dry.
   dab(g, r, n, i) {

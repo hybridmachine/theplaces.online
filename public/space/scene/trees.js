@@ -146,21 +146,27 @@ export function buildWoods(THREE, {space, dressing, art}) {
   const SAGE = [1.22, 1.3, 1.12], MOSS = [1.24, 1.28, .9], FAR = [1.6, 1.72, 1.85], TRUNK = [.07, .06, .045];
   const far = Math.max(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
   const near = Math.min(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
+  // Each crown's height is mostly its neighbours' (within 9 m), so heights vary gently along the band and no tree stands clear.
+  const planned = plan.map(c => (c.center[2] - terrainHeight(space, c.center[0], c.center[1])) / .55);
+  const heights = plan.map((c, i) => {
+    let sum = 0, weight = 0;
+    plan.forEach((o, j) => { const w = Math.max(0, 1 - Math.hypot(o.center[0] - c.center[0], o.center[1] - c.center[1]) / 9); sum += w * planned[j]; weight += w; });
+    return Math.min(10, (.35 * planned[i] + .65 * sum / weight) * (.92 + .16 * hash(i, 3, 73)));
+  });
   plan.forEach((clump, i) => {
-    // neighbours differ a good deal in height, so the crowns' tops step and overlap rather than repeat
-    const [x, y, cz] = clump.center, ground = terrainHeight(space, x, y), tall = Math.min(12, (cz - ground) / .55 * (.7 + .5 * hash(i, 3, 73))), R = clump.radius;
+    const [x, y] = clump.center, ground = terrainHeight(space, x, y), tall = heights[i], R = clump.radius;
     const d = clamp01((Math.hypot(x - yard[0], y - yard[1]) - near) / (far - near)), hue = mix(SAGE, MOSS, noise(x * .08, y * .08, 71));
     const base = mix(hue, FAR, .6 * d), toYard = V.norm([yard[0] - x, yard[1] - y, 0]);
     const n = Math.round(10 + R * 4 + tall * 2.2);
     for (let k = 0; k < n; k++) {
-      // a crown from a quarter of the way up; its top cards are pushed out to the sides and a little down instead of piled on
-      // the crown, so the skyline is broad and ragged, not a dome; every fourth card is low in the understorey so no sky shows
-      // under the mass
-      const h = r(), top = h > .72, spread = R * (top ? .45 + r() * .55 : 1.2 * Math.sqrt(r())), a = r() * TAU;
-      const c = [x + Math.sin(a) * spread, y + Math.cos(a) * spread, ground + tall * (k % 4 ? .26 + .64 * h - (top ? .06 + .08 * r() : 0) : .1 + .2 * h)];
+      // a crown from a quarter of the way up, wide low and narrowing high, its cards thinning and shrinking toward the top so it
+      // never tiers; the cells' feathered upper edges make the skyline; every fourth card is low in the understorey so no sky
+      // shows under the mass
+      const h = r() ** 1.6, spread = R * 1.25 * (1 - .55 * h) * Math.sqrt(r()), a = r() * TAU;
+      const c = [x + Math.sin(a) * spread, y + Math.cos(a) * spread, ground + tall * (k % 4 ? .26 + .6 * h : .1 + .2 * h)];
       const turn = (r() - .5) * 1.6, normal = V.norm([toYard[0] * Math.cos(turn) - toYard[1] * Math.sin(turn), toYard[0] * Math.sin(turn) + toYard[1] * Math.cos(turn), (r() - .5) * .3]);
       const [right, up0] = basis(normal), lean = (r() - .5) * .3, up = V.add(V.scale(up0, Math.cos(lean)), right, Math.sin(lean)), across = V.norm(V.cross(up, normal));
-      const size = (1.5 + r() * 1.0) * (.75 + .25 * R / 4), k0 = (.9 + .12 * h) * (.95 + r() * .1);
+      const size = (1.5 + r() * 1.0) * (.75 + .25 * R / 4) * (1 - .3 * h), k0 = (.9 + .12 * h) * (.95 + r() * .1);
       cards.add(c, V.scale(across, size * 1.05), V.scale(up, size), cells.woods[k % 2], base.map(v => v * k0 * .85), base.map(v => v * k0),
         V.norm(V.add(toYard, [0, 0, 1])), r() < .5);
     }
