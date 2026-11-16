@@ -22,8 +22,6 @@ const stream = seed => { let n = 0; return () => hash(n++, 23, seed); };
 const SUN = [Math.sin(115 * DEG), Math.cos(115 * DEG), 0];
 // The trunk keeps this far inside its collider (space.colliders' circle) up to above head height.
 const TRUNK_CLEAR = .12;
-// The oak cells are painted for shade; lit from beneath the canopy they need lifting to read as the painting's sunlit leaves.
-const LEAF_LIFT = 1.75;
 
 // A point and radius `f` of the way along a polyline of [x, y, z, radius], by length.
 function along(points, f) {
@@ -93,7 +91,8 @@ export function buildOak(THREE, {space, dressing, art}) {
     // the spray runs outward from the trunk, so neighbouring clumps reach toward each other rather than rounding off
     const out = V.norm([clump.center[0] - ox, clump.center[1] - oy, 0]), side = [-out[1], out[0], 0], seed = hash(i, 0, 61) * 1000;
     const n = Math.round(10 + R * 10);
-    for (let k = 0, guard = 0; k < n && guard < n * 20; guard++) {
+    let k = 0;
+    for (let guard = 0; k < n && guard < n * 20; guard++) {
       // a point in a flattened, stretched ellipsoid, weighted to the shell, holed where the noise is low so sky shows through
       const u = r() * TAU, w = Math.acos(2 * r() - 1), f = Math.sqrt(.25 + .75 * r());
       const local = [Math.sin(w) * Math.cos(u) * f, Math.sin(w) * Math.sin(u) * f, Math.cos(w) * f];
@@ -103,7 +102,8 @@ export function buildOak(THREE, {space, dressing, art}) {
       // half the cards stand (facing outward, give or take), the rest lie tilted so the clump has body from beneath
       let normal, up;
       if (k % 2 === 0) {
-        const a = Math.atan2(c[0] - ox, c[1] - oy) + (r() - .5) * 2.2, tilt = (r() - .3) * .7;
+        // facing outward within ±40°, and tipped toward the ground so a visitor below never sees one edge-on
+        const a = Math.atan2(c[0] - ox, c[1] - oy) + (r() - .5) * 1.4, tilt = -(.4 + r() * .45);
         normal = V.norm([Math.sin(a) * Math.cos(tilt), Math.cos(a) * Math.cos(tilt), Math.sin(tilt)]);
         const [right, up0] = basis(normal), turn = (r() - .5) * .5; up = V.add(V.scale(up0, Math.cos(turn)), right, Math.sin(turn));
       } else {
@@ -114,12 +114,13 @@ export function buildOak(THREE, {space, dressing, art}) {
       const across = V.norm(V.cross(up, normal)), size = .75 + r() * .5;
       // lighter and warmer up top and on the sun side, darker and cooler beneath and deep inside
       const h = clamp01((c[2] - zLow) / (zHigh - zLow)), sun = V.dot(out, SUN), depth = 1 - f, under = clamp01(-local[2]);
-      const k0 = LEAF_LIFT * (1.0 + .5 * h + .2 * sun) * (1 - .22 * depth) * (1 - .22 * under) * (.9 + r() * .2);
-      const top = mix([k0 * .84, k0 * .94, k0 * 1.0], [k0 * 1.1, k0 * 1.04, k0 * .74], clamp01(h + .3 * sun));
+      const k0 = (.86 + .26 * h + .1 * sun) * (1 - .2 * depth) * (1 - .2 * under) * (.94 + r() * .12);
+      const top = mix([k0 * .88, k0 * .96, k0 * 1.0], [k0 * 1.04, k0 * 1.0, k0 * .82], clamp01(h + .3 * sun));
       leaves.add(c, V.scale(across, size), V.scale(up, size), cells[Math.floor(r() * cells.length)], top.map(v => v * .8), top,
         V.norm(V.add(V.norm(V.sub(c, crown)), [0, 0, .7])), r() < .5);
       k++;
     }
+    if (k < n) throw new Error(`oak clump ${clump.id} placed only ${k} of ${n} leaf cards`);
     clumps.push({id: clump.id, start, count: leaves.count - start});
   });
 
@@ -127,6 +128,7 @@ export function buildOak(THREE, {space, dressing, art}) {
   const mesh = (name, geometry, material) => { const m = new THREE.Mesh(geometry, material); m.name = name; return m; };
   const merged = list => { const geometry = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return geometry; };
   const leafMesh = mesh('leaves', leaves.geometry(THREE), cardMaterial(THREE, art.cards, SPACE_ART));
+  // Each clump's cards, for swaying it later: `start` and `count` are in cards (4 vertices and 6 indices per card), in build order.
   leafMesh.userData.clumps = clumps;
   const object = new THREE.Group(); object.name = 'oak';
   // the limbs take the trunk's tint, so the bark runs on unbroken where they leave it
@@ -144,27 +146,29 @@ export function buildWoods(THREE, {space, dressing, art}) {
   const SAGE = [1.22, 1.3, 1.12], MOSS = [1.24, 1.28, .9], FAR = [1.6, 1.72, 1.85], TRUNK = [.07, .06, .045];
   const far = Math.max(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
   const near = Math.min(...plan.map(c => Math.hypot(c.center[0] - yard[0], c.center[1] - yard[1])));
-  for (const clump of plan) {
-    const [x, y, cz] = clump.center, ground = terrainHeight(space, x, y), tall = (cz - ground) / .55, R = clump.radius;
+  plan.forEach((clump, i) => {
+    // neighbours differ a good deal in height, so the crowns' tops step and overlap rather than repeat
+    const [x, y, cz] = clump.center, ground = terrainHeight(space, x, y), tall = Math.min(12, (cz - ground) / .55 * (.7 + .5 * hash(i, 3, 73))), R = clump.radius;
     const d = clamp01((Math.hypot(x - yard[0], y - yard[1]) - near) / (far - near)), hue = mix(SAGE, MOSS, noise(x * .08, y * .08, 71));
     const base = mix(hue, FAR, .6 * d), toYard = V.norm([yard[0] - x, yard[1] - y, 0]);
-    const n = Math.round(12 + R * 4 + tall);
+    const n = Math.round(10 + R * 4 + tall * 2.2);
     for (let k = 0; k < n; k++) {
-      // a crown narrowing upward, from a quarter of the way up to the top, its outline broken by the cards' own edges, and
-      // every fourth card low in the understorey so no sky shows under the mass
-      const h = Math.sqrt(r()), spread = R * 1.1 * (1 - .4 * h) * Math.sqrt(r()), a = r() * TAU;
-      const c = [x + Math.sin(a) * spread, y + Math.cos(a) * spread, ground + tall * (k % 4 ? .24 + .66 * h : .1 + .2 * h)];
+      // a crown from a quarter of the way up; its top cards are pushed out to the sides and a little down instead of piled on
+      // the crown, so the skyline is broad and ragged, not a dome; every fourth card is low in the understorey so no sky shows
+      // under the mass
+      const h = r(), top = h > .72, spread = R * (top ? .45 + r() * .55 : 1.2 * Math.sqrt(r())), a = r() * TAU;
+      const c = [x + Math.sin(a) * spread, y + Math.cos(a) * spread, ground + tall * (k % 4 ? .26 + .64 * h - (top ? .06 + .08 * r() : 0) : .1 + .2 * h)];
       const turn = (r() - .5) * 1.6, normal = V.norm([toYard[0] * Math.cos(turn) - toYard[1] * Math.sin(turn), toYard[0] * Math.sin(turn) + toYard[1] * Math.cos(turn), (r() - .5) * .3]);
       const [right, up0] = basis(normal), lean = (r() - .5) * .3, up = V.add(V.scale(up0, Math.cos(lean)), right, Math.sin(lean)), across = V.norm(V.cross(up, normal));
       const size = (1.5 + r() * 1.0) * (.75 + .25 * R / 4), k0 = (.9 + .12 * h) * (.95 + r() * .1);
-      cards.add(c, V.scale(across, size), V.scale(up, size * .9), cells.woods[k % 2], base.map(v => v * k0 * .85), base.map(v => v * k0),
+      cards.add(c, V.scale(across, size * 1.05), V.scale(up, size), cells.woods[k % 2], base.map(v => v * k0 * .85), base.map(v => v * k0),
         V.norm(V.add(toYard, [0, 0, 1])), r() < .5);
     }
     for (let k = 0; k < 2; k++) {
       const tx = x + (r() - .5) * R * .6, ty = y + (r() - .5) * R * .6, toward = V.norm([yard[0] - tx, yard[1] - ty, 0]), g = terrainHeight(space, tx, ty);
       cards.add([tx, ty, g + tall * .2], [-toward[1] * .07, toward[0] * .07, 0], [0, 0, tall * .2], cells.dab[0], mix(TRUNK, FAR, .1 * d), mix(TRUNK, FAR, .1 * d), toward);
     }
-  }
+  });
   const object = new THREE.Group(); object.name = 'woods';
   const masses = new THREE.Mesh(cards.geometry(THREE), cardMaterial(THREE, art.cards, SPACE_ART)); masses.name = 'masses';
   object.add(masses);

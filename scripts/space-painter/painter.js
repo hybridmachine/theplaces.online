@@ -353,7 +353,11 @@ const CARDS = {
     let area = 0; // leaf count follows the mass's area so every spray is equally dense
     for (let y = 0; y < n; y += 8) for (let x = 0; x < n; x += 8) if (lobes.some(l => Math.hypot(x - l.x, y - l.y) < l.rad)) area += 64;
     const leaves = canvas(n), lg = leaves.getContext('2d', {willReadFrequently: true});
-    leafMass(lg, r, n, {lobes, holes, count: area * .0062, leaf: [10 * k, 19 * k], rosette: true, light: s.leafLight, mid: s.leaf, dark: s.leafDark, contrast: .8, calm: .2, taper: .75});
+    // The painting's oak is sunlit from behind the viewer's right: its lit leaves are lifted and warmed past the sampled mean, the
+    // shadowed ones only a little, so the cells carry the canopy's own light and the scene's tint stays near 1.
+    const lift = (from, k, warm) => ({pick: () => mix(mul(from.pick(), k), [214, 206, 120], warm), mean: mix(mul(from.mean, k), [214, 206, 120], warm)});
+    leafMass(lg, r, n, {lobes, holes, count: area * .0062, leaf: [10 * k, 19 * k], rosette: true, light: lift(s.leafLight, 1.24, .22), mid: lift(s.leaf, 1.3, .12),
+      dark: lift(s.leafDark, 1.18, 0), contrast: .8, calm: .2, taper: .75});
     // Twigs follow the branching from each lobe's parent to it, only in the shadowed lower part (the lit top has none), and only
     // where leaves cover both ends, so a twig shows through gaps in the mass but never ends in open sky. Leaves go over them.
     const cover = leaves.getContext('2d').getImageData(0, 0, n, n).data, covered = (x, y) => {
@@ -366,14 +370,19 @@ const CARDS = {
     }
     g.drawImage(leaves, 0, 0);
   },
-  // Distant tree masses: broad, flat-bottomed domes in a narrow sage-to-moss range, blunt strokes, softly lit tops.
+  // Distant tree masses: a broad, flat-bottomed band of several overlapping crowns at uneven heights, wider than tall, with a
+  // ragged top of small lobes breaking the skyline, in a narrow sage-to-moss range, blunt strokes, softly lit tops.
   woods(g, r, n, i, s) {
-    const k = n / 512, count = 4 + (r() * 2 | 0), floor = n * (.86 + r() * .05), lobes = [];
+    const k = n / 512, count = 6 + (r() * 3 | 0), floor = n * (.86 + r() * .05), lobes = [];
     for (let q = 0; q < count; q++) {
-      const rad = (52 + r() * 40) * k, rx = rad * 1.15, x = clamp(60 * k + (q + .5) / count * (n - 120 * k) + (r() - .5) * 30 * k, rx + 28 * k, n - rx - 28 * k);
-      lobes.push({x, y: clamp(n * (.4 + r() * .24) - (q === count >> 1 ? 60 * k : 0), rad + 28 * k, n), rad, rx, column: true});
+      const rad = (30 + r() * 26) * k, rx = rad * (1.5 + r() * .5), x = clamp(40 * k + (q + .5) / count * (n - 80 * k) + (r() - .5) * 24 * k, rx + 28 * k, n - rx - 28 * k);
+      lobes.push({x, y: clamp(n * (.5 + r() * .2), rad + 28 * k, n), rad, rx, column: true});
     }
-    leafMass(g, r, n, {lobes, floor, count: 1300 * k * k, leaf: [18 * k, 34 * k], rosette: false, light: s.woodsLight, mid: s.woods, dark: s.woodsDark, contrast: .5, calm: .45, taper: .6});
+    for (let q = 0, tufts = 7 + (r() * 5 | 0); q < tufts; q++) { // small lobes riding the tops, so no crown ends in a clean dome
+      const base = lobes[r() * count | 0], rad = (12 + r() * 14) * k, x = clamp(base.x + (r() - .5) * base.rx * 1.6, rad + 28 * k, n - rad - 28 * k);
+      lobes.push({x, y: clamp(base.y - base.rad * (.7 + r() * .5), rad + 28 * k, n), rad, rx: rad * (.8 + r() * .6)});
+    }
+    leafMass(g, r, n, {lobes, floor, count: 1300 * k * k, leaf: [16 * k, 30 * k], rosette: false, light: s.woodsLight, mid: s.woods, dark: s.woodsDark, contrast: .5, calm: .45, taper: .6});
   },
   // Neutral light dabs (the scene tints them): one long loaded stroke, or a pair; ragged where the bristles run dry.
   dab(g, r, n, i) {
