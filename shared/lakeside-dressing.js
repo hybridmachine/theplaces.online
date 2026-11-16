@@ -16,7 +16,7 @@ export const LAKESIDE_DRESSING = deep({
               {id: 'back', face: 'back', along: .5, sill: 1.2, width: .6, height: .6}],
     chimney: {along: 3.8, size: .8, rise: 1.05}},
   oak: {clumps: 24, canopyHeight: 9.6},
-  cover: {grass: 5200, reeds: 260, flowers: 90, lowRadius: 6},
+  cover: {grass: 7000, reeds: 260, flowers: 90, lowRadius: 6},
 });
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;

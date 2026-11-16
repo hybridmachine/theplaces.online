@@ -120,3 +120,12 @@ test('every planned clump has leaves, and the leaves never face the camera', () 
   assert.equal(leaves.isMesh, true); assert.equal(leaves.onBeforeRender, THREE.Object3D.prototype.onBeforeRender);
   scene.dispose();
 });
+import {scatter} from '../shared/lakeside-dressing.js';
+test('ground cover draws exactly what the layout scatters, in three draw calls', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cover = scene.parts.cover;
+  for (const kind of ['grass', 'reeds', 'flowers']) {
+    const mesh = cover.getObjectByName(kind); assert.ok(mesh.isInstancedMesh, kind);
+    assert.equal(mesh.count, scatter(S, D, kind).length); assert.ok(mesh.material.alphaTest > 0);
+  }
+  assert.equal(cover.children.length, 3); scene.dispose();
+});
