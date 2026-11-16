@@ -53,13 +53,35 @@ function prism(s, footprint, low, high, top = true) {
   if (top) s.face(footprint.map((p, i) => [...p, hi[i]]), [0, 0, 1]);
 }
 
+// A 1 m grid over the yard inside a 10 m skirt out to the hill ring, one watertight mesh with shared border vertices.
 function terrain(THREE, space, material) {
-  const [x0, x1, y0, y1] = [-60, 140, -60, 70], nx = x1 - x0 + 1, ny = y1 - y0 + 1;
-  const position = [], index = [];
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) position.push(...toThree([x0 + i, y0 + j, terrainHeight(space, x0 + i, y0 + j)]));
+  const [x0, x1, y0, y1] = [-60, 140, -60, 70], nx = x1 - x0 + 1, ny = y1 - y0 + 1, E = 1500, S = 10;
+  const position = [], index = [], coarse = new Map();
+  const vertex = (x, y) => { position.push(...toThree([x, y, terrainHeight(space, x, y)])); return position.length / 3 - 1; };
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) vertex(x0 + i, y0 + j);
   for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
     const a = j * nx + i, b = a + 1, c = a + nx + 1, d = a + nx; // counter-clockwise seen from above
     index.push(a, b, c, a, c, d);
+  }
+  const inFine = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const at = (x, y) => inFine(x, y) ? (y - y0) * nx + x - x0 : coarse.get(x * 1e4 + y) ?? coarse.set(x * 1e4 + y, vertex(x, y)).get(x * 1e4 + y);
+  // Fine-grid points strictly between two skirt corners lying on the yard's border (empty if the edge is not on it).
+  const between = ([ax, ay], [bx, by]) => {
+    const onBorder = ax === bx ? (ax === x0 || ax === x1) && Math.min(ay, by) >= y0 && Math.max(ay, by) <= y1
+      : (ay === y0 || ay === y1) && Math.min(ax, bx) >= x0 && Math.max(ax, bx) <= x1;
+    return onBorder ? Array.from({length: S - 1}, (_, k) => [ax + Math.sign(bx - ax) * (k + 1), ay + Math.sign(by - ay) * (k + 1)]) : [];
+  };
+  for (let y = -E; y < E; y += S) for (let x = -E; x < E; x += S) {
+    if (x >= x0 && x + S <= x1 && y >= y0 && y + S <= y1) continue; // the fine grid covers it
+    const corners = [[x, y], [x + S, y], [x + S, y + S], [x, y + S]], loop = [], plain = [];
+    corners.forEach((c, k) => {
+      const next = corners[(k + 1) % 4], mid = between(c, next);
+      loop.push(c, ...mid); plain.push(!mid.length);
+    });
+    // Fan from a corner whose two edges carry no border points, so no fan triangle is degenerate.
+    const apex = corners.findIndex((_, k) => plain[k] && plain[(k + 3) % 4]), start = loop.indexOf(corners[apex]);
+    const ring = [...loop.slice(start), ...loop.slice(0, start)].map(([px, py]) => at(px, py));
+    for (let k = 1; k < ring.length - 1; k++) index.push(ring[0], ring[k], ring[k + 1]);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(position, 3));
@@ -68,10 +90,10 @@ function terrain(THREE, space, material) {
   return mesh;
 }
 
-// Flat water a few millimetres below z = 0 so the shoreline, where the terrain crosses z = 0, does not flicker.
+// Flat water over the whole hill ring, a few millimetres below z = 0 so the shoreline, where the terrain crosses z = 0, does not flicker.
 function lake(THREE, material) {
   const s = solid();
-  s.face([[-60, -1500, LAKE_OFFSET], [1500, -1500, LAKE_OFFSET], [1500, 70, LAKE_OFFSET], [-60, 70, LAKE_OFFSET]], [0, 0, 1]);
+  s.face([[-1500, -1500, LAKE_OFFSET], [1500, -1500, LAKE_OFFSET], [1500, 1500, LAKE_OFFSET], [-1500, 1500, LAKE_OFFSET]], [0, 0, 1]);
   return s.mesh(THREE, material, 'lake');
 }
 
@@ -164,7 +186,9 @@ function hills(THREE, space, m, ico) {
     const east = Math.max(0, Math.cos(theta - 90 * DEG)) ** 2;
     const rise = (1.2 + 3.6 * east + .5 * Math.sin(theta * 5) + .3 * Math.sin(theta * 13 + 1)) * DEG;
     const p = (r, z) => [ax + r * Math.sin(theta), ay + r * Math.cos(theta), z];
-    return [p(near, below), p(crest, eye + crest * Math.tan(rise)), p(far, below)];
+    // Bases sit just under the ground or water there; crests stand clear of the rising land behind the yard.
+    const ground = r => Math.max(0, terrainHeight(space, ...p(r)));
+    return [p(near, ground(near) + below), p(crest, Math.max(eye + crest * Math.tan(rise), ground(crest) + 12)), p(far, ground(far) + below)];
   };
   for (let k = 0; k < 360 / 3; k++) {
     const t0 = k * step, t1 = (k + 1) % 120 * step, r0 = row(t0), r1 = row(t1), mid = (t0 + t1 + (k === 119 ? 2 * Math.PI : 0)) / 2;
