@@ -12,7 +12,7 @@ const plain = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch
 export class PlaceMemory {
   constructor({storage, space, clock = Date.now}) {
     this.storage = storage; this.space = space; this.clock = clock;
-    this.dead = !storage; this.written = null; this.noted = null; this.stillSince = null;
+    this.dead = !storage; this.written = null; this.noted = null; this.stillSince = null; this.forgotten = null;
   }
   #use(fn) {
     if (this.dead) return null;
@@ -29,6 +29,9 @@ export class PlaceMemory {
     return this.written = {position: [p[0], p[1]], yaw: ((yaw % TAU) + TAU) % TAU, pitch};
   }
   note(state, moving) {
+    if (moving) this.forgotten = null;
+    else if (this.forgotten && same(state, this.forgotten)) { this.noted = plain(state); this.stillSince = null; return; }
+    else this.forgotten = null;
     if (moving || !same(state, this.noted)) this.stillSince = null;
     this.noted = plain(state);
     if (moving) return;
@@ -37,13 +40,14 @@ export class PlaceMemory {
     if (now - this.stillSince >= STILL_MS) this.flush(state);
   }
   flush(state) {
+    if (this.forgotten) { if (same(state, this.forgotten)) return; this.forgotten = null; }
     if (same(state, this.written)) return;
     const next = plain(state);
     const ok = this.#use(s => (s.setItem(PLACE_KEY, JSON.stringify({version: 1, ...next, savedAt: this.clock()})), true));
     if (ok) this.written = next;
   }
   forget() {
-    this.written = null;
+    this.forgotten = this.noted ?? this.written; this.written = null; this.stillSince = null;
     this.#use(s => s.removeItem(PLACE_KEY));
   }
 }

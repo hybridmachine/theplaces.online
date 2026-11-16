@@ -39,3 +39,16 @@ test('storage that throws is survived and not retried', () => {
   assert.equal(calls, 1);
   assert.doesNotThrow(() => new PlaceMemory({storage: undefined, space: S}).flush(spot));
 });
+test('forget stays forgotten while the visitor stands still, until they move', () => {
+  let now = 0; const storage = store(), memory = new PlaceMemory({storage, space: S, clock: () => now});
+  memory.note(spot, false); now = STILL_MS; memory.note(spot, false);
+  assert.equal(storage.writes, 1);
+  memory.forget();
+  for (let i = 0; i < 5; i++) { now += 60_000; memory.note(spot, false); }
+  memory.flush(spot);
+  assert.equal(storage.getItem(PLACE_KEY), null); assert.equal(storage.writes, 1);
+  const moved = {position: [12, 3], yaw: 2, pitch: 0};
+  memory.note(moved, true); now += 1000; memory.note(moved, false); now += STILL_MS; memory.note(moved, false);
+  assert.equal(storage.writes, 2);
+  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), moved);
+});
