@@ -1,6 +1,6 @@
 import {edgeDistance, terrainHeight, walkable} from './space.js';
 
-export const WALK = Object.freeze({speed: 1.4, fast: 2.4, turn: 1.2, pitchLimit: 1.2, maxStep: .1, glideSeconds: 2.5});
+export const WALK = Object.freeze({speed: 1.4, fast: 2.4, turn: 1.2, tilt: .8, pitchLimit: 1.2, maxStep: .1, glideSeconds: 2.5});
 
 const TAU = Math.PI * 2, SUB = .1, PROBE = .01;
 const SLIDES = [15, 30, 45, 60, 75, 85].flatMap(d => [d, -d]).map(d => d * Math.PI / 180);
@@ -25,7 +25,7 @@ export function stepWalker(space, state, input, dt) {
   const t = clamp(Number.isFinite(dt) ? dt : 0, 0, WALK.maxStep);
   const [lookYaw = 0, lookPitch = 0] = input.look || [];
   const yaw = wrap(state.yaw + (input.turn || 0) * WALK.turn * t + lookYaw);
-  const pitch = clamp(state.pitch + lookPitch, -WALK.pitchLimit, WALK.pitchLimit);
+  const pitch = clamp(state.pitch + (input.tilt || 0) * WALK.tilt * t + lookPitch, -WALK.pitchLimit, WALK.pitchLimit);
   let f = input.forward || 0, r = input.strafe || 0;
   const mag = Math.hypot(f, r);
   if (mag > 1) { f /= mag; r /= mag; }
