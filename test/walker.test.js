@@ -46,6 +46,19 @@ test('looking is clamped in pitch and wrapped in yaw', () => {
   assert.equal(s.pitch, WALK.pitchLimit);
   assert.ok(s.yaw >= 0 && s.yaw < Math.PI * 2);
 });
+test('arrow-key tilt looks up and down at a steady rate and stops at the limit', () => {
+  const up = walk(S.arrival, {tilt: 1}, .5), down = walk(S.arrival, {tilt: -1}, .5);
+  assert.ok(Math.abs(up.pitch - WALK.tilt * .5) < 1e-6, `${up.pitch}`);
+  assert.ok(Math.abs(down.pitch + WALK.tilt * .5) < 1e-6, `${down.pitch}`);
+  assert.deepEqual(up.position, S.arrival.position); assert.equal(up.yaw, S.arrival.yaw);
+  assert.equal(walk(S.arrival, {tilt: 1}, 10).pitch, WALK.pitchLimit);
+  assert.equal(walk(S.arrival, {tilt: -1}, 10).pitch, -WALK.pitchLimit);
+});
+test('turning and walking combine: the walk follows the new heading', () => {
+  const s = walk(S.arrival, {forward: 1, turn: 1}, 1);
+  assert.ok(Math.abs(s.yaw - (S.arrival.yaw + WALK.turn)) < 1e-6);
+  assert.ok(s.position[1] < -.3, `${s.position}`);   // curving right of east is south
+});
 test('the eye rides 1.6 m above the ground', () => {
   assert.equal(eyePosition(S, S.arrival)[2], terrainHeight(S, 0, 0) + 1.6);
 });

@@ -198,8 +198,8 @@ The shader locally displaces existing lake paint with subdued broken arcs, using
 
 Open **http://127.0.0.1:4173/?space=1** to walk the yard in 3D under the shared sky. The painting stays the default; without `?space=1` the page never loads three.js.
 
-- **W A S D** or the arrow keys walk; hold **Shift** to walk faster.
-- **Q** and **E** turn; drag to look around.
+- **W A S D** walk; hold **Shift** to walk faster.
+- The arrow keys turn the camera: left and right swing the view, up and down tilt it. **Q** and **E** also turn, and dragging looks around.
 - The **Return** button goes back to the painting's view.
 - Standing still for a few seconds remembers where you stopped, in this browser only; the next visit starts there. **Forget visit memory** in Field notes also forgets the place. Your position never reaches the server.
 

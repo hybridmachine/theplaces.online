@@ -148,7 +148,7 @@ let walkHinted=false;
 // Keep this view composites the 2D painting, so the 3D view does not offer it yet.
 function showSpace(on){
   $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#keep-button').hidden=on;$('#world').classList.toggle('walkable',on);fieldNotes.inYard=on;fieldNotes.render();
-  if(on&&!walkHinted){walkHinted=true;toast('Walk with W A S D. Drag to look.');}
+  if(on&&!walkHinted){walkHinted=true;toast('Walk with W A S D. Look with the arrow keys or drag.');}
   for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
 function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
 async function startPainter(){

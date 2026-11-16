@@ -7,17 +7,30 @@ const key = (type, code, more = {}) => {
   for (const [name, value] of Object.entries({code, ...more})) Object.defineProperty(event, name, {value});
   return event;
 };
-const zero = {forward: 0, strafe: 0, turn: 0, fast: false};
+const zero = {forward: 0, strafe: 0, turn: 0, tilt: 0, fast: false};
 
-test('W A S D, arrows, Q E and Shift map to walking input', () => {
+test('W A S D walk, Q E turn and Shift hurries', () => {
   const t = new EventTarget(), k = new WalkKeys(t);
   for (const c of ['KeyW', 'KeyD', 'KeyE', 'ShiftLeft']) t.dispatchEvent(key('keydown', c));
-  assert.deepEqual(k.input(), {forward: 1, strafe: 1, turn: 1, fast: true}); assert.equal(k.moving(), true);
+  assert.deepEqual(k.input(), {forward: 1, strafe: 1, turn: 1, tilt: 0, fast: true}); assert.equal(k.moving(), true);
   t.dispatchEvent(key('keydown', 'KeyS')); assert.equal(k.input().forward, 0);
   for (const c of ['KeyW', 'KeyS', 'KeyD', 'KeyE', 'ShiftLeft']) t.dispatchEvent(key('keyup', c));
   assert.deepEqual(k.input(), zero);
-  t.dispatchEvent(key('keydown', 'ArrowLeft')); t.dispatchEvent(key('keydown', 'KeyQ'));
-  assert.deepEqual(k.input(), {forward: 0, strafe: -1, turn: -1, fast: false});
+  t.dispatchEvent(key('keydown', 'KeyA')); t.dispatchEvent(key('keydown', 'KeyQ'));
+  assert.deepEqual(k.input(), {forward: 0, strafe: -1, turn: -1, tilt: 0, fast: false});
+});
+test('the arrow keys turn the camera and never walk', () => {
+  const t = new EventTarget(), k = new WalkKeys(t);
+  t.dispatchEvent(key('keydown', 'ArrowRight')); t.dispatchEvent(key('keydown', 'ArrowUp'));
+  assert.deepEqual(k.input(), {forward: 0, strafe: 0, turn: 1, tilt: 1, fast: false}); assert.equal(k.moving(), true);
+  t.dispatchEvent(key('keyup', 'ArrowRight')); t.dispatchEvent(key('keyup', 'ArrowUp'));
+  t.dispatchEvent(key('keydown', 'ArrowLeft')); t.dispatchEvent(key('keydown', 'ArrowDown'));
+  assert.deepEqual(k.input(), {forward: 0, strafe: 0, turn: -1, tilt: -1, fast: false});
+  // Arrows and W A S D work together; opposite keys cancel, and Q/E add to the arrows without exceeding one key's rate.
+  t.dispatchEvent(key('keydown', 'KeyW')); t.dispatchEvent(key('keydown', 'ArrowUp')); t.dispatchEvent(key('keydown', 'KeyQ'));
+  assert.deepEqual(k.input(), {forward: 1, strafe: 0, turn: -1, tilt: 0, fast: false});
+  t.dispatchEvent(key('keyup', 'KeyW')); t.dispatchEvent(key('keyup', 'ArrowLeft')); t.dispatchEvent(key('keyup', 'KeyQ'));
+  assert.equal(k.moving(), false, 'cancelled up/down arrows are not movement');
 });
 test('losing focus releases every key', () => {
   const t = new EventTarget(), k = new WalkKeys(t);
