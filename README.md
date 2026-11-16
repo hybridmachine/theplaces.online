@@ -118,6 +118,8 @@ The larger architecture and next milestones are in [DESIGN.md](DESIGN.md). Artwo
 
 This project is available under the [MIT License](LICENSE).
 
+The optional 3D view (`?space=1`) uses a vendored copy of three.js 0.170.0 (MIT, [licence](public/assets/vendor/three-LICENSE.txt)) at `public/assets/vendor/three-0.170.0.module.js`.
+
 ## Weather traces
 
 Rain fills four normalized surface stores on canonical ten-real-second ticks. Requests and render frames do not change the integration grid. Browsers sample the fractional tick within the snapshot lease; local pause and connection expiry hold the displayed state. Reduced motion removes falling drips and holds ripple motion while surfaces can slowly dry. Private light studies use local dry/wet fixtures and never alter the shared stores.

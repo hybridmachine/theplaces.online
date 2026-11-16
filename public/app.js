@@ -20,7 +20,9 @@ const icons={
 function icon(element,name){element.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;}
 document.querySelectorAll('[data-icon]').forEach(element=>icon(element,element.dataset.icon));
 icon($('#sound-button .icon'),'muted');
-const painter=new Painting($('#painting'),$('#life')),audio=new Ambience();
+// ?space=1 asks for the optional 3D view; any failure falls back to the painting.
+let painter=new URLSearchParams(location.search).get('space')==='1'?await openSpace():new Painting($('#painting'),$('#life'));
+const audio=new Ambience();
 const client=new WorldClient({onSnapshot:accept});
 const fieldNotes=new FieldNotes();
 let snapshot=null,pausedSnapshot=null,pausedAt=null,study=null,lastRender=0,lastLabels=0,connection='connecting',toastTimer,quietTimer;
@@ -114,9 +116,22 @@ document.addEventListener('visibilitychange',()=>{
 });
 addEventListener('storage',event=>fieldNotes.storageChanged(event));
 
+async function openSpace(){
+  try{const {SpaceView}=await import('./space/space-view.js');return new SpaceView($('#space'),{onFailure:()=>usePainting().catch(error=>console.error(error))});}
+  catch(error){console.warn('The 3D view is unavailable; showing the painting.',error);return new Painting($('#painting'),$('#life'));}
+}
+function showSpace(on){$('#space').hidden=!on;for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
+function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
+async function startPainter(){
+  if(painter instanceof Painting)return painter.init();
+  const view=painter,ready=await view.init().catch(error=>{console.warn('The 3D view could not start; showing the painting.',error);return false;});
+  if(painter!==view)return;
+  if(ready)showSpace(true);else return usePainting();
+}
+
 // Displayed conditions can select the fallback while optional sky assets load.
 requestAnimationFrame(frame);
-try{await Promise.all([painter.init(),refresh()]);}catch(error){console.error(error);toast('The painting is here. Reconnecting to the world…');}
+try{await Promise.all([startPainter(),refresh()]);}catch(error){console.error(error);toast('The painting is here. Reconnecting to the world…');}
 const stream=new EventSource('/api/stream');
 stream.onmessage=event=>{try{client.accept(JSON.parse(event.data));}catch(error){console.error('Invalid world update',error);}};
 stream.onerror=()=>{connection='reconnecting';updateLabels();wake();};
