@@ -238,30 +238,28 @@ const PAINTERS = {
 
 // ── Brush cards: alpha-tested shapes, one per 512 px cell, painted in cell pixels (scaled by `k` if the cell size changes). ──
 
-const MARGIN = 8, FRINGE = 12, FRINGE_ALPHA = 8; // clear border per cell; colour band (px, 8-bit alpha) carried under each edge
+const MARGIN = 8, FRINGE_ALPHA = 8; // clear border per cell; 8-bit alpha of the colour carried under the transparent interior
 
-// A blade from (x, y) rising `lean` radians off upright and turning by `curl` radians over its length, tapering to a point,
-// darker at its foot. Returns false (drawing nothing) if any part would leave the cell's clear margin.
-function blade(g, x, y, {len, lean, curl = 0, width, color, rib = false, steps = 14}, n) {
-  const left = [], right = []; let a = lean, px = x, py = y;
-  for (let q = 0; q <= steps; q++) {
-    const w = width / 2 * (1 - q / steps) ** .7, nx = Math.cos(a), ny = Math.sin(a);
-    left.push([px - nx * w, py - ny * w]); right.push([px + nx * w, py + ny * w]);
-    px += Math.sin(a) * len / steps; py -= Math.cos(a) * len / steps; a += curl / steps;
-  }
-  const pts = [...left, ...right.reverse()];
-  if (pts.some(([u, v]) => u < MARGIN + 4 || u > n - MARGIN - 4 || v < MARGIN + 4 || v > n - MARGIN)) return false;
-  const tip = left[steps], grad = g.createLinearGradient(x, y, tip[0], tip[1]);
-  grad.addColorStop(0, css(mul(color, .58))); grad.addColorStop(.45, css(color)); grad.addColorStop(1, css(mul(color, 1.16)));
-  g.beginPath(); pts.forEach(([u, v], q) => q ? g.lineTo(u, v) : g.moveTo(u, v)); g.closePath(); g.fillStyle = grad; g.fill();
-  if (rib) { // a lighter stroke down one side, where the blade catches the light
-    g.strokeStyle = css(mul(color, 1.25), .7); g.lineWidth = Math.max(1, width * .18); g.beginPath();
-    left.slice(2, steps - 1).forEach(([u, v], q) => { const [u2, v2] = right[right.length - 3 - q]; q ? g.lineTo(u * .65 + u2 * .35, v * .65 + v2 * .35) : g.moveTo(u * .65 + u2 * .35, v * .65 + v2 * .35); }); g.stroke();
+// A blade from (x, y) rising `lean` radians off upright and turning by `curl` radians over its length, tapering to a point. It is
+// laid as overlapping tapered brush strokes along its spine, darker at the foot and lighter toward the tip, each stroke a little
+// off in colour, so the outline breaks where one stroke hands over to the next. Returns false (drawing nothing) if any part would
+// leave the cell's clear margin.
+function blade(g, x, y, {len, lean, curl = 0, width, color, rib = false}, n, r) {
+  const steps = Math.max(4, Math.min(12, Math.round(len / (width * 1.6)))), spine = []; let a = lean, px = x, py = y;
+  for (let q = 0; q <= steps; q++) { spine.push([px, py, a]); px += Math.sin(a) * len / steps; py -= Math.cos(a) * len / steps; a += curl / steps; }
+  const half = q => width / 2 * (1 - q / steps) ** .7 + 1;
+  if (spine.some(([u, v], q) => u - half(q) < MARGIN + 4 || u + half(q) > n - MARGIN - 4 || v - half(q) < MARGIN + 4 || v > n - MARGIN)) return false;
+  const seg = len / steps;
+  for (let q = 0; q < steps; q++) {
+    const [u0, v0, a0] = spine[q], [u1, v1] = spine[q + 1], t = (q + .5) / steps, last = q === steps - 1;
+    const shade = .62 + .56 * t ** .8, w = width * (1 - t) ** .7 * (1.05 + r() * .2) + 1.5;
+    dab(g, (u0 + u1) / 2, (v0 + v1) / 2, {angle: a0 - Math.PI / 2 + (r() - .5) * .06, len: seg * (last ? 1.15 : 1.7), width: Math.max(2, w), color: jitter(r, mul(color, shade), .12),
+      alpha: 1, bristles: 3, bend: (r() - .5) * .25, taper: last ? 1 : .55, ridge: rib && t > .3 ? .45 : 0}, r);
   }
   return true;
 }
 // Keeps trying a blade, a little shorter each time, until it fits inside the cell.
-function fitBlade(g, x, y, s, n) { for (let t = 0; t < 12 && !blade(g, x, y, s, n); t++) s = {...s, len: s.len * .88}; }
+function fitBlade(g, x, y, s, n, r) { for (let t = 0; t < 12 && !blade(g, x, y, s, n, r); t++) s = {...s, len: s.len * .88}; }
 
 // Leaf masses (oak and woods): strokes scattered inside a union of lobes, minus small holes, lit from above both across the whole
 // clump and on each lobe. With `rosette`, two to five leaves radiate unevenly from each point like the oak's sprays; otherwise each
@@ -295,30 +293,34 @@ function leafMass(g, r, n, {lobes, holes = [], floor = n, count, leaf, rosette, 
 function oakLobes(r, n) {
   const k = n / 512, lobes = [], count = 7 + (r() * 4 | 0), lean = (r() - .5) * .7;
   for (let q = 0; q < count; q++) {
-    const rad = (32 + r() * 40) * k, ang = -Math.PI / 2 + lean + (q / (count - 1) - .5) * 3.8 + (r() - .5) * .5, dist = (100 + r() * 100) * k;
+    const rad = (32 + r() * 40) * k, ang = -Math.PI / 2 + lean + (q / (count - 1) - .5) * 3.8 + (r() - .5) * .5, dist = (80 + r() * 95) * k;
     lobes.push({x: clamp(n / 2 + Math.cos(ang) * dist * 1.25, rad + 40 * k, n - rad - 40 * k), y: clamp(n * .55 + Math.sin(ang) * dist * .85, rad + 36 * k, n - rad - 44 * k), rad});
   }
   lobes.push({x: n / 2, y: n * .56, rad: 58 * k}); // the heart of the spray, so no lobe floats free
   return lobes;
 }
 
-// Removes the soft part of every edge (cards are alpha-tested near 0.5), then carries edge colour outward under a faint alpha so
-// texture filtering never pulls in black, and keeps the cell's outer MARGIN fully clear.
+// Removes the soft part of every edge (cards are alpha-tested near 0.5), then carries edge colour outward across the whole cell
+// interior under a faint alpha (below the cut, but enough for the colour to survive encoding), so texture filtering and every mip
+// level see the shape's own colour instead of black. The cell's outer MARGIN stays fully clear.
 function finishCard(g, n) {
-  const img = g.getImageData(0, 0, n, n), d = img.data, solid = new Uint8Array(n * n);
-  for (let p = 0; p < n * n; p++) { const a = d[p * 4 + 3] / 255; d[p * 4 + 3] = clamp(((a - .5) * 3.2 + .5) * 255); solid[p] = d[p * 4 + 3] >= 128; }
-  for (let pass = 0, next = solid.slice(); pass < FRINGE; pass++, solid.set(next)) {
-    for (let y = MARGIN; y < n - MARGIN; y++) for (let x = MARGIN; x < n - MARGIN; x++) {
-      const p = y * n + x; if (solid[p]) continue;
-      let s0 = 0, s1 = 0, s2 = 0, m = 0;
-      for (const o of [-1, 1, -n, n, -n - 1, -n + 1, n - 1, n + 1]) if (solid[p + o]) { s0 += d[(p + o) * 4]; s1 += d[(p + o) * 4 + 1]; s2 += d[(p + o) * 4 + 2]; m++; }
-      if (!m) continue;
-      d[p * 4] = s0 / m; d[p * 4 + 1] = s1 / m; d[p * 4 + 2] = s2 / m; d[p * 4 + 3] = Math.max(d[p * 4 + 3], FRINGE_ALPHA); next[p] = 1;
-    }
+  const img = g.getImageData(0, 0, n, n), d = img.data, filled = new Uint8Array(n * n), inside = (x, y) => x >= MARGIN && y >= MARGIN && x < n - MARGIN && y < n - MARGIN;
+  let front = [];
+  for (let p = 0; p < n * n; p++) { const a = d[p * 4 + 3] / 255; d[p * 4 + 3] = clamp(((a - .5) * 3.2 + .5) * 255); if (d[p * 4 + 3] >= 128) { filled[p] = 1; front.push(p); } }
+  while (front.length) { // grow ring by ring; each new pixel takes the mean colour of its already-coloured neighbours
+    const ring = [];
+    for (const p of front) for (const [dx, dy] of NEIGHBOURS) { const x = p % n + dx, y = (p / n | 0) + dy, q = y * n + x;
+      if (inside(x, y) && !filled[q]) { filled[q] = 2; ring.push(q); } }
+    for (const q of ring) { let s0 = 0, s1 = 0, s2 = 0, m = 0; const x = q % n, y = q / n | 0;
+      for (const [dx, dy] of NEIGHBOURS) { const o = (y + dy) * n + x + dx; if (filled[o] === 1) { s0 += d[o * 4]; s1 += d[o * 4 + 1]; s2 += d[o * 4 + 2]; m++; } }
+      d[q * 4] = s0 / m; d[q * 4 + 1] = s1 / m; d[q * 4 + 2] = s2 / m; d[q * 4 + 3] = Math.max(d[q * 4 + 3], FRINGE_ALPHA); }
+    for (const q of ring) filled[q] = 1;
+    front = ring;
   }
-  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (x < MARGIN || y < MARGIN || x >= n - MARGIN || y >= n - MARGIN) d.fill(0, (y * n + x) * 4, (y * n + x) * 4 + 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (!inside(x, y)) d.fill(0, (y * n + x) * 4, (y * n + x) * 4 + 4);
   return img;
 }
+const NEIGHBOURS = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
 
 // What each kind of cell holds. `n` is the cell size, `i` the cell's place among its kind. Grass, flowers and reeds stand on the
 // cell's bottom edge (just inside the margin) at its centre.
@@ -327,11 +329,14 @@ const CARDS = {
   oak(g, r, n, i, s) {
     const lobes = oakLobes(r, n), k = n / 512, holes = [];
     for (let q = 0; q < 9 + (r() * 5 | 0); q++) { const l = lobes[r() * lobes.length | 0]; holes.push([l.x + (r() - .5) * l.rad * 1.4, l.y + (r() - .5) * l.rad * 1.4, (8 + r() * 13) * k]); }
-    g.lineCap = 'round'; g.strokeStyle = css(mul(s.bark.mean, .6)); // a stem from the limb, twigs branching off it into each lobe
-    const stem = t => [n / 2 + Math.sin(t * 3) * 6 * k, n * (.7 - .15 * t)];
-    g.lineWidth = 5 * k; g.beginPath(); g.moveTo(...stem(0)); g.lineTo(...stem(.5)); g.lineTo(...stem(1)); g.stroke();
-    for (const l of lobes) { const [sx, sy] = stem(.2 + r() * .8), ex = l.x + (r() - .5) * l.rad * .4, ey = l.y + (r() - .5) * l.rad * .3;
-      g.lineWidth = (1.8 + r() * 1.6) * k; g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo(sx * .4 + ex * .6, Math.min(sy, ey) - 12 * k, ex, ey); g.stroke(); }
+    // Twigs, seen only in the shadowed lower half through the gaps: each starts somewhere in the heart of the spray (never below the
+    // mass) and stops short inside a lower or side lobe; the lit top has none.
+    const heart = lobes[lobes.length - 1]; g.lineCap = 'round'; g.strokeStyle = css(mul(s.bark.mean, .6));
+    for (const l of lobes.slice(0, -1)) {
+      if (l.y < heart.y - heart.rad * .4) continue;
+      const sx = heart.x + (r() - .5) * heart.rad * 1.2, sy = heart.y + (r() - .2) * heart.rad * .5, ex = sx + (l.x - sx) * (.6 + r() * .25), ey = sy + (l.y - sy) * (.6 + r() * .25);
+      g.lineWidth = (2 + r() * 2) * k; g.beginPath(); g.moveTo(sx, sy); g.quadraticCurveTo((sx + ex) / 2, Math.min(sy, ey) - 8 * k, ex, ey); g.stroke();
+    }
     leafMass(g, r, n, {lobes, holes, count: 440 * k * k, leaf: [10 * k, 19 * k], rosette: true, light: s.leafLight, mid: s.leaf, dark: s.leafDark, contrast: .8, calm: .2, taper: .75});
   },
   // Distant tree masses: broad, flat-bottomed domes in a narrow sage-to-moss range, blunt strokes, softly lit tops.
@@ -364,11 +369,11 @@ const CARDS = {
   grass(g, r, n, i, s) {
     const k = n / 512, top = [470, 330, 420][i % 3] * k, foot = n - MARGIN - 1, blades = [150, 120, 130][i % 3];
     for (let q = 0; q < blades; q++) {
-      const spread = (r() - .5) * 2, x = n / 2 + spread * 44 * k, len = top * (.3 + r() * .7) * (1 - .35 * Math.abs(spread)), lean = spread * .95 + (r() - .5) * .45;
+      const spread = (r() - .5) * 2, x = n / 2 + spread * 80 * k, len = top * (.32 + r() * .68) * (1 - .3 * Math.abs(spread)), lean = spread * .92 + (r() - .5) * .45;
       const col = r() < .14 ? mix(s.meadow.pick(), [180, 166, 110], .55) : mul(mix(s.meadow.pick(), [124, 150, 68], .3), .92 + r() * .28);
-      fitBlade(g, x, foot, {len, lean, curl: lean * (.2 + r() * 1.2) + (r() - .5) * .5, width: (5 + r() * 8) * k, color: col, rib: r() < .4}, n);
+      fitBlade(g, x, foot, {len, lean, curl: lean * (.2 + r() * 1.1) + (r() - .5) * .5, width: (6 + r() * 9) * k, color: col, rib: r() < .4}, n, r);
     }
-    if (i % 3 === 2) for (let q = 0; q < 7; q++) seedStalk(g, r, n, n / 2 + (r() - .5) * 50 * k, foot, top * (.8 + r() * .2), (r() - .5) * .5, mix(s.meadow.mean, [190, 172, 118], .6));
+    if (i % 3 === 2) for (let q = 0; q < 7; q++) seedStalk(g, r, n, n / 2 + (r() - .5) * 110 * k, foot, top * (.8 + r() * .2), (r() - .5) * .5, mix(s.meadow.mean, [190, 172, 118], .6));
   },
   // Cow parsley: a thin stem carrying a flat cream umbel of small umbellets, a smaller side umbel, two small leaves low down.
   flower(g, r, n, i, s) {
@@ -394,8 +399,8 @@ const CARDS = {
   reeds(g, r, n, i, s) {
     const k = n / 512, foot = n - MARGIN - 1;
     for (let q = 0; q < 60; q++) {
-      const spread = (r() - .5) * 2, x = n / 2 + spread * 50 * k, len = (220 + r() * 270) * k, lean = spread * .2 + (r() - .5) * .22;
-      fitBlade(g, x, foot, {len, lean, curl: r() < .22 ? (r() < .5 ? -1 : 1) * (.6 + r() * .7) : (r() - .5) * .25, width: (6 + r() * 8) * k, color: mul(s.reeds.pick(), .88 + r() * .3), rib: r() < .5}, n);
+      const spread = (r() - .5) * 2, x = n / 2 + spread * 70 * k, len = (220 + r() * 270) * k, lean = spread * .28 + (r() - .5) * .24;
+      fitBlade(g, x, foot, {len, lean, curl: r() < .22 ? (r() < .5 ? -1 : 1) * (.6 + r() * .7) : (r() - .5) * .25, width: (7 + r() * 8) * k, color: mul(s.reeds.pick(), .88 + r() * .3), rib: r() < .5}, n, r);
     }
     for (let q = 0; q < 4 + i * 2; q++) seedStalk(g, r, n, n / 2 + (r() - .5) * 70 * k, foot, (360 + r() * 120) * k, (r() - .5) * .3, mix(s.reeds.mean, [168, 146, 98], .55));
   },
@@ -417,7 +422,7 @@ function paintCards(paint, r) {
     leafDark: S('foliage', c => leafy(c) && lum(c) > 35 && lum(c) <= 85), bark: S('bark'),
     woods: S('woods', c => leafy(c) && c[1] >= c[0] && lum(c) > 70 && lum(c) < 130), woodsLight: S('woods', c => leafy(c) && c[1] >= c[0] && lum(c) >= 115 && lum(c) < 170),
     woodsDark: S('woods', c => leafy(c) && c[1] >= c[0] && lum(c) > 45 && lum(c) <= 85), meadow: S('meadow', greenish), cream: S('meadow', c => lum(c) > 190),
-    reeds: S('reeds', c => c[1] >= c[2] * 1.05 && c[1] >= c[0] * .95 && lum(c) > 60 && lum(c) < 165)};
+    reeds: S('reeds', c => c[1] >= c[2] * 1.15 && c[1] >= c[0] * .95 && lum(c) > 60 && lum(c) < 165)};
   for (const [kind, list] of Object.entries(cells)) list.forEach((index, i) => {
     const c = canvas(n), g = c.getContext('2d', {willReadFrequently: true});
     CARDS[kind](g, rng(r() * 4294967296 | 0), n, i, s);

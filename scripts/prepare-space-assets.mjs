@@ -91,7 +91,7 @@ try {
     const caption = (t, x, y, more = '') => { g.fillStyle = '#222'; g.fillText(`${t.slot} ${t.width}×${t.height} ${t.source}${more}`, x, y); };
     for (const [k, t] of small.entries()) {
       const image = await load(t), x = pad + (k % cols) * (box + pad), y = pad + Math.floor(k / cols) * (box + label + pad);
-      if (t.slot in {door: 1, window: 1}) { const s = box / Math.max(t.width, t.height); g.drawImage(image, x, y, t.width * s, t.height * s); }
+      if (t.panel) { const s = box / Math.max(t.width, t.height); g.drawImage(image, x, y, t.width * s, t.height * s); }
       else for (const [i, j] of [[0, 0], [1, 0], [0, 1], [1, 1]]) g.drawImage(image, x + i * cell, y + j * cell, cell, cell);
       caption(t, x, y + box + 14);
     }
@@ -105,7 +105,7 @@ try {
       }
     }
     return [...await window.encode(c, 'image/png')];
-  }, await Promise.all(files.map(async f => ({...f, data: (await readFile(new URL(f.file, out))).toString('base64')}))));
+  }, await Promise.all(files.map(async f => ({...f, panel: f.slot in SPACE_ART.panels, data: (await readFile(new URL(f.file, out))).toString('base64')}))));
   await mkdir(new URL('.', sheetPath), {recursive: true});
   await writeFile(sheetPath, Buffer.from(sheet));
 } finally { await browser.close(); }
