@@ -1,7 +1,8 @@
 import {terrainHeight} from '../../../shared/space.js';
-import {cabinFront, doorPosition} from '../../../shared/lakeside-dressing.js';
+import {cabinFront} from '../../../shared/lakeside-dressing.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, V} from '../geometry.js';
+import {hash, noise} from './ground.js';
 
 // The cabin in paint: stone walls a little out of true under an overhanging, sagging slate roof, a chimney, the door and
 // windows as panels just proud of the wall, dabs breaking the roof's edges and the corners, and shrubs at its foot.
@@ -12,13 +13,7 @@ const PROUD = .025, UNDER_ROOF = .03, FASCIA = .12, STONE_TILE = SPACE_ART.surfa
 const lin = rgb => rgb.map(c => (c / 255) ** 2.2); // vertex colours are linear
 const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
 const clamp01 = t => Math.max(0, Math.min(1, t));
-// Seeded value noise in [0, 1] (as in ground.js), and a seeded stream of numbers in [0, 1).
-const hash = (i, j, seed) => { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(seed, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-const noise = (x, y, seed) => {
-  const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  const a = hash(i, j, seed), b = hash(i + 1, j, seed), c = hash(i, j + 1, seed), d = hash(i + 1, j + 1, seed);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-};
+// A seeded stream of numbers in [0, 1).
 const stream = seed => { let n = 0; return () => hash(n++, 11, seed); };
 const shade = (colour, k) => colour.map(c => c * k);
 
@@ -64,14 +59,16 @@ export function buildCabin(THREE, {space, dressing, art}) {
 
   // ── roof: two slopes overhanging the eaves and gables, an eave board along each side and a verge board at each end ──
   const roof = [], A0 = -L - OG, A1 = L + OG;
+  // The eave and verge boards are slate in deep shade, so the slates' pattern does not read as a row of boards.
+  const board = p => { const k = .34 + .1 * noise(p[0] * 3.1, p[1] * 3.1 + p[2], 46); return [k, k * .98, k * .96]; };
   for (const side of [-1, 1]) {
     const up = V.norm(V.add([0, 0, 1], v, side * slope));
     roof.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * (W + OE) * (1 - t); return at(a, b, roofZ(a, b)); },
       {ns: 26, nt: 8, tile: SPACE_ART.surfaces.slate.metres, outward: up}));
     roof.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * (W + OE); return at(a, b, roofZ(a, b) - FASCIA * t); },
-      {ns: 20, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(v, side)}));
+      {ns: 20, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(v, side), colour: board}));
     roof.push(sheet(THREE, (s, t) => { const a = side * A1, b = -(W + OE) + 2 * (W + OE) * s; return at(a, b, roofZ(a, b) - FASCIA * t); },
-      {ns: 16, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(u, side)}));
+      {ns: 16, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(u, side), colour: board}));
   }
 
   // ── chimney: a stack a little tapered, from inside the house up through the roof, with a slab cap ──
@@ -94,7 +91,9 @@ export function buildCabin(THREE, {space, dressing, art}) {
   box(capHalf, capHalf, top - .02, top + .08, 0, 1, true);
 
   // ── the door and windows: panels following the wall's surface, just proud of it, textured edge to edge ──
-  const doorGround = terrainHeight(space, ...doorPosition(space, dressing)), openings = new THREE.Group(); openings.name = 'openings';
+  const {door, windows} = dressing.cabin, doorSide = (door.face === 'back' ? -1 : 1) * front;
+  const doorGround = Math.min(ground(door.along - door.width / 2, doorSide * W), ground(door.along + door.width / 2, doorSide * W));
+  const openings = new THREE.Group(); openings.name = 'openings';
   const panelMaterials = {door: new THREE.MeshLambertMaterial({map: art.panels.door}), window: new THREE.MeshLambertMaterial({map: art.panels.window})};
   const panel = (name, kind, face, along, z0, width, height) => {
     const side = (face === 'back' ? -1 : 1) * front, ns = 4, nt = 4;
@@ -104,8 +103,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
     const mesh = new THREE.Mesh(g, panelMaterials[kind]); mesh.name = name;
     openings.add(mesh);
   };
-  const {door, windows} = dressing.cabin;
-  // The threshold sits a little into the ground so no gap shows under the door; window sills are measured from the threshold,
+  // The threshold sits a little into the lower of the ground at its two edges, so no stone shows under the door; window sills are measured from the threshold,
   // so the windows stay level however the ground slopes.
   panel('door', 'door', door.face, door.along, doorGround - .03, door.width, door.height + .03);
   for (const w of windows) panel(`window-${w.id}`, 'window', w.face, w.along, doorGround + w.sill, w.width, w.height);
@@ -113,19 +111,20 @@ export function buildCabin(THREE, {space, dressing, art}) {
   // ── dabs breaking the ridge, eaves, verges and corners, in the colour of the surface they break ──
   const cells = SPACE_ART.cards.cells, dabs = cardBatch(SPACE_ART), r = stream(dressing.seed + 6);
   const dabCell = () => cells.dab[r() < .5 ? 0 : 1];
-  for (let a = A0; a <= A1; a += .16 + r() * .08) {
-    const tilt = (r() - .5) * 1.4, upAxis = V.norm(V.add(V.scale([0, 0, 1], Math.cos(tilt)), v, Math.sin(tilt))), h = .05 + r() * .06;
-    dabs.add(at(a, 0, roofZ(a, 0) + h * .6), V.scale(u, .2 + r() * .14), V.scale(upAxis, h), dabCell(), shade(SLATE, .6 + r() * .2), shade(SLATE, .75 + r() * .25), [0, 0, 1], r() < .5);
+  for (let a = A0 + .25; a <= A1 - .25; a += .16 + r() * .08) {
+    const lean = r() < .5 ? -1 : 1, tilt = lean * (.6 + r() * .5), upAxis = V.norm(V.add(V.scale([0, 0, 1], Math.cos(tilt)), v, Math.sin(tilt))), h = .04 + r() * .04;
+    const lit = V.norm(V.add([0, 0, 1], v, lean * slope));
+    dabs.add(at(a, 0, roofZ(a, 0) + h * .4), V.scale(u, .18 + r() * .12), V.scale(upAxis, h), dabCell(), shade(SLATE, .62 + r() * .12), shade(SLATE, .72 + r() * .14), lit, r() < .5);
   }
   for (const side of [-1, 1]) {
     const down = V.norm([side * v[0], side * v[1], -slope]), roofUp = V.norm(V.add([0, 0, 1], v, side * slope));
-    for (let a = A0; a <= A1; a += .18 + r() * .1) {
-      if (r() > .5) continue;
-      const b = side * (W + OE), e = at(a, b, roofZ(a, b) - FASCIA - .01);
-      dabs.add(V.add(e, V.scale(v, side * .01)), V.scale(u, .14 + r() * .12), V.add(V.scale(down, .03), [0, 0, .05 + r() * .03]), dabCell(),
-        shade(SLATE, .6 + r() * .2), shade(SLATE, .8 + r() * .3), V.scale(v, side), r() < .5);
+    for (let a = A0 + .3; a <= A1 - .3; a += .14 + r() * .16) {
+      if (r() > .6) continue;
+      const b = side * (W + OE), e = at(a, b, roofZ(a, b) - FASCIA * (.2 + r() * .9)), len = .08 + r() * .2;
+      dabs.add(V.add(e, V.scale(v, side * .01)), V.scale(u, len), V.add(V.scale(down, .02), [0, 0, .025 + r() * .05]), dabCell(),
+        shade(SLATE, .3 + r() * .12), shade(SLATE, .4 + r() * .15), V.scale(v, side), r() < .5);
     }
-    for (const e of [-1, 1]) for (let t = .02; t <= 1; t += .07 + r() * .04) {
+    for (const e of [-1, 1]) for (let t = .02; t <= .93; t += .07 + r() * .04) {
       const b = side * (W + OE) * (1 - t), a = e * (A1 + .01);
       dabs.add(at(a, b, roofZ(a, b) + .01), V.scale(down, .18 + r() * .1), [0, 0, .07 + r() * .06], dabCell(), shade(SLATE, .7 + r() * .25), shade(SLATE, .9 + r() * .3), roofUp, r() < .5);
     }
@@ -162,7 +161,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   const merged = list => { const g = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return g; };
   const object = new THREE.Group(); object.name = 'cabin';
   object.add(mesh('walls', merged(walls), stone),
-    mesh('roof', merged(roof), new THREE.MeshLambertMaterial({map: art.surfaces.slate, side: THREE.DoubleSide})),
+    mesh('roof', merged(roof), new THREE.MeshLambertMaterial({map: art.surfaces.slate, vertexColors: true, side: THREE.DoubleSide})),
     mesh('chimney', merged(stack), stone), openings,
     mesh('shrubs', shrubs.geometry(THREE), cards), mesh('dabs', dabs.geometry(THREE), cards));
   return {object, dispose() {
