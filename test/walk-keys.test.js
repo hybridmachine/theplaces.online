@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WalkKeys} from '../public/space/walk-keys.js';
+import {WalkKeys, walkHint, walkKeyLabels} from '../public/space/walk-keys.js';
 
 const key = (type, code, more = {}) => {
   const event = new Event(type, {cancelable: true});
@@ -70,4 +70,19 @@ test('contenteditable and select targets are typing targets; tag-less targets ar
   assert.deepEqual(k.input(), zero);
   t.dispatchEvent(key('keydown', 'KeyD', {target: {}}));
   assert.equal(k.input().strafe, 1);
+});
+test('the walking hint names the keys as printed on the visitor\'s keyboard', async () => {
+  const azerty = new Map([['KeyW', 'z'], ['KeyA', 'q'], ['KeyS', 's'], ['KeyD', 'd']]);
+  const dvorak = new Map([['KeyW', ','], ['KeyA', 'a'], ['KeyS', 'o'], ['KeyD', 'e']]);
+  assert.equal(walkKeyLabels(azerty), 'Z Q S D');
+  assert.equal(walkKeyLabels(dvorak), ', A O E');
+  assert.equal(walkKeyLabels(new Map([['KeyW', 'w'], ['KeyA', 'a'], ['KeyS', 's'], ['KeyD', 'd']])), 'W A S D');
+  // Unknown layouts fall back to the physical-position names.
+  for (const unknown of [undefined, null, new Map(), new Map([['KeyW', 'z']]), new Map([...azerty, ['KeyD', 'Dead']]), {get() { throw new Error('denied'); }}])
+    assert.equal(walkKeyLabels(unknown), 'W A S D');
+  assert.equal(await walkHint({getLayoutMap: async () => azerty}), 'Walk with Z Q S D. Look with the arrow keys or drag.');
+  assert.equal(await walkHint({getLayoutMap: async () => { throw new Error('blocked'); }}), 'Walk with W A S D. Look with the arrow keys or drag.');
+  assert.equal(await walkHint(undefined), 'Walk with W A S D. Look with the arrow keys or drag.');
+  // A layout lookup that never settles must not hold the hint back.
+  assert.equal(await walkHint({getLayoutMap: () => new Promise(() => {})}, 20), 'Walk with W A S D. Look with the arrow keys or drag.');
 });

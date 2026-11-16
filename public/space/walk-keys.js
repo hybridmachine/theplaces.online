@@ -43,3 +43,24 @@ export class WalkKeys {
     this.release();
   }
 }
+
+// Walking binds physical key positions (KeyboardEvent.code), so the same four
+// keys carry other letters on other layouts: Z Q S D on French AZERTY.
+const WALK_CODES = ['KeyW', 'KeyA', 'KeyS', 'KeyD'];
+// `layout` is a KeyboardLayoutMap where the browser offers one. Anything
+// unknown falls back to the position names.
+export function walkKeyLabels(layout) {
+  try {
+    const labels = WALK_CODES.map(code => layout.get(code));
+    if (labels.every(label => typeof label === 'string' && [...label.trim()].length === 1)) return labels.map(label => label.trim().toUpperCase()).join(' ');
+  } catch {}
+  return 'W A S D';
+}
+export async function walkHint(keyboard = globalThis.navigator?.keyboard, waitMs = 1000) {
+  let layout;
+  try {
+    layout = await Promise.race([keyboard.getLayoutMap(), new Promise(resolve => setTimeout(resolve, waitMs))]);
+  } catch {}
+  return `Walk with ${walkKeyLabels(layout)}. Look with the arrow keys or drag.`;
+}
+

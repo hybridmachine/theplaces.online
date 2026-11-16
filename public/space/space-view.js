@@ -6,7 +6,7 @@ import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
 import {SkyDome} from './sky-dome.js';
-import {WalkKeys} from './walk-keys.js';
+import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
 
 export {toThree};
@@ -87,6 +87,8 @@ export class SpaceView {
     else { this.glideFrom = null; this.state = pose(this.space.arrival); }
   }
   // Before init has loaded the remembered place, the arrival pose must not overwrite it.
+  // The first-visit hint, naming the walking keys as printed on this keyboard where the browser can tell.
+  walkHint() { return walkHint(); }
   flushPlace() { if (this.placed) this.memory.flush(this.state); }
   forgetPlace() { this.memory.forget(); }
   // Advances the visitor by the real time since the previous frame; the world's clock (paused or studied) plays no part.
