@@ -13,13 +13,15 @@
 // and the impasto stays off a band round every silhouette, so no rim follows the oak or the roof against the sky.
 
 const RADIUS = 2.6;      // filter radius at full reach, CSS pixels (times the pixel ratio and the filter scale)
-const REACH = [3, 40];   // metres over which the filter grows from 0.3 of its radius (near) to all of it (far)
-const SHARPNESS = 12;    // the Kuwahara q: how strongly the calmest sector wins
-const DETAIL = [.12, .36];   // share of the unfiltered frame kept far off and near by
+const REACH = [6, 80];   // metres over which the filter grows from 0.3 of its radius (near) to all of it (far)
+const SHARPNESS = 18;    // the Kuwahara q: how strongly the calmest sector wins
+const DETAIL = [0, .25];   // share of the unfiltered frame kept far off and near by
 const LIGHT_NEAR_DETAIL = .6; // near by on the light tier, where the filter runs at reduced resolution
-const IMPASTO = 4, IMPASTO_STEP = [.015, .04]; // light on stroke edges; faded out across larger steps of tone
+const IMPASTO = 6, IMPASTO_STEP = [.05, .12]; // light on stroke edges; faded out across larger steps of tone
+const IMPASTO_CLAMP = [.04, .12]; // largest slope taken, largest change of light
+const BRISTLE = .15;      // depth of the bristle marks over land
 const RELIEF = .8;       // how much of the surfaces' own finest strokes is raised in the impasto, near by
-const WEAVE_LAND = .03, WEAVE_SKY = .006, THREAD = 2.6; // linen weave depth over paint and over sky; thread pitch, CSS px
+const WEAVE_LAND = .045, WEAVE_SKY = .006, THREAD = 2.6; // linen weave depth over paint and over sky; thread pitch, CSS px
 const SKY_DEPTH = '.9999995'; // cleared depth is 1; the farthest hills (under 1 km) are well below this
 
 const QUAD_VERTEX = `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
@@ -49,7 +51,7 @@ vec4 sector(vec4 m,vec3 s,float q){
 }
 void main(){
   vec4 centre=texture(src,vUv);
-  if(centre.a<.5){gl_FragColor=centre;return;}
+  if(centre.a<.5){gl_FragColor=vec4(0.);return;} // sky: no paint (alpha 0), so nothing of it is upsampled into land
   // Near surfaces already carry their painted strokes at a size the eye reads, so the filter only tidies them; farther off,
   // where the textures' strokes shrink below a brush's width, it lays the colour down in strokes of its own.
   float z=clip.x*clip.y/(clip.y-texture(depth,vUv).r*(clip.y-clip.x)),far=smoothstep(reach.x,reach.y,z);
@@ -83,17 +85,27 @@ void main(){
   gl_FragColor=vec4(o.w>1e-9?o.rgb/o.w:centre.rgb,1.);
 }`;
 // Impasto light from the upper left on the painted strokes' edges, then the linen.
-const CANVAS = `uniform sampler2D paint,scene,depth;uniform vec2 texel,sceneTexel,clip,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail;varying vec2 vUv;
+const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle;uniform vec2 texel,paintSize,sceneTexel,clip,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
 float h1(float x){return fract(sin(x*91.37)*43758.55);}
 float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.55);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(h2(i),h2(i+vec2(1.,0.)),f.x),mix(h2(i+vec2(0.,1.)),h2(i+vec2(1.)),f.x),f.y);}
 float L(vec4 c){return dot(c.rgb,vec3(.3,.59,.11));}
 void main(){
   float d=texture(depth,vUv).r,land=d<${SKY_DEPTH}?1.:0.;
   float near=1.-smoothstep(reach.x,reach.y,clip.x*clip.y/(clip.y-d*(clip.y-clip.x)));
-  vec4 c=texture(paint,vUv);
-  // Land: the painted frame (upsampled smoothly when the filter runs small), with a share of the frame at full resolution
-  // kept, more near by where the surfaces' own strokes read. Sky: the frame as drawn.
-  vec3 drawn=texture(scene,vUv).rgb,col=land>.5?mix(c.rgb,drawn,mix(detail.x,detail.y,near)):drawn;
+  vec3 drawn=texture(scene,vUv).rgb;
+  // Land: the painted frame. When the filter runs small it is brought up to full size from its four nearest texels, each
+  // weighted by nearness, by being land, and by likeness to the frame drawn here, so stroke edges stay as sharp as the frame's
+  // own and no sky is carried into land. A share of the drawn frame is kept, more near by. Sky: the frame as drawn.
+  vec2 f=vUv*paintSize-.5,b=floor(f),t=f-b;vec4 acc=vec4(0.);
+  for(int j=0;j<2;j++)for(int i=0;i<2;i++){
+    vec4 q=texture(paint,(b+vec2(float(i),float(j))+.5)/paintSize);vec3 dq=q.rgb-drawn;
+    float w=(i==0?1.-t.x:t.x)*(j==0?1.-t.y:t.y)*q.a*exp(-dot(dq,dq)*60.)+1e-5*q.a;
+    acc+=vec4(q.rgb,1.)*w;
+  }
+  vec3 painted=acc.a>1e-6?acc.rgb/acc.a:drawn;
+  vec3 col=land>.5?mix(painted,drawn,mix(detail.x,detail.y,near)):drawn;
   vec4 e=texture(paint,vUv+vec2(texel.x,0.)),w=texture(paint,vUv-vec2(texel.x,0.)),n=texture(paint,vUv+vec2(0.,texel.y)),s=texture(paint,vUv-vec2(0.,texel.y));
   vec4 e2=texture(paint,vUv+vec2(texel.x,0.)*2.5),w2=texture(paint,vUv-vec2(texel.x,0.)*2.5),n2=texture(paint,vUv+vec2(0.,texel.y)*2.5),s2=texture(paint,vUv-vec2(0.,texel.y)*2.5);
   // Off within a few pixels of sky, and faded across large steps of tone (a form's edge, not a stroke's).
@@ -104,8 +116,16 @@ void main(){
   vec2 fine=vec2(L(texture(scene,vUv+vec2(sceneTexel.x,0.)))-L(texture(scene,vUv-vec2(sceneTexel.x,0.))),
     L(texture(scene,vUv+vec2(0.,sceneTexel.y)))-L(texture(scene,vUv-vec2(0.,sceneTexel.y))))*.5;
   float fade=inland*(1.-smoothstep(steps.x,steps.y,max(length(g),length(trend))));
-  g=clamp(g+fine*relief*near,-.02,.02)*fade;
-  col*=clamp(1.+impasto*dot(g,vec2(.65,-.76)),.94,1.06);
+  g=clamp(g+fine*relief*near,-lift.x,lift.x)*fade;
+  col*=clamp(1.+impasto*dot(g,vec2(.65,-.76)),1.-lift.y,1.+lift.y);
+  // Bristle marks: streaks of light and dark drawn along the local stroke direction (from the structure tensor), a brush's
+  // hair wide and several long, so the paint shows which way it was laid.
+  vec3 st=texture(structure,vUv).rgb+.5*(texture(structure,vUv+vec2(texel.x,0.)*2.).rgb+texture(structure,vUv-vec2(texel.x,0.)*2.).rgb
+    +texture(structure,vUv+vec2(0.,texel.y)*2.).rgb+texture(structure,vUv-vec2(0.,texel.y)*2.).rgb);
+  float E=st.x,F=st.y,G=st.z,root=sqrt((E-G)*(E-G)+4.*F*F);
+  vec2 dir=vec2(.5*(E+G+root)-E,-F);dir=length(dir)>1e-7?normalize(dir):vec2(0.,1.);
+  vec2 bp=gl_FragCoord.xy/dpr;bp=vec2(dot(bp,dir)/6.,dot(bp,vec2(-dir.y,dir.x))/1.3);
+  col*=1.+(vn(bp)+.5*vn(bp*vec2(1.7,2.3)+9.)-.75)*bristle*inland;
   // Linen: an over/under weave of slightly uneven threads, set in CSS pixels so the cloth is the same at every pixel ratio.
   vec2 p=gl_FragCoord.xy/dpr;
   float hx=abs(sin(p.y*3.14159/thread)),vx=abs(sin(p.x*3.14159/thread));
@@ -136,9 +156,9 @@ export class PainterlyPass {
     this.kuwahara = material(KUWAHARA, {src: {value: this.prepared.texture}, tensor: {value: this.structure.texture}, depth: {value: this.depth},
       texel: {value: new THREE.Vector2()}, clip, reach,
       radius: {value: RADIUS}, sharpness: {value: SHARPNESS}});
-    this.canvas = material(CANVAS, {paint: {value: this.painted.texture}, scene: {value: this.sceneTarget.texture}, depth: {value: this.depth},
-      texel: {value: new THREE.Vector2()}, sceneTexel: {value: new THREE.Vector2()}, clip, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
-      weave: {value: new THREE.Vector2(WEAVE_LAND, WEAVE_SKY)}, detail: {value: new THREE.Vector2(...DETAIL)}, steps: {value: new THREE.Vector2(...IMPASTO_STEP)}});
+    this.canvas = material(CANVAS, {paint: {value: this.painted.texture}, structure: {value: this.structure.texture}, bristle: {value: BRISTLE}, scene: {value: this.sceneTarget.texture}, depth: {value: this.depth},
+      texel: {value: new THREE.Vector2()}, paintSize: {value: new THREE.Vector2(1, 1)}, sceneTexel: {value: new THREE.Vector2()}, clip, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
+      weave: {value: new THREE.Vector2(WEAVE_LAND, WEAVE_SKY)}, detail: {value: new THREE.Vector2(...DETAIL)}, steps: {value: new THREE.Vector2(...IMPASTO_STEP)}, lift: {value: new THREE.Vector2(...IMPASTO_CLAMP)}});
     // One triangle over the whole frame.
     this.geometry = new THREE.BufferGeometry();
     this.geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
@@ -161,7 +181,7 @@ export class PainterlyPass {
     const w = Math.max(1, Math.round(this.width * this.scale)), h = Math.max(1, Math.round(this.height * this.scale));
     for (const target of [this.prepared, this.structure, this.painted]) target.setSize(w, h);
     for (const m of [this.tensor, this.kuwahara]) m.uniforms.texel.value.set(1 / w, 1 / h);
-    this.canvas.uniforms.texel.value.set(1 / w, 1 / h);
+    this.canvas.uniforms.texel.value.set(1 / w, 1 / h); this.canvas.uniforms.paintSize.value.set(w, h);
     this.kuwahara.uniforms.radius.value = RADIUS * this.pixelRatio * this.scale;
     this.canvas.uniforms.detail.value.y = this.scale < 1 ? LIGHT_NEAR_DETAIL : DETAIL[1];
     this.canvas.uniforms.dpr.value = this.pixelRatio;

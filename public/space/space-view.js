@@ -67,7 +67,8 @@ export class SpaceView {
   async init() {
     if (this.disposed) return false;
     this.state = pose(this.memory.load() ?? this.space.arrival); this.placed = true;
-    const gl = this.canvas.getContext('webgl2', {antialias: true, powerPreference: 'low-power'});
+    // Opaque: with alpha the canvas would let the page show through wherever alpha-to-coverage leaves a card edge part covered.
+    const gl = this.canvas.getContext('webgl2', {alpha: false, antialias: true, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
     const renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
@@ -97,7 +98,7 @@ export class SpaceView {
     return !this.disposed;
   }
   setPass(mode) {
-    if (!(mode in PASS_SCALE)) throw new Error(`Unknown painterly pass mode ${mode}`);
+    if (!Object.hasOwn(PASS_SCALE, mode)) throw new Error(`Unknown painterly pass mode ${mode}`);
     this.passMode = mode;
     if (PASS_SCALE[mode]) this.pass?.setScale(PASS_SCALE[mode]);
   }
