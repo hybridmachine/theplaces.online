@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "quality": 0.9,
+  "files": [
+    {
+      "slot": "meadow",
+      "file": "meadow.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 3,
+      "source": "painted",
+      "bytes": 309402,
+      "sha256": "c1b2010550bfbcd860a12da0aca3292b2fb95c9eb200404cdf71b37493d31099"
+    },
+    {
+      "slot": "earth",
+      "file": "earth.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 5,
+      "source": "painted",
+      "bytes": 202016,
+      "sha256": "d1a4942853641ceef4a166948495270395eaa6b5cb20f9bad9f66ed61fee3616"
+    },
+    {
+      "slot": "shore",
+      "file": "shore.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 9,
+      "source": "painted",
+      "bytes": 220584,
+      "sha256": "d08dc3524c72b7a4c2fd4c9f7d27b30ca7d7920f98d563ac1ef8e268246958fb"
+    },
+    {
+      "slot": "stone",
+      "file": "stone.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 13,
+      "source": "painted",
+      "bytes": 185774,
+      "sha256": "2c844e0f3538fecaff73efe1d077bf009d7ed8dc016a854ec228f1466d88e49c"
+    },
+    {
+      "slot": "slate",
+      "file": "slate.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 17,
+      "source": "painted",
+      "bytes": 87054,
+      "sha256": "63801f5758ddd6e5d5398f757813e99132a8d4cdc01236d28ad7def82c3a8580"
+    },
+    {
+      "slot": "bark",
+      "file": "bark.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 19,
+      "source": "painted",
+      "bytes": 121410,
+      "sha256": "3417974f48d90b761f2eb80344cbf84f51b7508f22332418b57751f4b04ed61c"
+    },
+    {
+      "slot": "water",
+      "file": "water.webp",
+      "width": 1024,
+      "height": 1024,
+      "alpha": false,
+      "seed": 37,
+      "source": "painted",
+      "bytes": 101394,
+      "sha256": "fe4d657ac927bd90533773526418cf7b51b858c03e8c5bca3ac9c0add448b1bd"
+    },
+    {
+      "slot": "drystone",
+      "file": "drystone.webp",
+      "width": 512,
+      "height": 512,
+      "alpha": false,
+      "seed": 43,
+      "source": "painted",
+      "bytes": 63872,
+      "sha256": "9845da69241f4176e38c2fe71892ecc4deae2fb29960180362557773b0d13437"
+    },
+    {
+      "slot": "hills",
+      "file": "hills.webp",
+      "width": 512,
+      "height": 512,
+      "alpha": false,
+      "seed": 41,
+      "source": "painted",
+      "bytes": 56902,
+      "sha256": "f612333ca318dc1bd6858fe6fec35e54faf6bf68859525a13631f6559e804983"
+    }
+  ]
+}

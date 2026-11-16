@@ -66,3 +66,4 @@ docs/coincidences-validation/*.webm
 docs/space-validation/*.png
 !docs/space-validation/arrival.png
 !docs/space-validation/remembered.png
+!docs/space-validation/art-sheet.png
