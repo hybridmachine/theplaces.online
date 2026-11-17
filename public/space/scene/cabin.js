@@ -2,7 +2,7 @@ import {terrainHeight} from '../../../shared/space.js';
 import {cabinFront} from '../../../shared/lakeside-dressing.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, V} from '../geometry.js';
-import {hash, noise} from './ground.js';
+import {clamp01, lin, noise, stream} from './noise.js';
 
 // The cabin in paint: stone walls a little out of true under an overhanging, sagging slate roof, a chimney, the door and
 // windows as panels just proud of the wall, dark eave boards and soffits under the overhang, dabs breaking the roof's edges
@@ -12,11 +12,7 @@ import {hash, noise} from './ground.js';
 
 // The eaves carry the hills' loose brushwork (no joints in it) under their own dark colour.
 const BRUSH_TILE = 1.6, PROUD = .025, UNDER_ROOF = .03, FASCIA = .12, STONE_TILE = SPACE_ART.surfaces.stone.metres;
-const lin = rgb => rgb.map(c => (c / 255) ** 2.2); // vertex colours are linear
 const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
-const clamp01 = t => Math.max(0, Math.min(1, t));
-// A seeded stream of numbers in [0, 1).
-const stream = seed => { let n = 0; return () => hash(n++, 11, seed); };
 const shade = (colour, k) => colour.map(c => c * k);
 
 export function buildCabin(THREE, {space, dressing, art}) {
@@ -130,7 +126,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   for (const w of windows) panel(`window-${w.id}`, 'window', w.face, w.along, doorGround + w.sill, w.width, w.height);
 
   // ── dabs breaking the ridge, eaves, verges and corners, in the colour of the surface they break ──
-  const cells = SPACE_ART.cards.cells, dabs = cardBatch(SPACE_ART), r = stream(dressing.seed + 6);
+  const cells = SPACE_ART.cards.cells, dabs = cardBatch(SPACE_ART), r = stream(dressing.seed + 6, 11);
   const dabCell = () => cells.dab[r() < .5 ? 0 : 1];
   for (let a = A0 + .25; a <= A1 - .25; a += .16 + r() * .08) {
     const lean = r() < .5 ? -1 : 1, tilt = lean * (.6 + r() * .5), upAxis = V.norm(V.add(V.scale([0, 0, 1], Math.cos(tilt)), v, Math.sin(tilt))), h = .04 + r() * .04;
@@ -162,7 +158,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   }
 
   // ── shrubs at the cabin's foot, at the front corners, beside the door and behind, as clusters of bushy woods cards ──
-  const shrubs = cardBatch(SPACE_ART), q = stream(dressing.seed + 7);
+  const shrubs = cardBatch(SPACE_ART), q = stream(dressing.seed + 7, 11);
   const shrub = (a, b, size) => {
     const foot = at(a, b, ground(a, b) - .05);
     for (let k = 0; k < 8; k++) {

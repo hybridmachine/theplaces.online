@@ -4,6 +4,8 @@ import {cellRect, SPACE_ART} from '../../shared/lakeside-space-art.js';
 
 // three's axes are X east, Y up, Z south. A proper rotation, so winding survives it.
 export const toThree = ([x, y, z]) => [x, z, -y];
+// The lake's surface: metres of world z, which is three's y. The scene lays the water there and the painterly pass leaves it unmarked.
+export const LAKE_LEVEL = -.004;
 
 const TAU = 2 * Math.PI;
 export const V = {
@@ -80,10 +82,10 @@ export function tube(THREE, points, {sides = 8, tile = 1} = {}) {
   return geometryFrom(THREE, {position: [position, 3], normal: [normal, 3], uv: [uv, 2], color: [color, 3]}, index);
 }
 
-// One indexed geometry from several. Every input must carry position; normal, uv and color are kept when all inputs have
-// them. The inputs are left as they are (dispose them if they were ever drawn).
+// One indexed geometry from several. Every input must carry position; any other attribute is kept when all inputs have
+// it. The inputs are left as they are (dispose them if they were ever drawn).
 export function mergeGeometries(THREE, geometries) {
-  const names = ['position', 'normal', 'uv', 'color'].filter(n => geometries.every(g => g.getAttribute(n)));
+  const names = Object.keys(geometries[0].attributes).filter(n => geometries.every(g => g.getAttribute(n)));
   const out = Object.fromEntries(names.map(n => [n, []])), index = [];
   let base = 0;
   for (const g of geometries) {

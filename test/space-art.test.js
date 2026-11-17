@@ -32,7 +32,9 @@ test('the committed art bundle matches its manifest and budget', () => {
   for (const want of artFiles().filter(f => listed.has(f.slot) || BUNDLE_COMPLETE)) {
     const got = listed.get(want.slot); assert.ok(got, `missing ${want.slot}`);
     assert.deepEqual([got.file, got.width, got.height, got.alpha], [want.file, want.width, want.height, want.alpha]);
-    assert.ok(['painted', 'plate'].includes(got.source)); assert.ok(Number.isInteger(got.seed));
+    assert.ok(['painted', 'plate'].includes(got.source));
+    // A painted slot records its painter's seed; a plate was not painted, so it records none.
+    assert.ok(got.source === 'plate' ? got.seed === null : Number.isInteger(got.seed), `${want.slot} seed ${got.seed}`);
     const bytes = readFileSync(new URL(got.file, dir));
     assert.equal(bytes.length, got.bytes); assert.equal(createHash('sha256').update(bytes).digest('hex'), got.sha256);
     assert.equal(bytes.subarray(0, 4).toString('latin1'), 'RIFF'); assert.equal(bytes.subarray(8, 12).toString('latin1'), 'WEBP');

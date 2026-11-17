@@ -12,6 +12,8 @@
 // keep their own brushwork and the stars their points), land is filtered from land alone (no sky bleeds into a silhouette),
 // and the impasto stays off a band round every silhouette, so no rim follows the oak or the roof against the sky.
 
+import {LAKE_LEVEL} from './geometry.js'; // the lake's height in three's y: no marks on the water
+
 const RADIUS = 2.6;      // filter radius at full reach, CSS pixels (times the pixel ratio and the filter scale)
 const REACH = [6, 80];   // metres over which the filter grows from 0.3 of its radius (near) to all of it (far)
 const SHARPNESS = 18;    // the Kuwahara q: how strongly the calmest sector wins
@@ -22,7 +24,6 @@ const IMPASTO_CLAMP = [.04, .12]; // largest slope taken, largest change of ligh
 const BRISTLE = .15;      // depth of the bristle marks over land
 const GRAIN_REACH = [25, 70]; // metres over which impasto, bristle and the weave's land depth fade to nothing
 const DISTANT = [300, .55];   // by this distance (m), this share of the drawn frame is kept, so far ridges keep their modelling
-const WATER_LEVEL = -.004;    // the lake's height in three's y (scene/ground.js LAKE_OFFSET): no marks on the water
 const RELIEF = .8;       // how much of the surfaces' own finest strokes is raised in the impasto, near by
 const WEAVE_LAND = .045, WEAVE_SKY = .006, THREAD = 2.6; // linen weave depth over paint and over sky; thread pitch, CSS px
 const SKY_DEPTH = '.9999995'; // cleared depth is 1; the farthest hills (under 1 km) are well below this
@@ -88,7 +89,7 @@ void main(){
   gl_FragColor=vec4(o.w>1e-9?o.rgb/o.w:centre.rgb,1.);
 }`;
 // Impasto light from the upper left on the painted strokes' edges, then the linen.
-const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel;uniform mat4 unproject,eye;uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,clip,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
+const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel;uniform mat4 unproject,eye;uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
 float h1(float x){return fract(sin(x*91.37)*43758.55);}
 float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.55);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -161,7 +162,8 @@ export class PainterlyPass {
     this.prepared = new THREE.WebGLRenderTarget(1, 1, flat);
     this.structure = new THREE.WebGLRenderTarget(1, 1, {...flat, type: THREE.HalfFloatType});
     this.painted = new THREE.WebGLRenderTarget(1, 1, flat);
-    // The camera's clip planes (to read distance from depth) and the reach of the near strokes, shared by two passes.
+    // The camera's clip planes, for the filter to read distance from depth, and the reach of the near strokes, which the
+    // last pass shares.
     const clip = {value: new THREE.Vector2(.1, 4000)}, reach = {value: new THREE.Vector2(...REACH)};
     const material = (fragmentShader, uniforms) => new THREE.ShaderMaterial({vertexShader: QUAD_VERTEX, fragmentShader, uniforms, depthTest: false, depthWrite: false});
     this.prepare = material(PREPARE, {colour: {value: this.sceneTarget.texture}, depth: {value: this.depth}});
@@ -169,9 +171,9 @@ export class PainterlyPass {
     this.kuwahara = material(KUWAHARA, {src: {value: this.prepared.texture}, tensor: {value: this.structure.texture}, depth: {value: this.depth},
       texel: {value: new THREE.Vector2()}, clip, reach,
       radius: {value: RADIUS}, sharpness: {value: SHARPNESS}});
-    this.canvas = material(CANVAS, {waterLevel: {value: WATER_LEVEL}, unproject: {value: new THREE.Matrix4()}, eye: {value: new THREE.Matrix4()},
+    this.canvas = material(CANVAS, {waterLevel: {value: LAKE_LEVEL}, unproject: {value: new THREE.Matrix4()}, eye: {value: new THREE.Matrix4()},
       grainReach: {value: new THREE.Vector2(...GRAIN_REACH)}, distant: {value: new THREE.Vector2(...DISTANT)}, paint: {value: this.painted.texture}, structure: {value: this.structure.texture}, bristle: {value: BRISTLE}, scene: {value: this.sceneTarget.texture}, depth: {value: this.depth},
-      texel: {value: new THREE.Vector2()}, paintSize: {value: new THREE.Vector2(1, 1)}, sceneTexel: {value: new THREE.Vector2()}, clip, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
+      texel: {value: new THREE.Vector2()}, paintSize: {value: new THREE.Vector2(1, 1)}, sceneTexel: {value: new THREE.Vector2()}, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
       weave: {value: new THREE.Vector2(WEAVE_LAND, WEAVE_SKY)}, detail: {value: new THREE.Vector2(...DETAIL)}, steps: {value: new THREE.Vector2(...IMPASTO_STEP)}, lift: {value: new THREE.Vector2(...IMPASTO_CLAMP)}});
     // One triangle over the whole frame.
     this.geometry = new THREE.BufferGeometry();

@@ -1,7 +1,7 @@
 import {terrainHeight} from '../../../shared/space.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
-import {toThree} from '../geometry.js';
-import {noise} from './ground.js';
+import {mergeGeometries, toThree} from '../geometry.js';
+import {noise} from './noise.js';
 
 // The far hills: four ridges in rings round the yard, each farther one higher, paler and bluer, painted with the hills brushwork.
 // Each ridge rises from below the water's level (under the ground, on land) to a gently rolling crest; the crest's own small breaks, its soft
@@ -84,21 +84,6 @@ function ridgeGeometry(THREE, line, k) {
   return g;
 }
 
-function mergeRings(THREE, geometries) {
-  const out = {}, index = [];
-  let base = 0;
-  for (const g of geometries) {
-    for (const [name, attr] of Object.entries(g.attributes)) { const into = (out[name] ??= {size: attr.itemSize, values: []}).values; for (const v of attr.array) into.push(v); }
-    for (const i of g.index.array) index.push(i + base);
-    base += g.getAttribute('position').count;
-    g.dispose();
-  }
-  const merged = new THREE.BufferGeometry();
-  for (const [name, {values, size}] of Object.entries(out)) merged.setAttribute(name, new THREE.Float32BufferAttribute(values, size));
-  merged.setIndex(index);
-  return merged;
-}
-
 // Lambert, so the ridges take the yard's light and fog. The crest is cut ragged by noise along it and by the brushwork's own
 // light and dark (alpha-tested, never blended); every ridge is taken into the horizon colour by its haze and, where it rises
 // from behind the nearer ridge or the water, by drifts of mist, so the far shore dissolves as in the painting.
@@ -153,8 +138,9 @@ float hillNoise( vec2 p ) {
 
 // {object, dispose()}: the group `hills`, one mesh of every ridge, centred on the arrival spot.
 export function buildHills(THREE, {space, art}) {
-  const line = ridgeLine(space), rings = RIDGES.map((_, k) => ridgeGeometry(THREE, line, k));
-  const mesh = new THREE.Mesh(mergeRings(THREE, rings), hillsMaterial(THREE, art, line.centre)); mesh.name = 'ridges';
+  const line = ridgeLine(space), rings = RIDGES.map((_, k) => ridgeGeometry(THREE, line, k)), merged = mergeGeometries(THREE, rings);
+  for (const ring of rings) ring.dispose();
+  const mesh = new THREE.Mesh(merged, hillsMaterial(THREE, art, line.centre)); mesh.name = 'ridges';
   const object = new THREE.Group(); object.name = 'hills'; object.add(mesh);
   return {object, dispose() { mesh.geometry.dispose(); mesh.material.dispose(); }};
 }

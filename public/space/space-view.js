@@ -20,7 +20,7 @@ export {toThree};
 const PASS_SCALE = {full: 1, light: .6, off: null};
 const TIER_PASS = {full: 'full', light: 'light', plain: 'off'};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
-// Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
+// The yard's light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
   night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
 // Full overcast takes this share from the sky's light, by day and night alike; cloud takes its own share from the sun or moon.

@@ -3,14 +3,12 @@ import {scatter} from '../../../shared/lakeside-dressing.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {cardMaterial, toThree} from '../geometry.js';
 import {groundTint} from './ground.js';
+import {clamp01, hash, mix} from './noise.js';
 
 // Ground cover: grass, reeds and flowers where the dressing scatters them. Each kind is one InstancedMesh of two crossed,
 // fixed cards (body from every side, base at the ground), alpha-tested; every instance picks its own atlas cell through a
 // per-instance UV offset. World axes x east, y north, z up, metres; three is passed in.
 
-const clamp01 = t => Math.max(0, Math.min(1, t));
-const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-const hash = (i, seed) => { let h = Math.imul(i, 374761393) + Math.imul(seed, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 
 // Per kind: the atlas cells, the card's height in metres at scale 1 (the painted shape fills most of its square cell), how much
 // of that is width and how much wider the lowest tufts spread, how far it sinks below the ground, how much of its foot
@@ -73,7 +71,7 @@ export function buildCover(THREE, {space, dressing, art}) {
     const items = scatter(space, dressing, kind), geometry = crossedCards(THREE), cells = new Float32Array(items.length * 3);
     const mesh = new THREE.InstancedMesh(geometry, material, items.length); mesh.name = kind;
     items.forEach(({x, y, scale: s, turn, cell}, i) => {
-      const r = [hash(i, spec.seed), hash(i, spec.seed + 100), hash(i, spec.seed + 200), hash(i, spec.seed + 300)], h = spec.size * s;
+      const r = [hash(i, 0, spec.seed), hash(i, 0, spec.seed + 100), hash(i, 0, spec.seed + 200), hash(i, 0, spec.seed + 300)], h = spec.size * s;
       // a little uneven in height and width, and mirrored half the time, so neighbouring tufts of one cell differ; low tufts
       // spread wider than they stand, so a sward of them closes over the ground like brushed grass rather than standing as spikes
       const spread = 1 + spec.spread * clamp01((.65 - s) / .3);

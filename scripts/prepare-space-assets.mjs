@@ -69,7 +69,7 @@ try {
       }, {...want, plate: plate ? (await readFile(new URL(`${want.slot}.png`, plates))).toString('base64') : null, quality: SPACE_ART.quality}));
       if (bytes.subarray(8, 12).toString('latin1') !== 'WEBP') throw new Error('the browser did not encode WebP');
       await writeFile(new URL(want.file, out), bytes);
-      entries.set(want.slot, {...want, seed: SEEDS[want.slot] ?? 0, source: plate ? 'plate' : 'painted', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')});
+      entries.set(want.slot, {...want, seed: plate ? null : SEEDS[want.slot] ?? 0, source: plate ? 'plate' : 'painted', bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')});
       console.log(`${want.slot}: ${plate ? 'plate' : 'painted'}, ${bytes.length} bytes`);
     } catch (e) { failed = true; console.error(`${want.slot}: ${e.message.split('\n')[0].replace(/^page.evaluate: (Error: )?/, '')}`); }
   }

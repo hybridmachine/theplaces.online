@@ -1,35 +1,28 @@
 import {terrainHeight} from '../../../shared/space.js';
 import {groundBlend} from '../../../shared/lakeside-dressing.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
-import {cardBatch, cardMaterial, toThree, V} from '../geometry.js';
+import {cardBatch, cardMaterial, LAKE_LEVEL, toThree, V} from '../geometry.js';
+import {hash, lin, noise, smoothstep} from './noise.js';
 
 // The painted ground: terrain blending meadow, path earth and shore stones; the lake as horizontal strokes in the sky's colour;
 // the yard wall in dry stone with coping and moss along its top. World axes x east, y north, z up, metres; three is passed in.
 
 const GRID = {x0: -60, x1: 140, y0: -60, y1: 70}, REACH = 1500, SKIRT = 10;
-const LAKE_OFFSET = -.004, WALL = {height: 1.1, half: .25, minGround: .3}, LAKE_ARCS = 19;
-const clamp01 = t => Math.max(0, Math.min(1, t));
-const smooth = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
-const lin = rgb => rgb.map(v => (v / 255) ** 2.2); // vertex colours are linear
-// Seeded value noise in [0, 1].
-export const hash = (i, j, seed) => { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(seed, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-export const noise = (x, y, seed) => {
-  const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  const a = hash(i, j, seed), b = hash(i + 1, j, seed), c = hash(i, j + 1, seed), d = hash(i + 1, j + 1, seed);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-};
+const WALL = {height: 1.1, half: .25, minGround: .3}, LAKE_ARCS = 19;
 const jitter = (k, seed) => hash(k, 7, seed);
 
 // The slow tint laid over the meadow: warm and cool drifts tens of metres across, lighter and darker patches inside them.
 const WARM = [1.1, 1.04, .8], COOL = [.84, .96, 1];
 export function groundTint(x, y) {
-  const n = .5 * noise(x / 46, y / 46, 11) + .32 * noise(x / 17, y / 17, 12) + .18 * noise(x / 6.5, y / 6.5, 13), t = smooth(.28, .72, n);
+  const n = .5 * noise(x / 46, y / 46, 11) + .32 * noise(x / 17, y / 17, 12) + .18 * noise(x / 6.5, y / 6.5, 13), t = smoothstep(.28, .72, n);
   const k = .84 + .3 * noise(x / 23 + 50, y / 23, 14);
   return COOL.map((c, i) => (c + (WARM[i] - c) * t) * k);
 }
 
 // A 1 m grid over the yard inside a 10 m skirt out to the hill ring, one watertight mesh with shared border vertices.
-// Per vertex: `uv` is the world position in metres, `paint` is (earth, shore share of what is not earth, which meadow layer).
+// Per vertex: `uv` is the world position in metres, `paint` is (earth, shore share of what is not earth, which meadow layer),
+// the first two from groundBlend. They are not drawn as they stand: the material sharpens them with a smoothstep and pushes
+// their edges in and out by the brushwork, so the drawn blend follows groundBlend's shape without equalling it.
 function terrainGeometry(THREE, space, dressing) {
   const {x0, x1, y0, y1} = GRID, nx = x1 - x0 + 1, ny = y1 - y0 + 1, E = REACH, S = SKIRT;
   const position = [], uv = [], paint = [], color = [], index = [], coarse = new Map();
@@ -136,7 +129,7 @@ void main() {
 const DAY_HORIZON = [211, 211, 191].map(v => v / 255);
 
 function lake(THREE, art) {
-  const z = LAKE_OFFSET, corners = [[-REACH, -REACH], [REACH, -REACH], [REACH, REACH], [-REACH, REACH]].flatMap(([x, y]) => toThree([x, y, z]));
+  const z = LAKE_LEVEL, corners = [[-REACH, -REACH], [REACH, -REACH], [REACH, REACH], [-REACH, REACH]].flatMap(([x, y]) => toThree([x, y, z]));
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(corners, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));

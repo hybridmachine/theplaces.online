@@ -2,6 +2,7 @@ import {shoreDistance, terrainHeight} from '../../../shared/space.js';
 import {oakPlan, woodsPlan} from '../../../shared/lakeside-dressing.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V} from '../geometry.js';
+import {clamp01, hash, mix, noise, smoothstep, stream} from './noise.js';
 
 // The old oak and the woods beyond the wall, in paint. The oak is a forked, tapering trunk wound outward and drawn single-sided,
 // limbs and twigs as bark tubes, and its clumps as fixed leaf cards in one merged mesh; the woods are long fixed ribbons of
@@ -9,16 +10,6 @@ import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V
 // the camera. World axes x east, y north, z up, metres.
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
-const clamp01 = t => Math.max(0, Math.min(1, t));
-const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
-// Seeded value noise in [0, 1] (as in ground.js), and a seeded stream of numbers in [0, 1).
-const hash = (i, j, seed) => { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(seed, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-const noise = (x, y, seed) => {
-  const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  const a = hash(i, j, seed), b = hash(i + 1, j, seed), c = hash(i, j + 1, seed), d = hash(i + 1, j + 1, seed);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-};
-const stream = seed => { let n = 0; return () => hash(n++, 23, seed); };
 // The side the painting is lit from: over the lake, east-south-east.
 const SUN = [Math.sin(115 * DEG), Math.cos(115 * DEG), 0];
 // The woods' own sage, which the grove's undergrowth shares.
@@ -46,7 +37,7 @@ function smooth(points, steps = 4) {
 }
 
 export function buildOak(THREE, {space, dressing, art}) {
-  const plan = oakPlan(space, dressing), [ox, oy] = space.oak.position, g = terrainHeight(space, ox, oy), r = stream(dressing.seed + 21);
+  const plan = oakPlan(space, dressing), [ox, oy] = space.oak.position, g = terrainHeight(space, ox, oy), r = stream(dressing.seed + 21, 23);
   const collider = space.colliders.find(c => c.type === 'circle')?.radius ?? space.oak.radius, low = g + space.eyeHeight + .8;
 
   // ── trunk: rings around the planned centreline, lobed and fluted like old oak, a second leader forking off to the north-west ──
@@ -166,7 +157,6 @@ const WOODS = {
 export function buildWoods(THREE, {space, dressing, art}) {
   const plan = woodsPlan(space, dressing), w = space.wall, cells = SPACE_ART.cards.cells.woods;
   const SAGE = WOODS_SAGE, MOSS = [1.21, 1.2, .93], FAR = [1.42, 1.56, 1.7];
-  const smoothstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
   const ccw = w.reduce((s, p, k) => s + p[0] * w[(k + 1) % w.length][1] - w[(k + 1) % w.length][0] * p[1], 0) > 0;
   const edges = w.map((a, i) => { const b = w[(i + 1) % w.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
     return {a, b, d, len, out: ccw ? [d[1], -d[0]] : [-d[1], d[0]]}; });
@@ -267,7 +257,7 @@ export function buildWoods(THREE, {space, dressing, art}) {
 // crown of leaf sprays (the oak's cells, taken down to the woods' sage and moss) that comes low enough, with the undergrowth
 // at its foot, to hide the trunk over the wall; built as the oak's clumps are: fixed cards, half standing and half lying.
 function buildGrove(THREE, {space, dressing, art, cards}) {
-  const r = stream(dressing.seed + 31), leafCells = SPACE_ART.cards.cells.oak, leaves = cardBatch(SPACE_ART), under = cardBatch(SPACE_ART), trunks = [];
+  const r = stream(dressing.seed + 31, 23), leafCells = SPACE_ART.cards.cells.oak, leaves = cardBatch(SPACE_ART), under = cardBatch(SPACE_ART), trunks = [];
   for (const [x, y, height] of dressing.grove ?? []) {
     const g = terrainHeight(space, x, y), lean = [(r() - .5) * .6, (r() - .5) * .6], spread = height * (.27 + r() * .06);
     const stem = f => [x + lean[0] * f * f, y + lean[1] * f * f, g - .3 + height * .5 * f];
