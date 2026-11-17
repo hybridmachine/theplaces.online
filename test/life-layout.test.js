@@ -5,8 +5,8 @@ import {LAKESIDE_DRESSING as D, chimneyTop, doorPosition, oakPlan, openingCentre
 import {LAKESIDE_BIRD} from '../shared/lakeside-bird.js';
 import {LAKESIDE_COINCIDENCES} from '../shared/lakeside-coincidences.js';
 import {LAKESIDE_WEATHER} from '../shared/lakeside-weather.js';
-import {SMOKE, SWAY, WIND, smokePlace, lifeLayout, sheltered, validLifeLayout, woodDistance} from '../shared/lakeside-life.js';
-import {shoreDistance, terrainHeight} from '../shared/space.js';
+import {SMOKE, SWAY, WIND, smokePlace, lifeLayout, sheltered, validLifeLayout, woodClearance, woodDistance} from '../shared/lakeside-life.js';
+import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
 import {DEG} from '../shared/celestial.js';
 import {catmullRom} from '../shared/world.js';
 
@@ -40,22 +40,38 @@ test('every 2D id has a 3D place, with the 2D timings', () => {
   assert.deepEqual(L.weather.drips.map(d => d.seed), LAKESIDE_WEATHER.drips.map(d => d.seed));
   assert.deepEqual(L.wind, WIND); assert.deepEqual(L.sway, SWAY); assert.deepEqual(WIND.direction, [0, -1]);
 });
-test('the bird sits on the oak and the ridge, not in the air', () => {
+test('the bird rests on the oak\'s wood as drawn, not in it nor in the air, and on the ridge', () => {
   for (const id of ['nest', 'oak-perch', 'oak-shelter']) {
-    const p = L.bird.locations[id].point, d = Math.min(...[plan.trunk, ...plan.limbs.map(l => l.points)].flatMap(line => line.slice(1).map((q, i) => {
-      const a = line[i], v = [q[0] - a[0], q[1] - a[1], q[2] - a[2]], l = v[0] ** 2 + v[1] ** 2 + v[2] ** 2, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * v[0] + (p[1] - a[1]) * v[1] + (p[2] - a[2]) * v[2]) / l));
-      return Math.hypot(p[0] - a[0] - t * v[0], p[1] - a[1] - t * v[1], p[2] - a[2] - t * v[2]); })));
-    assert.ok(d <= .35, `${id} is ${d} m off the wood's centreline`);
-    assert.ok(woodDistance(plan, p) <= .35 && woodDistance(plan, p) > -.35, id);
+    const d = woodDistance(plan, L.bird.locations[id].point);
+    assert.ok(d >= 0 && d <= .03, `${id} is ${d} m from the bark`);
   }
+  const sunk = copy(); sunk.bird.locations.nest.point[2] -= .05; assert.equal(validLifeLayout(sunk, S, D), false, 'a nest inside the wood');
   const roof = L.bird.locations['roof-perch'].point, along = (roof[0] - S.cabin.center[0]) * Math.sin(S.cabin.yaw) + (roof[1] - S.cabin.center[1]) * Math.cos(S.cabin.yaw);
   assert.ok(along > 0 && along < S.cabin.size[0] / 2, 'toward the south gable'); assert.ok(h3(roof, ridgePoint(S, D, along)) < .02);
   const shelter = L.bird.locations['oak-shelter'].point, g = terrainHeight(S, ox, oy);
   assert.ok(shelter[2] - g >= 3 && shelter[2] - g <= 4.5, 'the shelter is 3 to 4.5 m up the trunk');
 });
-test('the shelter is hidden from the arrival view, the nest and the perch are not', () => {
+// What the wood (not the leaves, which are judged by looking) lets a visitor standing at [x, y] see of a point.
+const eyeAt = ([x, y]) => [x, y, terrainHeight(S, x, y) + S.eyeHeight], up = (p, h) => [p[0], p[1], p[2] + h];
+const sees = (q, p, h) => woodClearance(plan, eyeAt(q), up(p, h)) > .02;
+test('from the arrival the wood hides the shelter and shows the perch and the nest\'s rim; the perch is across the view', () => {
   const hidden = id => segmentMin([ax, ay], L.bird.locations[id].point, [ox, oy]) <= S.oak.radius * .8;
-  assert.ok(hidden('oak-shelter')); assert.ok(!hidden('nest')); assert.ok(!hidden('oak-perch'));
+  assert.ok(hidden('oak-shelter')); assert.ok(!sees([ax, ay], L.bird.locations['oak-shelter'].point, .1));
+  assert.ok(sees([ax, ay], L.bird.locations['oak-perch'].point, .05)); assert.ok(sees([ax, ay], L.bird.locations.nest.point, .1));
+  for (const id of ['oak-perch', 'nest']) {
+    const p = L.bird.locations[id].point, off = Math.abs(((Math.atan2(p[0] - ax, p[1] - ay) - S.arrival.yaw) / DEG + 540) % 360 - 180);
+    assert.ok(off <= 45, `${id} is ${off}° off the arrival's yaw`);
+  }
+});
+test('the nest is seen past the wood from beneath the crown, and the shelter from at least three places behind the oak', () => {
+  const nest = L.bird.locations.nest.point, shelter = L.bird.locations['oak-shelter'].point, away = Math.atan2(ox - ax, oy - ay);
+  const ring = (r, step, from = 0, to = 360) => { const out = []; for (let b = from; b < to; b += step) out.push([ox + r * Math.sin(b * DEG), oy + r * Math.cos(b * DEG)]); return out.filter(q => walkable(S, q)); };
+  assert.ok(ring(2.5, 30).filter(q => sees(q, nest, .1)).length >= 2, 'beneath the crown');
+  const behind = [3, 5.5, 8].flatMap(r => ring(r, 15, away / DEG - 90, away / DEG + 90.1));
+  assert.ok(behind.filter(q => sees(q, shelter, .05)).length >= 3, 'behind the oak');
+});
+test('the bird\'s places are chosen once: the layout is kept and handed out again', () => {
+  assert.equal(lifeLayout(), lifeLayout());
 });
 test('flights keep clear of the ground, the trunk and the roof', () => {
   const g = (p, ex) => terrainHeight(S, p[0], p[1]) + .25, bank = L.bird.forage.points[3];

@@ -278,9 +278,12 @@ test('the bird is a small painted model that sits with its feet on its place, be
   assert.equal(part('legs').visible, true);
   const folded = wing.quaternion.clone();
   bird.update(birdFrame({fixture: {bird: birdFixture('Oak perch', 999)}})); assert.ok(wing.quaternion.angleTo(folded) < 1e-9, 'a perched bird keeps its wings folded');
-  const at = layout.bird.locations['oak-perch'].point, box = new THREE.Box3().setFromObject(part('body')).union(new THREE.Box3().setFromObject(part('tail'))), size = box.getSize(new THREE.Vector3());
+  const at = layout.bird.locations['oak-perch'].point, local = g => { g.computeBoundingBox(); return g.boundingBox; };
+  const length = local(part('body').geometry).clone().union(local(part('tail').geometry)).getSize(new THREE.Vector3()).x * part('body').parent.scale.x;
   assert.ok(Math.abs(new THREE.Box3().setFromObject(part('legs')).min.y - at[2]) < .001, 'feet on the perch');
-  assert.ok(Math.abs(size.z - layout.bird.length * DRAWN) < .01 * DRAWN, 'its length, beak to tail, faces south along three\'s +z');
+  assert.ok(Math.abs(length - layout.bird.length * DRAWN) < .01 * DRAWN, 'its length, beak to tail');
+  const facing = layout.bird.locations['oak-perch'].facing, nose = new THREE.Vector3(1, 0, 0).applyQuaternion(group.quaternion);
+  assert.ok(Math.abs(nose.x - Math.sin(facing)) < 1e-9 && Math.abs(-nose.z - Math.cos(facing)) < 1e-9, 'it faces as the place says');
   assert.ok(DRAWN >= 1 && DRAWN <= 1.6);
   const building = {snapshot: {world: {bird: createBirdState(0, true), action: {start: 0, end: 60_000}}}, now: 48_000};
   assert.equal(bird.update(birdFrame(building)), true); assert.equal(part('twig').visible, true); assert.ok(finite());

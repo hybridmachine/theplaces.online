@@ -9,13 +9,14 @@ import {DRAWN} from './bird.js';
 
 const COLOURS = ['#b2a079', '#5f5940'], SIDES = 3, SAMPLES = 5;
 
-// The yard points of stroke i around a bowl centred at `at` of rim radius r: from one side of the rim, down through the bowl,
-// up to the rim further round, like the 2D quadratic that dips between its ends.
+// The yard points of stroke i in a bowl of rim radius r resting on `at` (a point on top of the wood): from one side of the rim,
+// down through the bowl to just above the bark, up to the rim further round, like the 2D quadratic that dips between its ends.
 function stroke(i, [x, y, z], r) {
   const a = hash(i + 1), b = hash(i + 99), c = hash(i), from = a * Math.PI * 2, to = from + 1.4 + b * 1.3, mid = (from + to) / 2;
-  const rim = z + r * .1, ends = [[from, r * (.85 + .25 * b), rim + r * (b - .5) * .25], [to, r * (.9 + .2 * a), rim + r * (a - .5) * .2]];
+  const rim = z + r * .75, ends = [[from, r * (.85 + .25 * b), rim + r * (b - .5) * .25], [to, r * (.9 + .2 * a), rim + r * (a - .5) * .2]];
   const [p0, p2] = ends.map(([t, k, h]) => [x + Math.sin(t) * k, y + Math.cos(t) * k, h]);
-  const p1 = [x + Math.sin(mid) * r * (.35 + .25 * c), y + Math.cos(mid) * r * (.35 + .25 * c), rim - r * (.7 + .35 * c)];
+  // the quadratic's middle control sits below the stroke's lowest point, so that point lands a little above the bark
+  const low = z + r * (.05 + .1 * c), p1 = [x + Math.sin(mid) * r * (.35 + .25 * c), y + Math.cos(mid) * r * (.35 + .25 * c), 2 * low - (ends[0][2] + ends[1][2]) / 2];
   return Array.from({length: SAMPLES}, (_, k) => {
     const u = k / (SAMPLES - 1), v = 1 - u;
     return [0, 1, 2].map(d => v * v * p0[d] + 2 * v * u * p1[d] + u * u * p2[d]);
