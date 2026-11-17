@@ -97,3 +97,51 @@ The voice reuses the existing synthesized three-note motif, now scheduled from t
 Prepared September 23, 2026. The ripple uses procedural displacement of the existing registered lake brushwork and a small broken-arc light/dark contribution. No new generated imagery or runtime texture is added. `shared/lakeside-coincidences.js` fixes three open-water ellipses in native artwork coordinates; `public/ripple-shader.js` defines the bounded wave shape. Shape variation comes from the committed episode seed. All original paintings and optional bundles remain unchanged.
 
 The effect has zero contribution at both endpoints and stays inside each approved water footprint. The largest footprint is 64 × 20 native pixels. The [location sheet](docs/coincidences-validation/locations.png) and [daytime frame](docs/coincidences-validation/ripple-day.png) show the production-renderer study. These are shader-generated study captures, not replacement painting assets.
+
+## Walkable yard, version 1
+
+Prepared November 16, 2026. All twelve slots of the walkable yard's art bundle are code-painted. No new generated images were used. `scripts/space-painter/painter.js` lays seeded brush dabs in colours sampled from the canonical `public/assets/lakeside-day.png`; it runs offline in headless Chromium. `scripts/prepare-space-assets.mjs` encodes each slot as WebP at quality 0.9 and writes `export.json`. `shared/lakeside-space-art.js` records the slot table and the card-atlas cells. Every random number comes from a fixed per-slot seed, so two exports on one machine are byte-identical. The original paintings and every earlier bundle remain unchanged.
+
+| Export under `public/assets/lakeside-space-v1/` | Dimensions | Convention | Seed |
+| --- | --- | --- | --- |
+| `meadow`, `earth`, `shore`, `stone`, `slate`, `bark`, `water` `.webp` | 1024 × 1024 | Opaque, seamless tile | 3, 5, 9, 13, 17, 19, 37 |
+| `drystone.webp`, `hills.webp` | 512 × 512 | Opaque, seamless tile | 43, 41 |
+| `door.webp` | 256 × 512 | Opaque panel | 47 |
+| `window.webp` | 256 × 256 | Opaque panel | 53 |
+| `cards.webp` | 2048 × 2048 | Straight alpha, 4 × 4 cells of 512 px, cut at alpha 0.5 | 59 |
+
+Colours are sampled from these native-pixel regions of the day painting, recorded in `scripts/space-painter/regions.js`:
+
+- Meadow: `(592, 588, 110, 40)`, `(700, 600, 60, 30)`, `(780, 780, 120, 50)`.
+- Earth: `(616, 800, 50, 100)`, `(484, 628, 36, 30)`, `(560, 586, 30, 20)`.
+- Shore: `(745, 618, 290, 24)`, `(1010, 842, 140, 44)`, `(880, 712, 60, 36)`.
+- Stone: `(528, 462, 26, 80)`, `(618, 462, 22, 70)`, `(376, 396, 40, 40)`.
+- Dry-stone wall `(228, 488, 150, 36)`, slate `(450, 400, 150, 45)`, bark `(118, 300, 80, 230)`, and water `(1090, 565, 470, 150)`.
+- Hills: `(840, 436, 600, 66)`, `(800, 332, 370, 54)`, `(1200, 366, 420, 34)`.
+- Foliage: `(4, 40, 110, 190)`, `(250, 250, 140, 120)`, `(610, 372, 110, 100)`, `(500, 325, 110, 50)`.
+- Reeds `(1160, 792, 250, 120)`, woods `(290, 262, 120, 96)` and `(520, 330, 80, 40)`.
+- Door `(558, 495, 12, 50)`, and windows `(507, 490, 15, 29)` and `(604, 495, 13, 25)`.
+
+Each sample is filtered by colour so that sky, water or stone caught in a region is not used as foliage or grass.
+
+The card atlas holds four lobed oak sprays, two flat-bottomed woodland masses, two neutral light dabs tinted in the scene, three grass tufts, one cow-parsley umbel, and two reed clusters. Each shape keeps eight clear pixels inside its cell. Grass, flowers and reeds stand at the bottom centre of their cells. Grass and reed blades are laid as overlapping tapered strokes along each blade. Edges are hardened around alpha 0.5. Edge colour is carried across the whole transparent interior of each cell under alpha 8/255, below the cut-off, so filtering and mipmaps never pull in black. Alpha 0 cannot carry colour through the browser's WebP encoder. The door is a weathered dark green ledged plank door in a painted frame. The window is a dark glazed casement with pale painted bars; nothing is lit inside it.
+
+Re-export with `node scripts/prepare-space-assets.mjs`. Use `--only slot,slot` to export only the named slots. The command also writes the contact sheet `docs/space-validation/art-sheet.png`, which shows each surface tiled 2 × 2, the panels, and the atlas cut at 0.5 over mid-grey and sky blue. A PNG plate under `artwork/lakeside-space-v1/plates/<slot>.png` replaces that slot's painting when it has the slot's dimensions and alpha convention. Plates are never overwritten; `artwork/lakeside-space-v1/plates/README.md` gives the sizes. No slot uses a plate in this version. A plate slot records `"seed": null` in `export.json`, since nothing was painted for it. Two slots reach further than their names: the cabin's eave boards and soffits are drawn with the `hills` brushwork under their own dark colour, and the cabin's shrubs are cut from the `woods` cells of `cards`, so a hills or cards plate changes those too. The plate path has no automated test, because Node cannot decode the images here; it was verified by hand.
+
+Code is weakest in four places, where a generated plate would help most. The spec describes the far-hills plate as a 360° band with a sky edge, but the `hills` slot is a 512 × 512 texture that tiles both ways over hill shapes the scene builds, so its draft prompt asks for slope brushwork only. The draft prompts below have not been run. The oak, woods and ground-cover plates all fill cells of the one `cards` slot, so a generated sheet would be cut into those cells over the painted atlas before export.
+
+### Far hills and mist draft prompt
+
+Use case: stylized-concept. Asset type: opaque texture, 512 x 512, seamless in both directions, laid over the far hills that ring a walkable lakeside yard. The scene builds the layered hill shapes and their sky edge itself; this texture is only the paint on their slopes, so it must contain no horizon, ridge line or sky. Hazy distant fell-side brushwork of an English lake valley in late spring: soft slanting strokes of muted moss and sage green broken with pale blue-gray haze and faint drifts of mist, very low contrast, as seen from miles away. Authentic fine-art oil on linen, perceptible confident brushwork, broken colour, lost edges, matching the stable day painting: palette moss and sage greens, silvery blue haze, no oversaturation. All four edges must join seamlessly. No trees, buildings, lake, sun, birds, people, text or border.
+
+### Oak leaf clumps draft prompt
+
+Use case: stylized-concept. Asset type: RGBA sprite sheet, 2048 x 512, genuine transparent background with no checkerboard baked in. Four separate lacy leaf sprays from an old English oak in late spring, one per 512-pixel square, each well inside its square with clear transparent margin. Each spray is lobed and irregular, never a round ball: small oak-leaf rosettes on fine dark twigs, light warm yellow-green where the leaves catch light from above, olive and deep moss green beneath, small sky gaps through the mass, a broken painterly outline. Authentic fine-art oil brushwork in the handling of the canonical lakeside painting's oak, perceptible strokes, no photographic detail. Firm opaque leaves with crisp edges, no soft translucent halo. No trunk, no sky, no text, no border.
+
+### Distant woodland draft prompt
+
+Use case: stylized-concept. Asset type: RGBA sprite sheet, 1024 x 512, genuine transparent background with no checkerboard. Two separate stretches of distant broadleaf woodland, each inside its own 512-pixel square with clear margin: broad, flat-bottomed tree-line silhouettes of several rounded crowns, in a narrow range of sage and moss greens so they sit back in the view, tops softly lit, undersides only slightly darker, a broken painterly crown outline. Restrained oil-on-linen brushwork matching the lakeside painting's background trees, low contrast, no camouflage patterning. Firm opaque edges, no soft halo. No trunks visible below, no ground, no sky, no text, no border.
+
+### Foreground grass and flowers draft prompt
+
+Use case: stylized-concept. Asset type: RGBA sprite sheet, 1536 x 1024, genuine transparent background with no checkerboard. Six separate subjects, one per 512-pixel square, each standing on the bottom edge of its square at the centre with clear margin on the other sides: three tufts of long meadow grass of different heights fanning from one root, a few with seed heads; one cow-parsley stem with a flat cream umbel; two upright clusters of lakeside reeds, some with feathery tan seed heads. Moss and yellow-green blades, darker at the root, lighter tips; restrained cream flowers. Authentic oil brushwork matching the lakeside painting's foreground grasses and reeds. Firm opaque blades with crisp edges, no soft halo. No ground, no stones, no water, no text, no border.

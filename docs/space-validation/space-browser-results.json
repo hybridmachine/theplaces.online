@@ -1,15 +1,75 @@
 {
   "results": [
     {
-      "name": "Default page loads without three.js and hides #space",
+      "n": 1,
+      "name": "Default page requests nothing of the 3D view (three-, /space/, lakeside-space-v1) and hides #space",
       "pass": true,
       "detail": {
-        "threeRequests": [],
+        "spaceRequests": [],
         "spaceHidden": true,
         "requests": 53
       }
     },
     {
+      "n": 2,
+      "name": "?space=1&check loads all 12 bundle files as image/webp with status 200 and no console errors",
+      "pass": true,
+      "detail": {
+        "files": {
+          "meadow.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "earth.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "shore.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "stone.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "slate.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "bark.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "water.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "drystone.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "hills.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "door.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "window.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
+          "cards.webp": {
+            "status": 200,
+            "type": "image/webp"
+          }
+        },
+        "consoleErrors": []
+      }
+    },
+    {
+      "n": 3,
       "name": "?space=1 arrives at the arrival pose",
       "pass": true,
       "detail": {
@@ -32,22 +92,23 @@
         "gl": {
           "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
           "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
-          "frame": 2,
-          "calls": 14,
-          "triangles": 242274,
+          "frame": 20,
+          "calls": 1,
+          "triangles": 1,
           "points": 0,
           "lines": 0
         }
       }
     },
     {
+      "n": 4,
       "name": "Holding W for 2 s walks 2.2–3.2 m east",
       "pass": true,
       "detail": {
-        "east": 2.8007000000000004,
-        "drift": 1.7149341451859966e-16,
-        "heldSeconds": 2.00959225,
-        "expectedAtWalkingPace": 2.8134291499999997,
+        "east": 2.8352800000667573,
+        "drift": 1.7361082883841301e-16,
+        "heldSeconds": 2.0203891669999994,
+        "expectedAtWalkingPace": 2.8285448337999988,
         "before": {
           "position": [
             0,
@@ -58,8 +119,8 @@
         },
         "after": {
           "position": [
-            2.8007000000000004,
-            1.7149341451859966e-16
+            2.8352800000667573,
+            1.7361082883841301e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -67,12 +128,13 @@
       }
     },
     {
+      "n": 5,
       "name": "Shift+W for 40 s from four headings stays on walkable ground",
       "pass": true,
       "detail": [
         {
           "yaw": 0,
-          "seconds": 40.086294499999994,
+          "seconds": 40.054966125,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -81,13 +143,13 @@
           ],
           "end": [
             0,
-            23.999999999999968
+            23.99999999999997
           ],
-          "travelled": 23.999999999999968
+          "travelled": 23.99999999999997
         },
         {
           "yaw": 1.5707963267948966,
-          "seconds": 40.120900083,
+          "seconds": 40.005862,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -95,14 +157,14 @@
             0
           ],
           "end": [
-            25.440983004916887,
-            1.5578109202066774e-15
+            25.440983000555576,
+            1.5578109199396293e-15
           ],
-          "travelled": 25.440983004916887
+          "travelled": 25.440983000555576
         },
         {
           "yaw": 3.141592653589793,
-          "seconds": 40.12994045800001,
+          "seconds": 40.00687824999999,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -110,14 +172,14 @@
             0
           ],
           "end": [
-            1.0706236935641222e-15,
-            -8.74230589839888
+            1.0706236935641282e-15,
+            -8.742305898398882
           ],
-          "travelled": 8.74230589839888
+          "travelled": 8.742305898398882
         },
         {
           "yaw": 4.71238898038469,
-          "seconds": 40.1190585,
+          "seconds": 40.007163208,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -125,30 +187,31 @@
             0
           ],
           "end": [
-            -13.999999999999984,
-            -2.5717582782094373e-15
+            -13.999999999999988,
+            -2.571758278209437e-15
           ],
-          "travelled": 13.999999999999984
+          "travelled": 13.999999999999988
         }
       ]
     },
     {
+      "n": 6,
       "name": "Opening #about-dialog while W is held stops walking",
       "pass": true,
       "detail": {
-        "walkedBeforeDialog": 0.4659199999332433,
+        "walkedBeforeDialog": 0.4671799997329704,
         "dialogStart": {
           "position": [
-            3.2666199999332437,
-            2.0002278634744879e-16
+            3.3024599997997277,
+            2.022173534033453e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
         },
         "dialogEnd": {
           "position": [
-            3.2666199999332437,
-            2.0002278634744879e-16
+            3.3024599997997277,
+            2.022173534033453e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -156,38 +219,40 @@
       }
     },
     {
+      "n": 7,
       "name": "After 3.5 s still, a reload returns to the same place",
       "pass": true,
       "detail": {
         "stopped": {
           "position": [
-            4.029393343614778,
-            -0.3043267903215342
+            4.065545120164424,
+            -0.3046224417162114
           ],
-          "yaw": 2.4500763266232344,
+          "yaw": 2.4504363268521163,
           "pitch": 0.2
         },
         "remembered": {
           "position": [
-            4.029393343614778,
-            -0.3043267903215342
+            4.065545120164424,
+            -0.3046224417162114
           ],
-          "yaw": 2.4500763266232344,
+          "yaw": 2.4504363268521168,
           "pitch": 0.2
         },
         "storedBeforeReload": {
           "version": 1,
           "position": [
-            4.029393343614778,
-            -0.3043267903215342
+            4.065545120164424,
+            -0.3046224417162114
           ],
-          "yaw": 2.4500763266232344,
+          "yaw": 2.4504363268521163,
           "pitch": 0.2,
-          "savedAt": 1794798228246
+          "savedAt": 1794880767791
         }
       }
     },
     {
+      "n": 8,
       "name": "Forget visit memory returns the next visit to the arrival pose",
       "pass": true,
       "detail": {
@@ -203,6 +268,7 @@
       }
     },
     {
+      "n": 9,
       "name": "Forget visit memory on the default page forgets the place for the next 3D visit",
       "pass": true,
       "detail": {
@@ -222,7 +288,7 @@
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0,
-          "savedAt": 1794798238548
+          "savedAt": 1794880779469
         },
         "storedAfterForget": null,
         "state": {
@@ -236,6 +302,272 @@
       }
     },
     {
+      "n": 10,
+      "name": "Each tier (?tier=full, light, plain) draws a non-blank frame and reports its tier",
+      "pass": true,
+      "detail": [
+        {
+          "tier": "full",
+          "reported": "full",
+          "pixels": [
+            [
+              159,
+              168,
+              143,
+              255
+            ],
+            [
+              69,
+              58,
+              33,
+              255
+            ],
+            [
+              146,
+              130,
+              53,
+              255
+            ],
+            [
+              200,
+              204,
+              191,
+              255
+            ],
+            [
+              121,
+              125,
+              80,
+              255
+            ]
+          ],
+          "blank": false
+        },
+        {
+          "tier": "light",
+          "reported": "light",
+          "pixels": [
+            [
+              159,
+              168,
+              143,
+              255
+            ],
+            [
+              78,
+              67,
+              38,
+              255
+            ],
+            [
+              141,
+              125,
+              52,
+              255
+            ],
+            [
+              200,
+              204,
+              191,
+              255
+            ],
+            [
+              123,
+              129,
+              82,
+              255
+            ]
+          ],
+          "blank": false
+        },
+        {
+          "tier": "plain",
+          "reported": "plain",
+          "pixels": [
+            [
+              159,
+              168,
+              143,
+              255
+            ],
+            [
+              73,
+              62,
+              36,
+              255
+            ],
+            [
+              128,
+              113,
+              47,
+              255
+            ],
+            [
+              200,
+              204,
+              191,
+              255
+            ],
+            [
+              113,
+              118,
+              75,
+              255
+            ]
+          ],
+          "blank": false
+        }
+      ]
+    },
+    {
+      "n": 11,
+      "name": "Frame rate per tier at the arrival pose (recorded, not asserted)",
+      "pass": true,
+      "detail": [
+        {
+          "tier": "full",
+          "fps": 60.25,
+          "triangles": 327968,
+          "calls": 28,
+          "frameMs": {
+            "median": 11.7,
+            "fastest": 10.9,
+            "slowest": 12.2
+          },
+          "backing": [
+            1440,
+            810
+          ]
+        },
+        {
+          "tier": "light",
+          "fps": 60.25,
+          "triangles": 327968,
+          "calls": 28,
+          "frameMs": {
+            "median": 8.8,
+            "fastest": 7.6,
+            "slowest": 9.4
+          },
+          "backing": [
+            1440,
+            810
+          ]
+        },
+        {
+          "tier": "plain",
+          "fps": 60.25,
+          "triangles": 327968,
+          "calls": 28,
+          "frameMs": {
+            "median": 5.4,
+            "fastest": 4.7,
+            "slowest": 7.4
+          },
+          "backing": [
+            1440,
+            810
+          ]
+        }
+      ]
+    },
+    {
+      "n": 12,
+      "name": "After resizing to 390 × 844 and back to 1280 × 720 the frame is drawn and the canvas matches the viewport × pixel ratio",
+      "pass": true,
+      "detail": {
+        "centre": [
+          31,
+          47,
+          58,
+          255
+        ],
+        "corner": [
+          5,
+          7,
+          7,
+          255
+        ],
+        "canvasSize": [
+          1280,
+          720
+        ],
+        "ratio": 1
+      }
+    },
+    {
+      "n": 13,
+      "name": "Under the night study the front-left window is dark (luminance below 0.25) and darker than the wall beside it; by day it stays dark and the wall is lighter",
+      "pass": true,
+      "detail": {
+        "window": {
+          "centre": [
+            17.36007379366067,
+            8.229201859909175,
+            3.11866611370331
+          ],
+          "wall": [
+            17.73629595131891,
+            7.195539977044675,
+            3.11866611370331
+          ],
+          "at": [
+            14.422151654498643,
+            4.605858996720318
+          ]
+        },
+        "pixel": [
+          720,
+          514.5367712483039
+        ],
+        "wallPixel": [
+          861.1892275083605,
+          519.6442073913689
+        ],
+        "night": {
+          "window": {
+            "rgba": [
+              2,
+              4,
+              5,
+              255
+            ],
+            "luminance": 0.014301960784313722
+          },
+          "wall": {
+            "rgba": [
+              23,
+              23,
+              24,
+              255
+            ],
+            "luminance": 0.09047921568627453
+          }
+        },
+        "day": {
+          "window": {
+            "rgba": [
+              36,
+              40,
+              31,
+              255
+            ],
+            "luminance": 0.15097960784313727
+          },
+          "wall": {
+            "rgba": [
+              125,
+              102,
+              68,
+              255
+            ],
+            "luminance": 0.40954901960784307
+          }
+        }
+      }
+    },
+    {
+      "n": 14,
       "name": "Without WebGL2 the 2D view is shown",
       "pass": true,
       "detail": {
@@ -247,16 +579,18 @@
       }
     },
     {
+      "n": 15,
       "name": "WebGL context loss returns to the 2D view within 2 s",
       "pass": true,
       "detail": {
         "spaceHidden": true,
         "painting": true,
         "fallback": true,
-        "seconds": 0.02175
+        "seconds": 0.07197791700001108
       }
     },
     {
+      "n": 16,
       "name": "At 390 × 844 the vertical field of view is ≤ 75° and the frame is drawn",
       "pass": true,
       "detail": {
@@ -264,17 +598,267 @@
         "width": 390,
         "height": 844,
         "centre": [
-          105,
-          115,
-          107,
+          31,
+          46,
+          58,
           255
         ],
         "corner": [
-          156,
-          172,
-          181,
+          8,
+          13,
+          8,
           255
         ]
+      }
+    },
+    {
+      "n": 17,
+      "name": "A failed scene build shows the 2D view and gives its WebGL context back",
+      "pass": true,
+      "detail": {
+        "spaceHidden": true,
+        "painting": true,
+        "fallback": true,
+        "context": true,
+        "lost": true,
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 18,
+      "name": "A cards.webp request that is aborted shows the 2D view with #space hidden, no toast and no page error",
+      "pass": true,
+      "detail": {
+        "spaceHidden": true,
+        "painting": true,
+        "fallback": true,
+        "failed": true,
+        "toastShown": false,
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 19,
+      "name": "A stone.webp answered 200 with an empty body shows the 2D view with #space hidden, no toast and no page error",
+      "pass": true,
+      "detail": {
+        "spaceHidden": true,
+        "painting": true,
+        "fallback": true,
+        "failed": true,
+        "toastShown": false,
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 20,
+      "name": "An untouched view on this machine reports the full tier, locked, after about 6 s",
+      "pass": true,
+      "detail": {
+        "tier": "full",
+        "locked": true,
+        "passMode": "full",
+        "pass": true
+      }
+    },
+    {
+      "n": 21,
+      "name": "A running view stepped down live (full → light → plain, locked) reports each tier and pass mode, releases the pass on plain, and draws after each step and after a resize",
+      "pass": true,
+      "detail": {
+        "steps": [
+          {
+            "step": "light",
+            "took": true,
+            "tier": "light",
+            "locked": false,
+            "passMode": "light",
+            "pass": true,
+            "filterScale": 0.6,
+            "frame": {
+              "pixels": [
+                [
+                  31,
+                  47,
+                  58,
+                  255
+                ],
+                [
+                  7,
+                  8,
+                  7,
+                  255
+                ],
+                [
+                  25,
+                  34,
+                  25,
+                  255
+                ],
+                [
+                  44,
+                  63,
+                  82,
+                  255
+                ],
+                [
+                  23,
+                  31,
+                  29,
+                  255
+                ]
+              ],
+              "width": 1280,
+              "height": 720
+            }
+          },
+          {
+            "step": "plain",
+            "took": true,
+            "tier": "plain",
+            "locked": true,
+            "passMode": "off",
+            "pass": false,
+            "filterScale": null,
+            "frame": {
+              "pixels": [
+                [
+                  31,
+                  47,
+                  58,
+                  255
+                ],
+                [
+                  7,
+                  9,
+                  8,
+                  255
+                ],
+                [
+                  23,
+                  31,
+                  23,
+                  255
+                ],
+                [
+                  44,
+                  63,
+                  82,
+                  255
+                ],
+                [
+                  26,
+                  35,
+                  33,
+                  255
+                ]
+              ],
+              "width": 1280,
+              "height": 720
+            }
+          }
+        ],
+        "resized": {
+          "tier": "plain",
+          "locked": true,
+          "passMode": "off",
+          "pass": false,
+          "filterScale": null,
+          "frame": {
+            "pixels": [
+              [
+                31,
+                47,
+                58,
+                255
+              ],
+              [
+                4,
+                4,
+                3,
+                255
+              ],
+              [
+                29,
+                35,
+                27,
+                255
+              ],
+              [
+                42,
+                62,
+                82,
+                255
+              ],
+              [
+                22,
+                29,
+                28,
+                255
+              ]
+            ],
+            "width": 1100,
+            "height": 700
+          },
+          "canvas": [
+            1100,
+            700
+          ],
+          "ratio": 1
+        },
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 22,
+      "name": "Without half-float colour targets the view starts locked on plain, builds no painterly pass, draws the yard and raises no GL error",
+      "pass": true,
+      "detail": {
+        "tier": "plain",
+        "locked": true,
+        "passMode": "off",
+        "pass": false,
+        "withheld": true,
+        "glErrors": [],
+        "glErrorAfterDraw": 0,
+        "frame": {
+          "pixels": [
+            [
+              31,
+              47,
+              58,
+              255
+            ],
+            [
+              7,
+              9,
+              8,
+              255
+            ],
+            [
+              23,
+              31,
+              23,
+              255
+            ],
+            [
+              44,
+              63,
+              82,
+              255
+            ],
+            [
+              26,
+              35,
+              33,
+              255
+            ]
+          ],
+          "width": 1280,
+          "height": 720
+        },
+        "pageErrors": [],
+        "consoleErrors": []
       }
     }
   ],

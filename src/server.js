@@ -9,7 +9,7 @@ const dataPath = process.env.A_VIEW_DB || resolve(root, 'data/world.sqlite');
 await mkdir(dirname(dataPath), { recursive: true });
 const store = new WorldStore(dataPath);
 const clients = new Set();
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
