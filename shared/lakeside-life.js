@@ -16,7 +16,7 @@ const TAU = 2 * Math.PI;
 export const WIND = deep({bearing: Math.PI, direction: [0, -1], gustSpeed: 6});
 // Hearth smoke in the yard: metres risen over a puff's life, metres moved along the wind per unit of the 2D puff's x, the
 // puff's radius from birth to death, and its sideways wander across the wind.
-export const SMOKE = deep({rise: 6, drift: .12, radius: [.25, 1.1], sway: .15});
+export const SMOKE = deep({rise: 6, drift: .12, radius: [.35, 1.4], sway: .15});
 // Where a puff from smokePuffs is in the yard: {position: [x, y, z], radius, alpha}.
 export function smokePlace(puff, layout) {
   const [cx, cy, cz] = layout.cottage.chimney, [wx, wy] = layout.wind.direction, [ax, ay] = [-wy, wx];

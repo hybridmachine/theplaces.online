@@ -5,7 +5,7 @@ import {smokePlace} from '../../../shared/lakeside-life.js';
 // drifts south with the wind and swells as it thins. A study, reduced motion or a cottage this cannot read shows none.
 // three.js is handed in, so this runs in Node.
 
-const COUNT = 16, TINT = [209 / 255, 206 / 255, 188 / 255], BOOST = 2.5, CAP = .3;
+const COUNT = 16, TINT = [209 / 255, 206 / 255, 188 / 255], BOOST = 9, CAP = .45;
 const toThree = ([x, y, z]) => [x, z, -y];
 const VERTEX = `varying vec2 vUv;
 void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;

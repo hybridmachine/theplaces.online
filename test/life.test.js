@@ -56,7 +56,7 @@ test('lifeFrame tolerates a world without cottage, bird, environment, coincidenc
 
 import {SWAY_UNIFORMS} from '../public/space/geometry.js';
 import {windClock} from '../shared/foliage.js';
-import {lifeLayout} from '../shared/lakeside-life.js';
+import {lifeLayout, smokePlace} from '../shared/lakeside-life.js';
 test('the wind sets the card uniforms from the wind clock each frame and leaves them at rest', () => {
   assert.equal(typeof PRESENTERS.wind, 'function');
   const wind = PRESENTERS.wind({}, {layout: lifeLayout()}), t = 1e7 + .25, clock = windClock(t);
@@ -114,11 +114,11 @@ test('the hearth smoke rises from the chimney while the hearth burns, and shows 
   for (const mesh of shown()) {
     assert.ok(mesh.position.y >= cz - 1e-9 && mesh.position.y <= cz + 6 + 1e-9, 'rises at most 6 m');
     assert.ok(Math.abs(mesh.position.x - cx) <= .15 + 1e-9, 'wanders at most .15 m across the wind');
-    const {opacity, tint} = mesh.material.uniforms; assert.ok(opacity.value <= .3 && opacity.value >= 0);
+    const {opacity, tint} = mesh.material.uniforms; assert.ok(opacity.value <= .45 && opacity.value >= 0);
     assert.ok(Math.abs(tint.value.r - 209 / 255) < 1e-6);
     assert.equal(mesh.material.depthWrite, false); assert.equal(mesh.material.transparent, true);
   }
-  assert.ok(Math.abs(Math.max(...shown().map(m => m.material.uniforms.tint.value.r)) - 209 / 255) < 1e-6);
+  assert.ok(Math.abs(shown()[0].material.uniforms.opacity.value - Math.min(smokePlace(puffs[0], layout).alpha * 9, .45)) < 1e-9);
   smoke.update({...frame, calendar: {light: 0}});
   assert.ok(Math.abs(shown()[0].material.uniforms.tint.value.r - .3 * 209 / 255) < 1e-6);
   assert.equal(smoke.update({...frame, study: 'night'}), false); assert.equal(shown().length, 0);

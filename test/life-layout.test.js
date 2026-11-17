@@ -118,12 +118,12 @@ test('the far birds and the layout itself are fixed', () => {
   assert.equal(lifeLayout(), lifeLayout()); assert.equal(lifeLayout(S, D), L); assert.ok(Object.isFrozen(L) && Object.isFrozen(L.bird.routes['nest:oak-perch'].points[0]));
 });
 test('a puff of smoke leaves the chimney top, rises, drifts south and swells', () => {
-  assert.deepEqual(SMOKE, {rise: 6, drift: .12, radius: [.25, 1.1], sway: .15});
+  assert.deepEqual(SMOKE, {rise: 6, drift: .12, radius: [.35, 1.4], sway: .15});
   const [cx, cy, cz] = L.cottage.chimney, start = smokePlace({x: 0, age: 0, alpha: .05}, L);
-  assert.deepEqual(start.position, [cx, cy, cz]); assert.equal(start.radius, .25); assert.equal(start.alpha, .05);
+  assert.deepEqual(start.position, [cx, cy, cz]); assert.equal(start.radius, .35); assert.equal(start.alpha, .05);
   const mid = smokePlace({x: 10, age: .5, alpha: .07}, L), sway = SMOKE.sway * Math.sin(2.5);
   assert.ok(Math.abs(mid.position[2] - (cz + 3)) < 1e-12);
   assert.ok(Math.abs(mid.position[1] - (cy - 1.2)) < 1e-12);       // wind is [0, -1]: 1.2 m south
   assert.ok(Math.abs(mid.position[0] - (cx + sway)) < 1e-12 || Math.abs(mid.position[0] - (cx - sway)) < 1e-12);
-  assert.ok(Math.abs(mid.radius - (.25 + .5 * .85)) < 1e-12); assert.equal(mid.alpha, .07);
+  assert.ok(Math.abs(mid.radius - (.35 + .5 * 1.05)) < 1e-12); assert.equal(mid.alpha, .07);
 });
