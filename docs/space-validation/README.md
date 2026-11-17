@@ -8,9 +8,9 @@ The yard drawn from painted geometry: ground, lake, drystone wall, the stone cab
 
 ## The review pack
 
-All captures are 1440 × 810, device pixel ratio 1, taken by `scripts/capture-space-review.mjs` with the view locked on a tier (`?tier=`, honoured only with `check`) and the interface hidden. They are saved as JPEG at quality 90 so the pack stays small (6.2 MB for 23 frames); the comparison image is PNG (8.5 MB).
+All captures are 1440 × 810, device pixel ratio 1, taken by `scripts/capture-space-review.mjs` with the view locked on a tier (`?tier=`, honoured only with `check`) and the interface hidden. They are saved as JPEG at quality 90 so the pack stays small (6.2 MB for 23 frames); the comparison image is a JPEG at the same quality.
 
-- [arrival-vs-painting.png](arrival-vs-painting.png): the painting, the arrival capture at the same height, and the two laid over each other at half strength (`--compare`).
+- [arrival-vs-painting.jpg](arrival-vs-painting.jpg): the painting, the arrival capture at the same height, and the two laid over each other at half strength (`--compare`).
 - By day on `full` and on `plain`, the eight named poses: `arrival`, `cabin-front` (2.5 m from the door), `cabin-back`, `gable-north`, `gable-south`, `shore`, `woods`, `canopy` (under the oak, looking up). In [review/](review/) as `<pose>-day-full.jpg` and `<pose>-day-plain.jpg`.
 - The arrival pose at dawn, day, dusk, night and rain on `full`: `arrival-<study>-full.jpg`.
 - The three views where the woods meet the water, the weakest corners, by day on `full`: `woods-end-northwest` (from [-11, 20], looking south), `woods-end-north-gable` (from [16, 16], looking east past the cabin's north gable), `woods-end-northeast` (from [20, 12], into the north-east corner).
@@ -26,7 +26,7 @@ SKY_PREVIEW_URL=http://127.0.0.1:4190 node scripts/capture-space-review.mjs --co
 
 ## Matching the arrival view
 
-Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak's trunk frames the left and its canopy now runs across the top from the trunk to past the middle, where the painting's foliage is fullest (two short low limbs were added, to the north-east and east; the canopy has 29 clumps). The cabin's face, roof line, door and two windows sit where the painting has them, a little larger; the chimney is now on the far (north) gable as in the painting. The path leads to the door, the shore curves away to the right, and the hills sit behind. A grove of six tall trees just beyond the east wall now rises behind and to the left of the cabin, where the painting has its dense band of trees. The eaves have their own dark soffits and boards, so no slate joint shows from below, and the eave line dips and lifts along its length. The nearest far ridge rolls more and its mist lies in separate banks rather than one pale stripe. The lake sits higher in the frame than in the painting (accepted).
+Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak's trunk frames the left and its canopy now runs across the top from the trunk to past the middle, where the painting's foliage is fullest (two short low limbs were added, to the north-east and east; the canopy has 29 clumps). The cabin's face, roof line, door and two windows sit where the painting has them, a little larger; the chimney is now on the far (north) gable as in the painting. The path leads to the door, the shore curves away to the right, and the hills sit behind. A grove of eight tall trees beyond the east wall, in loose uneven rows with the back ones standing into the woods, now rises behind and to the left of the cabin, where the painting has its dense band of trees. The eaves have their own dark soffits and boards, so no slate joint shows from below, and the eave line dips and lifts along its length. The nearest far ridge rolls more and its mist lies in separate banks rather than one pale stripe. The lake sits higher in the frame than in the painting (accepted).
 
 ## Automated evidence
 
@@ -44,7 +44,7 @@ Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak
 10. Each of `?tier=full`, `light`, `plain` draws a non-blank frame and reports that tier in `window.__space.tier`.
 11. Frame rate per tier (recorded, not asserted): see below.
 12. After resizing to 390 × 844 and back to 1280 × 720, the centre pixel differs from a corner pixel and the canvas backing size is the viewport times the pixel ratio.
-13. Under the night study, the middle of the front-left window, projected from the dressing data, has luminance below 0.25 (the stone wall beside it is recorded for comparison).
+13. Under the night study, the middle of the front-left window, projected from the dressing data, has luminance below 0.25 and is darker than the stone wall beside it; under the day study the same point stays below 0.25 while the wall is clearly lighter, so the sample is on the glass.
 14. Without WebGL2 the 2D view is shown.
 15. Losing the WebGL context returns to the 2D view within 2 s.
 16. At 390 × 844 the vertical field of view is at most 75° and the frame is drawn.
@@ -58,11 +58,11 @@ At the arrival pose under the day study, 1440 × 810, pixel ratio 1, on the Appl
 
 | Tier | rAF callbacks per second | Synchronous frame (median of 20) | Triangles | Draw calls |
 |---|---|---|---|---|
-| full | 60 | 11.0 ms | 327,026 | 28 |
-| light | 60 | 8.4 ms | 327,026 | 28 |
-| plain | 60 | 5.3 ms | 327,026 | 28 |
+| full | 60 | 10.7 ms | 327,968 | 28 |
+| light | 60 | 8.7 ms | 327,968 | 28 |
+| plain | 60 | 7.2 ms | 327,968 | 28 |
 
-The callback count is capped by the display (about 60 per second), so it says only that every tier keeps up here. The synchronous time is one frame drawn and then read back so the GPU has finished; it is the better measure of headroom. It varies by a few milliseconds between runs (an earlier run the same evening gave 11.6, 7.7 and 8.3 ms). Triangles and draw calls are the scene alone (`renderer.info.render` after a plain scene render); the pass adds a few full-screen draws. The app itself draws at most 30 frames per second.
+The callback count is capped by the display (about 60 per second), so it says only that every tier keeps up here. The synchronous time is one frame drawn and then read back so the GPU has finished; it is the better measure of headroom. It varies by a few milliseconds between runs (earlier runs the same evening gave 11.6, 7.7 and 8.3 ms, and 11.0, 8.4 and 5.3 ms). Triangles and draw calls are the scene alone (`renderer.info.render` after a plain scene render); the pass adds a few full-screen draws. The app itself draws at most 30 frames per second.
 
 ## What was not measured
 
@@ -77,9 +77,9 @@ Slot by slot:
 - **Woods (parked for the owner).** Where the woods end near the water they step down as steep, terraced masses with near-vertical end faces: plain in `woods-end-northwest` (the bluff on the right), `woods-end-north-gable` (left of the grove) and `woods-end-northeast` (left). Five rounds did not converge; the owner decides whether to spend more here or use a generated plate.
 - **Woods (parked, minor).** A faint pale fringe along the woods' top edge, visible at 1:1 against the sky.
 - **Woods crowns under the pass.** On `full` the bristle pass leaves a felt-like fuzz on the woods' rounded crowns (`woods-day-full`, `gable-south-day-full`); the band reads as soft domes of moss more than as trees.
-- **Grove.** The new grove reads well from the arrival pose, but close up (`woods-end-north-gable`, `woods-end-northeast`) its trees stand in a line on bare, thin trunks, a little like a park planting; the undergrowth at their feet is mostly hidden by the wall.
+- **Grove.** From inside the yard (`woods-end-north-gable`, `woods-end-northeast`) the grove now reads as a dense copse with crowns hanging low over the wall and only short lengths of trunk showing, but it still stands as its own clump in front of where the woods band steps down, with sky between them, and its crowns are a little darker and crisper than the band's soft domes.
 - **Oak.** The crown is full from the arrival pose, but from beneath (`canopy`) the limbs meet the trunk as tubes from one ring and the bark is coarse streaks. At night the oak's leaves stay noticeably light against the dark sky (`arrival-night-full`).
-- **Cabin.** The eave is now a dark brushed band without plank joints, but seen from right under the gable (`woods-end-northeast`) the verge soffit is a large dark plane. The shrubs at the cabin's foot are cut from the woods cells and show straight card edges at the gable ends (`gable-north`).
+- **Cabin.** The eave is now a dark brushed band without plank joints, but seen from right under the gable (`woods-end-northeast`) the verge's underside is still a large dark brushed plane, though lighter than the eaves'. The shrubs at the cabin's foot are cut from the woods cells and show straight card edges at the gable ends (`gable-north`).
 - **Ground cover.** The foreground grass is shorter and tamer than the painting's knee-high verge (kept low so the path and the cabin's foot stay in view), and the flower heads are flat close up. The meadow texture smears into streaks at grazing angles (`gable-south`, `cabin-back`).
 - **Lake.** Paler and flatter than the painting's: a pale grey-blue with fine regular ripple lines, no reflected hills or sky.
 - **Hills.** The nearest ridge now rolls, but the far ridges are still pale, smooth and alike; the mist is sparse compared with the painting's valley drifts. Under rain the ridges stay greener than the grey sky.

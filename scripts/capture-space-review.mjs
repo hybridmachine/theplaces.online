@@ -3,8 +3,8 @@
 // Saves <pose>-<study>-<tier>.jpg (1440 × 810, JPEG quality 90, so the committed pack stays small) to
 // docs/space-validation/review/. Needs a server (SKY_PREVIEW_URL, default http://127.0.0.1:4190). --tier starts the view
 // locked at that tier (?tier=) and is recorded in the file name. --compare takes only the arrival pose and saves
-// docs/space-validation/arrival-vs-painting.png: the painting and the arrival capture side by side at the same height, and
-// the two laid over each other at half strength.
+// docs/space-validation/arrival-vs-painting.jpg (quality 90): the painting and the arrival capture side by side at the
+// same height, and the two laid over each other at half strength.
 import {createRequire} from 'node:module';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
@@ -48,7 +48,7 @@ const browser = await chromium.launch({headless: true, ...(process.env.BROWSER_E
 const errors = [];
 // The painting at the capture's height beside the capture, then the two at half strength each, drawn on a canvas in a blank page.
 async function saveComparison(context, shot) {
-  const painting = await readFile('public/assets/lakeside-day.png'), page = await context.newPage(), path = 'docs/space-validation/arrival-vs-painting.png';
+  const painting = await readFile('public/assets/lakeside-day.png'), page = await context.newPage(), path = 'docs/space-validation/arrival-vs-painting.jpg';
   const png = await page.evaluate(async ([a, b]) => {
     const load = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
     const [paint, view] = await Promise.all([load(a), load(b)]), h = view.height, pw = Math.round(paint.width * h / paint.height), gap = 8;
@@ -56,7 +56,7 @@ async function saveComparison(context, shot) {
     g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, h);
     g.drawImage(paint, 0, 0, pw, h); g.drawImage(view, pw + gap, 0);
     const x = pw + view.width + gap * 2; g.drawImage(paint, x, 0, view.width, h); g.globalAlpha = .5; g.drawImage(view, x, 0);
-    return c.toDataURL('image/png');
+    return c.toDataURL('image/jpeg', .9);
   }, [`data:image/png;base64,${painting.toString('base64')}`, `data:image/jpeg;base64,${shot.toString('base64')}`]);
   await writeFile(path, Buffer.from(png.split(',')[1], 'base64'));
   await page.close();

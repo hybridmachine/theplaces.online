@@ -63,9 +63,11 @@ docs/coincidences-validation/*.png
 docs/coincidences-validation/*.webm
 
 # Regenerable walkable-yard captures; retain the arrival and remembered-place frames, the art sheet, the comparison with the
-# painting and the review pack (docs/space-validation/review/, from scripts/capture-space-review.mjs).
+# painting and the review pack's JPEG frames (scripts/capture-space-review.mjs); other ad-hoc captures stay local.
 docs/space-validation/*.png
 !docs/space-validation/arrival.png
 !docs/space-validation/remembered.png
 !docs/space-validation/art-sheet.png
-!docs/space-validation/arrival-vs-painting.png
+docs/space-validation/review/*
+!docs/space-validation/review/*-full.jpg
+!docs/space-validation/review/*-plain.jpg
