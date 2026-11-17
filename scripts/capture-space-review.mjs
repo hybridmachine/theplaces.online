@@ -1,12 +1,16 @@
 // Review captures of the 3D yard from named poses under the light studies:
-//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|light|plain] [--study day|dawn|dusk|night|rain] [--compare] [--life]
+//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|light|plain] [--study day|dawn|dusk|night|rain] [--compare] [--life] [--garden]
 // Saves <pose>-<study>-<tier>.jpg (1440 × 810, JPEG quality 90, so the committed pack stays small) to
 // docs/space-validation/review/. Needs a server (SKY_PREVIEW_URL, default http://127.0.0.1:4190). --tier starts the view
 // locked at that tier (?tier=) and is recorded in the file name. --compare takes only the arrival pose and saves
 // docs/space-validation/arrival-vs-painting.jpg (quality 90): the painting and the arrival capture side by side at the
 // same height, and the two laid over each other at half strength. --life takes instead the yard's living things (lit windows,
 // the casement, smoke, rain, the wet path, ripples, the bird at each place, the nest filling) as life-<what>-<tier>.jpg; each
-// names its own study, pose and fixture, so --only, --study and --compare do not apply.
+// names its own study, pose and fixture, so --only, --study and --compare do not apply. Outside --garden the garden is shown on
+// day 230 of year 0 (the fixture's gardenDay) whatever the server's date, unless a shot's fixture names another day. --garden takes instead the garden's year
+// as garden-day-<n>-<tier>.jpg (twelve days of year 0) and garden-year-<y>-<tier>.jpg (day 230 of years 1–3), each the arrival,
+// garden and garden-behind poses side by side, each at half size (2160 × 405, JPEG quality 80) under the day study, the day given as the fixture's gardenDay; --only takes
+// shot names (day-230, year-2), and --study and --compare do not apply.
 import {createRequire} from 'node:module';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
@@ -94,13 +98,22 @@ const LIFE = {
   'nest-5': {study: 'day', nest: 5, pose: lookFrom(nestEye, nestAt)},
   'nest-12': {study: 'day', nest: 12, pose: lookFrom(nestEye, nestAt)},
 };
-const lifeRun = process.argv.includes('--life');
+// ── The garden's year: the day study at twelve days of year 0, and at day 230 of each later year, from three poses each.
+const GARDEN = Object.fromEntries([
+  ...[20, 112, 128, 140, 160, 185, 205, 230, 255, 275, 295, 316].map(n => [`day-${n}`, {fixture: {gardenDay: n}}]),
+  ...[1, 2, 3].map(y => [`year-${y}`, {fixture: {gardenDay: 365 * y + 230}}]),
+]), GARDEN_POSES = ['arrival', 'garden', 'garden-behind'];
+// Every run but --garden shows the garden of one fixed day (day 230 of year 0, the full garden), so its captures do not change
+// with the server's date; a shot's own fixture is laid over it and may name another day.
+const YARD = {gardenDay: 230};
+const lifeRun = process.argv.includes('--life'), gardenRun = !lifeRun && process.argv.includes('--garden');
 const compare = process.argv.includes('--compare');
-const only = lifeRun ? arg('only')?.split(',') ?? Object.keys(LIFE) : compare ? ['arrival'] : arg('only')?.split(',') ?? Object.keys(POSES), study = arg('study') ?? 'day', tier = arg('tier') ?? 'full';
-const unknown = only.filter(n => !(lifeRun ? LIFE : POSES)[n]);
+const shots = lifeRun ? LIFE : gardenRun ? GARDEN : POSES;
+const only = lifeRun || gardenRun ? arg('only')?.split(',') ?? Object.keys(shots) : compare ? ['arrival'] : arg('only')?.split(',') ?? Object.keys(POSES), study = gardenRun ? 'day' : arg('study') ?? 'day', tier = arg('tier') ?? 'full';
+const unknown = only.filter(n => !shots[n]);
 if (unknown.length || !STUDIES.includes(study) || !TIERS.includes(tier)) {
   console.error(`Unknown ${unknown.length ? `pose ${unknown.join(', ')}` : !STUDIES.includes(study) ? `study ${study}` : `tier ${tier}`}.`);
-  console.error(`Poses: ${Object.keys(POSES).join(', ')}. Studies: ${STUDIES.join(', ')}. Tiers: ${TIERS.join(', ')}.`);
+  console.error(`${lifeRun || gardenRun ? 'Shots' : 'Poses'}: ${Object.keys(shots).join(', ')}. Studies: ${STUDIES.join(', ')}. Tiers: ${TIERS.join(', ')}.`);
   process.exit(2);
 }
 
@@ -124,6 +137,21 @@ async function saveComparison(context, shot) {
   await writeFile(path, Buffer.from(png.split(',')[1], 'base64'));
   await page.close();
   console.log(path);
+}
+// Lossless captures of one size side by side, each scaled by `scale`, drawn on a canvas in a blank page and encoded once as
+// a JPEG of `quality`.
+async function saveSideBySide(context, images, path, {scale = .5, quality = .8} = {}) {
+  const page = await context.newPage();
+  const jpeg = await page.evaluate(async ([sources, scale, quality]) => {
+    const load = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
+    const views = await Promise.all(sources.map(load)), width = Math.round(views[0].width * scale), height = Math.round(views[0].height * scale);
+    const c = Object.assign(document.createElement('canvas'), {width: width * views.length, height}), g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    views.forEach((v, i) => g.drawImage(v, i * width, 0, width, height));
+    return c.toDataURL('image/jpeg', quality);
+  }, [images.map(b => `data:image/png;base64,${b.toString('base64')}`), scale, quality]);
+  await writeFile(path, Buffer.from(jpeg.split(',')[1], 'base64'));
+  await page.close();
 }
 try {
   const context = await browser.newContext({viewport: {width: 1440, height: 810}, deviceScaleFactor: 1});
@@ -160,7 +188,7 @@ try {
     if (lifeRun) {
       const shot = LIFE[name];
       await press(shot.study);
-      await page.evaluate(([s, f]) => { window.__shot = {live: !!s.live, hearth: !!s.hearth, nest: s.nest ?? null, motionSeconds: s.motionSeconds ?? null}; window.__space.fixture = f; }, [shot, shot.fixture ?? null]);
+      await page.evaluate(([s, f]) => { window.__shot = {live: !!s.live, hearth: !!s.hearth, nest: s.nest ?? null, motionSeconds: s.motionSeconds ?? null}; window.__space.fixture = f; }, [shot, {...YARD, ...shot.fixture}]);
       await page.evaluate(p => { window.__space.state = structuredClone(p); }, shot.pose);
       await page.waitForTimeout(1500);
       if (shot.walk) await page.keyboard.down('KeyW');
@@ -171,7 +199,20 @@ try {
       console.log(path);
       continue;
     }
-    await page.evaluate(p => { window.__space.state = structuredClone(p); }, POSES[name]);
+    if (gardenRun) {
+      await page.evaluate(f => { window.__space.fixture = f; }, GARDEN[name].fixture);
+      const images = [];
+      for (const pose of GARDEN_POSES) {
+        await page.evaluate(p => { window.__space.state = structuredClone(p); }, POSES[pose]);
+        await page.waitForTimeout(1500);
+        images.push(await page.screenshot({type: 'png'}));
+      }
+      const path = `${directory}/garden-${name}-${tier}.jpg`;
+      await saveSideBySide(context, images, path);
+      console.log(path);
+      continue;
+    }
+    await page.evaluate(([p, f]) => { window.__space.state = structuredClone(p); window.__space.fixture = f; }, [POSES[name], YARD]);
     await page.waitForTimeout(1500);
     const path = `${directory}/${name}-${study}-${tier}.jpg`, shot = await page.screenshot({path, type: 'jpeg', quality: 90});
     console.log(path);

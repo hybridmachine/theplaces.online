@@ -22,8 +22,9 @@ export const LAKESIDE_DRESSING = deep({
   // [x, y, height in metres].
   grove: [[42.5, 27.5, 15], [44, 20, 15.5], [46.5, 13.5, 12.5], [47, 31, 16.5], [45.5, 24.5, 14], [49, 23, 16.5], [50, 17, 14.5], [51.5, 12, 11]],
   cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
-  // The kitchen garden's planting, in the space's beds: the boards' thickness, and how many of each crop.
-  garden: {board: .045, corn: {count: 9}, beans: {poles: 4}, tomatoes: {count: 4}},
+  // The kitchen garden's planting, in the space's beds: the boards' thickness, how many of each crop, and how many days either
+  // way a plant's growth may run from its crop's (OFFSET_DAYS in garden-life.js).
+  garden: {board: .045, corn: {count: 9}, beans: {poles: 4}, tomatoes: {count: 4}, offsetDays: 5},
   // The low lights along the path's last stretch to the door: how many, how far back along the path from its end the first
   // stands and the rest follow, how far outside the path's edge, the lamp's height, and the radius of the light each lays.
   pathLights: {count: 5, from: 1.6, spacing: 1.6, offset: .4, height: .45, pool: 1.3},
@@ -139,43 +140,95 @@ export function chimneyTop(space, dressing) {
   return f.at(chimney.along, 0, f.ridge + chimney.rise);
 }
 
-// The kitchen garden as named parts. Each bed: its middle, yaw and half-sizes [long, wide], `base` a little under the lowest
-// ground along its footprint and `top` its soil's height, the bed's `height` above the highest. Each plant: its kind, its bed,
-// its `foot` on the soil, its height, the way it leans ([dx, dy] in metres at its top) and a seed for whoever draws it. Corn
-// stands in two staggered rows up the corn bed's north two-thirds; the bean poles ring its south end and lean to one apex;
-// the tomatoes stand in a row along the tomato bed.
-export function gardenPlan(space, dressing) {
-  const r = stream(dressing.seed, 'garden'), {corn, beans, tomatoes} = dressing.garden, plants = [];
+// The front-left window's casement as the life layout hangs it (lakeside-life.js, which imports this file, so the values are
+// repeated here, not imported): the window it is in, and how far its leaf swings open, in radians. The leaf runs from the
+// window's outer edge to its first glazing bar (cabin.js), a fraction LEAF of the window's width.
+export const CASEMENT = deep({window: 'front-left', maxAngle: 1.2});
+const LEAF = (22 + 212 / 3) / 256;
+// [azMin, azMax]: the bearings (radians clockwise from north) from the arrival position between which the window `id` lies,
+// the casement's leaf swung to its widest if the window carries it.
+export function windowSpan(space, dressing, id = 'window-front-left', casement = CASEMENT) {
+  const f = cabinFrame(space, dressing), w = dressing.cabin.windows.find(x => `window-${x.id}` === id);
+  if (!w) throw new Error(`no window ${id}`);
+  const side = (w.face === 'back' ? -1 : 1) * f.front, [ax, ay] = space.arrival.position, z0 = f.doorGround + w.sill, pts = [];
+  const edge = (s, z) => f.wallPoint(side, true, w.along + (s - .5) * w.width * side, side * f.W, z, PROUD);
+  for (const z of [z0, z0 + w.height]) {
+    pts.push(edge(0, z), edge(1, z));
+    if (`window-${casement.window}` !== id) continue;
+    // the leaf about its hinge at s = 0, its free edge swung out from the wall
+    const h = edge(0, z), k = LEAF * w.width, t = casement.maxAngle;
+    pts.push([h[0] + k * (Math.cos(t) * f.u[0] * side + Math.sin(t) * f.v[0] * side), h[1] + k * (Math.cos(t) * f.u[1] * side + Math.sin(t) * f.v[1] * side)]);
+  }
+  const az = pts.map(([x, y]) => Math.atan2(x - ax, y - ay));
+  return [Math.min(...az), Math.max(...az)];
+}
+// How far `p` [x, y] stands to the left of (anticlockwise from) the line from the arrival position at bearing `az`, in metres.
+const leftOf = (space, az, [x, y]) => { const [ax, ay] = space.arrival.position; return Math.sin(az) * (y - ay) - Math.cos(az) * (x - ax); };
+
+// The order the crops follow through the plots, a plot resting each year.
+export const ROTATION = Object.freeze(['corn', 'bean', 'tomato', 'rest']);
+const INSET = .15;
+// The garden's four plots: each bed's north half (at −a, as gardenPlan explains) and south half, with its middle, yaw and
+// half-sizes [long, wide]. `room` is how far the plot's nearest plantable corner (INSET inside its edges) stands left of the
+// line from the arrival to the front-left window's left edge. Measured: the window spans 63.40°–65.76° from the arrival (its
+// hinge is the left edge; the leaf, swung fully open, reaches back only to 63.64°); the beds' boards end at 62.54°; room is
+// 1.788 m (corn-north), .398 m (corn-south), 1.787 m (tomato-north) and .496 m (tomato-south). No block needs moving north.
+export function gardenPlots(space, dressing = LAKESIDE_DRESSING) {
+  const [azMin] = windowSpan(space, dressing), plots = [];
+  for (const {id, center, size: [long, wide], yaw} of space.beds) {
+    const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], l = long / 4, w = wide / 2;
+    for (const [half, k] of [['north', -1], ['south', 1]]) {
+      const m = [center[0] + k * l * u[0], center[1] + k * l * u[1]];
+      const corners = [-1, 1].flatMap(i => [-1, 1].map(j => [m[0] + i * (l - INSET) * u[0] + j * (w - INSET) * v[0], m[1] + i * (l - INSET) * u[1] + j * (w - INSET) * v[1]]));
+      plots.push({id: `${id}-${half}`, bed: id, center: m, half: [l, w], yaw, room: Math.min(...corners.map(p => leftOf(space, azMin, p)))});
+    }
+  }
+  return plots;
+}
+
+// The kitchen garden as named parts, in a given year. Each bed: its middle, yaw and half-sizes [long, wide], `base` a little
+// under the lowest ground along its footprint and `top` its soil's height, the bed's `height` above the highest. Each plot, as
+// gardenPlots, with the `crop` the rotation gives it that year. Each plant: its kind, bed and plot, its `foot` on the soil, its
+// height, the way it leans ([dx, dy] in metres at its top), a seed for whoever draws it, `offset` (whole days its growth runs
+// ahead or behind) and `room`, how far its foot stands left of the line to the window, less a little. Corn stands three rows of
+// three, the bean poles ring the block's middle and lean to one apex, the tomatoes stand two by two. Each block is moved north
+// (−a, away from the window) by the least that leaves every plant MIN_ROOM.
+const MIN_ROOM = .3;
+export function gardenPlan(space, dressing, year = 0) {
+  const r = stream(dressing.seed, 'garden-' + year), {corn, beans, tomatoes, offsetDays} = dressing.garden, plants = [];
   const beds = space.beds.map(({id, center, size: [long, wide], yaw, height}) => {
     const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], l = long / 2, w = wide / 2;
     const at = (a, b) => [center[0] + a * u[0] + b * v[0], center[1] + a * u[1] + b * v[1]];
     let low = Infinity, high = -Infinity;
     for (let i = 0; i <= 8; i++) for (let j = 0; j <= 4; j++) { const z = terrainHeight(space, ...at(-l + i * l / 4, -w + j * w / 2)); low = Math.min(low, z); high = Math.max(high, z); }
-    return {id, center: [...center], yaw, half: [l, w], base: low - .15, top: high + height, at};
+    return {id, center: [...center], yaw, half: [l, w], base: low - .15, top: high + height};
   });
-  const bed = id => beds.find(b => b.id === id);
-  const plant = (kind, b, a, c, height, lean) => plants.push({id: `${kind}-${plants.filter(p => p.kind === kind).length}`, kind, bed: b.id,
-    foot: [...b.at(a, c), b.top], height, lean, seed: r()});
-  const cornBed = bed('corn'), tomatoBed = bed('tomato');
-  if (cornBed) {
-    // `a` runs along the bed; the cabin's yaw points its long axis south-east, so the north end is at −l
-    const [l, w] = cornBed.half, a0 = -l + .3, a1 = l - 1.05, rows = Math.ceil(corn.count / 2);
-    for (let k = 0; k < corn.count; k++) {
-      const row = k % 2, i = Math.floor(k / 2), a = a0 + (a1 - a0) * (i + .25 + .5 * row) / rows + (r() - .5) * .08;
-      plant('corn', cornBed, a, (row ? 1 : -1) * w * .42 + (r() - .5) * .08, 1.75 + r() * .3, [(r() - .5) * .16, (r() - .5) * .16]);
-    }
-    const mid = l - .55, ring = Math.min(.35, w - .2), apex = cornBed.at(mid, 0);
-    for (let k = 0; k < beans.poles; k++) {
-      const t = (k + .5) / beans.poles * TAU, a = mid + Math.cos(t) * ring, c = Math.sin(t) * ring, [x, y] = cornBed.at(a, c);
-      plant('bean', cornBed, a, c, 1.9, [apex[0] - x, apex[1] - y]);
+  const [azMin] = windowSpan(space, dressing);
+  const plots = gardenPlots(space, dressing).map((p, i) => ({...p, crop: ROTATION[(((i - year) % 4) + 4) % 4]}));
+  for (const plot of plots) {
+    const {crop, yaw, half: [l, w]} = plot, bed = beds.find(b => b.id === plot.bed), block = [];
+    const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)];
+    const at = (a, c) => [plot.center[0] + a * u[0] + c * v[0], plot.center[1] + a * u[1] + c * v[1]];
+    // each plant about the block's middle (a, c), with its height and lean: lean is [dx, dy], or a function of its foot
+    if (crop === 'corn') for (let k = 0; k < corn.count; k++)
+      block.push({a: .32 * (Math.floor(k / 3) - 1) + (r() - .5) * .08, c: .38 * w * (k % 3 - 1) + (r() - .5) * .08, height: 1.75 + r() * .3, lean: [(r() - .5) * .16, (r() - .5) * .16]});
+    if (crop === 'bean') { const ring = Math.min(.35, w - .2); for (let k = 0; k < beans.poles; k++) { const t = (k + .5) / beans.poles * TAU; block.push({a: Math.cos(t) * ring, c: Math.sin(t) * ring, height: 1.9, lean: 'apex'}); } }
+    if (crop === 'tomato') for (let k = 0; k < tomatoes.count; k++)
+      block.push({a: .25 * (Math.floor(k / 2) % 2 ? 1 : -1), c: .28 * (k % 2 ? 1 : -1) + (r() - .5) * .12, height: .7 + r() * .15, lean: [(r() - .5) * .08, (r() - .5) * .08]});
+    if (!block.length) continue;
+    // Moving the block by s along −a moves each foot left of the window's line by s·rate.
+    const rate = leftOf(space, azMin, at(-1, 0)) - leftOf(space, azMin, at(0, 0)), room = p => leftOf(space, azMin, at(p.a, p.c)) - .05;
+    const need = Math.max(0, ...block.map(p => MIN_ROOM - room(p))), shift = need > 0 ? need / rate : 0, most = l - INSET - Math.max(...block.map(p => -p.a));
+    if ((need > 0 && !(rate > 0)) || shift > most + 1e-9) throw new Error(`garden: no room beside the window in ${plot.id}`);
+    for (const p of block) p.a -= shift;
+    const apex = at(-shift, 0);
+    for (const p of block) {
+      const foot = at(p.a, p.c), n = plants.filter(q => q.kind === crop).length;
+      plants.push({id: `${crop}-${n}`, kind: crop, bed: bed.id, plot: plot.id, foot: [...foot, bed.top], height: p.height,
+        lean: p.lean === 'apex' ? [apex[0] - foot[0], apex[1] - foot[1]] : p.lean, seed: r(), offset: Math.floor(r() * (2 * offsetDays + 1)) - offsetDays, room: room(p)});
     }
   }
-  if (tomatoBed) {
-    const [l] = tomatoBed.half;
-    for (let k = 0; k < tomatoes.count; k++)
-      plant('tomato', tomatoBed, (-l + .35) + (2 * l - .7) * (tomatoes.count > 1 ? k / (tomatoes.count - 1) : .5), (r() - .5) * .12, .7 + r() * .15, [(r() - .5) * .08, (r() - .5) * .08]);
-  }
-  return {beds: beds.map(({at, ...b}) => b), plants};
+  return {beds, plots, plants};
 }
 
 // The path lights as placed: nearest the door first, on alternate sides of the path (`side` 1 is the left hand walking to the

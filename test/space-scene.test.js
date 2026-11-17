@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING as D, pathLightPlan} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, openingCentre, pathLightPlan, windowSpan} from '../shared/lakeside-dressing.js';
 import {SPACE_ART, artFiles} from '../shared/lakeside-space-art.js';
 import {cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
 import {buildScene} from '../public/space/scene/index.js';
+import {GARDEN_DAY, buildGarden} from '../public/space/scene/garden.js';
+import {gardenState} from '../shared/garden-life.js';
 
 // Textures without images: enough to build and inspect geometry in Node.
 export function stubArt() {
@@ -53,11 +55,12 @@ import {eyePosition} from '../shared/walker.js';
 import {terrainHeight} from '../shared/space.js';
 const fromThree = v => [v.x, -v.z, v.y];
 
-// First surface hit by a ray from `eye` toward `target`, among the meshes of `objects` (one object or an array), left in place in the scene.
-function firstHit(objects, eye, target) {
+// First surface hit by a ray from `eye` toward `target`, among the meshes of `objects` (one object or an array), left in place in the scene,
+// no further than `far` metres.
+function firstHit(objects, eye, target, far = Infinity) {
   const list = [].concat(objects); for (const o of list) o.updateWorldMatrix(true, true);
   const origin = new THREE.Vector3(...toThree(eye)), dir = new THREE.Vector3(...toThree(target)).sub(origin).normalize();
-  const ray = new THREE.Raycaster(origin, dir); ray.params.Points = {threshold: 0};
+  const ray = new THREE.Raycaster(origin, dir, 0, far); ray.params.Points = {threshold: 0};
   const hits = [];
   for (const object of list) object.traverse(o => { if (o.isMesh) { const side = o.material.side; o.material.side = THREE.DoubleSide; hits.push(...ray.intersectObject(o, false).map(h => ({...h, side}))); o.material.side = side; } });
   hits.sort((a, b) => a.distance - b.distance);
@@ -258,6 +261,81 @@ test('the garden is drawn: boards, soil, stems and swaying leaves, on its beds',
     assert.ok(hit, bed.id); assert.ok(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0, `${bed.id} board inside out`);
   }
   scene.dispose();
+});
+
+test('cards scale their sway reach by sway.scale', () => {
+  const cards = cardBatch(), reach = scale => { cards.add([0, 0, 1], [.5, 0, 0], [0, 0, .5], SPACE_ART.cards.cells.dab[0], [1, 1, 1], [1, 1, 1], [0, 0, 1], false, {kind: 'crop', random: .5, scale}); };
+  reach(undefined); reach(.25);
+  const sway = cards.geometry(THREE).getAttribute('sway');
+  assert.ok(sway.getZ(0) > 0); assert.ok(Math.abs(sway.getZ(4) - sway.getZ(0) * .25) < 1e-6);
+});
+test('the garden follows the day: bare in winter, seedlings in spring, redrawn only when the day changes', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden;
+  const leaves = () => garden.getObjectByName('leaves').geometry, count = () => leaves().getAttribute('position').count;
+  const full = count(), first = leaves(); let disposed = 0; first.addEventListener('dispose', () => disposed++);
+  assert.equal(scene.setGarden(GARDEN_DAY), false); assert.equal(leaves(), first);
+  assert.equal(scene.setGarden(20), true); assert.equal(count(), 0); assert.equal(disposed, 1);
+  assert.equal(garden.getObjectByName('stems').geometry.getAttribute('position').count, 0);
+  assert.equal(scene.setGarden(150), true); assert.ok(count() > 0 && count() < full / 2);
+  for (const bad of [NaN, undefined, 12.5, '230']) { const g = leaves(); assert.equal(scene.setGarden(bad), false); assert.equal(leaves(), g); }
+  assert.equal(garden.children.length, 4);
+  scene.dispose();
+});
+test('every tenth day of four years draws finite geometry and leaves nothing behind', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden; let made = 0, gone = 0;
+  const watch = () => { for (const name of ['soil', 'stems', 'leaves']) { const g = garden.getObjectByName(name).geometry; if (!g.userData.watched) { g.userData.watched = true; made++; g.addEventListener('dispose', () => gone++); } } };
+  watch();
+  for (let day = 0; day < 4 * 365; day += 10) {
+    scene.setGarden(day); watch();
+    for (const name of ['soil', 'stems', 'leaves']) { const p = garden.getObjectByName(name).geometry.getAttribute('position'); for (let i = 0; i < p.array.length; i++) assert.ok(Number.isFinite(p.array[i]), `${name} day ${day}`); }
+  }
+  assert.equal(gone, made - 3); scene.dispose(); assert.equal(gone, made);
+});
+test('the window is never crossed: from the arrival, no part of the garden lies before it in any year', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden, eye = [...S.arrival.position, terrainHeight(S, ...S.arrival.position) + S.eyeHeight];
+  const [azMin, azMax] = windowSpan(S, D), centre = openingCentre(S, D, 'window-front-left'), w = D.cabin.windows.find(x => `window-${x.id}` === 'window-front-left');
+  const range = Math.hypot(centre[0] - eye[0], centre[1] - eye[1]);
+  for (let year = 0; year < 4; year++) for (const d of [200, 230, 262, 290]) {
+    scene.setGarden(year * 365 + d); garden.updateMatrixWorld(true);
+    for (let i = 0; i <= 12; i++) for (let j = 0; j <= 8; j++) {
+      const az = azMin + (azMax - azMin) * i / 12, z = centre[2] - w.height / 2 + w.height * j / 8, target = [eye[0] + Math.sin(az) * range, eye[1] + Math.cos(az) * range, z];
+      const {hit} = firstHit(garden, eye, target, Math.hypot(range, z - eye[2]));
+      assert.ok(!hit, `year ${year} day ${d}: the garden crosses the window at bearing ${az.toFixed(3)}, height ${z.toFixed(2)}`);
+    }
+  }
+  scene.dispose();
+});
+test('leaves on the window side are cut short where a plant has little room', () => {
+  // each plant alone, as it stands at high summer in each year, with its room cut to ROOM: no vertex of its leaves, nor of a
+  // corn stalk or a tomato's stem and stake, lies past its line (the bean pole leans to the teepee's apex, wherever that is)
+  const ROOM = .2, [azMin] = windowSpan(S, D), [ax, ay] = S.arrival.position, leftOf = ([x, y]) => Math.sin(azMin) * (y - ay) - Math.cos(azMin) * (x - ax);
+  const past = (g, line) => { const p = g.getAttribute('position'); let n = 0; for (let i = 0; i < p.count; i++) if (leftOf(fromThree({x: p.getX(i), y: p.getY(i), z: p.getZ(i)})) < line - 1e-6) n++; return n; };
+  let cut = 0;
+  for (let year = 0; year < 4; year++) for (const plant of gardenState(S, D, 365 * year + GARDEN_DAY).plants) {
+    const alone = room => (space, dressing, day) => { const s = gardenState(space, dressing, day); return {...s, plants: s.plants.filter(p => p.id === plant.id).map(p => ({...p, room: room ?? p.room}))}; };
+    const line = leftOf(plant.foot) - ROOM, part = (garden, name) => garden.object.getObjectByName(name).geometry;
+    const tight = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: 365 * year + GARDEN_DAY, stateOf: alone(ROOM)});
+    const free = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: 365 * year + GARDEN_DAY, stateOf: alone()});
+    assert.ok(part(tight, 'leaves').getAttribute('position').count > 0, `${plant.id} year ${year} has no leaves left`);
+    assert.equal(past(part(tight, 'leaves'), line), 0, `${plant.id} year ${year}: leaves past its line`);
+    if (plant.kind !== 'bean') assert.equal(past(part(tight, 'stems'), line), 0, `${plant.id} year ${year}: stems past its line`);
+    if (past(part(free, 'leaves'), line) > 0) cut++;
+  }
+  // the cut is exercised: drawn with its own room, most plants would reach past ROOM
+  assert.ok(cut > 20, `only ${cut} plants reach past ${ROOM} m`);
+});
+
+test('a bean\'s leaves, blossoms and pods never stand above the tip of its climbing vine', () => {
+  const plant = gardenState(S, D, 150).plants.find(p => p.kind === 'bean'), alone = (space, dressing, day) => { const s = gardenState(space, dressing, day); return {...s, plants: s.plants.filter(p => p.id === plant.id)}; };
+  let drawn = 0;
+  for (let d = 138; d <= 200; d++) {
+    const garden = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: d, stateOf: alone}), p = garden.object.getObjectByName('leaves').geometry.getAttribute('position');
+    const h = alone(S, D, d).plants[0].stage.height, tip = plant.foot[2] + plant.height * Math.min(.98, 1.05 * h);
+    // each card is four vertices; three's y is up
+    for (let i = 0; i < p.count; i += 4) { const z = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2) + p.getY(i + 3)) / 4; drawn++; assert.ok(z <= tip + .03, `day ${d}: a card ${(z - plant.foot[2]).toFixed(3)} m up, the vine's tip at ${(tip - plant.foot[2]).toFixed(3)} m`); }
+    garden.object.traverse(o => o.geometry?.dispose());
+  }
+  assert.ok(drawn > 500);
 });
 
 test('the path lights are drawn: stakes, lamps, halos and pools of light that follow the level', () => {

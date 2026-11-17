@@ -10,9 +10,9 @@ import {buildOak, buildWoods} from './trees.js';
 // (art-loader.js); the scene uses its textures but leaves them to the bundle's own dispose.
 export function buildScene(THREE, {space, dressing, art}) {
   const ground = buildGround(THREE, {space, dressing, art}), cover = buildCover(THREE, {space, dressing, art}).object, cabin = buildCabin(THREE, {space, dressing, art});
-  const lights = buildPathLights(THREE, {space, dressing, art});
+  const lights = buildPathLights(THREE, {space, dressing, art}), garden = buildGarden(THREE, {space, dressing, art});
   const parts = {terrain: ground.terrain, lake: ground.lake, wall: ground.wall, cabin: cabin.object, oak: buildOak(THREE, {space, dressing, art}).object,
-    woods: buildWoods(THREE, {space, dressing, art}).object, cover, garden: buildGarden(THREE, {space, dressing, art}).object, lights: lights.object, hills: buildHills(THREE, {space, dressing, art}).object};
+    woods: buildWoods(THREE, {space, dressing, art}).object, cover, garden: garden.object, lights: lights.object, hills: buildHills(THREE, {space, dressing, art}).object};
   const group = new THREE.Group(); group.name = 'yard';
   group.add(...Object.values(parts));
   // What setSky last received, for the things that take the lake's colours (the puddle).
@@ -28,6 +28,8 @@ export function buildScene(THREE, {space, dressing, art}) {
     setCottage(pose) { cabin.setCottage(pose); },
     // How brightly the path lights burn, 0–1 (lights.js).
     setPathLights(level) { lights.setLevel(level); },
+    // The world day the garden stands at, whole days since the world began; true if it was redrawn (garden.js).
+    setGarden(day) { return garden.setDay(day); },
     dispose() {
       const materials = new Set();
       group.traverse(o => {

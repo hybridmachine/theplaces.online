@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BED_CLEAR, LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
-import {LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, gardenPlan, groundBlend, oakPlan, openingCentre, ridgePoint, scatter, woodsPlan} from '../shared/lakeside-dressing.js';
+import {CASEMENT, LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, gardenPlan, gardenPlots, groundBlend, oakPlan, openingCentre, ridgePoint, ROTATION, scatter, windowSpan, woodsPlan} from '../shared/lakeside-dressing.js';
+import {OFFSET_DAYS} from '../shared/garden-life.js';
+import {lifeLayout} from '../shared/lakeside-life.js';
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 test('placement is deterministic', () => {
@@ -99,19 +101,48 @@ test('the garden: two beds on the grass by the cottage, each a collider, clear o
   }
   assert.ok(dist(S.beds[0].center, S.beds[1].center) > 2);
 });
-test('the planting: corn, a bean teepee and tomatoes, each standing in its bed', () => {
-  const plan = gardenPlan(S, D); assert.deepEqual(plan, gardenPlan(S, D));
-  const of = kind => plan.plants.filter(p => p.kind === kind);
-  assert.equal(of('corn').length, D.garden.corn.count); assert.equal(of('bean').length, D.garden.beans.poles); assert.equal(of('tomato').length, D.garden.tomatoes.count);
-  for (const p of plan.plants) {
-    const bed = plan.beds.find(b => b.id === p.bed), dx = p.foot[0] - bed.center[0], dy = p.foot[1] - bed.center[1];
-    const a = dx * Math.sin(bed.yaw) + dy * Math.cos(bed.yaw), b = dx * Math.cos(bed.yaw) - dy * Math.sin(bed.yaw);
-    assert.ok(Math.abs(a) <= bed.half[0] - .15 && Math.abs(b) <= bed.half[1] - .15, p.id);
-    assert.equal(p.foot[2], bed.top);
+test('the plots: each bed in two halves, four in all, the same every year', () => {
+  const plots = gardenPlots(S);
+  assert.deepEqual(plots.map(p => p.id), ['corn-north', 'corn-south', 'tomato-north', 'tomato-south']);
+  for (const p of plots) { const bed = S.beds.find(b => b.id === p.bed); assert.ok(Math.abs(p.half[0] - bed.size[0] / 4) < 1e-9); assert.equal(p.half[1], bed.size[1] / 2); }
+  assert.ok(plots[0].room > plots[1].room && plots[2].room > plots[3].room);
+  // the casement the window rule allows for is the one the life layout hangs
+  const {window, maxAngle} = lifeLayout(S, D).cottage.casement; assert.deepEqual({...CASEMENT}, {window, maxAngle});
+});
+test('the rotation: every crop in a new plot each year, back where it began after four', () => {
+  const crops = y => gardenPlan(S, D, y).plots.map(p => p.crop);
+  assert.deepEqual(crops(0), ['corn', 'bean', 'tomato', 'rest']);
+  for (let y = 0; y < 8; y++) {
+    assert.deepEqual([...crops(y)].sort(), ['bean', 'corn', 'rest', 'tomato']);
+    for (let i = 0; i < 4; i++) assert.notEqual(crops(y)[i], crops(y + 1)[i]);
+    assert.deepEqual(crops(y), crops(y + 4));
   }
-  for (const bed of plan.beds) { assert.ok(bed.top - terrainHeight(S, ...bed.center) > .2); assert.ok(bed.base < terrainHeight(S, ...bed.center) - .1); }
-  assert.ok(of('corn').every(p => p.height >= 1.7 && p.height <= 2.1)); assert.ok(of('tomato').every(p => p.height <= .85));
-  assert.ok(of('bean').every(p => p.bed === 'corn')); assert.ok(of('tomato').every(p => p.bed === 'tomato'));
+  for (const kind of ROTATION) assert.equal(new Set([0, 1, 2, 3].map(y => crops(y).indexOf(kind))).size, 4);
+  assert.deepEqual(crops(-1), crops(3));
+});
+test('the planting: every plant inside its plot, on its soil, clear of the line to the window', () => {
+  const [azMin] = windowSpan(S, D), [ax, ay] = S.arrival.position;
+  // the dressing's spread of growth is garden-life's (which cannot import the dressing's number without a cycle)
+  assert.equal(D.garden.offsetDays, OFFSET_DAYS);
+  for (let y = 0; y < 4; y++) {
+    const plan = gardenPlan(S, D, y); assert.deepEqual(plan, gardenPlan(S, D, y));
+    const of = kind => plan.plants.filter(p => p.kind === kind);
+    assert.equal(of('corn').length, D.garden.corn.count); assert.equal(of('bean').length, D.garden.beans.poles); assert.equal(of('tomato').length, D.garden.tomatoes.count);
+    // the beds stand clear of the grass and sink into it; the crops grow to gardenPlan's heights
+    for (const bed of plan.beds) { assert.ok(bed.top - terrainHeight(S, ...bed.center) > .2, bed.id); assert.ok(bed.base < terrainHeight(S, ...bed.center) - .1, bed.id); }
+    assert.ok(of('corn').every(p => p.height >= 1.75 && p.height <= 2.05)); assert.ok(of('tomato').every(p => p.height >= .7 && p.height <= .85));
+    for (const p of plan.plants) {
+      const plot = plan.plots.find(q => q.id === p.plot), bed = plan.beds.find(b => b.id === p.bed);
+      assert.equal(plot.crop, p.kind); assert.equal(plot.bed, p.bed); assert.equal(p.foot[2], bed.top);
+      const dx = p.foot[0] - plot.center[0], dy = p.foot[1] - plot.center[1];
+      const a = dx * Math.sin(plot.yaw) + dy * Math.cos(plot.yaw), c = dx * Math.cos(plot.yaw) - dy * Math.sin(plot.yaw);
+      assert.ok(Math.abs(a) <= plot.half[0] - .1 && Math.abs(c) <= plot.half[1] - .15, `${p.id} year ${y}`);
+      assert.ok(Math.abs(p.offset) <= OFFSET_DAYS); assert.ok(p.room >= .3, `${p.id} year ${y} room ${p.room}`);
+      // the foot's bearing from the arrival lies left of the window's left edge
+      assert.ok(Math.atan2(p.foot[0] - ax, p.foot[1] - ay) < azMin, p.id);
+    }
+  }
+  assert.notDeepEqual(gardenPlan(S, D, 0).plants.map(p => p.seed), gardenPlan(S, D, 4).plants.map(p => p.seed));
 });
 
 test('the beds move no ground cover: the yard without them has the same tufts, and only those in a bed are gone', () => {
