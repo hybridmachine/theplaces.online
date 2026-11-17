@@ -6,7 +6,8 @@
 // docs/space-validation/arrival-vs-painting.jpg (quality 90): the painting and the arrival capture side by side at the
 // same height, and the two laid over each other at half strength. --life takes instead the yard's living things (lit windows,
 // the casement, smoke, rain, the wet path, ripples, the bird at each place, the nest filling) as life-<what>-<tier>.jpg; each
-// names its own study, pose and fixture, so --only, --study and --compare do not apply. --garden takes instead the garden's year
+// names its own study, pose and fixture, so --only, --study and --compare do not apply. Outside --garden the garden is shown on
+// day 230 of year 0 (the fixture's gardenDay) whatever the server's date, unless a shot's fixture names another day. --garden takes instead the garden's year
 // as garden-day-<n>-<tier>.jpg (twelve days of year 0) and garden-year-<y>-<tier>.jpg (day 230 of years 1–3), each the arrival,
 // garden and garden-behind poses side by side, each at half size (2160 × 405, JPEG quality 80) under the day study, the day given as the fixture's gardenDay; --only takes
 // shot names (day-230, year-2), and --study and --compare do not apply.
@@ -102,6 +103,9 @@ const GARDEN = Object.fromEntries([
   ...[20, 112, 128, 140, 160, 185, 205, 230, 255, 275, 295, 316].map(n => [`day-${n}`, {fixture: {gardenDay: n}}]),
   ...[1, 2, 3].map(y => [`year-${y}`, {fixture: {gardenDay: 365 * y + 230}}]),
 ]), GARDEN_POSES = ['arrival', 'garden', 'garden-behind'];
+// Every run but --garden shows the garden of one fixed day (day 230 of year 0, the full garden), so its captures do not change
+// with the server's date; a shot's own fixture is laid over it and may name another day.
+const YARD = {gardenDay: 230};
 const lifeRun = process.argv.includes('--life'), gardenRun = !lifeRun && process.argv.includes('--garden');
 const compare = process.argv.includes('--compare');
 const shots = lifeRun ? LIFE : gardenRun ? GARDEN : POSES;
@@ -184,7 +188,7 @@ try {
     if (lifeRun) {
       const shot = LIFE[name];
       await press(shot.study);
-      await page.evaluate(([s, f]) => { window.__shot = {live: !!s.live, hearth: !!s.hearth, nest: s.nest ?? null, motionSeconds: s.motionSeconds ?? null}; window.__space.fixture = f; }, [shot, shot.fixture ?? null]);
+      await page.evaluate(([s, f]) => { window.__shot = {live: !!s.live, hearth: !!s.hearth, nest: s.nest ?? null, motionSeconds: s.motionSeconds ?? null}; window.__space.fixture = f; }, [shot, {...YARD, ...shot.fixture}]);
       await page.evaluate(p => { window.__space.state = structuredClone(p); }, shot.pose);
       await page.waitForTimeout(1500);
       if (shot.walk) await page.keyboard.down('KeyW');
@@ -208,7 +212,7 @@ try {
       console.log(path);
       continue;
     }
-    await page.evaluate(p => { window.__space.state = structuredClone(p); }, POSES[name]);
+    await page.evaluate(([p, f]) => { window.__space.state = structuredClone(p); window.__space.fixture = f; }, [POSES[name], YARD]);
     await page.waitForTimeout(1500);
     const path = `${directory}/${name}-${study}-${tier}.jpg`, shot = await page.screenshot({path, type: 'jpeg', quality: 90});
     console.log(path);
