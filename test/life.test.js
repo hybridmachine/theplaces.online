@@ -237,3 +237,107 @@ test('a rising fish rings the lake at its spot, and only in motion and outside a
   assert.equal(ripples.update({motion, snapshot: {world: {}}, now: 0}), false); assert.equal(seen.at(-1), null);
   assert.equal(PRESENTERS.ripples, createRipples);
 });
+
+import {birdNow, createBird, DRAWN} from '../public/space/life/bird.js';
+import {birdFixture, birdProgress, createBirdState} from '../shared/bird.js';
+import {LAKESIDE_BIRD} from '../shared/lakeside-bird.js';
+import {birdPlace} from '../shared/lakeside-life.js';
+
+const DAY = {elevation: .5, light: 1}, NIGHT = {elevation: -.3, light: 0};
+const birdFrame = (extra = {}) => ({snapshot: {world: {}}, now: 0, study: null, motion: true, calendar: DAY, fixture: null, ...extra});
+const midFlight = name => birdFixture(name, LAKESIDE_BIRD.routes[{'Oak flight': 'nest:oak-perch', 'Shelter flight': 'oak-perch:oak-shelter', 'Roof flight': 'oak-perch:roof-perch'}[name]].durationMs / 2);
+
+test('the bird is where the shared bird is: none in a study unless a fixture says, none building by night, settled under reduced motion', () => {
+  const layout = lifeLayout(), perch = birdFixture('Oak perch'), world = {bird: perch.state, action: null};
+  assert.deepEqual(birdNow(birdFrame({snapshot: {world}}), layout), birdPlace(birdProgress(perch.state, null, 0), layout));
+  assert.equal(birdNow(birdFrame({snapshot: {world}, study: 'day'}), layout), null);
+  const flight = midFlight('Oak flight'), flying = birdNow(birdFrame({snapshot: {world}, study: 'day', fixture: {bird: flight}}), layout);
+  assert.deepEqual(flying, birdPlace(birdProgress(flight.state, null, flight.now), layout)); assert.equal(flying.flying, true);
+  const building = {bird: createBirdState(0, true), action: {start: 0, end: 60_000}};
+  assert.equal(birdNow(birdFrame({snapshot: {world: building}, now: 10_000, calendar: NIGHT}), layout), null);
+  const forage = birdNow(birdFrame({snapshot: {world: building}, now: 10_000}), layout);
+  assert.ok(forage.flying && forage.position.every(Number.isFinite));
+  assert.deepEqual(birdNow(birdFrame({snapshot: {world: building}, now: 10_000, motion: false}), layout).position, layout.bird.locations.nest.point);
+  const settled = birdNow(birdFrame({fixture: {bird: flight}, motion: false}), layout);
+  assert.deepEqual(settled.position, layout.bird.locations.nest.point); assert.equal(settled.flying, false);
+  assert.equal(birdNow(birdFrame(), layout), null);
+  assert.equal(birdNow(birdFrame({snapshot: {world: {bird: {id: 'nonsense'}}}}), layout), null);
+});
+
+test('the bird is a small painted model that sits with its feet on its place, beats its wings in flight and carries its twig', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), bird = createBird(THREE, {scene, layout}), group = scene.getObjectByName('bird');
+  const part = name => group.getObjectByName(name), finite = () => { scene.updateMatrixWorld(true); let ok = true; group.traverse(o => { ok &&= o.matrixWorld.elements.every(Number.isFinite); }); return ok; };
+  assert.equal(group.visible, false);
+  assert.equal(bird.update(birdFrame({fixture: {bird: midFlight('Roof flight')}})), true);
+  assert.equal(group.visible, true); assert.ok(finite());
+  assert.equal(part('legs').visible, false); assert.equal(part('twig').visible, false);
+  const wing = part('wing-right'), spread = wing.quaternion.clone();
+  bird.update(birdFrame({fixture: {bird: {...midFlight('Roof flight'), now: midFlight('Roof flight').now + 40}}}));
+  assert.ok(wing.quaternion.angleTo(spread) > 1e-3, 'the wing beats');
+  assert.equal(bird.update(birdFrame({fixture: {bird: birdFixture('Oak perch')}})), true); assert.ok(finite());
+  assert.equal(part('legs').visible, true);
+  const folded = wing.quaternion.clone();
+  bird.update(birdFrame({fixture: {bird: birdFixture('Oak perch', 999)}})); assert.ok(wing.quaternion.angleTo(folded) < 1e-9, 'a perched bird keeps its wings folded');
+  const at = layout.bird.locations['oak-perch'].point, box = new THREE.Box3().setFromObject(part('body')).union(new THREE.Box3().setFromObject(part('tail'))), size = box.getSize(new THREE.Vector3());
+  assert.ok(Math.abs(new THREE.Box3().setFromObject(part('legs')).min.y - at[2]) < .001, 'feet on the perch');
+  assert.ok(Math.abs(size.z - layout.bird.length * DRAWN) < .01 * DRAWN, 'its length, beak to tail, faces south along three\'s +z');
+  assert.ok(DRAWN >= 1 && DRAWN <= 1.6);
+  const building = {snapshot: {world: {bird: createBirdState(0, true), action: {start: 0, end: 60_000}}}, now: 48_000};
+  assert.equal(bird.update(birdFrame(building)), true); assert.equal(part('twig').visible, true); assert.ok(finite());
+  assert.equal(bird.update(birdFrame({...building, motion: false})), true); assert.equal(part('twig').visible, false);
+  assert.ok(wing.quaternion.angleTo(folded) < 1e-9, 'reduced motion never beats');
+  assert.equal(bird.update(birdFrame({study: 'day'})), false); assert.equal(group.visible, false);
+  const made = new Set(), freed = new Set();
+  group.traverse(o => { if (o.geometry) { made.add(o.geometry); const d = o.geometry.dispose.bind(o.geometry); o.geometry.dispose = () => { freed.add(o.geometry); d(); }; } });
+  assert.ok(made.size >= 5);
+  bird.dispose(); assert.equal(freed.size, made.size); assert.equal(scene.children.length, 0);
+  assert.equal(PRESENTERS.bird, createBird);
+});
+
+import {createNest} from '../public/space/life/nest.js';
+test('the nest is three twig strokes for each material brought, built in the fork and rebuilt only when that count changes', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), nest = createNest(THREE, {scene, layout}), mesh = scene.getObjectByName('nest');
+  const frame = materials => ({snapshot: {world: {nest: {materials}}}});
+  assert.equal(nest.update({snapshot: {world: {}}}), false); assert.equal(mesh.visible, false);
+  assert.equal(nest.update(frame(0)), false); assert.equal(mesh.visible, false); assert.equal(mesh.userData.strokes, 0);
+  assert.equal(nest.update(frame(5)), true); assert.equal(mesh.userData.strokes, 15);
+  const five = mesh.geometry, perStroke = five.index.count / 15;
+  nest.update(frame(5)); assert.equal(mesh.geometry, five, 'not rebuilt');
+  assert.equal(nest.update(frame(12)), true); assert.equal(mesh.userData.strokes, 36); assert.equal(mesh.geometry.index.count, 36 * perStroke);
+  const p = mesh.geometry.attributes.position, at = toThreeV(layout.bird.locations.nest.point);
+  for (let i = 0; i < p.count; i++) assert.ok(Math.hypot(p.getX(i) - at[0], p.getY(i) - at[1], p.getZ(i) - at[2]) < .3);
+  const c = mesh.geometry.attributes.color, twig = new THREE.Color('#b2a079');
+  assert.ok(Math.abs(c.getX(0) - twig.r) < 1e-6);
+  assert.equal(nest.update({snapshot: {world: {}}}), false); assert.equal(mesh.visible, false);
+  nest.dispose(); assert.equal(scene.children.length, 0);
+  assert.equal(PRESENTERS.nest, createNest);
+});
+const toThreeV = ([x, y, z]) => [x, z, -y];
+
+import {createFarBirds, farBirdsNow} from '../public/space/life/far-birds.js';
+test('three far birds cross the sky over the lake for 23 seconds in every 135, southward, by day only', () => {
+  const layout = lifeLayout(), [a0, a1] = layout.farBirds.azimuth, [e0, e1] = layout.farBirds.elevation;
+  const five = farBirdsNow(5, 1, layout); assert.equal(five.length, 3);
+  for (const b of five) {
+    assert.ok(b.azimuth >= a0 && b.azimuth <= a1 && b.elevation >= e0 && b.elevation <= e1);
+    assert.ok(Math.abs(b.wing) <= 1);
+  }
+  for (const s of [0, 23]) for (const b of farBirdsNow(s, 1, layout)) assert.ok(b.azimuth >= a0 - 1e-9 && b.azimuth <= a1 + 1e-9);
+  const later = farBirdsNow(12, 1, layout); later.forEach((b, i) => assert.ok(b.azimuth > five[i].azimuth, 'moves south'));
+  assert.deepEqual(farBirdsNow(30, 1, layout), []); assert.deepEqual(farBirdsNow(5, .3, layout), []);
+  assert.equal(farBirdsNow(135 + 5, 1, layout).length, 3);
+  const scene = new THREE.Scene(), birds = createFarBirds(THREE, {scene, layout, yard: {}}), group = scene.getObjectByName('far-birds');
+  const camera = new THREE.PerspectiveCamera(); camera.position.set(1, 1.6, -2);
+  const frame = (extra = {}) => ({study: null, motion: true, motionSeconds: 5, calendar: DAY, camera, ...extra});
+  assert.equal(birds.update(frame()), true); assert.equal(group.children.filter(m => m.visible).length, 3);
+  for (const [i, m] of group.children.entries()) {
+    assert.ok(Math.abs(m.position.distanceTo(camera.position) - 900) < 1e-6); assert.equal(m.material.fog, false);
+    const {azimuth, elevation} = five[i], d = m.position.clone().sub(camera.position).normalize();
+    assert.ok(Math.abs(d.y - Math.sin(elevation)) < 1e-9 && Math.abs(Math.atan2(d.x, -d.z) - azimuth) < 1e-9);
+  }
+  for (const extra of [{study: 'day'}, {motion: false}, {motionSeconds: 30}, {calendar: {light: .3}}]) {
+    assert.equal(birds.update(frame(extra)), false); assert.equal(group.visible, false);
+  }
+  birds.dispose(); assert.equal(scene.children.length, 0);
+  assert.deepEqual(Object.keys(PRESENTERS).slice(-4), ['ripples', 'bird', 'nest', 'farBirds']); assert.equal(PRESENTERS.farBirds, createFarBirds);
+});

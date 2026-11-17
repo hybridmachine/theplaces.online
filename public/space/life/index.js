@@ -7,9 +7,13 @@ import {createSmoke} from './smoke.js';
 import {createRain} from './rain.js';
 import {createTraces} from './traces.js';
 import {createRipples} from './ripples.js';
+import {createBird} from './bird.js';
+import {createNest} from './nest.js';
+import {createFarBirds} from './far-birds.js';
 
 // Ordered; later tasks add the presenters here one at a time.
-export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke, rain: createRain, traces: createTraces, ripples: createRipples};
+export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke, rain: createRain, traces: createTraces, ripples: createRipples,
+  bird: createBird, nest: createNest, farBirds: createFarBirds};
 
 export function createLife(THREE, ctx, makers = PRESENTERS) {
   const live = new Map(), status = {};
