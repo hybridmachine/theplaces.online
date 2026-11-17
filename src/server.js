@@ -24,9 +24,7 @@ const server = createServer(async (req, res) => {
     // A request target such as "//host/path" would otherwise be read as another origin's URL.
     if (!req.url.startsWith('/') || req.url.startsWith('//') || !URL.canParse(req.url, 'http://localhost')) { badRequest(res); return; }
     const url = new URL(req.url, 'http://localhost');
-    const isDevelopment = url.pathname === '/dev' || url.pathname.startsWith('/dev/');
-    // The developer studies carry inline scripts and styles; they are never served in production.
-    if (!isDevelopment) res.setHeader('Content-Security-Policy', contentSecurityPolicy);
+    res.setHeader('Content-Security-Policy', contentSecurityPolicy);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     if (url.pathname === '/api/notes') {
       const raw=url.searchParams.get('interval');
@@ -59,8 +57,13 @@ const server = createServer(async (req, res) => {
     if (relative.includes('\0')) { badRequest(res); return; }
     const path = resolve(folder, relative);
     if (!path.startsWith(folder + sep)) { res.writeHead(403); res.end(); return; }
-    // The proxy also hides the developer studies; refuse them here so that does not rest on one matcher.
-    if (production && !isShared && (path + sep).startsWith(resolve(folder, 'dev') + sep)) { res.writeHead(404); res.end('Not found'); return; }
+    // Decide from the resolved file, never the raw request path: "/dev/..%2findex.html" names the main page.
+    if (!isShared && (path + sep).startsWith(resolve(folder, 'dev') + sep)) {
+      // The proxy also hides the developer studies; refuse them here so that does not rest on one matcher.
+      if (production) { res.writeHead(404); res.end('Not found'); return; }
+      // Outside production the studies carry inline scripts and styles.
+      res.removeHeader('Content-Security-Policy');
+    }
     const info = await stat(path);
     if (!info.isFile()) { res.writeHead(404); res.end(); return; }
     const body = await readFile(path);
