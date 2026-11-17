@@ -127,3 +127,38 @@ test('the hearth smoke rises from the chimney while the hearth burns, and shows 
   assert.equal(smoke.update({...frame, snapshot: {world: {epoch}}}), false);
   smoke.dispose(); assert.equal(scene.children.length, 0);
 });
+
+import {RAIN, rainDrop} from '../public/space/life/rain.js';
+test('a rain drop is a stable column that falls at speed, leans south with the wind and stays near the walker without following them', () => {
+  const eye = [3.2, -4.1, 1.6], at = (i, s, e = eye, w = 0) => rainDrop(i, s, e, w);
+  for (let i = 0; i < RAIN.count; i++) {
+    const d = at(i, 12.3, eye, .5); assert.ok(d.every(Number.isFinite));
+    assert.ok(Math.hypot(d[0] - eye[0], d[1] - eye[1]) <= RAIN.radius);
+    assert.ok(Math.hypot(...at(i, 5, eye, 1).slice(0, 2).map((v, k) => v - eye[k])) <= RAIN.radius);
+  }
+  assert.deepEqual(at(7, 3.3), at(7, 3.3));
+  const a = at(7, 3.3), b = at(7, 3.4); assert.ok(Math.abs((a[2] - b[2]) - RAIN.speed * .1) < 1e-9 || Math.abs((a[2] - b[2]) + RAIN.height - RAIN.speed * .1) < 1e-9);
+  const c = at(7, 3.3, eye, 0), d = at(7, 3.4, eye, 0); assert.ok(Math.abs(c[0] - d[0]) < 1e-12 && Math.abs(c[1] - d[1]) < 1e-12);
+  const [e, f] = [at(7, 3.3, eye, .5), at(7, 3.4, eye, .5)]; assert.ok(e[1] - f[1] !== 0 && Math.abs(e[0] - f[0]) < 1e-12);
+  const fallen = eye[2] + RAIN.height * .4 - at(7, 3.3)[2], leant = at(7, 3.3, eye, .5), upright = at(7, 3.3);
+  assert.ok(Math.abs((upright[1] - leant[1]) - RAIN.slant * .5 * fallen) < 1e-9);
+  const moved = at(7, 3.3, [eye[0] + .5, eye[1] + .5, eye[2]]); assert.deepEqual(moved.slice(0, 2), upright.slice(0, 2));
+});
+
+test('rain falls in the open, is kept off by the roof and thinned by the oak, and shows nothing when it is not raining', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), rain = PRESENTERS.rain(THREE, {scene, layout}), lines = scene.getObjectByName('rain');
+  const camera = (x, y, z) => ({position: {x, y: z, z: -y}});
+  const frame = (at, extra = {}) => ({weather: {rain: .8, wind: .5}, motionSeconds: 5, camera: camera(...at), ...extra});
+  const shown = () => lines.geometry.drawRange.count / 2;
+  const open = [14, 6, 1.6], {roof, oak} = layout.weather.shelter;
+  assert.equal(rain.update(frame(open)), true); assert.equal(lines.visible, true);
+  assert.ok(shown() > 500 && shown() <= Math.round(RAIN.count * .8));
+  assert.ok(Math.abs(lines.material.opacity - (.10 + .8 * .13)) < 1e-12); assert.equal(lines.material.depthWrite, false);
+  assert.ok(lines.geometry.attributes.position.array.every(Number.isFinite));
+  const inOpen = shown();
+  rain.update(frame([roof.center[0], roof.center[1], 1.6])); assert.ok(shown() < inOpen * .5, 'under the roof');
+  rain.update(frame([oak.center[0], oak.center[1], 1.6])); assert.ok(shown() < inOpen && shown() > 0, 'under the oak');
+  assert.equal(rain.update(frame(open, {weather: {rain: .05, wind: .5}})), false); assert.equal(lines.visible, false); assert.equal(shown(), 0);
+  rain.update(frame(open)); rain.update(frame(open)); assert.equal(shown(), inOpen);
+  rain.dispose(); assert.equal(scene.children.length, 0);
+});
