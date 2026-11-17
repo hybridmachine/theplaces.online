@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {terrainHeight, walkable} from '../shared/space.js';
-import {eyePosition, glide, stepWalker, WALK} from '../shared/walker.js';
+import {eyePosition, glide, glideClear, stepWalker, WALK} from '../shared/walker.js';
 
 const still = {forward: 0, strafe: 0, turn: 0, fast: false, look: [0, 0]};
 const walk = (state, input, seconds, dt = 1 / 30) => {
@@ -66,4 +66,12 @@ test('glide starts and ends exactly and turns the short way', () => {
   const from = {position: [5, 5], yaw: .1, pitch: .3}, to = {position: [0, 0], yaw: 6.2, pitch: 0};
   assert.deepEqual(glide(from, to, 0), from); assert.deepEqual(glide(from, to, 1), to);
   const mid = glide(from, to, .5).yaw; assert.ok(mid < .1 || mid > 6.2, `${mid}`);
+});
+
+test('a glide home is clear only where the straight way keeps to walkable ground', () => {
+  const home = S.arrival.position;
+  assert.equal(glideClear(S, [10, 2], home), true); assert.equal(glideClear(S, home, home), true);
+  assert.equal(glideClear(S, [16, 10], home), false, 'through the tomato bed');
+  assert.equal(glideClear(S, [9, 9], home), false, 'through the oak');
+  assert.equal(glideClear(S, [30, 12], home), false, 'through the cabin');
 });

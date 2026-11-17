@@ -34,6 +34,7 @@ export function smokePlace(puff, layout) {
 export const SWAY = deep({
   grass: {type: 'grass', exposure: .85, reach: .08}, reeds: {type: 'grass', exposure: 1, reach: .16}, flowers: {type: 'grass', exposure: .7, reach: .06},
   oak: {type: 'leaf', exposure: .9, reach: .05}, shrub: {type: 'leaf', exposure: .5, reach: .03}, woods: {type: 'leaf', exposure: .6, reach: .04},
+  crop: {type: 'leaf', exposure: .7, reach: .05},
 });
 
 const dist2 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);

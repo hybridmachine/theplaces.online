@@ -74,8 +74,9 @@ export function buildCover(THREE, {space, dressing, art}) {
   for (const [kind, spec] of Object.entries(KINDS)) {
     const items = scatter(space, dressing, kind), geometry = crossedCards(THREE), cells = new Float32Array(items.length * 3), sways = new Float32Array(items.length * 3);
     const mesh = new THREE.InstancedMesh(geometry, material, items.length); mesh.name = kind;
-    items.forEach(({x, y, scale: s, turn, cell}, i) => {
-      const r = [hash(i, 0, spec.seed), hash(i, 0, spec.seed + 100), hash(i, 0, spec.seed + 200), hash(i, 0, spec.seed + 300)], h = spec.size * s;
+    // each one's colour, proportions and sway are seeded by `index`, its place in the full laying, not by where it falls in this list
+    items.forEach(({x, y, scale: s, turn, cell, index}, i) => {
+      const r = [hash(index, 0, spec.seed), hash(index, 0, spec.seed + 100), hash(index, 0, spec.seed + 200), hash(index, 0, spec.seed + 300)], h = spec.size * s;
       // a little uneven in height and width, and mirrored half the time, so neighbouring tufts of one cell differ; low tufts
       // spread wider than they stand, so a sward of them closes over the ground like brushed grass rather than standing as spikes
       const spread = 1 + spec.spread * clamp01((.65 - s) / .3);
@@ -84,7 +85,7 @@ export function buildCover(THREE, {space, dressing, art}) {
       mesh.setMatrixAt(i, matrix.compose(at, q, scale));
       mesh.setColorAt(i, colour.setRGB(...spec.colour(x, y, r)));
       cells.set([...cellRect(spec.cells[cell], SPACE_ART).slice(0, 2), spec.fade], i * 3);
-      sways.set([hash(i, 0, spec.seed + 400), SWAY[kind].reach, SWAY[kind].exposure], i * 3);
+      sways.set([hash(index, 0, spec.seed + 400), SWAY[kind].reach, SWAY[kind].exposure], i * 3);
     });
     geometry.setAttribute('cell', new THREE.InstancedBufferAttribute(cells, 3));
     geometry.setAttribute('swayKind', new THREE.InstancedBufferAttribute(sways, 3));

@@ -26,7 +26,7 @@ test('flush writes immediately; forget removes it', () => {
   memory.forget(); assert.equal(memory.load(), null); assert.equal(storage.getItem(PLACE_KEY), null);
 });
 test('anything invalid is ignored, so the visitor arrives at the painting view', () => {
-  for (const bad of [{...good, version: 2}, {...good, position: [30, -12]}, {...good, position: S.cabin.center},
+  for (const bad of [{...good, version: 2}, {...good, position: [30, -12]}, {...good, position: S.cabin.center}, {...good, position: S.beds[0].center},
     {...good, position: [NaN, 0]}, {...good, yaw: 'east'}, {...good, pitch: 3}, {...good, position: [1]}, null, 7])
     assert.equal(new PlaceMemory({storage: saved(bad), space: S}).load(), null, JSON.stringify(bad));
   assert.equal(new PlaceMemory({storage: store({[PLACE_KEY]: '{not json'}), space: S}).load(), null);
