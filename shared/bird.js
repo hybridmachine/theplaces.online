@@ -1,4 +1,4 @@
-import {birdPose,calendar,weather,hash,clamp,mix} from './world.js';
+import {birdPose,foragePick,calendar,weather,hash,clamp,mix} from './world.js';
 import {LAKESIDE_BIRD} from './lakeside-bird.js';
 
 export const BIRD_RULES=1,BIRD_DECISION_MS=30_000;
@@ -122,23 +122,38 @@ function settledPose(id,direction=locations[id].direction){
     scale:location.scale,direction,flying:false,carrying:false,hidden:id==='oak-shelter',wingPhase:0,locationId:id};
 }
 
-export function sampleBird(state,legacyAction,now,{reducedMotion=false}={}){
+const constructionWing=(legacyAction,now)=>(now-(legacyAction?.start??now))/1000*37;
+
+// Where along which path the bird is, said once for the painting (sampleBird) and the yard (birdPlace) alike.
+export function birdProgress(state,legacyAction,now,{reducedMotion=false}={}){
   if(!validBirdState(state))return null;
   if(state.mode==='construction'){
-    const pose=birdPose(reducedMotion?null:legacyAction,now);
-    return {...pose,legacy:true,scale:pose.y>.5?.85:1,wingPhase:(now-(legacyAction?.start??now))/1000*37,locationId:'nest'};
+    if(!legacyAction||reducedMotion||now<legacyAction.start||now>=legacyAction.end)return {kind:'settled',locationId:'nest',direction:-1};
+    const t=clamp((now-legacyAction.start)/(legacyAction.end-legacyAction.start));
+    return {kind:'forage',t,...foragePick(t),wingPhase:constructionWing(legacyAction,now)};
   }
   const action=state.pending;
-  if(!action||action.kind==='call'||reducedMotion||now<action.start)return settledPose(state.locationId,state.direction);
+  if(!action||action.kind==='call'||reducedMotion||now<action.start)return {kind:'settled',locationId:state.locationId,direction:state.direction};
   // The display lease holds before end; exact endpoint sampling is still useful
   // in the art study. Only completeBird settles the authoritative location.
-  const route=routes[action.routeId],t=clamp((now-action.start)/(action.end-action.start));
-  const u=t*t*(3-2*t),v=1-u,p=route.points;
+  const t=clamp((now-action.start)/(action.end-action.start));
+  return {kind:'route',routeId:action.routeId,from:action.from,to:action.to,t,u:t*t*(3-2*t),wingPhase:(now-action.start)/1000*37+action.phaseSeed};
+}
+
+export function sampleBird(state,legacyAction,now,{reducedMotion=false}={}){
+  const progress=birdProgress(state,legacyAction,now,{reducedMotion});
+  if(!progress)return null;
+  if(state.mode==='construction'){
+    const pose=birdPose(reducedMotion?null:legacyAction,now);
+    return {...pose,legacy:true,scale:pose.y>.5?.85:1,wingPhase:constructionWing(legacyAction,now),locationId:'nest'};
+  }
+  if(progress.kind==='settled')return settledPose(progress.locationId,progress.direction);
+  const {t,u}=progress,v=1-u,p=routes[progress.routeId].points;
   const position=d=>v*v*v*p[0][d]+3*v*v*u*p[1][d]+3*v*u*u*p[2][d]+u*u*u*p[3][d];
-  const from=locations[action.from],to=locations[action.to];
+  const from=locations[progress.from],to=locations[progress.to];
   return {x:position(0)/LAKESIDE_BIRD.width,y:position(1)/LAKESIDE_BIRD.height,scale:mix(from.scale,to.scale,u),
     direction:to.point[0]>=from.point[0]?1:-1,flying:t>0&&t<1,carrying:false,hidden:false,
-    wingPhase:(now-action.start)/1000*37+action.phaseSeed,locationId:state.locationId};
+    wingPhase:progress.wingPhase,locationId:state.locationId};
 }
 
 export function birdDescription(state,legacyAction,now,{reducedMotion=false,unavailable=false}={}){

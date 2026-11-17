@@ -2,6 +2,7 @@ import {LAKESIDE_SPACE} from './lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame, chimneyTop, oakPlan, openingCentre, ridgePoint} from './lakeside-dressing.js';
 import {shoreDistance, terrainHeight, DEG} from './space.js';
 import {LAKESIDE_BIRD} from './lakeside-bird.js';
+import {catmullRom} from './world.js';
 import {LAKESIDE_COINCIDENCES} from './lakeside-coincidences.js';
 import {LAKESIDE_WEATHER} from './lakeside-weather.js';
 
@@ -143,6 +144,35 @@ export function lifeLayout(space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING)
   let byDressing = memo.get(space); if (!byDressing) memo.set(space, byDressing = new WeakMap());
   let layout = byDressing.get(dressing); if (!layout) byDressing.set(dressing, layout = build(space, dressing));
   return layout;
+}
+
+// Where the bird is in the yard, from birdProgress: {position: [x, y, z], heading (yaw), climb (pitch of its path, up positive), flying,
+// carrying, wingPhase}, or null for no progress or a route the layout lacks. A settled bird sits at its location's point and faces as it does.
+export function birdPlace(progress, layout) {
+  if (!progress) return null;
+  const {locations, routes, forage} = layout.bird, yaw = ([dx, dy]) => Math.atan2(dx, dy), pitch = ([dx, dy, dz]) => Math.atan2(dz, Math.hypot(dx, dy));
+  // A tangent too short to say which way it runs (a path that stops) keeps the given facing.
+  const along = (tangent, facing) => Math.hypot(tangent[0], tangent[1]) > 1e-9 ? {heading: yaw(tangent), climb: pitch(tangent)} : {heading: facing, climb: 0};
+  if (progress.kind === 'settled') {
+    const at = locations[progress.locationId];
+    return at && {position: [...at.point], heading: at.facing, climb: 0, flying: false, carrying: false, wingPhase: 0};
+  }
+  if (progress.kind === 'route') {
+    const route = routes[progress.routeId], from = locations[progress.from];
+    if (!route || !from) return null;
+    const {u, t} = progress, v = 1 - u, p = route.points;
+    const position = [0, 1, 2].map(d => v * v * v * p[0][d] + 3 * v * v * u * p[1][d] + 3 * v * u * u * p[2][d] + u * u * u * p[3][d]);
+    const tangent = [0, 1, 2].map(d => 3 * v * v * (p[1][d] - p[0][d]) + 6 * v * u * (p[2][d] - p[1][d]) + 3 * u * u * (p[3][d] - p[2][d]));
+    return {position, ...along(tangent, from.facing), flying: t > 0 && t < 1, carrying: false, wingPhase: progress.wingPhase};
+  }
+  if (progress.kind === 'forage') {
+    const pts = forage.points, pick = progress.pick, position = catmullRom(pts, pick), facing = locations.nest.facing;
+    if (!progress.flying) return {position, heading: facing, climb: 0, flying: false, carrying: progress.carrying, wingPhase: progress.wingPhase};
+    const i = Math.min(6, Math.floor(pick)), u = pick - i, [p0, p1, p2, p3] = [pts[Math.max(0, i - 1)], pts[i], pts[i + 1], pts[Math.min(7, i + 2)]];
+    const tangent = [0, 1, 2].map(d => .5 * ((-p0[d] + p2[d]) + 2 * (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * u + 3 * (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * u * u));
+    return {position, ...along(tangent, facing), flying: true, carrying: progress.carrying, wingPhase: progress.wingPhase};
+  }
+  return null;
 }
 
 // The share of rain (0–1) that reaches [x, y, z]: none under the cabin's roof, a little under the oak's crown, all in the open.

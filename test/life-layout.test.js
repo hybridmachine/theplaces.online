@@ -8,16 +8,13 @@ import {LAKESIDE_WEATHER} from '../shared/lakeside-weather.js';
 import {SMOKE, SWAY, WIND, smokePlace, lifeLayout, sheltered, validLifeLayout, woodDistance} from '../shared/lakeside-life.js';
 import {shoreDistance, terrainHeight} from '../shared/space.js';
 import {DEG} from '../shared/celestial.js';
+import {catmullRom} from '../shared/world.js';
 
 const L = lifeLayout(), plan = oakPlan(S, D), [ox, oy] = S.oak.position, [ax, ay] = S.arrival.position;
 const h2 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]), h3 = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
 const copy = () => structuredClone(L);
 const bezier = (p, t) => [0, 1, 2].map(d => (1 - t) ** 3 * p[0][d] + 3 * (1 - t) ** 2 * t * p[1][d] + 3 * (1 - t) * t * t * p[2][d] + t ** 3 * p[3][d]);
-// the Catmull-Rom of world.js birdPose, at `pick` (0..3 going out, 4..7 coming back; it holds at 3 between)
-const catmull = (pts, pick) => {
-  const i = Math.min(6, Math.floor(pick)), u = pick - i, [p0, p1, p2, p3] = [pts[Math.max(0, i - 1)], pts[i], pts[i + 1], pts[Math.min(7, i + 2)]];
-  return [0, 1, 2].map(d => .5 * (2 * p1[d] + (-p0[d] + p2[d]) * u + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * u * u + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * u * u * u));
-};
+const catmull = (pts, pick) => catmullRom(pts, pick); // the Catmull-Rom of world.js birdPose, at `pick` (0..3 going out, 4..7 coming back; it holds at 3 between)
 const inBox = (c, [x, y]) => { const dx = x - c.center[0], dy = y - c.center[1], s = Math.sin(c.yaw), k = Math.cos(c.yaw); return Math.abs(dx * s + dy * k) <= c.half[0] && Math.abs(dx * k - dy * s) <= c.half[1]; };
 const box = S.colliders.find(c => c.type === 'box'), circle = S.colliders.find(c => c.type === 'circle'), roofTop = L.weather.shelter.roof.height;
 const segmentMin = (a, b, c) => { let best = Infinity; for (let k = 0; k <= 200; k++) best = Math.min(best, h2([a[0] + (b[0] - a[0]) * k / 200, a[1] + (b[1] - a[1]) * k / 200], c)); return best; };
