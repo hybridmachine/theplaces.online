@@ -139,18 +139,18 @@ void main() {
   float fresnel = .1 + .45 * pow( 1. - clamp( view.y, 0., 1. ), 5. );
   vec2 p = vec2( vWorld.x - cameraPosition.x, cameraPosition.z - vWorld.z ); float r = max( length( p ), .5 ), r2 = r * r;
   const float ARC = ${LAKE_ARCS}. / 6.2831853;
-  vec2 arcs = vec2( atan( p.y, p.x ) * ARC, log( r ) * 7. ) + rings.xy * .6;
+  vec2 arcs = vec2( atan( p.y, p.x ) * ARC, log( r ) * 7. ) + rings.xy * 1.2;
   // Gradients taken from p, which is smooth, so the angle's wrap does not show as a seam of blurred strokes.
   vec2 px = dFdx( p ), py = dFdy( p );
   vec2 gx = vec2( ( p.x * px.y - p.y * px.x ) / r2 * ARC, dot( p, px ) / r2 * 7. ), gy = vec2( ( p.x * py.y - p.y * py.x ) / r2 * ARC, dot( p, py ) / r2 * 7. );
   vec3 mean = texture( strokes, vec2( .5 ), 16. ).rgb;
   vec3 near = textureGrad( strokes, arcs, gx, gy ).rgb / mean;
   // Broad, soft patches fixed to the water, so it does not slide as a whole with the viewer.
-  vec3 slow = texture( strokes, vec2( vWorld.x, -vWorld.z ) / ( metres * 2. ) + rings.xy * .6, 4. ).rgb / mean;
+  vec3 slow = texture( strokes, vec2( vWorld.x, -vWorld.z ) / ( metres * 2. ) + rings.xy * 1.2, 4. ).rgb / mean;
   vec3 sky = mix( horizon, zenith, .4 + .6 * smoothstep( 0., .4, view.y ) );
   vec3 body = mean * horizon / dayHorizon;
   vec3 colour = mix( body, sky * 1.02, fresnel ) * mix( vec3( 1. ), near, .55 ) * mix( vec3( 1. ), slow, .3 );
-  colour += colour * rings.z * 12.;
+  colour += colour * rings.z * 30.;
   gl_FragColor = vec4( colour, 1. );
   #include <tonemapping_fragment>
   #include <colorspace_fragment>

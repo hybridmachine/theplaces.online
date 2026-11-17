@@ -108,7 +108,7 @@ function build(space, dressing) {
       oak: {center: [ox, oy], radius: Math.max(...lowest.map(c => dist2(c.center, axis))) + .4, base: Math.min(...plan.clumps.map(under)), share: .35}}};
 
   // ── the water: three spots on the open lake, left to right across the arrival view ──
-  const ripples = {'shore-reflection': {center: [24, -5.5], radius: 2}, 'open-water': {center: [30, -12], radius: 2}, 'near-water': {center: [14, -10], radius: 2}};
+  const ripples = {'shore-reflection': {center: [28, -17.5], radius: 4.5}, 'open-water': {center: [19, -14.5], radius: 4}, 'near-water': {center: [13, -12.6], radius: 3.5}};
 
   // ── the bird: the nest in the fork of the limb facing the arrival, a perch along another, the shelter against the trunk's far
   // side, the roof perch on the ridge toward the south gable, and a forage out to the bank and back ──
