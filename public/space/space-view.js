@@ -4,7 +4,7 @@ import {loadSpaceArt} from './art-loader.js';
 import {buildScene} from './scene/index.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../../shared/lakeside-dressing.js';
-import {WALK, eyePosition, glide, stepWalker} from '../../shared/walker.js';
+import {WALK, eyePosition, glide, glideClear, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
@@ -160,7 +160,8 @@ export class SpaceView {
   }
   returnToArrival() {
     this.look = [0, 0];
-    if (this.motion) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
+    // A glide can be stopped partway, so it is taken only where the straight way home is all walkable; otherwise the visitor is set down there.
+    if (this.motion && glideClear(this.space, this.state.position, this.space.arrival.position)) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
     else { this.glideFrom = null; this.state = pose(this.space.arrival); }
   }
   // Before init has loaded the remembered place, the arrival pose must not overwrite it.

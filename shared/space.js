@@ -33,7 +33,7 @@ const wallDistance = (space, p) => {
   for (let i = 0; i < w.length; i++) d = Math.min(d, segDist(p, w[i], w[(i + 1) % w.length]));
   return insidePoly(w, p) ? d : -d;
 };
-const inCollider = (c, [x, y]) => {
+export const inCollider = (c, [x, y]) => {
   const dx = x - c.center[0], dy = y - c.center[1];
   if (c.type === 'circle') return Math.hypot(dx, dy) <= c.radius;
   const s = Math.sin(c.yaw), k = Math.cos(c.yaw);

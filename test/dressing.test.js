@@ -45,7 +45,9 @@ test('the grove stands beyond the wall, on land', () => {
 });
 test('ground cover keeps off the cabin, the trunk, the path and the water', () => {
   const grass = scatter(S, D, 'grass'), reeds = scatter(S, D, 'reeds'), flowers = scatter(S, D, 'flowers');
-  assert.equal(grass.length, D.cover.grass); assert.equal(reeds.length, D.cover.reeds); assert.equal(flowers.length, D.cover.flowers);
+  // all of it is laid, less the few tufts and flowers that would have stood where the garden's beds now are
+  assert.ok(grass.length <= D.cover.grass && grass.length > D.cover.grass - 60, `${grass.length}`); assert.equal(reeds.length, D.cover.reeds);
+  assert.ok(flowers.length <= D.cover.flowers && flowers.length > D.cover.flowers - 5, `${flowers.length}`);
   for (const g of [...grass, ...flowers]) {
     assert.ok(shoreDistance(S, g.x, g.y) > 0, 'on land');
     assert.ok(groundBlend(S, D, g.x, g.y).earth < .5, 'not on the path');
@@ -110,4 +112,15 @@ test('the planting: corn, a bean teepee and tomatoes, each standing in its bed',
   for (const bed of plan.beds) { assert.ok(bed.top - terrainHeight(S, ...bed.center) > .2); assert.ok(bed.base < terrainHeight(S, ...bed.center) - .1); }
   assert.ok(of('corn').every(p => p.height >= 1.7 && p.height <= 2.1)); assert.ok(of('tomato').every(p => p.height <= .85));
   assert.ok(of('bean').every(p => p.bed === 'corn')); assert.ok(of('tomato').every(p => p.bed === 'tomato'));
+});
+
+test('the beds move no ground cover: the yard without them has the same tufts, and only those in a bed are gone', () => {
+  const bare = {...S, beds: [], colliders: S.colliders.slice(0, 2)};
+  for (const kind of ['grass', 'reeds', 'flowers']) {
+    const before = scatter(bare, D, kind), after = scatter(S, D, kind);
+    assert.equal(before.length, D.cover[kind]);
+    assert.deepEqual(after, before.filter(o => walkable(S, [o.x, o.y]) || !walkable(bare, [o.x, o.y])), kind);
+    assert.ok(after.every((o, i) => o.index >= i));
+  }
+  assert.ok(scatter(S, D, 'grass').length < D.cover.grass, 'some grass would have stood in the beds');
 });

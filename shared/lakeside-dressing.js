@@ -1,4 +1,4 @@
-import {shoreDistance, terrainHeight, walkable} from './space.js';
+import {inCollider, shoreDistance, terrainHeight, walkable} from './space.js';
 import {SPACE_ART} from './lakeside-space-art.js';
 
 // Where the yard's painted dressing goes: the worn path, the cabin's openings, the oak's limbs and clumps,
@@ -290,8 +290,15 @@ export function woodsPlan(space, dressing) {
 
 const cellCount = kind => (SPACE_ART.cards.cells[kind] ?? SPACE_ART.cards.cells[kind.replace(/s$/, '')]).length;
 
-// kind: 'grass' | 'reeds' | 'flowers' → [{x, y, scale, turn, cell}] (cell indexes into SPACE_ART.cards.cells[kind])
+// kind: 'grass' | 'reeds' | 'flowers' → [{x, y, scale, turn, cell, index}] (cell indexes into SPACE_ART.cards.cells[kind]).
+// The cover is laid as if the garden's beds were not there, and whatever falls in a bed is then left out, so a bed never moves
+// a tuft that stands anywhere else; `index` is each one's place in that full laying, for whoever seeds its look from it.
 export function scatter(space, dressing, kind) {
+  const beds = space.colliders.filter(c => (space.beds ?? []).some(b => b.center[0] === c.center[0] && b.center[1] === c.center[1]));
+  const open = beds.length ? {...space, colliders: space.colliders.filter(c => !beds.includes(c))} : space;
+  return scatterOpen(open, dressing, kind).map((o, index) => ({...o, index})).filter(o => !beds.some(c => inCollider(c, [o.x, o.y])));
+}
+function scatterOpen(space, dressing, kind) {
   const r = stream(dressing.seed, kind), want = dressing.cover[kind], cells = cellCount(kind), out = [];
   const w = space.wall, xs = w.map(p => p[0]), ys = w.map(p => p[1]);
   const [x0, x1, y0, y1] = [Math.min(...xs) - 12, Math.max(...xs) + 12, Math.min(...ys) - 12, Math.max(...ys) + 12];

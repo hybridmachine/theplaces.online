@@ -45,6 +45,14 @@ export function stepWalker(space, state, input, dt) {
 export const eyePosition = (space, state) =>
   [state.position[0], state.position[1], terrainHeight(space, state.position[0], state.position[1]) + space.eyeHeight];
 
+// Whether the straight line a glide follows from `from` to `to` (two [x, y]) keeps to walkable ground all the way. A glide can be
+// stopped anywhere along it, and a visitor left inside the cabin, the oak, a bed or the water could not walk out again.
+export function glideClear(space, from, to) {
+  const n = Math.max(1, Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) / SUB));
+  for (let i = 0; i <= n; i++) if (!walkable(space, [from[0] + (to[0] - from[0]) * i / n, from[1] + (to[1] - from[1]) * i / n])) return false;
+  return true;
+}
+
 export function glide(from, to, t) {
   if (t <= 0) return {position: [...from.position], yaw: from.yaw, pitch: from.pitch};
   if (t >= 1) return {position: [...to.position], yaw: to.yaw, pitch: to.pitch};
