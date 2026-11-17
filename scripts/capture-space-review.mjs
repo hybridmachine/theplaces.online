@@ -1,9 +1,12 @@
 // Review captures of the 3D yard from named poses under the light studies:
-//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|light|plain] [--study day|dawn|dusk|night|rain]
-// Saves <pose>-<study>-<tier>.png (1440 × 810) to docs/space-validation/review/. Needs a server (SKY_PREVIEW_URL, default
-// http://127.0.0.1:4190). --tier starts the view locked at that tier (?tier=) and is recorded in the file name.
+//   node scripts/capture-space-review.mjs [--only name,name] [--tier full|light|plain] [--study day|dawn|dusk|night|rain] [--compare]
+// Saves <pose>-<study>-<tier>.jpg (1440 × 810, JPEG quality 90, so the committed pack stays small) to
+// docs/space-validation/review/. Needs a server (SKY_PREVIEW_URL, default http://127.0.0.1:4190). --tier starts the view
+// locked at that tier (?tier=) and is recorded in the file name. --compare takes only the arrival pose and saves
+// docs/space-validation/arrival-vs-painting.png: the painting and the arrival capture side by side at the same height, and
+// the two laid over each other at half strength.
 import {createRequire} from 'node:module';
-import {mkdir} from 'node:fs/promises';
+import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D, cabinFront, doorPosition} from '../shared/lakeside-dressing.js';
 const {chromium} = createRequire(import.meta.url)('playwright');
@@ -24,8 +27,13 @@ const POSES = {
   shore: {position: [6, -6.5], yaw: toward([6, -6.5], [13, 6]), pitch: 0},
   woods: {position: [10, 12], yaw: 0, pitch: 0},
   canopy: {position: [ox + 1.4, oy - .6], yaw: toward([ox + 1.4, oy - .6], [ox, oy]), pitch: 1},
+  // Where the woods come down to the water: the weakest corners, kept in the pack so they are judged.
+  'woods-end-northwest': {position: [-11, 20], yaw: 3.14, pitch: 0},
+  'woods-end-north-gable': {position: [16, 16], yaw: 1.4, pitch: 0},
+  'woods-end-northeast': {position: [20, 12], yaw: .9, pitch: 0},
 };
-const only = arg('only')?.split(',') ?? Object.keys(POSES), study = arg('study') ?? 'day', tier = arg('tier') ?? 'full';
+const compare = process.argv.includes('--compare');
+const only = compare ? ['arrival'] : arg('only')?.split(',') ?? Object.keys(POSES), study = arg('study') ?? 'day', tier = arg('tier') ?? 'full';
 const unknown = only.filter(n => !POSES[n]);
 if (unknown.length || !STUDIES.includes(study) || !TIERS.includes(tier)) {
   console.error(`Unknown ${unknown.length ? `pose ${unknown.join(', ')}` : !STUDIES.includes(study) ? `study ${study}` : `tier ${tier}`}.`);
@@ -38,6 +46,22 @@ await mkdir(directory, {recursive: true});
 const browser = await chromium.launch({headless: true, ...(process.env.BROWSER_EXECUTABLE ? {executablePath: process.env.BROWSER_EXECUTABLE} : {}),
   args: process.env.SKY_GPU === 'metal' ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : ['--use-gl=angle']});
 const errors = [];
+// The painting at the capture's height beside the capture, then the two at half strength each, drawn on a canvas in a blank page.
+async function saveComparison(context, shot) {
+  const painting = await readFile('public/assets/lakeside-day.png'), page = await context.newPage(), path = 'docs/space-validation/arrival-vs-painting.png';
+  const png = await page.evaluate(async ([a, b]) => {
+    const load = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
+    const [paint, view] = await Promise.all([load(a), load(b)]), h = view.height, pw = Math.round(paint.width * h / paint.height), gap = 8;
+    const c = Object.assign(document.createElement('canvas'), {width: pw + view.width * 2 + gap * 2, height: h}), g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, h);
+    g.drawImage(paint, 0, 0, pw, h); g.drawImage(view, pw + gap, 0);
+    const x = pw + view.width + gap * 2; g.drawImage(paint, x, 0, view.width, h); g.globalAlpha = .5; g.drawImage(view, x, 0);
+    return c.toDataURL('image/png');
+  }, [`data:image/png;base64,${painting.toString('base64')}`, `data:image/jpeg;base64,${shot.toString('base64')}`]);
+  await writeFile(path, Buffer.from(png.split(',')[1], 'base64'));
+  await page.close();
+  console.log(path);
+}
 try {
   const context = await browser.newContext({viewport: {width: 1440, height: 810}, deviceScaleFactor: 1});
   await context.route('https://fonts.googleapis.com/**', route => route.abort());
@@ -56,9 +80,9 @@ try {
   for (const name of only) {
     await page.evaluate(p => { window.__space.state = structuredClone(p); }, POSES[name]);
     await page.waitForTimeout(1500);
-    const path = `${directory}/${name}-${study}-${tier}.png`;
-    await page.screenshot({path});
+    const path = `${directory}/${name}-${study}-${tier}.jpg`, shot = await page.screenshot({path, type: 'jpeg', quality: 90});
     console.log(path);
+    if (compare) await saveComparison(context, shot);
   }
   await context.close();
 } finally { await browser.close(); }

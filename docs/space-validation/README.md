@@ -1,42 +1,92 @@
-# Walkable yard validation (phase 1 blockout)
+# Walkable yard validation (painted look)
 
-Recorded November 15, 2026, against the `?space=1` blockout on branch `claude/navigable-yard`. The server ran on port 4190 against a disposable SQLite database; production state and deployment were untouched. The check used Node.js 26.7.0, Playwright 1.65.1 and its Chromium headless shell on an Apple M1.
+Recorded November 16, 2026, against `?space=1` on branch `claude/painted-look`. The server ran from this worktree against a disposable SQLite database; production state and deployment were untouched. The checks and captures used Node.js 26.7.0, Playwright 1.65.1 and its Chromium headless shell with `--use-gl=angle`, which selected "ANGLE Metal Renderer: Apple M1" on an Apple M1 laptop.
 
 ## What this is
 
-An untextured blockout. The yard, cabin, oak, wall, ground, water and hills are flat muted colours under the shared procedural sky; the only texture is the existing cloud atlas. There is no painterly pass. It is a test of walking, memory and fallback, not of how the place should look.
+The yard drawn from painted geometry: ground, lake, drystone wall, the stone cabin under a slate roof, the old oak, a band of woods and a small grove beyond the wall, ground cover, and four rings of far hills, all textured from the WebP art bundle in `public/assets/lakeside-space-v1/` (12 files, 1,813,622 bytes), under the shared procedural sky, through a painterly pass. A tier meter steps the pass down on a slow device: `full` (the pass at full filter resolution), `light` (the pass at 0.6 of it), `plain` (no pass). This pack is for the owner to decide whether the look is good enough.
 
-The [arrival frame](arrival.png) is the first view at `?space=1`: the arrival pose, looking east across the yard toward the cabin and the lake. The [remembered frame](remembered.png) is the view after walking, turning and looking up, standing still for 3.5 s and reloading the page.
+## The review pack
+
+All captures are 1440 × 810, device pixel ratio 1, taken by `scripts/capture-space-review.mjs` with the view locked on a tier (`?tier=`, honoured only with `check`) and the interface hidden. They are saved as JPEG at quality 90 so the pack stays small (6.2 MB for 23 frames); the comparison image is PNG (8.5 MB).
+
+- [arrival-vs-painting.png](arrival-vs-painting.png): the painting, the arrival capture at the same height, and the two laid over each other at half strength (`--compare`).
+- By day on `full` and on `plain`, the eight named poses: `arrival`, `cabin-front` (2.5 m from the door), `cabin-back`, `gable-north`, `gable-south`, `shore`, `woods`, `canopy` (under the oak, looking up). In [review/](review/) as `<pose>-day-full.jpg` and `<pose>-day-plain.jpg`.
+- The arrival pose at dawn, day, dusk, night and rain on `full`: `arrival-<study>-full.jpg`.
+- The three views where the woods meet the water, the weakest corners, by day on `full`: `woods-end-northwest` (from [-11, 20], looking south), `woods-end-north-gable` (from [16, 16], looking east past the cabin's north gable), `woods-end-northeast` (from [20, 12], into the north-east corner).
+
+Reproduce with a server running, for example:
+
+```sh
+SKY_PREVIEW_URL=http://127.0.0.1:4190 node scripts/capture-space-review.mjs --tier full
+SKY_PREVIEW_URL=http://127.0.0.1:4190 node scripts/capture-space-review.mjs --tier plain --only arrival,cabin-front,cabin-back,gable-north,gable-south,shore,woods,canopy
+for s in dawn dusk night rain; do SKY_PREVIEW_URL=http://127.0.0.1:4190 node scripts/capture-space-review.mjs --only arrival --study $s; done
+SKY_PREVIEW_URL=http://127.0.0.1:4190 node scripts/capture-space-review.mjs --compare
+```
+
+## Matching the arrival view
+
+Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak's trunk frames the left and its canopy now runs across the top from the trunk to past the middle, where the painting's foliage is fullest (two short low limbs were added, to the north-east and east; the canopy has 29 clumps). The cabin's face, roof line, door and two windows sit where the painting has them, a little larger; the chimney is now on the far (north) gable as in the painting. The path leads to the door, the shore curves away to the right, and the hills sit behind. A grove of six tall trees just beyond the east wall now rises behind and to the left of the cabin, where the painting has its dense band of trees. The eaves have their own dark soffits and boards, so no slate joint shows from below, and the eave line dips and lifts along its length. The nearest far ridge rolls more and its mist lies in separate banks rather than one pale stripe. The lake sits higher in the frame than in the painting (accepted).
 
 ## Automated evidence
 
-`node scripts/check-space-browser.mjs` — last run: **11 PASS, 0 FAIL**, exit code 0, no page errors. Full detail is in [space-browser-results.json](space-browser-results.json).
+`node scripts/check-space-browser.mjs` — last run: **19 PASS, 0 FAIL**, exit code 0, no page errors. Full detail, numbered as below, is in [space-browser-results.json](space-browser-results.json).
 
-1. `/` makes no request containing `three-` (50 requests in two seconds after load) and `#space` stays hidden.
-2. `/?space=1&check` reaches `window.__space` with `state` exactly equal to `LAKESIDE_SPACE.arrival` (`[0, 0]`, yaw 90°, pitch 0).
-3. Holding W (real keyboard) for 2.00 s walks 2.80 m east (window 2.2–3.2 m; 1.4 m/s × measured hold = 2.81 m), with no northward drift.
-4. Shift+W held for 40 s from yaw 0°, 90°, 180° and 270°, four visitors walking at once, sampled every 250 ms (161 samples each): every sample is `walkable`. The walkers reached the north wall (24.0 m), the curving shore below the cabin (25.4 m east), the water's edge (8.7 m south) and the west wall (14.0 m).
-5. Holding W first moves the walker more than 0.1 m in 300 ms (0.42 m), so the keys are live; with W still held, opening `#about-dialog` then leaves the position unchanged over 1 s.
-6. After walking, turning (E) and a real mouse drag (pitch 0.2 rad), 3.5 s still, then reload: the restored state matches to within 1e-6, and the place key was already written to `localStorage` before the reload.
-7. Field notes → **Forget visit memory** removes the place key; the reload arrives at the arrival pose.
-8. With a place remembered at `?space=1`, Field notes → **Forget visit memory** on the default painting page `/` removes the place key, and the next `?space=1&check` visit arrives at the arrival pose.
-9. With `getContext('webgl2')` patched to return `null` before any page script runs, `?space=1` shows the painting, `#space` stays hidden, and there are no page errors.
-10. `loseContext()` on the 3D canvas's own context returns to the painting in about 20 ms (limit 2 s).
-11. At 390 × 844 the vertical field of view is 75° (the cap) and the centre pixel differs from the top-left corner pixel of a freshly drawn frame.
+1. `/` requests nothing whose URL contains `three-`, `/space/` or `lakeside-space-v1`, and `#space` stays hidden.
+2. `/?space=1&check` loads all twelve bundle files with status 200 and content type `image/webp`, with no console errors.
+3. The view arrives exactly at `LAKESIDE_SPACE.arrival`.
+4. Holding W for 2 s walks 2.2–3.2 m east with no drift.
+5. Shift+W for 40 s from four headings stays on walkable ground.
+6. Opening `#about-dialog` while W is held stops walking.
+7. After 3.5 s standing still, a reload returns to the same place.
+8. **Forget visit memory** returns the next visit to the arrival pose.
+9. **Forget visit memory** on the default page forgets the place for the next 3D visit.
+10. Each of `?tier=full`, `light`, `plain` draws a non-blank frame and reports that tier in `window.__space.tier`.
+11. Frame rate per tier (recorded, not asserted): see below.
+12. After resizing to 390 × 844 and back to 1280 × 720, the centre pixel differs from a corner pixel and the canvas backing size is the viewport times the pixel ratio.
+13. Under the night study, the middle of the front-left window, projected from the dressing data, has luminance below 0.25 (the stone wall beside it is recorded for comparison).
+14. Without WebGL2 the 2D view is shown.
+15. Losing the WebGL context returns to the 2D view within 2 s.
+16. At 390 × 844 the vertical field of view is at most 75° and the frame is drawn.
+17. A scene build that fails (meadow texture aborted) shows the 2D view and gives its WebGL context back.
+18. With `cards.webp` aborted, the 2D view is shown, `#space` is hidden, there is no toast and no page error.
+19. With `stone.webp` answered 200 with an empty body, the same.
 
-The arrival frame measured 242,272 triangles in 13 draw calls (`renderer.info.render`).
+### Frame rate and counts (check 11)
 
-## Browser configuration
+At the arrival pose under the day study, 1440 × 810, pixel ratio 1, on the Apple M1 through ANGLE/Metal in headless Chromium:
 
-The script launches Chromium with `--use-gl=angle`, which on this machine selected "ANGLE Metal Renderer: Apple M1"; an informal, unrecorded probe suggested it held the app's 30 fps loop. Headless Chromium's default renderer here is SwiftShader (software Vulkan); an informal, unrecorded probe put it at about 8.6 fps. That is below the walker's 0.1 s per-frame step cap, so walking ran slow: in a first run under SwiftShader, check 3 measured 1.68 m in 2.23 s, and the four parallel walkers took only 35–44 samples in 40 s. Those failures were the software rasteriser, not the view, so the script uses ANGLE by default. `SKY_GPU=metal` adds `--enable-gpu --use-angle=metal` as in the other suites. Check 3 kept the brief's fixed 2.2–3.2 m window; it did not need the elapsed-time variant.
+| Tier | rAF callbacks per second | Synchronous frame (median of 20) | Triangles | Draw calls |
+|---|---|---|---|---|
+| full | 60 | 11.0 ms | 327,026 | 28 |
+| light | 60 | 8.4 ms | 327,026 | 28 |
+| plain | 60 | 5.3 ms | 327,026 | 28 |
 
-## Limits
+The callback count is capped by the display (about 60 per second), so it says only that every tier keeps up here. The synchronous time is one frame drawn and then read back so the GPU has finished; it is the better measure of headroom. It varies by a few milliseconds between runs (an earlier run the same evening gave 11.6, 7.7 and 8.3 ms). Triangles and draw calls are the scene alone (`renderer.info.render` after a plain scene render); the pass adds a few full-screen draws. The app itself draws at most 30 frames per second.
 
-- No frame-rate measurement has been taken on a phone or on an integrated GPU. The scene is about 242,000 triangles in about a dozen draw calls; whether that holds 30 fps on modest hardware is unknown.
-- Headless rendering, software or GPU-backed, is not a performance measurement. The SwiftShader figure above only explains the configuration choice.
-- Checks 3 and 4 depend on frame rate. Below 10 fps the walker's 0.1 s per-frame step cap makes walking slower than real time, and they fail by design.
+## What was not measured
+
+- No phone, tablet or integrated-GPU measurement. Whether `full` holds 24 fps on modest hardware, and where the meter settles there, is unknown.
+- Headless rendering is not a performance measurement; the numbers above are one machine's GPU through ANGLE.
 - Only Chromium was exercised. Safari, Firefox and touch input are untested.
-- The checks prove the walker stays on walkable ground for the sampled positions and headings; they do not prove every possible path.
+
+## What still looks weakest
+
+Slot by slot:
+
+- **Woods (parked for the owner).** Where the woods end near the water they step down as steep, terraced masses with near-vertical end faces: plain in `woods-end-northwest` (the bluff on the right), `woods-end-north-gable` (left of the grove) and `woods-end-northeast` (left). Five rounds did not converge; the owner decides whether to spend more here or use a generated plate.
+- **Woods (parked, minor).** A faint pale fringe along the woods' top edge, visible at 1:1 against the sky.
+- **Woods crowns under the pass.** On `full` the bristle pass leaves a felt-like fuzz on the woods' rounded crowns (`woods-day-full`, `gable-south-day-full`); the band reads as soft domes of moss more than as trees.
+- **Grove.** The new grove reads well from the arrival pose, but close up (`woods-end-north-gable`, `woods-end-northeast`) its trees stand in a line on bare, thin trunks, a little like a park planting; the undergrowth at their feet is mostly hidden by the wall.
+- **Oak.** The crown is full from the arrival pose, but from beneath (`canopy`) the limbs meet the trunk as tubes from one ring and the bark is coarse streaks. At night the oak's leaves stay noticeably light against the dark sky (`arrival-night-full`).
+- **Cabin.** The eave is now a dark brushed band without plank joints, but seen from right under the gable (`woods-end-northeast`) the verge soffit is a large dark plane. The shrubs at the cabin's foot are cut from the woods cells and show straight card edges at the gable ends (`gable-north`).
+- **Ground cover.** The foreground grass is shorter and tamer than the painting's knee-high verge (kept low so the path and the cabin's foot stay in view), and the flower heads are flat close up. The meadow texture smears into streaks at grazing angles (`gable-south`, `cabin-back`).
+- **Lake.** Paler and flatter than the painting's: a pale grey-blue with fine regular ripple lines, no reflected hills or sky.
+- **Hills.** The nearest ridge now rolls, but the far ridges are still pale, smooth and alike; the mist is sparse compared with the painting's valley drifts. Under rain the ridges stay greener than the grey sky.
+- **Sky under rain.** The rain clouds have hard, posterised edges (`arrival-rain-full`), the most computer-made thing in the pack.
+- **Dusk and dawn.** Both are dim and grey at the arrival pose; neither has the painting's warmth.
+
+The `plain` tier against `full`: harder, aliased silhouettes (oak leaves, grass, the roof edge); the woods band is smoother and blobbier with less brushwork; the ground texture smears more at grazing angles; the water is cleaner and more even. It is the same place, recognisably less painted.
 
 ## Reproduction
 
@@ -47,4 +97,4 @@ A_VIEW_DB="$(mktemp -d)/world.sqlite" PORT=4190 npm start
 node scripts/check-space-browser.mjs
 ```
 
-The script reads `SKY_PREVIEW_URL` (default `http://127.0.0.1:4190`), `BROWSER_EXECUTABLE`, `SKY_GPU` and `SPACE_VALIDATION_DIR` (default `docs/space-validation`). Playwright is a development-only, optional tool, not a runtime dependency. Captures other than the two above are ignored by Git.
+The check reads `SKY_PREVIEW_URL` (default `http://127.0.0.1:4190`), `BROWSER_EXECUTABLE`, `SKY_GPU` and `SPACE_VALIDATION_DIR` (default `docs/space-validation`); the capture script reads `SKY_PREVIEW_URL`, `BROWSER_EXECUTABLE` and `SKY_GPU`. Playwright is a development-only, optional tool. The check rewrites [arrival.png](arrival.png) and [remembered.png](remembered.png); the review pack and the comparison image are kept in Git.
