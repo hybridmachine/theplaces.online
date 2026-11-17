@@ -101,3 +101,26 @@ export class WorldClient {
     return Promise.resolve(false);
   }
 }
+
+export const STREAM_RETRY_MIN = 5_000, STREAM_RETRY_MAX = 60_000;
+// The browser reconnects an EventSource after a dropped connection by itself, but an HTTP
+// error (such as the 503 at the server's stream limit) leaves it CLOSED for good. Open a
+// fresh source after a growing, jittered delay; a delivered message resets the delay.
+export function keepStream(open, { onMessage, onError, schedule = setTimeout, cancel = clearTimeout, random = Math.random } = {}) {
+  let delay = STREAM_RETRY_MIN, timer = null, waiting = false, stopped = false, source;
+  const connect = () => {
+    waiting = false;
+    if (stopped) return;
+    const current = source = open();
+    current.onmessage = event => { delay = STREAM_RETRY_MIN; onMessage?.(event); };
+    current.onerror = () => {
+      onError?.();
+      if (stopped || waiting || current !== source || current.readyState !== 2) return;
+      waiting = true;
+      timer = schedule(connect, delay * (.75 + random() * .5));
+      delay = Math.min(delay * 2, STREAM_RETRY_MAX);
+    };
+  };
+  connect();
+  return { stop() { stopped = true; if (waiting) cancel(timer); source.close(); } };
+}

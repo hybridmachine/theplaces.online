@@ -51,11 +51,13 @@ backup() {
     # Open the live DB as its owner so any WAL sidecars retain the right ownership.
     runuser -u a-view -- sqlite3 -readonly -cmd '.timeout 10000' "$DATA_DIR/world.sqlite" ".backup '$temporary'"
     # Validate a root-owned copy in the private backup directory, never a file
-    # that the application account can replace while root is opening it.
+    # that the application account can replace.
     BACKUP_PENDING="$destination.partial"
-    [[ -f $temporary && ! -L $temporary ]] || die 'Backup staging file is not a regular file.'
-    install -o root -g root -m 0600 "$temporary" "$BACKUP_PENDING"
-    rm -rf -- "$BACKUP_WORK"
+    # Root opens only the private destination. The application account opens and
+    # streams the staged file, so whatever that path names by then, nothing is
+    # read with more privilege than the account already has.
+    (umask 077; runuser -u a-view -- cat -- "$temporary" > "$BACKUP_PENDING")
+    runuser -u a-view -- rm -rf -- "$BACKUP_WORK"
     BACKUP_WORK=
     temporary=$BACKUP_PENDING
     # Make each backup a standalone file with no WAL/SHM dependencies.
@@ -88,7 +90,7 @@ restore_world() {
 recover() {
     local status=$?
     trap - EXIT INT TERM
-    if [[ -n $BACKUP_WORK ]]; then rm -rf -- "$BACKUP_WORK"; fi
+    if [[ -n $BACKUP_WORK ]]; then runuser -u a-view -- rm -rf -- "$BACKUP_WORK" || true; fi
     if [[ -n $BACKUP_PENDING ]]; then rm -f "$BACKUP_PENDING" "$BACKUP_PENDING-wal" "$BACKUP_PENDING-shm"; fi
     if [[ $SWITCHING == 1 ]]; then
         printf 'Activation failed; restoring the previous application release.\n' >&2

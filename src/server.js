@@ -4,14 +4,19 @@ import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WorldStore } from './store.js';
 
+// One long-lived stream per open view; a bound keeps a flood of connections from exhausting memory and descriptors.
+// A mistyped limit must stop startup, before the world is opened: -1 would refuse every stream and Infinity would lift the bound.
+const maxStreams = process.env.A_VIEW_MAX_STREAMS === undefined ? 2000 : Number(process.env.A_VIEW_MAX_STREAMS);
+if (!Number.isSafeInteger(maxStreams) || maxStreams < 1) {
+  console.error(`A_VIEW_MAX_STREAMS must be a positive whole number; received "${process.env.A_VIEW_MAX_STREAMS}".`);
+  process.exit(1);
+}
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dataPath = process.env.A_VIEW_DB || resolve(root, 'data/world.sqlite');
 await mkdir(dirname(dataPath), { recursive: true });
 const store = new WorldStore(dataPath);
 const clients = new Set();
 const production = process.env.NODE_ENV === 'production';
-// One long-lived stream per open view; a bound keeps a flood of connections from exhausting memory and descriptors.
-const maxStreams = Number(process.env.A_VIEW_MAX_STREAMS) || 2000;
 // Everything the page loads is same-origin except the Google Fonts stylesheet and its font files.
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const badRequest = res => { res.writeHead(400, { 'Cache-Control': 'no-store' }); res.end('Bad request'); };
