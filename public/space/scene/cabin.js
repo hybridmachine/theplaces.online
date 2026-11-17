@@ -5,11 +5,13 @@ import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, V} from '../geom
 import {hash, noise} from './ground.js';
 
 // The cabin in paint: stone walls a little out of true under an overhanging, sagging slate roof, a chimney, the door and
-// windows as panels just proud of the wall, dabs breaking the roof's edges and the corners, and shrubs at its foot.
-// Every wall and chimney face is wound outward and drawn single-sided; only the roof is two-sided (its overhang is seen from
+// windows as panels just proud of the wall, dark eave boards and soffits under the overhang, dabs breaking the roof's edges
+// and the corners, and shrubs at its foot.
+// Every wall, chimney, board and soffit face is wound outward and drawn single-sided; only the roof is two-sided (its overhang is seen from
 // below). World axes x east, y north, z up, metres; three is passed in. Local axes: `a` along the long axis, `b` across it.
 
-const PROUD = .025, UNDER_ROOF = .03, FASCIA = .12, STONE_TILE = SPACE_ART.surfaces.stone.metres;
+// The eaves carry the hills' loose brushwork (no joints in it) under their own dark colour.
+const BRUSH_TILE = 1.6, PROUD = .025, UNDER_ROOF = .03, FASCIA = .12, STONE_TILE = SPACE_ART.surfaces.stone.metres;
 const lin = rgb => rgb.map(c => (c / 255) ** 2.2); // vertex colours are linear
 const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
 const clamp01 = t => Math.max(0, Math.min(1, t));
@@ -30,10 +32,15 @@ export function buildCabin(THREE, {space, dressing, art}) {
 
   // The roof's underside height over (a, b): a plane each side of the ridge, sagging toward the middle of its length (most
   // along the ridge), with a few centimetres of unevenness in the slates.
+  // Toward the eaves the slates dip and lift a few centimetres more, so the eave line is not ruled straight.
   const roofZ = (a, b) => {
     const s = clamp01((a + L + OG) / (2 * L + 2 * OG)), t = 1 - Math.abs(b) / (W + OE);
-    return ridge - Math.abs(b) * slope - sag * Math.sin(Math.PI * s) * (.35 + .65 * t) + .02 * (noise(a * 2.1, b * 2.3, 41) - .5);
+    return ridge - Math.abs(b) * slope - sag * Math.sin(Math.PI * s) * (.35 + .65 * t) + .02 * (noise(a * 2.1, b * 2.3, 41) - .5)
+      + .09 * (noise(a * .9, Math.sign(b) * 3, 47) - .5) * (1 - t) ** 2;
   };
+  // How far each eave reaches out from the wall, and how deep its board hangs, wandering along it.
+  const reachOut = (a, side) => W + OE + .14 * (noise(a * .8, side * 5, 48) - .5);
+  const fascia = (a, side) => FASCIA * (.75 + .6 * noise(a * 1.4, side * 5, 49));
   // A point on the wall surface, `off` metres outward. Lean is the same function at every wall, so corners meet; the bulge
   // fades to nothing at the corners. `side` is ±1, `isLong` picks the long walls (b = side·W) or the gables (a = side·L).
   const wallPoint = (side, isLong, a, b, z, off = 0) => {
@@ -58,17 +65,27 @@ export function buildCabin(THREE, {space, dressing, art}) {
   }
 
   // ── roof: two slopes overhanging the eaves and gables, an eave board along each side and a verge board at each end ──
-  const roof = [], A0 = -L - OG, A1 = L + OG;
-  // The eave and verge boards are slate in deep shade, so the slates' pattern does not read as a row of boards.
-  const board = p => { const k = .34 + .1 * noise(p[0] * 3.1, p[1] * 3.1 + p[2], 46); return [k, k * .98, k * .96]; };
+  const roof = [], boards = [], A0 = -L - OG, A1 = L + OG;
+  // The eave and verge boards are dark and loosely brushed, so nothing on them reads as a row of planks.
+  const board = p => { const k = .17 + .08 * noise(p[0] * 2.3, p[1] * 2.3 + p[2], 46); return [k, k * .9, k * .78]; };
   for (const side of [-1, 1]) {
     const up = V.norm(V.add([0, 0, 1], v, side * slope));
-    roof.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * (W + OE) * (1 - t); return at(a, b, roofZ(a, b)); },
-      {ns: 26, nt: 8, tile: SPACE_ART.surfaces.slate.metres, outward: up}));
-    roof.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * (W + OE); return at(a, b, roofZ(a, b) - FASCIA * t); },
-      {ns: 20, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(v, side), colour: board}));
-    roof.push(sheet(THREE, (s, t) => { const a = side * A1, b = -(W + OE) + 2 * (W + OE) * s; return at(a, b, roofZ(a, b) - FASCIA * t); },
-      {ns: 16, nt: 1, tile: SPACE_ART.surfaces.slate.metres, outward: V.scale(u, side), colour: board}));
+    roof.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * reachOut(a, side) * (1 - t); return at(a, b, roofZ(a, b)); },
+      {ns: 40, nt: 8, tile: SPACE_ART.surfaces.slate.metres, outward: up}));
+    boards.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * reachOut(a, side); return at(a, b, roofZ(a, b) - fascia(a, side) * t); },
+      {ns: 40, nt: 1, tile: BRUSH_TILE, outward: V.scale(v, side), colour: board}));
+    boards.push(sheet(THREE, (s, t) => { const a = side * A1, b = -(W + OE) + 2 * (W + OE) * s; return at(a, b, roofZ(a, b) - FASCIA * t); },
+      {ns: 16, nt: 1, tile: BRUSH_TILE, outward: V.scale(u, side), colour: board}));
+  }
+
+  // ── soffits: the overhangs' undersides, in deep shade, so no slate joint shows from below; each runs from just inside
+  // the wall out to the board's lower edge, under the roof sheet, and faces down ──
+  const soffits = [], dark = p => { const k = .21 + .07 * noise(p[0] * 1.3, p[1] * 1.3 + p[2], 50); return [k, k * .88, k * .74]; };
+  for (const side of [-1, 1]) {
+    soffits.push(sheet(THREE, (s, t) => { const a = A0 + (A1 - A0) * s, b = side * (W - .1 + (reachOut(a, side) - W + .1) * t);
+      return at(a, b, roofZ(a, b) - .05 - (fascia(a, side) * .8 - .05) * t); }, {ns: 40, nt: 2, tile: BRUSH_TILE, outward: [0, 0, -1], colour: dark}));
+    soffits.push(sheet(THREE, (s, t) => { const a = side * (L - .1 + (OG + .1) * t), b = -W - OE + 2 * (W + OE) * s;
+      return at(a, b, roofZ(a, b) - .05 - (FASCIA * .8 - .05) * t); }, {ns: 16, nt: 2, tile: BRUSH_TILE, outward: [0, 0, -1], colour: dark}));
   }
 
   // ── chimney: a stack a little tapered, from inside the house up through the roof, with a slab cap ──
@@ -120,7 +137,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
     const down = V.norm([side * v[0], side * v[1], -slope]), roofUp = V.norm(V.add([0, 0, 1], v, side * slope));
     for (let a = A0 + .3; a <= A1 - .3; a += .14 + r() * .16) {
       if (r() > .6) continue;
-      const b = side * (W + OE), e = at(a, b, roofZ(a, b) - FASCIA * (.2 + r() * .9)), len = .08 + r() * .2;
+      const b = side * reachOut(a, side), e = at(a, b, roofZ(a, b) - fascia(a, side) * (.2 + r() * .9)), len = .08 + r() * .2;
       dabs.add(V.add(e, V.scale(v, side * .01)), V.scale(u, len), V.add(V.scale(down, .02), [0, 0, .025 + r() * .05]), dabCell(),
         shade(SLATE, .3 + r() * .12), shade(SLATE, .4 + r() * .15), V.scale(v, side), r() < .5);
     }
@@ -162,6 +179,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   const object = new THREE.Group(); object.name = 'cabin';
   object.add(mesh('walls', merged(walls), stone),
     mesh('roof', merged(roof), new THREE.MeshLambertMaterial({map: art.surfaces.slate, vertexColors: true, side: THREE.DoubleSide})),
+    mesh('eaves', merged([...boards, ...soffits]), new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true})),
     mesh('chimney', merged(stack), stone), openings,
     mesh('shrubs', shrubs.geometry(THREE), cards), mesh('dabs', dabs.geometry(THREE), cards));
   return {object, dispose() {

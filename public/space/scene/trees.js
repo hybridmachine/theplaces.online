@@ -5,7 +5,8 @@ import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V
 
 // The old oak and the woods beyond the wall, in paint. The oak is a forked, tapering trunk wound outward and drawn single-sided,
 // limbs and twigs as bark tubes, and its clumps as fixed leaf cards in one merged mesh; the woods are long fixed ribbons of
-// painted woodland that pale and cool with distance. Cards never turn to face the camera. World axes x east, y north, z up, metres.
+// painted woodland that pale and cool with distance, with a few tall trees standing clear of them. Cards never turn to face
+// the camera. World axes x east, y north, z up, metres.
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
 const clamp01 = t => Math.max(0, Math.min(1, t));
@@ -255,10 +256,61 @@ export function buildWoods(THREE, {space, dressing, art}) {
   for (const [name, array, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) geometry.setAttribute(name, new THREE.Float32BufferAttribute(array, size));
   geometry.setIndex(index);
   const object = new THREE.Group(); object.name = 'woods';
-  const masses = new THREE.Mesh(geometry, cardMaterial(THREE, art.cards, SPACE_ART)); masses.name = 'masses';
-  object.add(masses);
+  const cards = cardMaterial(THREE, art.cards, SPACE_ART), masses = new THREE.Mesh(geometry, cards); masses.name = 'masses';
+  object.add(masses, ...buildGrove(THREE, {space, dressing, art, cards}));
   return {object, dispose: () => disposeAll(object)};
 }
+
+// The grove: a few tall trees standing clear of the band (dressing.grove), each a bark trunk forking into a crown of leaf sprays
+// (the oak's cells, deeper and cooler), built as the oak's clumps are: fixed cards, half standing and half lying.
+function buildGrove(THREE, {space, dressing, art, cards}) {
+  const r = stream(dressing.seed + 31), leafCells = SPACE_ART.cards.cells.oak, leaves = cardBatch(SPACE_ART), under = cardBatch(SPACE_ART), trunks = [];
+  for (const [x, y, height] of dressing.grove ?? []) {
+    const g = terrainHeight(space, x, y), lean = [(r() - .5) * .6, (r() - .5) * .6], spread = height * (.27 + r() * .06);
+    const stem = f => [x + lean[0] * f * f, y + lean[1] * f * f, g - .3 + height * .5 * f];
+    trunks.push(tube(THREE, [[...stem(0), .34], [...stem(.4), .26], [...stem(.75), .19], [...stem(1), .1]], {sides: 7, tile: SPACE_ART.surfaces.bark.metres}));
+    const crown = V.add(stem(1), [0, 0, height * .14]);
+    // undergrowth round the foot, so the tree stands in the ground and not on it
+    for (let k = 0; k < 9; k++) {
+      const a = r() * TAU, d = .4 + r() * 2.2, size = 1 + r() * .9, foot = [x + Math.sin(a) * d, y + Math.cos(a) * d];
+      const normal = V.norm([r() - .5, r() - .5, (r() - .5) * .4]), [right, up] = basis(normal), kk = .55 + r() * .3;
+      under.add([...foot, terrainHeight(space, ...foot) - .1 + size * .8], V.scale(right, size * 1.3), V.scale(up, size), SPACE_ART.cards.cells.woods[r() < .5 ? 0 : 1],
+        [kk * .7, kk * .7, kk * .7], [kk, kk, kk], [0, 0, 1], r() < .5);
+    }
+    // lobes round the crown, the upper ones smaller, so the outline is a tree's and not a ball's
+    for (let k = 0, lobes = 6 + Math.floor(r() * 3); k < lobes; k++) {
+      const a = r() * TAU, up = k / (lobes - 1), out = spread * (.6 - .25 * up) * (.6 + r() * .5);
+      const centre = V.add(crown, [Math.sin(a) * out, Math.cos(a) * out, (up - .55) * height * .45]), R = spread * (.58 - .1 * up) * (.8 + r() * .4);
+      trunks.push(tube(THREE, [[...stem(.7 + .2 * r()), .12], [...V.add(centre, [0, 0, -.3 * R]), .03]], {sides: 4}));
+      for (let n = Math.round(12 + R * 5), c = 0; c < n; c++) {
+        const u = r() * TAU, w = Math.acos(2 * r() - 1), f = Math.sqrt(.3 + .7 * r());
+        const p = V.add(centre, [Math.sin(w) * Math.cos(u) * f * R, Math.sin(w) * Math.sin(u) * f * R, Math.cos(w) * f * R * .8]);
+        const outward = V.norm([p[0] - x, p[1] - y, 0]);
+        let normal, upAxis;
+        if (c % 2 === 0) {
+          const b = Math.atan2(outward[0], outward[1]) + (r() - .5) * 1.4, tilt = -(.2 + r() * .4);
+          normal = V.norm([Math.sin(b) * Math.cos(tilt), Math.cos(b) * Math.cos(tilt), Math.sin(tilt)]); upAxis = basis(normal)[1];
+        } else {
+          const b = r() * TAU, tilt = (15 + r() * 30) * DEG;
+          normal = V.norm([Math.sin(b) * Math.sin(tilt), Math.cos(b) * Math.sin(tilt), Math.cos(tilt)]); upAxis = basis(normal)[r() < .5 ? 0 : 1];
+        }
+        const across = V.norm(V.cross(upAxis, normal)), size = 1.1 + r() * .7, h = clamp01((p[2] - g) / height);
+        // deeper and cooler than the oak, lighter toward the top and on the sun side
+        const k0 = (.38 + .3 * h * h + .06 * V.dot(outward, SUN)) * (.9 + r() * .2), top = [k0 * .82, k0 * .92, k0 * .86];
+        leaves.add(p, V.scale(across, size), V.scale(upAxis, size), leafCells[Math.floor(r() * leafCells.length)], top.map(v => v * .8), top,
+          V.norm(V.add(V.norm(V.sub(p, crown)), [0, 0, .7])), r() < .5);
+      }
+    }
+  }
+  if (!trunks.length) return [];
+  const stems = new THREE.Mesh(mergeGeometries(THREE, trunks), new THREE.MeshLambertMaterial({map: art.surfaces.bark, color: '#8a8070'})); stems.name = 'grove-trunks';
+  for (const t of trunks) t.dispose();
+  const crowns = new THREE.Mesh(leaves.geometry(THREE), cards); crowns.name = 'grove-leaves';
+  const undergrowth = new THREE.Mesh(under.geometry(THREE), cards); undergrowth.name = 'grove-undergrowth';
+  return [stems, crowns, undergrowth];
+}
+
+
 
 function disposeAll(object) {
   const materials = new Set();

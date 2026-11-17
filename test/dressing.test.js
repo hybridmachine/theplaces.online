@@ -39,6 +39,10 @@ test('woods stand beyond the wall, never in the yard or the lake', () => {
   const woods = woodsPlan(S, D); assert.ok(woods.length >= 20);
   for (const w of woods) { assert.equal(walkable(S, [w.center[0], w.center[1]]), false); assert.ok(shoreDistance(S, w.center[0], w.center[1]) > 0); }
 });
+test('the grove stands beyond the wall, on land', () => {
+  assert.ok(D.grove.length >= 3);
+  for (const [x, y, height] of D.grove) { assert.equal(walkable(S, [x, y]), false); assert.ok(shoreDistance(S, x, y) > 1, `${x},${y}`); assert.ok(height > 5); }
+});
 test('ground cover keeps off the cabin, the trunk, the path and the water', () => {
   const grass = scatter(S, D, 'grass'), reeds = scatter(S, D, 'reeds'), flowers = scatter(S, D, 'flowers');
   assert.equal(grass.length, D.cover.grass); assert.equal(reeds.length, D.cover.reeds); assert.equal(flowers.length, D.cover.flowers);

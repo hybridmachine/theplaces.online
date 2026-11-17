@@ -14,8 +14,12 @@ export const LAKESIDE_DRESSING = deep({
     windows: [{id: 'front-left', face: 'front', along: -2.4, sill: 1, width: .8, height: .9},
               {id: 'front-right', face: 'front', along: 2.4, sill: 1, width: .8, height: .9},
               {id: 'back', face: 'back', along: .5, sill: 1.2, width: .6, height: .6}],
-    chimney: {along: 3.8, size: .8, rise: 1.05}},
-  oak: {clumps: 24, canopyHeight: 9.6},
+    // toward the far gable (north, up the yard), as in the painting
+    chimney: {along: -3.8, size: .8, rise: 1.05}},
+  oak: {clumps: 29, canopyHeight: 9.6},
+  // A few tall trees standing clear of the woods just beyond the east wall, behind the cabin and its far gable, where the
+  // painting has its dense band of trees rising over the roof: [x, y, height in metres].
+  grove: [[44, 30, 16], [41.5, 26.5, 15], [43, 21.5, 16.5], [45.5, 16.5, 14], [47.5, 12, 12], [49.5, 9.5, 9.5]],
   cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
 });
 
@@ -82,13 +86,15 @@ export function groundBlend(space, dressing, x, y) {
 // The oak's limbs as authored: azimuth (degrees clockwise from north), where it leaves the trunk and where its tip is
 // (metres above the ground at the trunk), how far out it reaches, and how many clumps it carries. A ring of low, spreading
 // limbs, two or three metres apart at the tips so their clumps run together into one broad canopy, the longest reaching
-// toward the cabin (east) and the lake (south); a few higher, shorter ones and the crown fill it above.
+// toward the cabin (east) and the lake (south); a few higher, shorter ones and the crown fill it above. The two short ones to the
+// north-east hang its leaves over the upper left of the arrival view, where the painting's foliage is fullest.
 const OAK_LIMBS = [
   {az: 84, base: 3.0, reach: 7.0, tip: 5.6, clumps: 3}, {az: 128, base: 3.9, reach: 5.8, tip: 5.8, clumps: 2},
   {az: 172, base: 2.9, reach: 5.4, tip: 5.8, clumps: 2}, {az: 215, base: 4.3, reach: 4.4, tip: 6.4, clumps: 2},
   {az: 262, base: 3.4, reach: 4.6, tip: 6.0, clumps: 2}, {az: 312, base: 2.8, reach: 4.8, tip: 5.8, clumps: 2},
   {az: 355, base: 4.1, reach: 4.4, tip: 6.0, clumps: 2}, {az: 40, base: 3.3, reach: 5.0, tip: 5.9, clumps: 2},
   {az: 104, base: 4.4, reach: 3.6, tip: 8.4, clumps: 2}, {az: 236, base: 4.8, reach: 3.0, tip: 8.8, clumps: 2},
+  {az: 62, base: 3.6, reach: 3.6, tip: 6.6, clumps: 3}, {az: 98, base: 3.5, reach: 2.8, tip: 5.9, clumps: 2},
   {az: 10, base: 5.4, reach: 1.6, tip: 10.4, clumps: 3},
 ];
 

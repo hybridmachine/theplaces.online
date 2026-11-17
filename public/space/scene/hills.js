@@ -15,8 +15,8 @@ const TAU = 2 * Math.PI, DEG = Math.PI / 180, FOOT = -2, SPACING = 4;
 // taken into the horizon colour, mist how far it is where it rises from behind the nearer ridge; rag is the depth, in metres,
 // of the broken band along the crest.
 const RIDGES = [
-  {radius: 520, lift: .9, east: 1.2, roll: 1.4, clear: 14, tint: [.42, .56, .34], contrast: .5, haze: .04, mist: .45, rag: 5, seed: 61},
-  {radius: 650, lift: 1.5, east: 2.2, roll: 1.8, clear: 18, tint: [.56, .68, .54], contrast: .45, haze: .18, mist: .65, rag: 6, seed: 62},
+  {radius: 520, lift: 1.1, east: 1.2, roll: 2.8, clear: 14, tint: [.42, .56, .34], contrast: .5, haze: .04, mist: .45, rag: 5, seed: 61},
+  {radius: 650, lift: 1.6, east: 2.2, roll: 2.4, clear: 18, tint: [.56, .68, .54], contrast: .45, haze: .18, mist: .65, rag: 6, seed: 62},
   {radius: 790, lift: 2.1, east: 3.3, roll: 2.1, clear: 22, tint: [.72, .82, .84], contrast: .4, haze: .32, mist: .6, rag: 7, seed: 63},
   {radius: 940, lift: 2.7, east: 4.3, roll: 2.3, clear: 26, tint: [.84, .92, 1.04], contrast: .35, haze: .45, mist: .5, rag: 8, seed: 64},
 ];
@@ -139,7 +139,8 @@ float hillNoise( vec2 p ) {
     // Mist lies where the ridge rises from behind the nearer one (or from the water), in drifts longer than they are deep.
     float depth = .022 * length( vPlace.xz );
     float wisps = hillNoise( vec2( ( along.x + along.y ) / 160., vPlace.y / 9. ) ) * .65 + hillNoise( vec2( ( along.x - along.y ) / 50., vPlace.y / 4. ) ) * .35;
-    float banks = smoothstep( .3, .8, hillNoise( along / 380. + 3. ) );
+    // in separate banks with clear gaps between, never one stripe along a crest
+    float banks = smoothstep( .3, .8, hillNoise( along / 380. + 3. ) ) * smoothstep( .25, .6, hillNoise( along / 90. + 11. ) );
     float mist = vLayer.y * banks * ( 1. - smoothstep( 0., depth, vRidge.y - ( wisps - .45 ) * depth * 1.2 ) );
     float haze = 1. - ( 1. - vLayer.x ) * ( 1. - mist );
     gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, haze );
