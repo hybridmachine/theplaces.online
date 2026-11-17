@@ -128,6 +128,9 @@ test('the planting: every plant inside its plot, on its soil, clear of the line 
     const plan = gardenPlan(S, D, y); assert.deepEqual(plan, gardenPlan(S, D, y));
     const of = kind => plan.plants.filter(p => p.kind === kind);
     assert.equal(of('corn').length, D.garden.corn.count); assert.equal(of('bean').length, D.garden.beans.poles); assert.equal(of('tomato').length, D.garden.tomatoes.count);
+    // the beds stand clear of the grass and sink into it; the crops grow to gardenPlan's heights
+    for (const bed of plan.beds) { assert.ok(bed.top - terrainHeight(S, ...bed.center) > .2, bed.id); assert.ok(bed.base < terrainHeight(S, ...bed.center) - .1, bed.id); }
+    assert.ok(of('corn').every(p => p.height >= 1.75 && p.height <= 2.05)); assert.ok(of('tomato').every(p => p.height >= .7 && p.height <= .85));
     for (const p of plan.plants) {
       const plot = plan.plots.find(q => q.id === p.plot), bed = plan.beds.find(b => b.id === p.bed);
       assert.equal(plot.crop, p.kind); assert.equal(plot.bed, p.bed); assert.equal(p.foot[2], bed.top);

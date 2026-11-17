@@ -134,3 +134,5 @@ Exact dates within a few days of the table, growth curves, colours, sway amounts
 
 - Picking takes the ripest (earliest-set) fruit first; a picked tomato or pod vanishes whole between days, and fruit, pods, ears and blossoms swell from nothing rather than appearing part-grown.
 - Yellowed leaves turn a warm straw, not a pale cream; dry corn stalks are pale tan.
+- The soil has no separate weathered winter look: from day 320 to the next digging it is the same undug soil as late summer.
+- The garden is built once at load for day 230 (`GARDEN_DAY`), and redrawn on the first frame for the world's day.

@@ -18,7 +18,7 @@ const STROKE = [.85, .36];
 // Linear colours. The bark's paint is dark, so what borrows it is tinted above 1: boards silvered, poles pale, stalks green.
 const BOARD = [1.9, 1.75, 1.5], POLE = [2.1, 1.85, 1.45], STALK = [1.2, 2.3, .9], VINE = [1.0, 1.7, .8], SOIL = [.5, .42, .36];
 const DRY_STALK = [3.4, 2.9, 1.6], DEAD_STALK = [3.6, 3.0, 2.0], BLACK_STEM = [.45, .4, .32];
-const CORN = [.4, .52, .12], BEAN = [.22, .37, .08], TOMATO = [.16, .29, .07], STRAW = [.56, .46, .16], EAR = [.6, .66, .2], BLOSSOM = [.95, .93, .85];
+const CORN = [.4, .52, .12], BEAN = [.22, .37, .08], TOMATO = [.16, .29, .07], STRAW = [.56, .46, .16], EAR = [.6, .66, .2], BLOSSOM = [.95, .93, .85], TOMATO_FLOWER = [.96, .88, .42];
 const HUSK = [.72, .64, .36], POD = [.3, .46, .1], DRY = [.44, .35, .2], BLACK = [.07, .06, .04];
 const GREEN_FRUIT = [.5, .55, .16], ORANGE = [.8, .3, .08], RED = [.78, .12, .07];
 const MULCH = [.62, .5, .26], OLD_MULCH = [.8, .74, .56];
@@ -75,7 +75,9 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
   }));
 
   // ── the crops of a day ──
-  const cells = SPACE_ART.cards.cells.dab, [azMin] = windowSpan(space, dressing), toward = [-Math.cos(azMin), Math.sin(azMin), 0];
+  // `fromWindow`: level and square to the line from the arrival to the window's left edge, pointing away from the window (to
+  // the plants' side of that line), so a card's room grows as it reaches along it
+  const cells = SPACE_ART.cards.cells.dab, [azMin] = windowSpan(space, dressing), fromWindow = [-Math.cos(azMin), Math.sin(azMin), 0];
   // A unit vector `elevation` radians above the horizontal toward azimuth `az`, and one across it turned `twist` out of the level.
   const aim = (az, elevation, twist) => {
     const out = [Math.sin(az), Math.cos(az), 0], dir = V.add(V.scale(out, Math.cos(elevation)), UP, Math.sin(elevation));
@@ -102,7 +104,7 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         const k = .88 + .24 * r(), random = hash(Math.floor(p.seed * 1e6), serial++, 64);
         if (!(length > .005)) return;
         const reach = (n, d, a) => length / 2 * V.dot(n, d) - length / 2 / STROKE[0] * Math.abs(V.dot(n, d)) - width / 2 / STROKE[1] * Math.abs(V.dot(n, a));
-        const room = p.room + V.dot(toward, V.sub(from, p.foot)), floor = from[2] - fz, cw = reach(toward, dir, across), cz = reach(UP, dir, across);
+        const room = p.room + V.dot(fromWindow, V.sub(from, p.foot)), floor = from[2] - fz, cw = reach(fromWindow, dir, across), cz = reach(UP, dir, across);
         const fit = Math.min(1, cw < 0 ? room / -cw : 1, cz < 0 ? floor / -cz : 1);
         if (!(room > 0 && floor >= 0 && fit > .15)) return;
         leaves.add(V.add(from, dir, fit * length / 2), V.scale(dir, fit * length / 2 / STROKE[0]), V.scale(across, fit * width / 2 / STROKE[1]), cell, shade(colour, k * .7), shade(colour, k),
@@ -180,6 +182,12 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
           const colour = mix(turn < .5 ? mix(GREEN_FRUIT, ORANGE, turn * 2) : mix(ORANGE, RED, turn * 2 - 1), BLACK, st.dry), radius = hangs(at) ? size * out : 0;
           // two cards crossed, so a fruit shows from the side as well as face on
           round(c, [d[0], d[1], 0], radius, colour); round(c, [-d[1], d[0], 0], radius, colour);
+        }
+        // a few small pale-yellow flowers on the outside of the leaf, each opening from nothing as the plant comes into flower and
+        // closing as it goes over; drawn last, so they take their random numbers after every leaf and fruit and move none of them
+        for (let i = 0; i < 6; i++) {
+          const [d] = shell(1), c = V.add(centre, [d[0] * rx * 1.04, d[1] * rx * 1.04, d[2] * rz * 1.04]), size = .014 + r() * .006, open = clamp01((st.flower - .4 * r()) / .3);
+          round(c, d, size * open, TOMATO_FLOWER);
         }
       }
     }
