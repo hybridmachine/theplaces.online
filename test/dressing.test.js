@@ -122,6 +122,8 @@ test('the rotation: every crop in a new plot each year, back where it began afte
 });
 test('the planting: every plant inside its plot, on its soil, clear of the line to the window', () => {
   const [azMin] = windowSpan(S, D), [ax, ay] = S.arrival.position;
+  // the dressing's spread of growth is garden-life's (which cannot import the dressing's number without a cycle)
+  assert.equal(D.garden.offsetDays, OFFSET_DAYS);
   for (let y = 0; y < 4; y++) {
     const plan = gardenPlan(S, D, y); assert.deepEqual(plan, gardenPlan(S, D, y));
     const of = kind => plan.plants.filter(p => p.kind === kind);

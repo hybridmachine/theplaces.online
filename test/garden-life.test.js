@@ -4,7 +4,7 @@ import {CROPS, DAILY_STEP, EVENT_DAYS, OFFSET_DAYS, cropStage, gardenState, plot
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
 
-const KINDS = ['corn', 'bean', 'tomato'], NUMS = ['height', 'leaf', 'flower', 'fruit', 'ripe', 'yellow', 'dry'];
+const KINDS = ['corn', 'bean', 'tomato'], NUMS = ['height', 'leaf', 'flower', 'fruit', 'set', 'ripe', 'yellow', 'dry'];
 
 test('a crop is in the ground only between sowing and clearing, whatever its offset', () => {
   for (const kind of KINDS) for (const offset of [-OFFSET_DAYS, 0, OFFSET_DAYS]) for (let d = 0; d < 365; d++) {
@@ -65,6 +65,10 @@ test('a far year is as sound as the first', () => {
   const far = gardenState(S, D, 365 * 500 + 200);
   assert.deepEqual(far.plots.map(p => p.crop), gardenState(S, D, 200).plots.map(p => p.crop));
   for (const p of far.plants) for (const v of Object.values(p.stage)) assert.ok(typeof v === 'boolean' || Number.isFinite(v));
+});
+test('a day before the world began falls in the year before', () => {
+  const s = gardenState(S, D, -1);
+  assert.equal(s.year, -1); assert.equal(s.dayOfYear, 364);
 });
 test('a day that is not a whole number gives no garden', () => {
   for (const day of [NaN, undefined, null, 12.5, '230', Infinity]) assert.equal(gardenState(S, D, day), null);

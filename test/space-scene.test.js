@@ -6,7 +6,8 @@ import {LAKESIDE_DRESSING as D, openingCentre, pathLightPlan, windowSpan} from '
 import {SPACE_ART, artFiles} from '../shared/lakeside-space-art.js';
 import {cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
 import {buildScene} from '../public/space/scene/index.js';
-import {GARDEN_DAY} from '../public/space/scene/garden.js';
+import {GARDEN_DAY, buildGarden} from '../public/space/scene/garden.js';
+import {gardenState} from '../shared/garden-life.js';
 
 // Textures without images: enough to build and inspect geometry in Node.
 export function stubArt() {
@@ -303,6 +304,25 @@ test('the window is never crossed: from the arrival, no part of the garden lies 
     }
   }
   scene.dispose();
+});
+test('leaves on the window side are cut short where a plant has little room', () => {
+  // each plant alone, as it stands at high summer in each year, with its room cut to ROOM: no vertex of its leaves, nor of a
+  // corn stalk or a tomato's stem and stake, lies past its line (the bean pole leans to the teepee's apex, wherever that is)
+  const ROOM = .2, [azMin] = windowSpan(S, D), [ax, ay] = S.arrival.position, leftOf = ([x, y]) => Math.sin(azMin) * (y - ay) - Math.cos(azMin) * (x - ax);
+  const past = (g, line) => { const p = g.getAttribute('position'); let n = 0; for (let i = 0; i < p.count; i++) if (leftOf(fromThree({x: p.getX(i), y: p.getY(i), z: p.getZ(i)})) < line - 1e-6) n++; return n; };
+  let cut = 0;
+  for (let year = 0; year < 4; year++) for (const plant of gardenState(S, D, 365 * year + GARDEN_DAY).plants) {
+    const alone = room => (space, dressing, day) => { const s = gardenState(space, dressing, day); return {...s, plants: s.plants.filter(p => p.id === plant.id).map(p => ({...p, room: room ?? p.room}))}; };
+    const line = leftOf(plant.foot) - ROOM, part = (garden, name) => garden.object.getObjectByName(name).geometry;
+    const tight = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: 365 * year + GARDEN_DAY, stateOf: alone(ROOM)});
+    const free = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: 365 * year + GARDEN_DAY, stateOf: alone()});
+    assert.ok(part(tight, 'leaves').getAttribute('position').count > 0, `${plant.id} year ${year} has no leaves left`);
+    assert.equal(past(part(tight, 'leaves'), line), 0, `${plant.id} year ${year}: leaves past its line`);
+    if (plant.kind !== 'bean') assert.equal(past(part(tight, 'stems'), line), 0, `${plant.id} year ${year}: stems past its line`);
+    if (past(part(free, 'leaves'), line) > 0) cut++;
+  }
+  // the cut is exercised: drawn with its own room, most plants would reach past ROOM
+  assert.ok(cut > 20, `only ${cut} plants reach past ${ROOM} m`);
 });
 
 test('the path lights are drawn: stakes, lamps, halos and pools of light that follow the level', () => {

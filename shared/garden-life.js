@@ -7,8 +7,8 @@ import {gardenPlan} from './lakeside-dressing.js';
 const freeze = crop => Object.freeze(Object.fromEntries(Object.entries(crop).map(([k, v]) => [k, Array.isArray(v) ? Object.freeze(v) : v])));
 export const CROPS = Object.freeze({
   corn: freeze({dig: 110, supportUp: null, sow: 125, shoot: 135, full: 200, flower: [200, 230], fruit: [215, 240], ripe: [240, 255], yellow: [265, 280], dry: [278, 290], clear: 315, supportDown: null}),
-  bean: freeze({dig: 110, supportUp: 120, sow: 130, shoot: 138, full: 190, flower: [185, 230], fruit: [200, 235], ripe: [235, 260], yellow: [265, 285], dry: [280, 295], clear: 318, supportDown: 318}),
-  tomato: freeze({dig: 110, supportUp: 135, sow: 135, shoot: 135, full: 200, flower: [170, 240], fruit: [195, 230], ripe: [220, 265], yellow: [265, 285], dry: [283, 293], clear: 300, supportDown: 300}),
+  bean: freeze({dig: 110, supportUp: 120, sow: 130, shoot: 138, full: 190, flower: [185, 250], fruit: [200, 235], ripe: [235, 260], yellow: [265, 285], dry: [280, 295], clear: 318, supportDown: 318}),
+  tomato: freeze({dig: 110, supportUp: 135, sow: 135, shoot: 135, full: 200, flower: [170, 240], fruit: [185, 215], ripe: [205, 250], yellow: [265, 285], dry: [283, 293], clear: 300, supportDown: 300}),
 });
 
 // The resting plot's mulch: laid on `lay`, thinning to .6 by `lift`, when it is cleared away.
@@ -18,20 +18,21 @@ export const OFFSET_DAYS = 5;
 // The most any stage may change from one day to the next, except on a gardener's day (see EVENT_DAYS).
 export const DAILY_STEP = .2;
 
-const CORN_PICKED = 290, TOMATO_START = .15;
+const CORN_PICKED = 290, TOMATO_START = .15, PICKED = 10;
 
 // What a crop looks like on a day: whether it is in the ground (`present`) and its stake stands (`support`), and, each 0–1,
-// how tall and leafy it is, how much it flowers, how much fruit it carries, and how ripe, yellowed and dry it is.
+// how tall and leafy it is, how much it flowers, how much fruit it carries, and how ripe, yellowed and dry it is; `set` is how
+// much fruit has set so far, which picking never lowers, so a fruit is drawn grown to its size by `set` until `fruit` passes it.
 // `offset` (days) shifts its growth windows, never its sowing, clearing or stakes, so it is never seen outside them.
 export function cropStage(kind, dayOfYear, offset = 0) {
   const c = CROPS[kind], d = dayOfYear, e = d - offset, start = kind === 'tomato' ? c.shoot : c.sow;
   const support = c.supportUp !== null && d >= c.supportUp && d < c.supportDown;
-  if (!(d >= start && d < c.clear)) return {present: false, support, height: 0, leaf: 0, flower: 0, fruit: 0, ripe: 0, yellow: 0, dry: 0};
+  if (!(d >= start && d < c.clear)) return {present: false, support, height: 0, leaf: 0, flower: 0, fruit: 0, set: 0, ripe: 0, yellow: 0, dry: 0};
   const grown = smooth(c.shoot, c.full, e), size = kind === 'tomato' ? TOMATO_START + (1 - TOMATO_START) * grown : grown;
   const [f0, f1] = c.flower, [u0, u1] = c.fruit, rise = smooth(u0, u1, e);
-  const fruit = kind === 'corn' ? (e <= CORN_PICKED ? rise : 0)
-    : e <= c.ripe[0] + 10 ? rise : clamp(1 - (e - c.ripe[0] - 10) / (c.yellow[1] - c.ripe[0] - 10));
-  return {present: true, support, height: size, leaf: size, flower: smooth(f0, f0 + 10, e) * (1 - smooth(f1 - 10, f1, e)), fruit,
+  // beans and tomatoes are picked from PICKED days after their ripening starts (or once fully set), until none are left as they yellow
+  const pick = Math.max(u1, c.ripe[0] + PICKED), fruit = kind === 'corn' ? (e <= CORN_PICKED ? rise : 0) : e <= pick ? rise : clamp(1 - (e - pick) / (c.yellow[1] - pick));
+  return {present: true, support, height: size, leaf: size, flower: smooth(f0, f0 + 10, e) * (1 - smooth(f1 - 10, f1, e)), fruit, set: rise,
     ripe: smooth(...c.ripe, e), yellow: smooth(...c.yellow, e), dry: smooth(...c.dry, e)};
 }
 
