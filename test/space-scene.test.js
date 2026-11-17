@@ -277,11 +277,15 @@ test('the path lights are drawn: stakes, lamps, halos and pools of light that fo
     assert.ok(plan.some(l => Math.hypot(x - l.foot[0], y - l.foot[1]) <= pool + 1e-3)); // Float32 positions
   }
   // dark as built: nothing emitted, nothing added
-  const dark = () => { assert.equal(part('lamps').material.emissiveIntensity, 0); assert.equal(part('pools').visible, false); assert.equal(part('halos').visible, false); };
+  const dark = () => { assert.equal(part('lamps').material.emissiveIntensity, 0); assert.equal(part('halos').material.uniforms.opacity.value, 0); assert.equal(part('pools').visible, false); assert.equal(part('halos').visible, false); };
   dark();
   scene.setPathLights(1);
   const full = part('lamps').material.emissiveIntensity;
-  assert.ok(full > 0); assert.ok(part('pools').visible && part('pools').material.opacity > 0); assert.ok(part('halos').visible && part('halos').material.opacity > 0);
+  assert.ok(full > 0); assert.ok(part('pools').visible && part('pools').material.opacity > 0); assert.ok(part('halos').visible && part('halos').material.uniforms.opacity.value > 0);
+  // the halo fades to nothing at its rim: one ball a lamp, smooth normals for the falloff, no stacked shells
+  const halo = part('halos').geometry, ball = new THREE.IcosahedronGeometry(1, 3).getAttribute('position').count;
+  assert.equal(halo.getAttribute('position').count, plan.length * ball); assert.ok(halo.getAttribute('normal'));
+  assert.match(part('halos').material.fragmentShader, /opacity \* facing/);
   for (const name of ['pools', 'halos']) { assert.equal(part(name).material.blending, THREE.AdditiveBlending); assert.equal(part(name).material.depthWrite, false); }
   scene.setPathLights(.5); assert.ok(Math.abs(part('lamps').material.emissiveIntensity - full / 2) < 1e-9);
   scene.setPathLights(7); assert.equal(part('lamps').material.emissiveIntensity, full);
