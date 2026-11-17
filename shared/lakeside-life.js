@@ -134,16 +134,50 @@ function pathAhead(path, from, d) {
   return [...path.at(-1), 0];
 }
 
+// A bird is a body about BODY above the point it is placed by (its feet). Perched, that body is some 6 cm from the bark; in
+// flight it must never come nearer the oak's wood as drawn than FLIGHT_CLEAR, which is about as near as it sits.
+const BODY = .07, FLIGHT_CLEAR = .05, FLIGHT_ROOM = .2;
+const bezierAt = (p, t) => { const v = 1 - t; return [0, 1, 2].map(d => v * v * v * p[0][d] + 3 * v * v * t * p[1][d] + 3 * v * t * t * p[2][d] + t * t * t * p[3][d]); };
+// Metres to spare along a flight's whole curve (`n` samples): the least distance of the bird's body from the wood, less
+// FLIGHT_CLEAR. Negative: the bird brushes or passes through a limb somewhere. Given `below`, it stops as soon as the spare
+// is known to be under it.
+export function flightClearance(plan, points, n = 120, below = -Infinity) {
+  let spare = Infinity;
+  for (let k = 0; k <= n && spare >= below; k++) spare = Math.min(spare, woodDistance(plan, lift(bezierAt(points, k / n), BODY)) - FLIGHT_CLEAR);
+  return spare;
+}
+// The ways a bird may leave or come down onto a limb: level, 45° up and straight up, every 45° round.
+const WAYS = [[0, 0, 1], ...Array.from({length: 8}, (_, k) => [Math.sin(k * TAU / 8), Math.cos(k * TAU / 8)]).flatMap(([x, y]) => [[x, y, 0], [x * Math.SQRT1_2, y * Math.SQRT1_2, Math.SQRT1_2]])];
 // A bird's route from `from` to `to`: a cubic Bezier whose controls rise a little and keep clear of the trunk, which they
-// are pushed round when the straight line would go through it.
-function route(from, to, axis, clear) {
+// are pushed round when the straight line would go through it. Pushing the controls does not keep the curve itself out of the
+// limbs, so the curve is then checked along its whole length. If it meets wood, the bird instead leaves `from` and comes in to
+// `to` each by one of WAYS (the control that far out from its end, .5 to 3 m), and of all those curves that keep the whole
+// flight clear the shortest with FLIGHT_ROOM about it in mid-flight (its least distance from the wood once half a
+// metre from both ends) is taken, so the bird does not skim a limb it could go round; if the crown is too close for that, the
+// one with the most room, the shorter of any two within 2 cm. A plan that leaves no clear way (a doctored oak) keeps the direct curve, so a layout
+// always has its routes.
+function route(from, to, axis, clear, plan) {
   const rise = .12 * dist3(from, to), control = t => {
     const p = lerp(from, to, t); p[2] += rise * (1 - Math.abs(2 * t - 1) * .4);
     const d = dist2(p, axis);
     if (d < clear) { const k = d || 1; p[0] = axis[0] + (p[0] - axis[0] || 1) / k * clear; p[1] = axis[1] + (p[1] - axis[1]) / k * clear; }
     return p;
   };
-  return [from, control(1 / 3), control(2 / 3), to];
+  const direct = [from, control(1 / 3), control(2 / 3), to];
+  if (flightClearance(plan, direct, 120, 0) >= 0) return direct;
+  // an end's ways out that are themselves clear for their first half metre, so most curves are never walked
+  const open = end => WAYS.filter(w => [.1, .2, .3, .4, .5].every(m => woodDistance(plan, lift(end.map((v, i) => v + w[i] * m), BODY)) >= FLIGHT_CLEAR))
+    .flatMap(w => [.5, 1, 1.5, 2, 3].map(m => end.map((v, i) => v + w[i] * m)));
+  const tries = open(from).flatMap(a => open(to).map(b => ({points: [from, a, b, to], length: dist3(from, a) + dist3(a, b) + dist3(b, to)}))).sort((p, q) => p.length - q.length);
+  let best = {points: direct, room: -Infinity};
+  for (const {points} of tries) {
+    if (flightClearance(plan, points, 15, 0) < 0 || flightClearance(plan, points, 120, 0) < 0) continue; // a coarse look first: most curves fail it
+    let room = Infinity;
+    for (let k = 0; k <= 60; k++) { const p = bezierAt(points, k / 60); if (Math.min(dist3(p, from), dist3(p, to)) > .5) room = Math.min(room, woodDistance(plan, lift(p, BODY))); }
+    if (room >= FLIGHT_ROOM) return points;
+    if (room > best.room + .02) best = {points, room};
+  }
+  return best.points;
 }
 
 function build(space, dressing) {
@@ -162,7 +196,7 @@ function build(space, dressing) {
   const drips = lowest.map((c, i) => ({id: `drip-${i}`, clump: c.id, top: [c.center[0], c.center[1], under(c)], fall: under(c) - terrainHeight(space, c.center[0], c.center[1]), seed: LAKESIDE_WEATHER.drips[i].seed}));
   const roofHeight = ridgePoint(space, dressing, 0)[2];
   const weather = {puddle: {center: [px, py], radius: [.55, .3], turn: heading}, drips,
-    shelter: {roof: {center: [...space.cabin.center], half: [frame.L + dressing.cabin.gable, frame.W + dressing.cabin.eave], yaw: space.cabin.yaw, height: roofHeight},
+    shelter: {roof: {center: [...space.cabin.center], half: [frame.L + dressing.cabin.gable, frame.W + dressing.cabin.eave], yaw: space.cabin.yaw, height: roofHeight, ridge: frame.ridge, slope: frame.slope},
       oak: {center: [ox, oy], radius: Math.max(...lowest.map(c => dist2(c.center, axis))) + .4, base: Math.min(...plan.clumps.map(under)), share: .35}}};
 
   // ── the water: three spots on the open lake, left to right across the arrival view ──
@@ -218,7 +252,7 @@ function build(space, dressing) {
   const routes = {};
   for (const [id, r] of Object.entries(LAKESIDE_BIRD.routes)) {
     const back = routes[`${r.to}:${r.from}`];
-    routes[id] = {from: r.from, to: r.to, points: back ? [...back.points].reverse() : route(locations[r.from].point, locations[r.to].point, axis, 1.8), durationMs: r.durationMs};
+    routes[id] = {from: r.from, to: r.to, points: back ? [...back.points].reverse() : route(locations[r.from].point, locations[r.to].point, axis, 1.8, plan), durationMs: r.durationMs};
   }
   // the bank spot: just inland of the shore where it runs below the arrival view
   const [s0, s1] = [space.shoreline[2], space.shoreline[3]], len = dist2(s0, s1), sp = lerp(s0, s1, .08), bx = sp[0] - (s1[1] - s0[1]) / len * 1.6, by = sp[1] + (s1[0] - s0[0]) / len * 1.6;
@@ -269,13 +303,17 @@ export function birdPlace(progress, layout) {
 }
 
 // The share of rain (0–1) that reaches [x, y, z]: none under the cabin's roof, a little under the oak's crown, all in the open.
+// Under the roof means under its two slopes where the point is (falling from `ridge` by `slope` each metre out from the ridge
+// line, to the eaves' edges), not under the ridge's height: rain shows in the air above a slope and down to its slates. The
+// slopes are taken unsagged, a few centimetres above the slates as drawn, so no streak reaches beneath them.
 export function sheltered(layout, [x, y, z]) { return shelterOf(layout)(x, y, z); }
 // The same rule as a function of (x, y, z), its roof's turn worked out once, for a caller asking thousands of times a frame.
 export function shelterOf(layout) {
   const {roof, oak} = layout.weather.shelter, [rx, ry] = roof.center, [ox, oy] = oak.center, s = Math.sin(roof.yaw), k = Math.cos(roof.yaw);
   return (x, y, z) => {
     const dx = x - rx, dy = y - ry;
-    if (z < roof.height && Math.abs(dx * s + dy * k) <= roof.half[0] && Math.abs(dx * k - dy * s) <= roof.half[1]) return 0;
+    const out = Math.abs(dx * k - dy * s);
+    if (out <= roof.half[1] && Math.abs(dx * s + dy * k) <= roof.half[0] && z < roof.ridge - out * roof.slope) return 0;
     return z < oak.base && Math.hypot(x - ox, y - oy) <= oak.radius ? oak.share : 1;
   };
 }
@@ -290,7 +328,7 @@ export function validLifeLayout(layout, space, dressing) {
     if (!same(Object.keys(bird.routes).sort(), Object.keys(LAKESIDE_BIRD.routes).sort())) return false;
     for (const [id, r] of Object.entries(LAKESIDE_BIRD.routes)) {
       const mine = bird.routes[id], [a, b] = [bird.locations[r.from].point, bird.locations[r.to].point];
-      if (mine.durationMs !== r.durationMs || mine.from !== r.from || mine.to !== r.to || mine.points.length !== 4 || !mine.points.every(finite) || dist3(mine.points[0], a) > 1e-9 || dist3(mine.points[3], b) > 1e-9) return false;
+      if (mine.durationMs !== r.durationMs || mine.from !== r.from || mine.to !== r.to || mine.points.length !== 4 || !mine.points.every(finite) || dist3(mine.points[0], a) > 1e-9 || dist3(mine.points[3], b) > 1e-9 || flightClearance(plan, mine.points, 60, 0) < 0) return false;
     }
     for (const id of ['nest', 'oak-perch', 'oak-shelter']) if (!finite(bird.locations[id].point) || !(woodDistance(plan, bird.locations[id].point) >= 0 && woodDistance(plan, bird.locations[id].point) <= .03)) return false;
     const ridgeAlong = (bird.locations['roof-perch'].point[0] - space.cabin.center[0]) * frame.u[0] + (bird.locations['roof-perch'].point[1] - space.cabin.center[1]) * frame.u[1];
@@ -298,7 +336,8 @@ export function validLifeLayout(layout, space, dressing) {
     if (bird.forage.points.length !== 8 || !bird.forage.points.every(finite) || dist3(bird.forage.points[0], bird.locations.nest.point) > 1e-9 || dist3(bird.forage.points[7], bird.locations.nest.point) > 1e-9 || dist3(bird.forage.points[3], bird.forage.points[4]) > 1e-9) return false;
     for (const [id, r] of Object.entries(ripples)) if (!finite(r.center) || shoreDistance(space, ...r.center) >= -(r.radius + 1)) return false;
     if (dist3(cottage.lights.main, openingCentre(space, dressing, 'window-front-left')) > .4 || dist3(cottage.chimney, chimneyTop(space, dressing)) > 1e-9) return false;
-    const [ax, ay] = space.arrival.position;
+    const [ax, ay] = space.arrival.position, roof = weather.shelter.roof;
+    if (!(roof.slope > 0) || Math.abs(roof.ridge - frame.ridge) > 1e-9 || Math.abs(roof.slope - frame.slope) > 1e-9) return false;
     return weather.drips.every(d => finite(d.top) && d.top[2] - d.fall >= terrainHeight(space, d.top[0], d.top[1]) - .05 && dist2(d.top, weather.shelter.oak.center) <= weather.shelter.oak.radius) &&
       sheltered(layout, [ax, ay, terrainHeight(space, ax, ay) + space.eyeHeight]) === 1;
   } catch { return false; }

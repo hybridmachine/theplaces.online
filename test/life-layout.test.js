@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING as D, chimneyTop, doorPosition, oakPlan, openingCentre, ridgePoint} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, cabinFrame, chimneyTop, doorPosition, oakPlan, openingCentre, ridgePoint} from '../shared/lakeside-dressing.js';
 import {LAKESIDE_BIRD} from '../shared/lakeside-bird.js';
 import {LAKESIDE_COINCIDENCES} from '../shared/lakeside-coincidences.js';
 import {LAKESIDE_WEATHER} from '../shared/lakeside-weather.js';
-import {SMOKE, SWAY, WIND, smokePlace, lifeLayout, sheltered, validLifeLayout, woodClearance, woodDistance} from '../shared/lakeside-life.js';
+import {SMOKE, SWAY, WIND, flightClearance, smokePlace, lifeLayout, sheltered, validLifeLayout, woodClearance, woodDistance} from '../shared/lakeside-life.js';
 import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
 import {DEG} from '../shared/celestial.js';
 import {catmullRom} from '../shared/world.js';
@@ -83,6 +83,20 @@ test('flights keep clear of the ground, the trunk and the roof', () => {
   for (const [id, r] of Object.entries(L.bird.routes)) for (let k = 0; k <= 40; k++) check(id, bezier(r.points, k / 40), [r.points[0], r.points[3]]);
   for (let k = 0; k <= 80; k++) check('forage', catmull(L.bird.forage.points, k <= 40 ? k / 40 * 3 : 4 + (k - 41) / 39 * 3), [L.bird.locations.nest.point, bank]);
 });
+test('no flight passes through or brushes the oak\'s wood anywhere along its curve', () => {
+  // the bird's body, 7 cm above the point it is placed by, sampled far finer than the layout samples it
+  for (const [id, r] of Object.entries(L.bird.routes)) for (let k = 0; k <= 600; k++) {
+    const p = bezier(r.points, k / 600), d = woodDistance(plan, [p[0], p[1], p[2] + .07]);
+    assert.ok(d >= .045, `${id} is ${d.toFixed(3)} m from the wood at ${k / 600}`);
+  }
+  for (const r of Object.values(L.bird.routes)) assert.ok(flightClearance(plan, r.points) >= 0);
+  // the curve whose controls are only pushed off the trunk's axis goes through a limb, and a layout carrying it is refused
+  const [from, to] = [L.bird.locations['oak-perch'].point, L.bird.locations['oak-shelter'].point], rise = .12 * h3(from, to);
+  const control = t => { const p = from.map((v, i) => v + (to[i] - v) * t); p[2] += rise * (1 - Math.abs(2 * t - 1) * .4); const d = h2(p, [ox, oy]); return d < 1.8 ? [ox + (p[0] - ox) / d * 1.8, oy + (p[1] - oy) / d * 1.8, p[2]] : p; };
+  const old = [from, control(1 / 3), control(2 / 3), to]; assert.ok(flightClearance(plan, old) < 0, 'the pushed curve meets a limb');
+  const stale = copy(); stale.bird.routes['oak-perch:oak-shelter'].points = old; stale.bird.routes['oak-shelter:oak-perch'].points = [...old].reverse();
+  assert.equal(validLifeLayout(stale, S, D), false);
+});
 test('the forage runs nest, bank, nest', () => {
   const f = L.bird.forage.points; assert.equal(f.length, 8);
   assert.deepEqual(f[0], L.bird.locations.nest.point); assert.deepEqual(f[7], L.bird.locations.nest.point); assert.deepEqual(f[3], f[4]);
@@ -116,6 +130,17 @@ test('the roof and the oak keep the rain off, the open does not', () => {
   assert.equal(sheltered(L, [ax, ay, 1.6]), 1);
   assert.equal(sheltered(L, [S.cabin.center[0], S.cabin.center[1], roofTop + 10]), 1);
   assert.equal(sheltered(L, [ox, oy, L.weather.shelter.oak.base + 3]), 1, 'above the lowest clump the oak keeps nothing off');
+  // the roof keeps rain off what is under its slopes, not what is under its ridge's height: over the front slope, every
+  // quarter of the way from ridge to eave edge and along its length, rain falls 5 cm above the slates as drawn and 75 cm
+  // above them, and none 15 cm beneath them
+  const f = cabinFrame(S, D), reach = f.W + D.cabin.eave;
+  for (const side of [-1, 1]) for (const a of [-f.L, -f.L / 2, 0, f.L / 2, f.L]) for (const q of [.1, .25, .5, .75, .98]) {
+    const b = side * reach * q, z = f.roofZ(a, b), at = h => f.at(a, b, z + h);
+    assert.equal(sheltered(L, at(.75)), 1, `75 cm above the roof at ${a}, ${b}`); assert.equal(sheltered(L, at(.2)), 1, `20 cm above the roof at ${a}, ${b}`);
+    assert.equal(sheltered(L, at(-.15)), 0, `under the roof at ${a}, ${b}`);
+  }
+  const eaveMid = f.at(0, f.front * (f.W + D.cabin.eave * .5), 0); assert.equal(sheltered(L, [eaveMid[0], eaveMid[1], terrainHeight(S, eaveMid[0], eaveMid[1]) + S.eyeHeight]), 0, 'under the front eave it is dry');
+  const flat = copy(); delete flat.weather.shelter.roof.slope; assert.equal(validLifeLayout(flat, S, D), false);
 });
 test('the cottage lights sit just outside their windows', () => {
   const {lights, chimney} = L.cottage, [long, short] = S.cabin.size, v = [Math.cos(S.cabin.yaw), -Math.sin(S.cabin.yaw)];
