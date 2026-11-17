@@ -12,9 +12,13 @@ export function buildScene(THREE, {space, dressing, art}) {
     woods: buildWoods(THREE, {space, dressing, art}).object, cover, hills: buildHills(THREE, {space, dressing, art}).object};
   const group = new THREE.Group(); group.name = 'yard';
   group.add(...Object.values(parts));
-  return {group, parts,
+  // What setSky last received, for the things that take the lake's colours (the puddle).
+  const sky = {zenith: [.83, .83, .75], horizon: [.83, .83, .75]};
+  return {group, parts, sky,
     // Display-space sky colours, 0–1, as the sky dome draws them this frame.
-    setSky({zenith, horizon}) { ground.setSky({zenith, horizon}); },
+    setSky({zenith, horizon}) { sky.zenith = [...zenith]; sky.horizon = [...horizon]; ground.setSky({zenith, horizon}); },
+    // How wet the path and the shore stones are, 0–1 each (ground.js).
+    setWet(wet) { ground.setWet(wet); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
     setCottage(pose) { cabin.setCottage(pose); },
     dispose() {

@@ -89,7 +89,7 @@ test('the puddle is on the path and the drips are under the oak', () => {
   assert.ok(d <= D.pathHalfWidth); const east = L.weather.puddle.center[0] - ax; assert.ok(east >= 2.5 && east <= 4);
   assert.equal(L.weather.drips.length, 2);
   for (const drip of L.weather.drips) {
-    assert.ok(drip.top[2] - drip.fall >= terrainHeight(S, drip.top[0], drip.top[1]) - .05); assert.ok(h2(drip.top, [ox, oy]) <= L.weather.shelter.oak.radius);
+    assert.ok(drip.fall > 0 && Math.abs(drip.top[2] - drip.fall - terrainHeight(S, drip.top[0], drip.top[1])) < 1e-9, 'a drip falls all the way to the ground'); assert.ok(h2(drip.top, [ox, oy]) <= L.weather.shelter.oak.radius);
     const clump = plan.clumps.find(c => c.id === drip.clump); assert.ok(Math.abs(drip.top[2] - (clump.center[2] - clump.radius)) < 1e-9);
   }
   assert.equal(L.weather.shelter.oak.base, Math.min(...plan.clumps.map(c => c.center[2] - c.radius)));

@@ -71,11 +71,13 @@ function terrainGeometry(THREE, space, dressing) {
 function terrainMaterial(THREE, art) {
   const {meadow, earth, shore} = SPACE_ART.surfaces, metres = new THREE.Vector3(meadow.metres, earth.metres, shore.metres);
   const m = new THREE.MeshLambertMaterial({map: art.surfaces.meadow, vertexColors: true});
+  // Wetness of the path and of the shore stones, 0..1 each; one object, so setting it works before and after the first compile.
+  m.userData.wet = {value: new THREE.Vector2()};
   m.onBeforeCompile = s => {
-    Object.assign(s.uniforms, {earthMap: {value: art.surfaces.earth}, shoreMap: {value: art.surfaces.shore}, groundMetres: {value: metres}});
+    Object.assign(s.uniforms, {wet: m.userData.wet, earthMap: {value: art.surfaces.earth}, shoreMap: {value: art.surfaces.shore}, groundMetres: {value: metres}});
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 paint;\nvarying vec3 vPaint;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPaint = paint;');
-    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D earthMap, shoreMap;\nuniform vec3 groundMetres;\nvarying vec3 vPaint;')
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D earthMap, shoreMap;\nuniform vec3 groundMetres;\nuniform vec2 wet;\nvarying vec3 vPaint;')
       .replace('#include <map_fragment>', `
   vec2 world = vMapUv;
   vec4 meadowA = texture2D( map, world / groundMetres.x );
@@ -87,9 +89,12 @@ function terrainMaterial(THREE, art) {
   // Only where two layers meet: a layer at full or no weight stays so.
   float shoreWeight = smoothstep( .3, .7, vPaint.y + ( ls - lm ) * 3. * vPaint.y * ( 1. - vPaint.y ) * 4. );
   float earthWeight = smoothstep( .3, .7, vPaint.x + ( le - lm ) * 3. * vPaint.x * ( 1. - vPaint.x ) * 4. );
+  // Rain darkens the path's earth and the shore's stones, and bluish: wet earth and stone.
+  earthColour.rgb *= mix( vec3( 1. ), vec3( .62, .64, .7 ), wet.x * earthWeight );
+  shoreColour.rgb *= mix( vec3( 1. ), vec3( .66, .68, .74 ), wet.y * shoreWeight );
   diffuseColor *= mix( mix( meadowColour, shoreColour, shoreWeight ), earthColour, earthWeight );`);
   };
-  m.customProgramCacheKey = () => 'painted-ground';
+  m.customProgramCacheKey = () => 'painted-ground-wet';
   return m;
 }
 
@@ -211,9 +216,11 @@ function wall(THREE, space, art) {
   return group;
 }
 
-// {terrain, lake, wall, setSky}. `art` is the loaded bundle (see art-loader.js).
+// {terrain, lake, wall, setSky, setWet}. `art` is the loaded bundle (see art-loader.js).
 export function buildGround(THREE, {space, dressing, art}) {
   const terrain = new THREE.Mesh(terrainGeometry(THREE, space, dressing), terrainMaterial(THREE, art)); terrain.name = 'terrain';
   const water = lake(THREE, art);
-  return {terrain, lake: water, wall: wall(THREE, space, art), setSky: water.userData.setSky};
+  const wet = terrain.material.userData.wet.value;
+  return {terrain, lake: water, wall: wall(THREE, space, art), setSky: water.userData.setSky,
+    setWet({path = 0, stone = 0}) { wet.set(path, stone); }};
 }

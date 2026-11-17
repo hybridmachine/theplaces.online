@@ -5,9 +5,10 @@ import {createCottage} from './cottage.js';
 import {createWind} from './wind.js';
 import {createSmoke} from './smoke.js';
 import {createRain} from './rain.js';
+import {createTraces} from './traces.js';
 
 // Ordered; later tasks add the presenters here one at a time.
-export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke, rain: createRain};
+export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke, rain: createRain, traces: createTraces};
 
 export function createLife(THREE, ctx, makers = PRESENTERS) {
   const live = new Map(), status = {};

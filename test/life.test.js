@@ -170,3 +170,49 @@ test('rain falls in the open, is kept off by the roof and thinned by the oak, an
   rain.update(frame(open)); rain.update(frame(open)); assert.equal(shown(), inOpen);
   rain.dispose(); assert.equal(scene.children.length, 0);
 });
+
+import {createTraces, surfaceNow} from '../public/space/life/traces.js';
+import {dripPose, surfaceFixture} from '../shared/surface-weather.js';
+import {terrainHeight} from '../shared/space.js';
+import {LAKESIDE_SPACE as SPACE} from '../shared/lakeside-space.js';
+import {createSurfaceState} from '../shared/surface-weather.js';
+
+test('the surface is a study\'s fixture, the shared state when fresh, and nothing when 61 seconds stale', () => {
+  const now = 1_700_000_000_000, state = createSurfaceState(now), snapshot = {world: {environment: state}};
+  assert.deepEqual(surfaceNow({study: 'rain', snapshot, epoch: 0, now}), surfaceFixture('rain'));
+  assert.deepEqual(surfaceNow({fixture: {surface: surfaceFixture('drying')}, study: 'rain', snapshot, epoch: 0, now}), surfaceFixture('drying'));
+  assert.ok(surfaceNow({snapshot, epoch: 0, now: now + 1000}));
+  assert.equal(surfaceNow({snapshot, epoch: 0, now: now + 61_000}), null);
+});
+
+test('traces darken the path and shore, fill the puddle in the sky\'s colour, and drip from the oak to the ground', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), wets = [], yard = {setWet: w => wets.push(w), sky: {zenith: [.2, .4, .8], horizon: [.8, .6, .4]}};
+  const traces = PRESENTERS.traces(THREE, {scene, yard, space: SPACE, layout}), puddle = scene.getObjectByName('puddle');
+  const stale = {snapshot: {world: {environment: createSurfaceState(0)}}, epoch: 0, now: 61_000, motion: true, motionSeconds: 0};
+  assert.equal(traces.update(stale), false); assert.deepEqual(wets.at(-1), {path: 0, stone: 0}); assert.equal(puddle.visible, false);
+  assert.ok(scene.getObjectByName('drip-0') && !scene.getObjectByName('drip-0').visible);
+  const rain = surfaceFixture('rain'), frame = {study: 'rain', weather: {rain: 0}, motion: true, motionSeconds: 0};
+  assert.equal(traces.update(frame), true);
+  assert.deepEqual(wets.at(-1), {path: rain.pathWetness, stone: rain.stoneWetness});
+  assert.equal(puddle.visible, true); assert.ok(puddle.material.opacity > .8 && puddle.material.opacity <= .85 + 1e-9);
+  assert.ok(puddle.material.color.r > 0 && puddle.material.color.b > 0);
+  const {center} = layout.weather.puddle, p = puddle.geometry.attributes.position, n = puddle.geometry.attributes.normal;
+  assert.equal(p.count, 29);
+  for (let i = 0; i < p.count; i++) {
+    assert.ok(Math.abs(p.getY(i) - terrainHeight(SPACE, p.getX(i), -p.getZ(i)) - .015) < 1e-5); assert.ok(n.getY(i) > 0, 'faces up');
+    assert.ok(Math.hypot(p.getX(i) - center[0], -p.getZ(i) - center[1]) < 1);
+  }
+  assert.ok(Math.abs(p.getX(0) - center[0]) < 1e-5); assert.equal(puddle.geometry.attributes.color.getW(0), 1); assert.equal(puddle.geometry.attributes.color.getW(p.count - 1), 0);
+  traces.update({...frame, study: 'day'}); assert.equal(puddle.visible, false);
+  // A drip: find a second at which one falls under canopy storage and low rain, then see it fall the whole way.
+  const wet = {surface: {...surfaceFixture('wet'), canopyStorage: 1, puddleStorage: 0}}, drip = layout.weather.drips[0], line = scene.getObjectByName(drip.id);
+  let s = 0; while (!dripPose(s, {x: 0, y: 0, fall: 1, seed: drip.seed}, 1, 0)) s += 5;
+  s += .5;
+  const pose = dripPose(s, {x: 0, y: 0, fall: 1, seed: drip.seed}, 1, 0), at = {fixture: wet, weather: {rain: 0}, motion: true, motionSeconds: s};
+  assert.equal(traces.update(at), true); assert.equal(line.visible, true);
+  assert.ok(Math.abs(line.geometry.attributes.position.getY(0) - (drip.top[2] - drip.fall * pose.y)) < 1e-5);
+  assert.ok(Math.abs(line.material.opacity - pose.alpha) < 1e-12);
+  assert.ok(drip.top[2] - drip.fall * 1 >= terrainHeight(SPACE, drip.top[0], drip.top[1]) - 1e-9);
+  traces.update({...at, motion: false}); assert.equal(line.visible, false);
+  traces.dispose(); assert.equal(scene.children.length, 0);
+});

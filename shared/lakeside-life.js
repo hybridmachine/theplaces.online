@@ -101,7 +101,7 @@ function build(space, dressing) {
   const [px, py, heading] = pathAhead(dressing.path, arrival, 3.2);
   const under = c => c.center[2] - c.radius;
   const lowest = plan.clumps.filter(c => (c.center[0] - ox) * Math.sin(toArrival) + (c.center[1] - oy) * Math.cos(toArrival) > 0).sort((a, b) => under(a) - under(b)).slice(0, 2);
-  const drips = lowest.map((c, i) => ({id: `drip-${i}`, clump: c.id, top: [c.center[0], c.center[1], under(c)], fall: 2, seed: LAKESIDE_WEATHER.drips[i].seed}));
+  const drips = lowest.map((c, i) => ({id: `drip-${i}`, clump: c.id, top: [c.center[0], c.center[1], under(c)], fall: under(c) - terrainHeight(space, c.center[0], c.center[1]), seed: LAKESIDE_WEATHER.drips[i].seed}));
   const roofHeight = ridgePoint(space, dressing, 0)[2];
   const weather = {puddle: {center: [px, py], radius: [.55, .3], turn: heading}, drips,
     shelter: {roof: {center: [...space.cabin.center], half: [frame.L + dressing.cabin.gable, frame.W + dressing.cabin.eave], yaw: space.cabin.yaw, height: roofHeight},

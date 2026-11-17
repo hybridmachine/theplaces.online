@@ -205,3 +205,12 @@ test('every swaying card carries its sway, and the cabin dabs stay put', () => {
   assert.ok(weights(cabin.getObjectByName('shrubs'), 'shrubs').some(v => v > 0));
   scene.dispose();
 });
+
+test('wetting the ground does not throw, and does not touch another scene', () => {
+  const a = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), b = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  a.setWet({path: .5, stone: .25});
+  const wet = scene => scene.parts.terrain.material.userData.wet.value;
+  assert.deepEqual(wet(a).toArray(), [.5, .25]); assert.deepEqual(wet(b).toArray(), [0, 0]);
+  a.setSky({zenith: [.1, .2, .3], horizon: [.4, .5, .6]}); assert.deepEqual(a.sky.zenith, [.1, .2, .3]);
+  a.dispose(); b.dispose();
+});
