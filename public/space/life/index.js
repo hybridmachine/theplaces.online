@@ -1,0 +1,45 @@
+// The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose()};
+// one that throws, while being built or while updating, is given up and never run again, and the rest carry on.
+// Imports nothing: three.js is handed in, so this runs in Node.
+
+// Ordered; later tasks add the presenters here one at a time.
+export const PRESENTERS = {};
+
+export function createLife(THREE, ctx, makers = PRESENTERS) {
+  const live = new Map(), status = {};
+  const fail = (name, error) => {
+    status[name] = 'failed';
+    const presenter = live.get(name); live.delete(name);
+    try { presenter?.dispose(); } catch {}
+    console.warn(`The yard's ${name} could not be kept; carrying on without it.`, error);
+  };
+  for (const [name, make] of Object.entries(makers)) {
+    try { live.set(name, make(THREE, ctx)); status[name] = 'idle'; }
+    catch (error) { fail(name, error); }
+  }
+  let disposed = false;
+  return {
+    status,
+    update(frame) {
+      if (disposed) return;
+      for (const [name, presenter] of [...live]) {
+        try { status[name] = presenter.update(frame) ? 'active' : 'idle'; }
+        catch (error) { fail(name, error); }
+      }
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      for (const presenter of live.values()) { try { presenter.dispose(); } catch {} }
+      live.clear();
+    },
+  };
+}
+
+// What a presenter is given each frame. Absent parts of the world are the presenters' to tolerate; nothing is read here.
+export function lifeFrame({snapshot, now, study = null, motion, motionSeconds, realSeconds, camera, conditions, fixture = null}) {
+  return {
+    snapshot, now, epoch: snapshot.world.epoch, calendar: conditions.calendar, weather: conditions.weather,
+    study, motion, motionSeconds, realSeconds, camera, fixture,
+  };
+}

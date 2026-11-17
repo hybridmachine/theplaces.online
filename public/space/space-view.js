@@ -13,6 +13,8 @@ import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
 import {PainterlyPass, canPaint} from './painterly-pass.js';
 import {TIERS, createTierMeter} from './tier.js';
+import {createLife, lifeFrame} from './life/index.js';
+import {lifeLayout} from '../../shared/lakeside-life.js';
 
 export {toThree};
 
@@ -51,7 +53,10 @@ export class SpaceView {
     // Registered after WalkKeys, so a walking key tap shorter than a frame still cancels a glide.
     this.keyCancel = () => { if (this.keys.moving()) this.glideFrom = null; };
     document.addEventListener('visibilitychange', this.visibility); addEventListener('keydown', this.keyCancel);
-    this.birdRenderer = {valid: false}; this.birdActive = false; this.cottageActive = false; this.coincidenceActive = false;
+    // What the yard's living things report, read by sound and the scene description; nothing is active until one is built and running.
+    this.life = null; this.check = false; this.fixture = null;
+    const view = this;
+    this.birdRenderer = {get valid() { const bird = view.life?.status.bird; return bird !== undefined && bird !== 'failed'; }};
     this.renderer = null; this.pass = null; this.disposed = false; this.failed = false;
     this.media = matchMedia('(prefers-reduced-motion: reduce)'); this.motion = !this.media.matches;
     // As in Painting: reduced motion holds the celestial and cloud-motion clocks; light and weather stay live.
@@ -77,7 +82,7 @@ export class SpaceView {
       this.failed = true; this.onFailure?.();
     };
     // The tier steps the pass down on a device that cannot hold it. With check, ?tier= starts it locked, for captures.
-    const params = new URLSearchParams(location.search), check = params.has('check'), fixed = check ? params.get('tier') : null;
+    const params = new URLSearchParams(location.search), check = params.has('check'); this.check = check; const fixed = check ? params.get('tier') : null;
     this.meter = TIERS.includes(fixed) ? createTierMeter({start: fixed, locked: true}) : createTierMeter();
     this.passMode = TIER_PASS[this.meter.tier]; this.shown = false;
     if (check) window.__space = this;
@@ -116,6 +121,7 @@ export class SpaceView {
     this.scene = new THREE.Scene(); this.scene.fog = new THREE.FogExp2('#d3d3bf', FOG_DENSITY);
     this.camera = new THREE.PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
     this.yard = buildScene(THREE, {space: this.space, dressing: this.dressing, art}); this.scene.add(this.yard.group);
+    this.life = createLife(THREE, {scene: this.scene, yard: this.yard, space: this.space, dressing: this.dressing, art, layout: lifeLayout(this.space, this.dressing)});
     this.sky = new SkyDome(THREE, this.skyConfig); this.scene.add(this.sky.object3d);
     this.hemisphere = new THREE.HemisphereLight(); this.direct = new THREE.DirectionalLight(); this.scene.add(this.hemisphere, this.direct);
     this.colours = {day: {}, night: {}};
@@ -129,6 +135,9 @@ export class SpaceView {
     addEventListener('resize', this.resize); this.resize();
     return true;
   }
+  get birdActive() { return this.life?.status.bird === 'active'; }
+  get cottageActive() { return this.life?.status.cottage === 'active'; }
+  get coincidenceActive() { return this.life?.status.ripples === 'active'; }
   setPass(mode) {
     if (!Object.hasOwn(PASS_SCALE, mode)) throw new Error(`Unknown painterly pass mode ${mode}`);
     // Locked on plain the pass is gone for good (or never made); the view stays drawn straight to the canvas.
@@ -195,6 +204,7 @@ export class SpaceView {
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
     this.yard.setSky({zenith, horizon});
     this.applyLight(c, w, bodies, horizon);
+    this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null}));
     if (this.passMode === 'off' || !this.pass) this.renderer.render(this.scene, this.camera);
     else this.pass.render(this.scene, this.camera);
     if (this.shown) {
@@ -225,7 +235,7 @@ export class SpaceView {
   // Everything init made for the GPU, given back; safe to call again.
   releaseScene(renderer) {
     removeEventListener('resize', this.resize);
-    for (const part of ['yard', 'art', 'sky', 'hemisphere', 'direct', 'pass']) { this[part]?.dispose(); this[part] = null; }
+    for (const part of ['life', 'yard', 'art', 'sky', 'hemisphere', 'direct', 'pass']) { this[part]?.dispose(); this[part] = null; }
     renderer?.dispose(); this.renderer = null;
   }
 }
