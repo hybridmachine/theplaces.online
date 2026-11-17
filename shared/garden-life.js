@@ -22,7 +22,7 @@ const CORN_PICKED = 290, TOMATO_START = .15, PICKED = 10;
 
 // What a crop looks like on a day: whether it is in the ground (`present`) and its stake stands (`support`), and, each 0–1,
 // how tall and leafy it is, how much it flowers, how much fruit it carries, and how ripe, yellowed and dry it is; `set` is how
-// much fruit has set so far, which picking never lowers, so a fruit is drawn grown to its size by `set` until `fruit` passes it.
+// much fruit has set so far, which picking never lowers, so a fruit is drawn at the size `set` gives it until it is picked.
 // `offset` (days) shifts its growth windows, never its sowing, clearing or stakes, so it is never seen outside them.
 export function cropStage(kind, dayOfYear, offset = 0) {
   const c = CROPS[kind], d = dayOfYear, e = d - offset, start = kind === 'tomato' ? c.shoot : c.sow;

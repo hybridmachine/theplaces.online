@@ -8,7 +8,7 @@
 // the casement, smoke, rain, the wet path, ripples, the bird at each place, the nest filling) as life-<what>-<tier>.jpg; each
 // names its own study, pose and fixture, so --only, --study and --compare do not apply. --garden takes instead the garden's year
 // as garden-day-<n>-<tier>.jpg (twelve days of year 0) and garden-year-<y>-<tier>.jpg (day 230 of years 1–3), each the arrival,
-// garden and garden-behind poses side by side (4320 × 810) under the day study, the day given as the fixture's gardenDay; --only takes
+// garden and garden-behind poses side by side, each at half size (2160 × 405, JPEG quality 80) under the day study, the day given as the fixture's gardenDay; --only takes
 // shot names (day-230, year-2), and --study and --compare do not apply.
 import {createRequire} from 'node:module';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
@@ -134,16 +134,18 @@ async function saveComparison(context, shot) {
   await page.close();
   console.log(path);
 }
-// Captures of one size side by side, drawn on a canvas in a blank page and saved as a JPEG (quality 90).
-async function saveSideBySide(context, images, path) {
+// Lossless captures of one size side by side, each scaled by `scale`, drawn on a canvas in a blank page and encoded once as
+// a JPEG of `quality`.
+async function saveSideBySide(context, images, path, {scale = .5, quality = .8} = {}) {
   const page = await context.newPage();
-  const jpeg = await page.evaluate(async sources => {
+  const jpeg = await page.evaluate(async ([sources, scale, quality]) => {
     const load = src => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = src; });
-    const views = await Promise.all(sources.map(load)), {width, height} = views[0];
+    const views = await Promise.all(sources.map(load)), width = Math.round(views[0].width * scale), height = Math.round(views[0].height * scale);
     const c = Object.assign(document.createElement('canvas'), {width: width * views.length, height}), g = c.getContext('2d');
-    views.forEach((v, i) => g.drawImage(v, i * width, 0));
-    return c.toDataURL('image/jpeg', .9);
-  }, images.map(b => `data:image/jpeg;base64,${b.toString('base64')}`));
+    g.imageSmoothingQuality = 'high';
+    views.forEach((v, i) => g.drawImage(v, i * width, 0, width, height));
+    return c.toDataURL('image/jpeg', quality);
+  }, [images.map(b => `data:image/png;base64,${b.toString('base64')}`), scale, quality]);
   await writeFile(path, Buffer.from(jpeg.split(',')[1], 'base64'));
   await page.close();
 }
@@ -199,7 +201,7 @@ try {
       for (const pose of GARDEN_POSES) {
         await page.evaluate(p => { window.__space.state = structuredClone(p); }, POSES[pose]);
         await page.waitForTimeout(1500);
-        images.push(await page.screenshot({type: 'jpeg', quality: 90}));
+        images.push(await page.screenshot({type: 'png'}));
       }
       const path = `${directory}/garden-${name}-${tier}.jpg`;
       await saveSideBySide(context, images, path);

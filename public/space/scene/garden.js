@@ -113,11 +113,12 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         const cell = cells[r() < .5 ? 0 : 1];
         blade(V.add(centre, dir, -radius), dir, across, radius * 2, radius * 1.7, colour, cell);
       };
-      // How far a leaf with order `rank` (0–.85, fixed by the seed) is out on a day: it unfurls as the leaf share passes it, and
-      // dry plants drop leaves at random (`drop`) until a third are left.
-      // Whether a fruit set at share `at` is on the plant: once the set share passes it, until it is picked. Picking takes the
+      // Whether a fruit set at share `at` is on the plant: once the set share passes it, until it is picked. Each fruit's `at` is
+      // drawn under .85, so it swells to full size (over .15 of the set share) before the share tops out at 1. Picking takes the
       // earliest-set (ripest) first, so as the fruit share falls below the set share, those with `at` under 1 − fruit are gone.
       const hangs = at => st.set > at && (st.fruit >= st.set || at > 1 - st.fruit);
+      // How far a leaf with order `rank` (0–.85, fixed by the seed) is out on a day: it unfurls as the leaf share passes it, and
+      // dry plants drop leaves at random (`drop`) until a third are left.
       const unfurled = (rank, drop) => drop < st.dry * 2 / 3 ? 0 : clamp01((st.leaf - rank) / .15);
       const stem = (points, colour, sides = 5) => { if (V.len(V.sub(points.at(-1), points[0]).slice(0, 3)) > .02) stems.push(tinted(tube(THREE, points, {sides, tile}), colour)); };
 
@@ -154,7 +155,7 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         }
         // pods: narrow blades hanging below the leaves, each growing once the set share passes its own threshold, picked whole
         for (let i = 0; i < 10; i++) {
-          const t = .15 + .75 * r(), a = r() * TAU, [dir, across] = aim(a, -1.35, r() * TAU), length = .09 + r() * .05, at = r(), out = hangs(at) ? clamp01((st.set - at) / .15) : 0;
+          const t = .15 + .75 * r(), a = r() * TAU, [dir, across] = aim(a, -1.35, r() * TAU), length = .09 + r() * .05, at = .85 * r(), out = hangs(at) ? clamp01((st.set - at) / .15) : 0;
           blade(V.add(along(t, 1), [Math.sin(a), Math.cos(a), 0], .07), dir, across, length * out, .014, mix(mix(POD, HUSK, st.ripe), DRY, st.dry));
         }
       } else {
@@ -172,7 +173,7 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
           round(c, normal, radius * unfurled(rank, r()) * (.5 + .5 * h), shade(aged(TOMATO, st, (d[2] + 1) / 2, BLACK), tone));
         }
         for (let i = 0, n = 5 + Math.floor(r() * 4); i < n; i++) {
-          const [d] = shell(1, true), c = V.add(centre, [d[0] * rx * 1.08, d[1] * rx * 1.08, d[2] * rz]), size = .032 + r() * .014, at = r();
+          const [d] = shell(1, true), c = V.add(centre, [d[0] * rx * 1.08, d[1] * rx * 1.08, d[2] * rz]), size = .032 + r() * .014, at = .85 * r();
           // each fruit swells from nothing as the set share passes `at`, and hangs full size until it is picked; it ripens
           // green → orange → red as the ripeness passes its own threshold, the early-set fruit first, so they turn a few at a time
           const turn = clamp01((st.ripe - (.7 * at + .1 * r())) / .2), out = clamp01((st.set - at) / .15);

@@ -116,3 +116,21 @@ The garden will show whatever the world date says on the day this goes live. If 
 ## Left to the builder
 
 Exact dates within a few days of the table, growth curves, colours, sway amounts, the plants' offsets, how seedlings and dry remains are drawn, the mulch, the names of functions and of the beds, how far the south plots' planting is shifted and trimmed, and how the fixture carries the garden day.
+
+## As built
+
+- **The plots' room** (how far each plot's nearest plantable corner, 0.15 m inside its edges, stands left of the line from the arrival to the front-left window's left edge, casement open): corn-north 1.788 m, corn-south 0.398 m, tomato-north 1.787 m, tomato-south 0.496 m. The window spans 63.40°–65.76° from the arrival; the boards end at 62.54°.
+- **The south plots' shift**: none. Every plant's foot already has at least 0.566 m of room (the least is the corn in corn-south in year 1), above the 0.3 m the planting keeps, so no block is moved north. Leaves are still cut short wherever a card would reach past a plant's room; a test runs that cut with every plant's room reduced to 0.2 m.
+- **The window** stays wholly visible from the arrival in all four years of the rotation (contact sheet `docs/space-validation/review/garden-year-<y>-full.jpg`, and the scene test at days 200, 230, 262 and 290 of each year, casement open).
+- **The redraw** in headless Chromium on the builder's machine (`?space=1&check`, `__space.yard.setGarden`): median 3.2 ms over 22 day changes, 2.1 ms for `365 + 230` once warm, 8.2 ms for the very first call. Frames across a day change stayed at 16.7 ms with no spike, so the geometry is built in one frame.
+- **Dates moved from the table** (all in `CROPS`, `shared/garden-life.js`), so that through days 225–260 red tomatoes hang among green ones and the beans are still in flower, as in the approved late-summer picture:
+
+| Crop | What | Table / first build | As built |
+|------|------|---------------------|----------|
+| Tomatoes | fruit sets | 195–230 | 185–215 |
+| Tomatoes | fruit ripens | 220–265 | 205–250 |
+| Tomatoes | picking begins | 230 | 215 (when fully set) |
+| Beans | in flower | 185–230 | 185–250 |
+
+- Picking takes the ripest (earliest-set) fruit first; a picked tomato or pod vanishes whole between days, and fruit, pods, ears and blossoms swell from nothing rather than appearing part-grown.
+- Yellowed leaves turn a warm straw, not a pale cream; dry corn stalks are pale tan.
