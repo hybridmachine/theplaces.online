@@ -5,28 +5,44 @@ const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const smooth=x=>{x=clamp(x);return x*x*(3-2*x);};
 const mod=(x,n)=>((x%n)+n)%n;
 const phase=(seconds,period,offset=0)=>mod(seconds,period)/period*TAU+offset;
-function seedValue(seed,id){
+export function seedValue(seed,id){
   let h=seed>>>0;
   for(let i=0;i<id.length;i++)h=Math.imul(h^id.charCodeAt(i),16777619)>>>0;
   return h/4294967296;
 }
 
-// Direct evaluation, including gust amplitude: no frame history or wall clock.
-export function sampleFoliage(motionSeconds,patch,seed=941,windOverride=null){
+// One piece of foliage's pose: `random` in [0, 1) sets its own periods and phases, and `delay` (seconds) is how long after
+// the origin a gust reaches it. Direct evaluation, including gust amplitude: no frame history or wall clock.
+export function foliageMotion(motionSeconds,{type,exposure,maxDisplacement,random,delay},seed=941,windOverride=null){
   const t=Number.isFinite(motionSeconds)?motionSeconds:0;
   const wind=clamp(windOverride??sampleWind(t),0,1);
-  const random=seedValue(seed,patch.id),[x,y]=patch.bounds;
-  const delayed=t-x/520-y/1800;
+  const delayed=t-delay;
   const crest=smooth((Math.sin(phase(delayed,17.3,seed*.01))+.25)/1.25);
   const broad=.5+.5*Math.sin(phase(delayed,31.7,1.9));
   const gust=crest*(.6+.4*broad);
-  const strength=clamp(wind/.53)*patch.exposure;
-  const sway=Math.sin(phase(t,patch.type==='grass'?5.1+random*1.7:3.8+random,random*TAU));
+  const strength=clamp(wind/.53)*exposure;
+  const sway=Math.sin(phase(t,type==='grass'?5.1+random*1.7:3.8+random,random*TAU));
   const settling=Math.sin(phase(delayed,8.1,random*.8));
-  const bend=patch.maxDisplacement*strength*(.13+.55*gust+.16*sway+.06*settling);
-  const flutter=patch.maxDisplacement*strength*(patch.type==='leaf'?.085:.035)*
+  const bend=maxDisplacement*strength*(.13+.55*gust+.16*sway+.06*settling);
+  const flutter=maxDisplacement*strength*(type==='leaf'?.085:.035)*
     Math.sin(phase(t,.65+random*.7,random*TAU))*(.25+.75*gust);
-  return {bend,flutter,lift:patch.type==='grass'?Math.abs(bend)*.12:bend*.16,gust};
+  return {bend,flutter,lift:type==='grass'?Math.abs(bend)*.12:bend*.16,gust};
+}
+
+export function sampleFoliage(motionSeconds,patch,seed=941,windOverride=null){
+  const [x,y]=patch.bounds;
+  return foliageMotion(motionSeconds,{type:patch.type,exposure:patch.exposure,maxDisplacement:patch.maxDisplacement,
+    random:seedValue(seed,patch.id),delay:x/520+y/1800},seed,windOverride);
+}
+
+// The shared part of foliageMotion for a shader, which must never be handed a large time: `time` wraps every WIND_WRAP
+// seconds, and the gust and settling phases (radians in [0, 2π), at zero delay, with sampleFoliage's offsets; settling's
+// per-piece offset is added by the caller) are reduced here in double precision. `strength` is the wind's 0–1 share.
+export const WIND_WRAP=4096;
+export function windClock(motionSeconds,seed=941){
+  const t=Number.isFinite(motionSeconds)?motionSeconds:0;
+  return {time:mod(t,WIND_WRAP),crest:mod(phase(t,17.3,seed*.01),TAU),broad:mod(phase(t,31.7,1.9),TAU),
+    settle:mod(phase(t,8.1),TAU),strength:clamp(sampleWind(t)/.53)};
 }
 
 // The side attachment margin keeps cut boundaries stationary, even where the

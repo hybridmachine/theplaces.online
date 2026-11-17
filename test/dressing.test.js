@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
-import {LAKESIDE_DRESSING as D, cabinFront, doorPosition, groundBlend, oakPlan, scatter, woodsPlan} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, groundBlend, oakPlan, openingCentre, ridgePoint, scatter, woodsPlan} from '../shared/lakeside-dressing.js';
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 test('placement is deterministic', () => {
@@ -60,3 +60,21 @@ test('ground cover keeps off the cabin, the trunk, the path and the water', () =
   const inside = grass.filter(inYard).length; assert.ok(inside > grass.length * .6, `${inside}`);
 });
 function inYard(g) { const [a, , c] = S.wall; return g.x > a[0] && g.x < c[0] && g.y > a[1] && g.y < c[1]; }
+
+test('openings, ridge and chimney have anchors that sit where the cabin draws them', () => {
+  const floor = terrainHeight(S, ...S.cabin.center), door = openingCentre(S, D, 'door'), left = openingCentre(S, D, 'window-front-left');
+  const off = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  assert.ok(off(door, doorPosition(S, D)) < .1, 'the door is at the door position');
+  assert.ok(Math.abs(door[2] - (terrainHeight(S, ...doorPosition(S, D)) + D.cabin.door.height / 2)) < .25, 'the door is mid-height');
+  assert.ok(Math.abs(left[2] - door[2] - (1.45 - (D.cabin.door.height + .03) / 2 + .03)) < .01, 'front windows centre 1.45 m above the threshold');
+  assert.ok(Math.abs(left[2] - openingCentre(S, D, 'window-front-right')[2]) < 1e-9, 'front windows are level');
+  assert.ok(off(left, openingCentre(S, D, 'window-front-right')) > 4, 'the windows flank the door');
+  assert.throws(() => openingCentre(S, D, 'window-nowhere'));
+  const mid = ridgePoint(S, D, 0);
+  assert.ok(Math.abs(mid[2] - (floor + S.cabin.ridgeHeight - D.cabin.sag)) < .02, `${mid[2]}`);
+  assert.ok(off(mid, S.cabin.center) < 1e-9);
+  assert.ok(ridgePoint(S, D, 4.5)[2] > mid[2], 'the ridge sags toward its middle');
+  const top = chimneyTop(S, D), at = ridgePoint(S, D, D.cabin.chimney.along);
+  assert.ok(Math.abs(top[2] - (floor + S.cabin.ridgeHeight + D.cabin.chimney.rise)) < 1e-9);
+  assert.ok(off(top, at) < 1e-9 && top[2] - at[2] > D.cabin.chimney.rise - .01 && top[2] - at[2] < D.cabin.chimney.rise + .05);
+});

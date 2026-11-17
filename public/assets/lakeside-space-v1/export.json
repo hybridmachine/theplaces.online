@@ -124,6 +124,17 @@
       "sha256": "a4ee9593864189e7ddd77a8516df864174a676e85079f847f93054b1de1772af"
     },
     {
+      "slot": "windowLit",
+      "file": "window-lit.webp",
+      "width": 256,
+      "height": 256,
+      "alpha": false,
+      "seed": 61,
+      "source": "painted",
+      "bytes": 7580,
+      "sha256": "2f769e62fc252b0fea8d24386bf8eadf082e2291d0c5461c65bf18d57f6315b5"
+    },
+    {
       "slot": "cards",
       "file": "cards.webp",
       "width": 2048,

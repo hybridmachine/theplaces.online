@@ -104,18 +104,27 @@ export function nextForage(epoch, after) {
   }
   return Math.ceil(start);
 }
+// Where along the out-and-back forage trip the bird is at fraction t: `pick` runs 0..3 going out, holds at 3 on the bank,
+// then 4..7 coming back (an index into the eight points of the spline), with whether it is in the air and carrying material.
+export function foragePick(t) {
+  return { pick: t < .44 ? t / .44 * 3 : t < .57 ? 3 : 4 + (t - .57) / .43 * 3, flying: !(t >= .44 && t <= .57), carrying: t > .57 };
+}
+// The Catmull-Rom through eight points (of any dimension, 2D in the painting and 3D in the yard) at `pick`.
+export function catmullRom(points, pick) {
+  const i = Math.min(6, Math.floor(pick));
+  const u = pick - i;
+  const p0 = points[Math.max(0, i - 1)], p1 = points[i], p2 = points[i + 1], p3 = points[Math.min(7, i + 2)];
+  return p1.map((_, d) => .5 * (2 * p1[d] + (-p0[d] + p2[d]) * u + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * u * u + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * u * u * u));
+}
 export function birdPose(action, now) {
   const perch = SCENES[0].nest;
   if (!action || now < action.start || now >= action.end) return { x: perch.x, y: perch.y - .005, flying: false, carrying: false, direction: -1 };
   const t = clamp((now - action.start) / (action.end - action.start));
   // A continuous out-and-back trip. The bird collects material on the bank.
   const points = [[perch.x, perch.y - .005], [.34, .36], [.46, .51], [.49, .62], [.49, .62], [.44, .44], [.30, .26], [perch.x, perch.y - .005]];
-  const pick = t < .44 ? t / .44 * 3 : t < .57 ? 3 : 4 + (t - .57) / .43 * 3;
-  const i = Math.min(6, Math.floor(pick));
-  const u = pick - i;
-  const p0 = points[Math.max(0, i - 1)], p1 = points[i], p2 = points[i + 1], p3 = points[Math.min(7, i + 2)];
-  const catmull = d => .5 * (2 * p1[d] + (-p0[d] + p2[d]) * u + (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * u * u + (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * u * u * u);
-  return { x: catmull(0), y: catmull(1), flying: !(t >= .44 && t <= .57), carrying: t > .57, direction: t < .5 ? 1 : -1 };
+  const { pick, flying, carrying } = foragePick(t);
+  const [x, y] = catmullRom(points, pick);
+  return { x, y, flying, carrying, direction: t < .5 ? 1 : -1 };
 }
 export function clockLabel(hour) {
   const totalMinutes = mod(Math.floor(hour * 60 + 1e-6), 1440);

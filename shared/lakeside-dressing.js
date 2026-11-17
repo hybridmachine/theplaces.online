@@ -77,6 +77,63 @@ export function doorPosition(space, dressing) {
   return facePoint(space, face, along);
 }
 
+// The cabin's own geometry, shared by the scene that draws it and by whatever is anchored to it, so a drawn panel, ridge or chimney and
+// the place something is pinned to it cannot differ. Local axes: `a` along the long axis, `b` across it; `side` is ±1 (see cabin.js).
+export const PROUD = .025;
+export function cabinFrame(space, dressing) {
+  const {center: c, size: [long, short], yaw, wallHeight, ridgeHeight} = space.cabin, {eave: OE, gable: OG, sag} = dressing.cabin;
+  const u = [Math.sin(yaw), Math.cos(yaw), 0], v = [Math.cos(yaw), -Math.sin(yaw), 0], L = long / 2, W = short / 2, front = cabinFront(space);
+  const at = (a, b, z) => [c[0] + a * u[0] + b * v[0], c[1] + a * u[1] + b * v[1], z];
+  const ground = (a, b) => terrainHeight(space, ...at(a, b, 0).slice(0, 2));
+  const floor = terrainHeight(space, ...c), eave = floor + wallHeight, ridge = floor + ridgeHeight, slope = (ridge - eave) / W;
+  // The walls reach a little below the lowest ground along the footprint, so the slope shows no gap under them.
+  let base = floor;
+  for (let k = 0; k <= 8; k++) for (const [a, b] of [[-L + k * L / 4, -W], [-L + k * L / 4, W], [-L, -W + k * W / 4], [L, -W + k * W / 4]]) base = Math.min(base, ground(a, b));
+  base -= .2;
+  // The roof's underside height over (a, b): a plane each side of the ridge, sagging toward the middle of its length (most
+  // along the ridge), with a few centimetres of unevenness in the slates.
+  // Toward the eaves the slates dip and lift a few centimetres more, so the eave line is not ruled straight.
+  const roofZ = (a, b) => {
+    const s = clamp01((a + L + OG) / (2 * L + 2 * OG)), t = 1 - Math.abs(b) / (W + OE);
+    return ridge - Math.abs(b) * slope - sag * Math.sin(Math.PI * s) * (.35 + .65 * t) + .02 * (noise(a * 2.1, b * 2.3, 41) - .5)
+      + .09 * (noise(a * .9, Math.sign(b) * 3, 47) - .5) * (1 - t) ** 2;
+  };
+  // How far each eave reaches out from the wall, and how deep its board hangs, wandering along it.
+  const reachOut = (a, side) => W + OE + .14 * (noise(a * .8, side * 5, 48) - .5);
+  // A point on the wall surface, `off` metres outward. Lean is the same function at every wall, so corners meet; the bulge
+  // fades to nothing at the corners. `side` is ±1, `isLong` picks the long walls (b = side·W) or the gables (a = side·L).
+  const wallPoint = (side, isLong, a, b, z, off = 0) => {
+    const k = (z - base) / (eave - base), la = .035 * Math.sin(a * 1.3 + 1) * k, lb = .03 * Math.sin(b * 2.1) * k;
+    const fade = isLong ? Math.sin(Math.PI * (a + L) / (2 * L)) : Math.sin(Math.PI * (b + W) / (2 * W));
+    const bulge = fade * (.022 * (noise(a * 1.7 + b * 1.3, z * 1.9, 43) - .5) + .012 * (noise(a * 5 + b * 5, z * 5, 44) - .5)) + off;
+    return at(a + la + (isLong ? 0 : side * bulge), b + lb + (isLong ? side * bulge : 0), z);
+  };
+  // The threshold sits a little into the lower of the ground at its two edges, so no stone shows under the door; window sills are
+  // measured from it, so the windows stay level however the ground slopes.
+  const {door} = dressing.cabin, doorSide = (door.face === 'back' ? -1 : 1) * front;
+  const doorGround = Math.min(ground(door.along - door.width / 2, doorSide * W), ground(door.along + door.width / 2, doorSide * W));
+  return {u, v, L, W, front, at, ground, floor, eave, ridge, slope, base, roofZ, reachOut, wallPoint, doorGround};
+}
+// [x, y, z] of the middle of the door ('door') or of a window ('window-<id>') on the wall's outer face, as its panel is drawn.
+export function openingCentre(space, dressing, id) {
+  const f = cabinFrame(space, dressing), {door, windows} = dressing.cabin, w = windows.find(x => `window-${x.id}` === id);
+  const o = id === 'door' ? door : w;
+  if (!o) throw new Error(`no opening ${id}`);
+  const z0 = id === 'door' ? f.doorGround - .03 : f.doorGround + w.sill, height = id === 'door' ? door.height + .03 : w.height;
+  const side = (o.face === 'back' ? -1 : 1) * f.front;
+  return f.wallPoint(side, true, o.along, side * f.W, z0 + height / 2, PROUD);
+}
+// A point on the ridge line, `along` metres from the cabin's centre, as sagged.
+export function ridgePoint(space, dressing, along) {
+  const f = cabinFrame(space, dressing);
+  return f.at(along, 0, f.roofZ(along, 0));
+}
+// The top of the chimney stack.
+export function chimneyTop(space, dressing) {
+  const f = cabinFrame(space, dressing), {chimney} = dressing.cabin;
+  return f.at(chimney.along, 0, f.ridge + chimney.rise);
+}
+
 // Blend weights for the ground at a point; they sum to 1. The path wins over the shore, the shore over the meadow.
 export function groundBlend(space, dressing, x, y) {
   const hw = dressing.pathHalfWidth, earth = 1 - smooth(hw * .6, hw + .45, lineDist(dressing.path, [x, y]));
@@ -124,6 +181,48 @@ export function oakPlan(space, dressing) {
     }
   });
   return {trunk, limbs, clumps};
+}
+
+// A point and radius `f` of the way along a polyline of [x, y, z, radius], by length.
+export function alongLine(points, f) {
+  const lens = points.slice(1).map((q, k) => Math.hypot(q[0] - points[k][0], q[1] - points[k][1], q[2] - points[k][2])), total = lens.reduce((s, l) => s + l, 0);
+  let d = Math.max(0, Math.min(1, f)) * total, k = 0;
+  while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
+  const t = lens[k] ? d / lens[k] : 0;
+  return points[k].map((v, i) => v + (points[k + 1][i] - v) * t);
+}
+// A polyline smoothed through its points (Catmull-Rom), `steps` pieces per span.
+export function smoothLine(points, steps = 4) {
+  const out = [], n = points.length, P = k => points[Math.max(0, Math.min(n - 1, k))];
+  for (let k = 0; k < n - 1; k++) for (let s = 0; s < steps; s++) {
+    const t = s / steps, t2 = t * t, t3 = t2 * t, [a, b, c, d] = [P(k - 1), P(k), P(k + 1), P(k + 2)];
+    out.push(b.map((_, i) => .5 * (2 * b[i] + (c[i] - a[i]) * t + (2 * a[i] - 5 * b[i] + 4 * c[i] - d[i]) * t2 + (3 * b[i] - a[i] - 3 * c[i] + d[i]) * t3)));
+  }
+  out.push(points[n - 1]);
+  return out;
+}
+// How far the trunk's flutes (scene/trees.js: .07 sine + .05 noise + .1 swelling toward the root, which is nowhere more than
+// this together above head height) can swell its drawn radius beyond the centreline's own, as a fraction: an envelope the
+// trunk's drawing stays within, for whoever must stand on or hide behind it. test/space-scene.test.js checks the bird's places
+// against the built mesh.
+export const TRUNK_FLUTE = .14;
+const wood = new WeakMap();
+// The oak's wood centrelines as scene/trees.js draws them, each smoothed through its points: the trunk, its second leader
+// forking off to the north-west, and every limb grown out of the trunk's axis a little below where it leaves (so it comes
+// out of the bark with no open end showing). Lines are [x, y, z, radius]; `limbs` maps a limb's id to its line, whose first
+// four points (one span) are that root. The one description the yard's drawing and the bird's places both read.
+export function oakWood(plan) {
+  let drawn = wood.get(plan);
+  if (drawn) return drawn;
+  const main = plan.trunk, [ox, oy] = main[0], g = main[0][2] + .4;
+  const fork = [alongLine(main, .3).slice(0, 3).concat(.36), [ox - .7, oy + .55, g + 4.8, .32], [ox - 1.5, oy + 1.0, g + 6.8, .2], [ox - 2.1, oy + 1.2, g + 8.6, .05]];
+  const limbs = new Map(plan.limbs.map(limb => {
+    const [b] = limb.points, root = alongLine(main, (b[2] - .25 - main[0][2]) / (main.at(-1)[2] - main[0][2]));
+    return [limb.id, smoothLine([[root[0], root[1], b[2] - .25, b[3] * .9], ...limb.points])];
+  }));
+  drawn = {trunk: smoothLine(main), fork: smoothLine(fork), limbs};
+  wood.set(plan, drawn);
+  return drawn;
 }
 
 // Clumps of woodland 6–25 m beyond the yard wall, on its land sides, in three loose rows.

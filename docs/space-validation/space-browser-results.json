@@ -12,7 +12,7 @@
     },
     {
       "n": 2,
-      "name": "?space=1&check loads all 12 bundle files as image/webp with status 200 and no console errors",
+      "name": "?space=1&check loads all 13 bundle files as image/webp with status 200 and no console errors",
       "pass": true,
       "detail": {
         "files": {
@@ -60,6 +60,10 @@
             "status": 200,
             "type": "image/webp"
           },
+          "window-lit.webp": {
+            "status": 200,
+            "type": "image/webp"
+          },
           "cards.webp": {
             "status": 200,
             "type": "image/webp"
@@ -92,7 +96,7 @@
         "gl": {
           "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
           "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
-          "frame": 20,
+          "frame": 25,
           "calls": 1,
           "triangles": 1,
           "points": 0,
@@ -105,10 +109,10 @@
       "name": "Holding W for 2 s walks 2.2–3.2 m east",
       "pass": true,
       "detail": {
-        "east": 2.8352800000667573,
-        "drift": 1.7361082883841301e-16,
-        "heldSeconds": 2.0203891669999994,
-        "expectedAtWalkingPace": 2.8285448337999988,
+        "east": 2.8014,
+        "drift": 1.7153627715656978e-16,
+        "heldSeconds": 2.012955915999999,
+        "expectedAtWalkingPace": 2.8181382823999983,
         "before": {
           "position": [
             0,
@@ -119,8 +123,8 @@
         },
         "after": {
           "position": [
-            2.8352800000667573,
-            1.7361082883841301e-16
+            2.8014,
+            1.7153627715656978e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -134,7 +138,7 @@
       "detail": [
         {
           "yaw": 0,
-          "seconds": 40.054966125,
+          "seconds": 40.144756584,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -149,7 +153,7 @@
         },
         {
           "yaw": 1.5707963267948966,
-          "seconds": 40.005862,
+          "seconds": 40.145440959,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -157,14 +161,14 @@
             0
           ],
           "end": [
-            25.440983000555576,
-            1.5578109199396293e-15
+            25.440983004917964,
+            1.5578109202067555e-15
           ],
-          "travelled": 25.440983000555576
+          "travelled": 25.440983004917964
         },
         {
           "yaw": 3.141592653589793,
-          "seconds": 40.00687824999999,
+          "seconds": 40.152510750000005,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -172,14 +176,14 @@
             0
           ],
           "end": [
-            1.0706236935641282e-15,
-            -8.742305898398882
+            1.0706236935641295e-15,
+            -8.74230589839888
           ],
-          "travelled": 8.742305898398882
+          "travelled": 8.74230589839888
         },
         {
           "yaw": 4.71238898038469,
-          "seconds": 40.007163208,
+          "seconds": 40.145366667,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -187,10 +191,10 @@
             0
           ],
           "end": [
-            -13.999999999999988,
-            -2.571758278209437e-15
+            -13.999999999999986,
+            -2.5717582782094417e-15
           ],
-          "travelled": 13.999999999999988
+          "travelled": 13.999999999999986
         }
       ]
     },
@@ -199,19 +203,19 @@
       "name": "Opening #about-dialog while W is held stops walking",
       "pass": true,
       "detail": {
-        "walkedBeforeDialog": 0.4671799997329704,
+        "walkedBeforeDialog": 0.42181999993324215,
         "dialogStart": {
           "position": [
-            3.3024599997997277,
-            2.022173534033453e-16
+            3.2232199999332423,
+            1.9736530279329895e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
         },
         "dialogEnd": {
           "position": [
-            3.3024599997997277,
-            2.022173534033453e-16
+            3.2232199999332423,
+            1.9736530279329895e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -225,29 +229,29 @@
       "detail": {
         "stopped": {
           "position": [
-            4.065545120164424,
-            -0.3046224417162114
+            4.02069245187676,
+            -0.33732633057884015
           ],
-          "yaw": 2.4504363268521163,
+          "yaw": 2.491116326966558,
           "pitch": 0.2
         },
         "remembered": {
           "position": [
-            4.065545120164424,
-            -0.3046224417162114
+            4.02069245187676,
+            -0.33732633057884015
           ],
-          "yaw": 2.4504363268521168,
+          "yaw": 2.4911163269665586,
           "pitch": 0.2
         },
         "storedBeforeReload": {
           "version": 1,
           "position": [
-            4.065545120164424,
-            -0.3046224417162114
+            4.02069245187676,
+            -0.33732633057884015
           ],
-          "yaw": 2.4504363268521163,
+          "yaw": 2.491116326966558,
           "pitch": 0.2,
-          "savedAt": 1794880767791
+          "savedAt": 1794931999371
         }
       }
     },
@@ -288,7 +292,7 @@
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0,
-          "savedAt": 1794880779469
+          "savedAt": 1794932010485
         },
         "storedAfterForget": null,
         "state": {
@@ -317,15 +321,15 @@
               255
             ],
             [
-              69,
-              58,
-              33,
+              71,
+              61,
+              35,
               255
             ],
             [
-              146,
-              130,
-              53,
+              140,
+              125,
+              50,
               255
             ],
             [
@@ -335,9 +339,9 @@
               255
             ],
             [
-              121,
-              125,
-              80,
+              113,
+              119,
+              76,
               255
             ]
           ],
@@ -354,15 +358,15 @@
               255
             ],
             [
-              78,
-              67,
-              38,
+              71,
+              61,
+              35,
               255
             ],
             [
-              141,
-              125,
-              52,
+              124,
+              111,
+              44,
               255
             ],
             [
@@ -372,9 +376,9 @@
               255
             ],
             [
-              123,
-              129,
-              82,
+              101,
+              104,
+              67,
               255
             ]
           ],
@@ -391,15 +395,15 @@
               255
             ],
             [
-              73,
+              72,
               62,
               36,
               255
             ],
             [
-              128,
-              113,
-              47,
+              130,
+              114,
+              48,
               255
             ],
             [
@@ -427,12 +431,12 @@
         {
           "tier": "full",
           "fps": 60.25,
-          "triangles": 327968,
-          "calls": 28,
+          "triangles": 328032,
+          "calls": 29,
           "frameMs": {
-            "median": 11.7,
-            "fastest": 10.9,
-            "slowest": 12.2
+            "median": 11.3,
+            "fastest": 10.4,
+            "slowest": 12.7
           },
           "backing": [
             1440,
@@ -442,12 +446,12 @@
         {
           "tier": "light",
           "fps": 60.25,
-          "triangles": 327968,
-          "calls": 28,
+          "triangles": 328032,
+          "calls": 29,
           "frameMs": {
-            "median": 8.8,
-            "fastest": 7.6,
-            "slowest": 9.4
+            "median": 9,
+            "fastest": 7.9,
+            "slowest": 9.7
           },
           "backing": [
             1440,
@@ -456,12 +460,12 @@
         },
         {
           "tier": "plain",
-          "fps": 60.25,
-          "triangles": 327968,
-          "calls": 28,
+          "fps": 60.5,
+          "triangles": 328032,
+          "calls": 29,
           "frameMs": {
-            "median": 5.4,
-            "fastest": 4.7,
+            "median": 5.8,
+            "fastest": 4.9,
             "slowest": 7.4
           },
           "backing": [
@@ -477,15 +481,15 @@
       "pass": true,
       "detail": {
         "centre": [
-          31,
-          47,
-          58,
+          142,
+          150,
+          130,
           255
         ],
         "corner": [
-          5,
-          7,
-          7,
+          42,
+          37,
+          21,
           255
         ],
         "canvasSize": [
@@ -497,73 +501,157 @@
     },
     {
       "n": 13,
-      "name": "Under the night study the front-left window is dark (luminance below 0.25) and darker than the wall beside it; by day it stays dark and the wall is lighter",
+      "name": "Under the night study from 2.5 m in front of the door each front window is brighter than the wall beside it and warm; from behind the cabin the back window is darker than the wall; by day the front windows are not brighter than the wall",
       "pass": true,
       "detail": {
-        "window": {
-          "centre": [
-            17.36007379366067,
-            8.229201859909175,
-            3.11866611370331
-          ],
-          "wall": [
-            17.73629595131891,
-            7.195539977044675,
-            3.11866611370331
-          ],
-          "at": [
-            14.422151654498643,
-            4.605858996720318
-          ]
-        },
-        "pixel": [
-          720,
-          514.5367712483039
-        ],
-        "wallPixel": [
-          861.1892275083605,
-          519.6442073913689
-        ],
-        "night": {
-          "window": {
-            "rgba": [
+        "night": [
+          {
+            "id": "front-left",
+            "pixel": [
+              720.0000000000003,
+              405
+            ],
+            "wallPixel": [
+              634.2619831532945,
+              398.12783745459967
+            ],
+            "inView": true,
+            "glass": [
+              245.91358024691357,
+              213.54320987654322,
+              135.58024691358025
+            ],
+            "wall": [
+              92.14814814814815,
+              56.95061728395062,
+              29.506172839506174
+            ],
+            "glassLuminance": 0.8423381360445412,
+            "wallLuminance": 0.24491028806584364
+          },
+          {
+            "id": "front-right",
+            "pixel": [
+              719.9999999999993,
+              405.00000000000017
+            ],
+            "wallPixel": [
+              807.1129348814897,
+              398.03755484084706
+            ],
+            "inView": true,
+            "glass": [
+              213.7283950617284,
+              178.74074074074073,
+              111.74074074074075
+            ],
+            "wall": [
+              72.27160493827161,
+              44.666666666666664,
+              27.296296296296298
+            ],
+            "glassLuminance": 0.7111439845073831,
+            "wallLuminance": 0.19326014040183975
+          },
+          {
+            "id": "back",
+            "pixel": [
+              720.0000000000003,
+              405
+            ],
+            "wallPixel": [
+              550.9718990117445,
+              405
+            ],
+            "inView": true,
+            "glass": [
               2,
-              4,
-              5,
-              255
+              3.6666666666666665,
+              4.790123456790123
             ],
-            "luminance": 0.014301960784313722
-          },
-          "wall": {
-            "rgba": [
-              23,
-              23,
-              24,
-              255
+            "wall": [
+              22.37037037037037,
+              23.950617283950617,
+              24.74074074074074
             ],
-            "luminance": 0.09047921568627453
+            "glassLuminance": 0.013307634955216655,
+            "wallLuminance": 0.09283021060275962
           }
-        },
-        "day": {
-          "window": {
-            "rgba": [
-              36,
-              40,
-              31,
-              255
+        ],
+        "day": [
+          {
+            "id": "front-left",
+            "pixel": [
+              720.0000000000003,
+              405
             ],
-            "luminance": 0.15097960784313727
+            "wallPixel": [
+              634.2619831532945,
+              398.12783745459967
+            ],
+            "inView": true,
+            "glass": [
+              36.41975308641975,
+              39.901234567901234,
+              29.641975308641975
+            ],
+            "wall": [
+              124.64197530864197,
+              104.22222222222223,
+              70.62962962962963
+            ],
+            "glassLuminance": 0.15066805131929314,
+            "wallLuminance": 0.4162277511498427
           },
-          "wall": {
-            "rgba": [
-              125,
-              102,
-              68,
-              255
+          {
+            "id": "front-right",
+            "pixel": [
+              719.9999999999993,
+              405.00000000000017
             ],
-            "luminance": 0.40954901960784307
+            "wallPixel": [
+              807.1129348814897,
+              398.03755484084706
+            ],
+            "inView": true,
+            "glass": [
+              36.41975308641975,
+              39.96296296296296,
+              29.555555555555557
+            ],
+            "wall": [
+              125.01234567901234,
+              102.95061728395062,
+              73.20987654320987
+            ],
+            "glassLuminance": 0.15081671266037278,
+            "wallLuminance": 0.4137006245461147
+          },
+          {
+            "id": "back",
+            "pixel": [
+              720.0000000000003,
+              405
+            ],
+            "wallPixel": [
+              550.9718990117445,
+              405
+            ],
+            "inView": true,
+            "glass": [
+              17.85185185185185,
+              21.54320987654321,
+              16.11111111111111
+            ],
+            "wall": [
+              85.55555555555556,
+              73.20987654320987,
+              50.45679012345679
+            ],
+            "glassLuminance": 0.07986756717501815,
+            "wallLuminance": 0.29094821592834663
           }
-        }
+        ]
       }
     },
     {
@@ -586,7 +674,7 @@
         "spaceHidden": true,
         "painting": true,
         "fallback": true,
-        "seconds": 0.07197791700001108
+        "seconds": 0.07242795899999328
       }
     },
     {
@@ -598,15 +686,15 @@
         "width": 390,
         "height": 844,
         "centre": [
-          31,
-          46,
-          58,
+          141,
+          149,
+          130,
           255
         ],
         "corner": [
-          8,
-          13,
-          8,
+          74,
+          74,
+          34,
           255
         ]
       }
@@ -678,33 +766,33 @@
             "frame": {
               "pixels": [
                 [
-                  31,
-                  47,
-                  58,
+                  142,
+                  150,
+                  131,
                   255
                 ],
                 [
-                  7,
-                  8,
-                  7,
-                  255
-                ],
-                [
-                  25,
+                  38,
                   34,
-                  25,
+                  19,
                   255
                 ],
                 [
-                  44,
-                  63,
-                  82,
+                  149,
+                  145,
+                  77,
                   255
                 ],
                 [
-                  23,
-                  31,
-                  29,
+                  199,
+                  205,
+                  191,
+                  255
+                ],
+                [
+                  137,
+                  135,
+                  84,
                   255
                 ]
               ],
@@ -723,33 +811,33 @@
             "frame": {
               "pixels": [
                 [
-                  31,
-                  47,
-                  58,
-                  255
-                ],
-                [
-                  7,
-                  9,
-                  8,
-                  255
-                ],
-                [
-                  23,
-                  31,
-                  23,
+                  142,
+                  150,
+                  131,
                   255
                 ],
                 [
                   44,
-                  63,
-                  82,
+                  39,
+                  22,
                   255
                 ],
                 [
-                  26,
-                  35,
-                  33,
+                  129,
+                  126,
+                  67,
+                  255
+                ],
+                [
+                  198,
+                  204,
+                  191,
+                  255
+                ],
+                [
+                  153,
+                  151,
+                  96,
                   255
                 ]
               ],
@@ -767,33 +855,33 @@
           "frame": {
             "pixels": [
               [
-                31,
-                47,
-                58,
+                143,
+                150,
+                131,
                 255
               ],
               [
-                4,
-                4,
-                3,
-                255
-              ],
-              [
+                37,
                 29,
-                35,
-                27,
+                11,
                 255
               ],
               [
-                42,
-                62,
-                82,
+                150,
+                141,
+                74,
                 255
               ],
               [
-                22,
-                29,
-                28,
+                192,
+                200,
+                192,
+                255
+              ],
+              [
+                149,
+                145,
+                87,
                 255
               ]
             ],
@@ -824,33 +912,33 @@
         "frame": {
           "pixels": [
             [
-              31,
-              47,
-              58,
-              255
-            ],
-            [
-              7,
-              9,
-              8,
-              255
-            ],
-            [
-              23,
-              31,
-              23,
+              143,
+              150,
+              131,
               255
             ],
             [
               44,
-              63,
-              82,
+              39,
+              22,
               255
             ],
             [
-              26,
-              35,
-              33,
+              129,
+              127,
+              67,
+              255
+            ],
+            [
+              198,
+              204,
+              191,
+              255
+            ],
+            [
+              165,
+              159,
+              99,
               255
             ]
           ],
@@ -859,6 +947,487 @@
         },
         "pageErrors": [],
         "consoleErrors": []
+      }
+    },
+    {
+      "n": 23,
+      "name": "With the casement set open the pixels over the front-left window differ from the same view with it shut (and two shut frames agree)",
+      "pass": true,
+      "detail": {
+        "pixel": [
+          720.0000000000003,
+          405
+        ],
+        "open": {
+          "n": 2320,
+          "of": 8281
+        },
+        "control": {
+          "n": 0,
+          "of": 8281
+        }
+      }
+    },
+    {
+      "n": 24,
+      "name": "Two frames 1.5 s apart differ within the oak's crown; with reduced motion emulated they are identical there",
+      "pass": true,
+      "detail": {
+        "moving": {
+          "sprays": 5,
+          "n": 770,
+          "of": 1445
+        },
+        "reducedMotion": {
+          "motion": false,
+          "sprays": 5,
+          "n": 0,
+          "of": 1445
+        }
+      }
+    },
+    {
+      "n": 25,
+      "name": "Under the rain study the path ahead is darker than by day and the rain presenter is active; a view along the front wall from under the eave equals the same view with the rain hidden",
+      "pass": true,
+      "detail": {
+        "pathLuminance": {
+          "day": 0.5752335785280581,
+          "rain": 0.3965252450013536
+        },
+        "rainStatus": "active",
+        "eave": {
+          "position": [
+            19.019044043462102,
+            3.0864576790001346
+          ],
+          "sheltered": 0,
+          "wallPixel": [
+            746.8511881976734,
+            405
+          ],
+          "changed": {
+            "n": 0,
+            "of": 6615
+          }
+        },
+        "open": {
+          "n": 342,
+          "of": 10584
+        }
+      }
+    },
+    {
+      "n": 26,
+      "name": "With a ripple set at each of the three spots the lake there differs from the same frame without it and coincidenceActive is true",
+      "pass": true,
+      "detail": {
+        "shore-reflection": {
+          "samples": 25,
+          "n": 2193,
+          "of": 7225,
+          "active": true
+        },
+        "open-water": {
+          "samples": 25,
+          "n": 2314,
+          "of": 7225,
+          "active": true
+        },
+        "near-water": {
+          "samples": 20,
+          "n": 2196,
+          "of": 5780,
+          "active": true
+        }
+      }
+    },
+    {
+      "n": 27,
+      "name": "The bird is drawn at the oak perch, the nest, the sheltering place (from behind the oak, not from the arrival), the roof perch and mid-flight: hiding it changes pixels at its place",
+      "pass": true,
+      "detail": {
+        "perched": {
+          "eye": [
+            0,
+            0
+          ],
+          "pixel": [
+            720,
+            405.0000000000001
+          ],
+          "inView": true,
+          "group": true,
+          "changed": {
+            "n": 199,
+            "of": 2401
+          },
+          "status": "active"
+        },
+        "roofed": {
+          "eye": [
+            0,
+            0
+          ],
+          "pixel": [
+            720,
+            405
+          ],
+          "inView": true,
+          "group": true,
+          "changed": {
+            "n": 49,
+            "of": 2401
+          },
+          "status": "active"
+        },
+        "nested": [
+          {
+            "radius": 2.5,
+            "bearing": 60,
+            "eye": [
+              6.665063509461096,
+              5.75
+            ],
+            "pixel": [
+              720.0000000000003,
+              405
+            ],
+            "inView": true,
+            "group": true,
+            "changed": {
+              "n": 267,
+              "of": 2401
+            },
+            "status": "active"
+          },
+          {
+            "radius": 2.5,
+            "bearing": 270,
+            "eye": [
+              2,
+              4.499999999999999
+            ],
+            "pixel": [
+              720,
+              404.9999999999999
+            ],
+            "inView": true,
+            "group": true,
+            "changed": {
+              "n": 279,
+              "of": 2401
+            },
+            "status": "active"
+          },
+          {
+            "radius": 4,
+            "bearing": 90,
+            "eye": [
+              8.5,
+              4.5
+            ],
+            "pixel": [
+              720.0000000000001,
+              405
+            ],
+            "inView": true,
+            "group": true,
+            "changed": {
+              "n": 282,
+              "of": 2401
+            },
+            "status": "active"
+          },
+          {
+            "radius": 4,
+            "bearing": 300,
+            "eye": [
+              1.0358983848622456,
+              6.5
+            ],
+            "pixel": [
+              720,
+              404.9999999999999
+            ],
+            "inView": true,
+            "group": true,
+            "changed": {
+              "n": 196,
+              "of": 2401
+            },
+            "status": "active"
+          }
+        ],
+        "behind": {
+          "eye": [
+            0.6109127034739879,
+            8.38908729652601
+          ],
+          "pixel": [
+            719.9999999999999,
+            404.9999999999999
+          ],
+          "inView": true,
+          "group": true,
+          "changed": {
+            "n": 260,
+            "of": 2401
+          },
+          "status": "active"
+        },
+        "hiddenFromArrival": {
+          "eye": [
+            0,
+            0
+          ],
+          "pixel": [
+            720,
+            404.99999999999994
+          ],
+          "inView": true,
+          "group": true,
+          "changed": {
+            "n": 0,
+            "of": 2401
+          },
+          "status": "active"
+        },
+        "flight": {
+          "position": [
+            13.481432688817186,
+            4.0626607003532955,
+            7.789677546004411
+          ],
+          "flying": true,
+          "eye": [
+            10.481432688817186,
+            0.06266070035329552
+          ],
+          "pixel": [
+            720.0000000000003,
+            405
+          ],
+          "inView": true,
+          "group": true,
+          "changed": {
+            "n": 125,
+            "of": 2401
+          },
+          "status": "active"
+        }
+      }
+    },
+    {
+      "n": 28,
+      "name": "Under a study with no fixture life.status.bird is idle and the bird is not drawn",
+      "pass": true,
+      "detail": {
+        "status": {
+          "wind": "active",
+          "cottage": "active",
+          "smoke": "idle",
+          "rain": "active",
+          "traces": "active",
+          "ripples": "idle",
+          "bird": "idle",
+          "nest": "active",
+          "farBirds": "idle"
+        },
+        "visible": false
+      }
+    },
+    {
+      "n": 29,
+      "name": "No page errors from the living things so far",
+      "pass": true,
+      "detail": {
+        "pageErrors": [],
+        "consoleErrors": []
+      }
+    },
+    {
+      "n": 30,
+      "name": "With the rain and ripple presenters stubbed to throw, the yard still draws, they report failed and every other presenter reports active or idle, with no page errors",
+      "pass": true,
+      "detail": {
+        "status": {
+          "wind": "active",
+          "cottage": "active",
+          "smoke": "idle",
+          "rain": "failed",
+          "traces": "active",
+          "ripples": "failed",
+          "bird": "idle",
+          "nest": "active",
+          "farBirds": "idle"
+        },
+        "frame": {
+          "pixels": [
+            [
+              121,
+              126,
+              114,
+              255
+            ],
+            [
+              54,
+              46,
+              26,
+              255
+            ],
+            [
+              98,
+              98,
+              50,
+              255
+            ],
+            [
+              180,
+              177,
+              167,
+              255
+            ],
+            [
+              72,
+              75,
+              48,
+              255
+            ]
+          ],
+          "width": 1280,
+          "height": 720
+        },
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 31,
+      "name": "Frame cost per tier under the day and rain studies (recorded); a view left alone under the rain study settles on the full tier, locked",
+      "pass": true,
+      "detail": {
+        "costs": [
+          {
+            "tier": "full",
+            "study": "day",
+            "fps": 60.25,
+            "triangles": 328032,
+            "calls": 29,
+            "streaks": 0,
+            "frameMs": {
+              "median": 11.5,
+              "fastest": 10.6,
+              "slowest": 12.2
+            },
+            "lifeMs": {
+              "median": 0.1,
+              "slowest": 0.2,
+              "frames": 121
+            },
+            "rain": "idle"
+          },
+          {
+            "tier": "full",
+            "study": "rain",
+            "fps": 60.25,
+            "triangles": 328074,
+            "calls": 31,
+            "streaks": 1587,
+            "frameMs": {
+              "median": 11.7,
+              "fastest": 10.7,
+              "slowest": 12.5
+            },
+            "lifeMs": {
+              "median": 0.5,
+              "slowest": 0.9,
+              "frames": 121
+            },
+            "rain": "active"
+          },
+          {
+            "tier": "light",
+            "study": "day",
+            "fps": 60.25,
+            "triangles": 328032,
+            "calls": 29,
+            "streaks": 0,
+            "frameMs": {
+              "median": 8.8,
+              "fastest": 7.9,
+              "slowest": 9.5
+            },
+            "lifeMs": {
+              "median": 0.1,
+              "slowest": 0.2,
+              "frames": 121
+            },
+            "rain": "idle"
+          },
+          {
+            "tier": "light",
+            "study": "rain",
+            "fps": 60.25,
+            "triangles": 328074,
+            "calls": 31,
+            "streaks": 1575,
+            "frameMs": {
+              "median": 8.5,
+              "fastest": 8,
+              "slowest": 10
+            },
+            "lifeMs": {
+              "median": 0.5,
+              "slowest": 0.8,
+              "frames": 121
+            },
+            "rain": "active"
+          },
+          {
+            "tier": "plain",
+            "study": "day",
+            "fps": 60.25,
+            "triangles": 328032,
+            "calls": 29,
+            "streaks": 0,
+            "frameMs": {
+              "median": 4.9,
+              "fastest": 4.5,
+              "slowest": 5.5
+            },
+            "lifeMs": {
+              "median": 0,
+              "slowest": 0.2,
+              "frames": 121
+            },
+            "rain": "idle"
+          },
+          {
+            "tier": "plain",
+            "study": "rain",
+            "fps": 60.25,
+            "triangles": 328074,
+            "calls": 31,
+            "streaks": 1578,
+            "frameMs": {
+              "median": 4.6,
+              "fastest": 4.4,
+              "slowest": 5.5
+            },
+            "lifeMs": {
+              "median": 0.5,
+              "slowest": 0.8,
+              "frames": 121
+            },
+            "rain": "active"
+          }
+        ],
+        "leftAloneUnderRain": {
+          "tier": "full",
+          "locked": true,
+          "passMode": "full",
+          "rain": "active"
+        }
       }
     }
   ],

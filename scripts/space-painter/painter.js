@@ -4,7 +4,7 @@ import {REGIONS} from './regions.js';
 
 // One fixed seed per slot; every random number a texture uses comes from it.
 export const SEEDS = Object.freeze({meadow: 3, earth: 5, shore: 9, stone: 13, slate: 17, bark: 19, water: 37, drystone: 43, hills: 41,
-  door: 47, window: 53, cards: 59});
+  door: 47, window: 53, cards: 59, windowLit: 61});
 
 const TAU = Math.PI * 2;
 const rng = seed => () => {
@@ -591,6 +591,35 @@ const PANELS = {
         len: (50 + r() * 70) * k, width: Math.min(fw, fh) * (.35 + r() * .25), color: jitter(r, mul(mix(pale, paleFrom.pick(), .3), .86 + r() * .16), .04), alpha: .9, bristles: 3, taper: .3}, r);
     }
     g.fillStyle = css([30, 30, 26], .35); g.fillRect(F, h - F - 3 * k, w - 2 * F, 3 * k); // the bottom rail's lip
+    return c;
+  },
+  // The same casement with a lamp lit inside: the frame and bars where `window` has them, the glass a warm lamp-lit ochre,
+  // brightest toward the middle, the bars and frame dark against it. The yard shows it as emitted light, so nothing here is lit by day.
+  windowLit(paint, r, w, h) {
+    const c = canvas(w, h), g = c.getContext('2d'), paleFrom = sampler(paint, REGIONS.window, r, x => lum(x) > 150), k = w / 256;
+    const F = 22 * k, B = 7 * k, lamp = [236, 176, 92], deep = [150, 86, 34], dark = mix(mul(paleFrom.mean, .22), [44, 30, 20], .5);
+    const glow = g.createRadialGradient(w / 2, h * .54, 8 * k, w / 2, h * .54, w * .62);
+    glow.addColorStop(0, css([252, 214, 140])); glow.addColorStop(.45, css(lamp)); glow.addColorStop(1, css(deep));
+    g.fillStyle = glow; g.fillRect(0, 0, w, h);
+    for (let q = 0; q < 220; q++) { // loose warm strokes, lighter toward the middle
+      const x = r() * w, y = r() * h, near = 1 - Math.min(1, Math.hypot(x - w / 2, y - h * .54) / (w * .6));
+      dab(g, x, y, {angle: r() * TAU, len: (14 + r() * 30) * k, width: (6 + r() * 8) * k,
+        color: jitter(r, mix(deep, [250, 206, 130], Math.min(1, near * 1.25) * (.85 + r() * .2)), .06), alpha: .28, bristles: 2, taper: .4}, r);
+    }
+    g.fillStyle = css([60, 30, 12], .45); g.fillRect(F, F, w - 2 * F, 9 * k); g.fillRect(F, F, 8 * k, h - 2 * F); // reveal shadow
+    const bar = (x, y, bw, bh, vertical) => { // a dark bar, laid as in `window`
+      for (let q = 0; q < Math.max(bw, bh) / (24 * k); q++) {
+        const t = (q + .5) * 24 * k, px = vertical ? x + bw / 2 + (r() - .5) * k : x + t, py = vertical ? y + t : y + bh / 2 + (r() - .5) * k;
+        dab(g, px, py, {angle: (vertical ? Math.PI / 2 : 0) + (r() - .5) * .03, len: 36 * k, width: Math.min(bw, bh) * 1.05, color: jitter(r, mul(dark, .9 + r() * .2), .05), alpha: 1, bristles: 2, taper: .2}, r);
+      }
+    };
+    for (const t of [1 / 3, 2 / 3]) { bar(F + (w - 2 * F) * t - B / 2, F, B, h - 2 * F, true); bar(F, F + (h - 2 * F) * t - B / 2, w - 2 * F, B, false); }
+    for (const [x, y, fw, fh, v] of [[0, 0, w, F, false], [0, h - F, w, F, false], [0, 0, F, h, true], [w - F, 0, F, h, true]]) { // the frame, in shadow
+      g.fillStyle = css(mul(dark, 1.1)); g.fillRect(x, y, fw, fh);
+      for (let q = 0; q < 16; q++) dab(g, x + (v ? fw * (.25 + r() * .5) : r() * fw), y + (v ? r() * fh : fh * (.25 + r() * .5)), {angle: (v ? Math.PI / 2 : 0) + (r() - .5) * .03,
+        len: (50 + r() * 70) * k, width: Math.min(fw, fh) * (.35 + r() * .25), color: jitter(r, mul(mix(dark, paleFrom.pick(), .12), .9 + r() * .3), .04), alpha: .9, bristles: 3, taper: .3}, r);
+    }
+    g.fillStyle = css([128, 70, 28], .5); g.fillRect(F, F, w - 2 * F, 2 * k); g.fillRect(F, F, 2 * k, h - 2 * F); // lamplight on the frame's inner edge
     return c;
   },
 };

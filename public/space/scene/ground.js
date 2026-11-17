@@ -71,11 +71,13 @@ function terrainGeometry(THREE, space, dressing) {
 function terrainMaterial(THREE, art) {
   const {meadow, earth, shore} = SPACE_ART.surfaces, metres = new THREE.Vector3(meadow.metres, earth.metres, shore.metres);
   const m = new THREE.MeshLambertMaterial({map: art.surfaces.meadow, vertexColors: true});
+  // Wetness of the path and of the shore stones, 0..1 each; one object, so setting it works before and after the first compile.
+  m.userData.wet = {value: new THREE.Vector2()};
   m.onBeforeCompile = s => {
-    Object.assign(s.uniforms, {earthMap: {value: art.surfaces.earth}, shoreMap: {value: art.surfaces.shore}, groundMetres: {value: metres}});
+    Object.assign(s.uniforms, {wet: m.userData.wet, earthMap: {value: art.surfaces.earth}, shoreMap: {value: art.surfaces.shore}, groundMetres: {value: metres}});
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 paint;\nvarying vec3 vPaint;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvPaint = paint;');
-    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D earthMap, shoreMap;\nuniform vec3 groundMetres;\nvarying vec3 vPaint;')
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D earthMap, shoreMap;\nuniform vec3 groundMetres;\nuniform vec2 wet;\nvarying vec3 vPaint;')
       .replace('#include <map_fragment>', `
   vec2 world = vMapUv;
   vec4 meadowA = texture2D( map, world / groundMetres.x );
@@ -87,9 +89,12 @@ function terrainMaterial(THREE, art) {
   // Only where two layers meet: a layer at full or no weight stays so.
   float shoreWeight = smoothstep( .3, .7, vPaint.y + ( ls - lm ) * 3. * vPaint.y * ( 1. - vPaint.y ) * 4. );
   float earthWeight = smoothstep( .3, .7, vPaint.x + ( le - lm ) * 3. * vPaint.x * ( 1. - vPaint.x ) * 4. );
+  // Rain darkens the path's earth and the shore's stones, and bluish: wet earth and stone.
+  earthColour.rgb *= mix( vec3( 1. ), vec3( .62, .64, .7 ), wet.x * earthWeight );
+  shoreColour.rgb *= mix( vec3( 1. ), vec3( .66, .68, .74 ), wet.y * shoreWeight );
   diffuseColor *= mix( mix( meadowColour, shoreColour, shoreWeight ), earthColour, earthWeight );`);
   };
-  m.customProgramCacheKey = () => 'painted-ground';
+  m.customProgramCacheKey = () => 'painted-ground-wet';
   return m;
 }
 
@@ -102,25 +107,50 @@ void main() {
   vec4 mvPosition = viewMatrix * world; gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
 }`;
-const LAKE_FRAGMENT = `uniform sampler2D strokes; uniform vec3 zenith, horizon, dayHorizon; uniform float metres; varying vec3 vWorld;
+const LAKE_FRAGMENT = `uniform sampler2D strokes; uniform vec3 zenith, horizon, dayHorizon; uniform float metres, rippleSeed; uniform vec4 ripple; varying vec3 vWorld;
 #include <common>
 #include <fog_pars_fragment>
+// The rings a rising fish leaves, ported from lakeRipple in public/ripple-shader.js with the same numbers. p is the offset from
+// the ring's centre in its radii (the yard's x, y of this fragment is (vWorld.x, -vWorld.z)); the result is (offset xy, brightening z).
+// ripple = (centre x, centre y, radius, age); an age of 0 or less is no ripple.
+vec3 lakeRipple( vec2 p ) {
+  float radius = length( p ), age = ripple.w;
+  if ( age <= 0. || age >= 1. || radius >= 1. ) return vec3( 0. );
+  float angle = atan( p.y, p.x ), seed = rippleSeed;
+  float envelope = smoothstep( 0., .08, age ) * ( 1. - smoothstep( .52, 1., age ) );
+  float edge = 0., slope = 0.;
+  for ( int i = 0; i < 3; i++ ) {
+    float t = age - float( i ) * .105;
+    float ring = .10 + sqrt( max( 0., t ) ) * .82;
+    float wobble = .018 * sin( angle * 3. + seed + float( i ) ) + .012 * sin( angle * 7. - seed );
+    float d = ( radius - ring + wobble ) / .055;
+    float arc = smoothstep( -.65, .45, sin( angle * 2. + seed + float( i ) * 1.7 ) ) * .65 + .15;
+    float wave = exp( -d * d * 2. ) * smoothstep( 0., .07, t ) * arc;
+    edge += wave * ( 1. - float( i ) * .2 );
+    slope += wave * d;
+  }
+  float bounded = envelope * ( 1. - smoothstep( .87, 1., radius ) );
+  vec2 direction = p / max( .08, radius );
+  return vec3( direction * slope * .85, edge * .027 - slope * .012 ) * bounded;
+}
 void main() {
+  vec3 rings = lakeRipple( ( vec2( vWorld.x, -vWorld.z ) - ripple.xy ) / max( ripple.z, .001 ) );
   vec3 toEye = cameraPosition - vWorld; float dist = length( toEye ); vec3 view = toEye / dist;
   float fresnel = .1 + .45 * pow( 1. - clamp( view.y, 0., 1. ), 5. );
   vec2 p = vec2( vWorld.x - cameraPosition.x, cameraPosition.z - vWorld.z ); float r = max( length( p ), .5 ), r2 = r * r;
   const float ARC = ${LAKE_ARCS}. / 6.2831853;
-  vec2 arcs = vec2( atan( p.y, p.x ) * ARC, log( r ) * 7. );
+  vec2 arcs = vec2( atan( p.y, p.x ) * ARC, log( r ) * 7. ) + rings.xy * 1.2;
   // Gradients taken from p, which is smooth, so the angle's wrap does not show as a seam of blurred strokes.
   vec2 px = dFdx( p ), py = dFdy( p );
   vec2 gx = vec2( ( p.x * px.y - p.y * px.x ) / r2 * ARC, dot( p, px ) / r2 * 7. ), gy = vec2( ( p.x * py.y - p.y * py.x ) / r2 * ARC, dot( p, py ) / r2 * 7. );
   vec3 mean = texture( strokes, vec2( .5 ), 16. ).rgb;
   vec3 near = textureGrad( strokes, arcs, gx, gy ).rgb / mean;
   // Broad, soft patches fixed to the water, so it does not slide as a whole with the viewer.
-  vec3 slow = texture( strokes, vec2( vWorld.x, -vWorld.z ) / ( metres * 2. ), 4. ).rgb / mean;
+  vec3 slow = texture( strokes, vec2( vWorld.x, -vWorld.z ) / ( metres * 2. ) + rings.xy * 1.2, 4. ).rgb / mean;
   vec3 sky = mix( horizon, zenith, .4 + .6 * smoothstep( 0., .4, view.y ) );
   vec3 body = mean * horizon / dayHorizon;
   vec3 colour = mix( body, sky * 1.02, fresnel ) * mix( vec3( 1. ), near, .55 ) * mix( vec3( 1. ), slow, .3 );
+  colour += colour * rings.z * 30.;
   gl_FragColor = vec4( colour, 1. );
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -137,13 +167,19 @@ function lake(THREE, art) {
   const linear = c => new THREE.Vector3(...new THREE.Color().setRGB(...c, THREE.SRGBColorSpace).toArray());
   const material = new THREE.ShaderMaterial({vertexShader: LAKE_VERTEX, fragmentShader: LAKE_FRAGMENT, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {zenith: {value: linear(DAY_HORIZON)}, horizon: {value: linear(DAY_HORIZON)},
-      dayHorizon: {value: linear(DAY_HORIZON)}, metres: {value: SPACE_ART.surfaces.water.metres}, strokes: {value: null}}])});
+      dayHorizon: {value: linear(DAY_HORIZON)}, metres: {value: SPACE_ART.surfaces.water.metres}, strokes: {value: null},
+      ripple: {value: new THREE.Vector4(0, 0, 1, 0)}, rippleSeed: {value: 0}}])});
   material.uniforms.strokes.value = art.surfaces.water; // merge clones uniform values; the texture must stay the shared one
   const mesh = new THREE.Mesh(g, material); mesh.name = 'lake';
   const colour = new THREE.Color();
   mesh.userData.setSky = ({zenith, horizon}) => {
     material.uniforms.zenith.value.set(...colour.setRGB(...zenith, THREE.SRGBColorSpace).toArray());
     material.uniforms.horizon.value.set(...colour.setRGB(...horizon, THREE.SRGBColorSpace).toArray());
+  };
+  // The ring now showing: {center: [x, y], radius, age, variation} in the yard's axes, or null for none.
+  mesh.userData.setRipple = r => {
+    if (r) { material.uniforms.ripple.value.set(r.center[0], r.center[1], r.radius, r.age); material.uniforms.rippleSeed.value = r.variation; }
+    else material.uniforms.ripple.value.w = 0;
   };
   return mesh;
 }
@@ -211,9 +247,11 @@ function wall(THREE, space, art) {
   return group;
 }
 
-// {terrain, lake, wall, setSky}. `art` is the loaded bundle (see art-loader.js).
+// {terrain, lake, wall, setSky, setWet, setRipple}. `art` is the loaded bundle (see art-loader.js).
 export function buildGround(THREE, {space, dressing, art}) {
   const terrain = new THREE.Mesh(terrainGeometry(THREE, space, dressing), terrainMaterial(THREE, art)); terrain.name = 'terrain';
   const water = lake(THREE, art);
-  return {terrain, lake: water, wall: wall(THREE, space, art), setSky: water.userData.setSky};
+  const wet = terrain.material.userData.wet.value;
+  return {terrain, lake: water, wall: wall(THREE, space, art), setSky: water.userData.setSky, setRipple: water.userData.setRipple,
+    setWet({path = 0, stone = 0}) { wet.set(path, stone); }};
 }

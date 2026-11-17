@@ -8,12 +8,16 @@ const BUNDLE_COMPLETE = true;
 
 test('every art slot names one distinct WebP file', () => {
   const files = artFiles();
-  assert.equal(files.length, 12);
-  assert.equal(new Set(files.map(f => f.file)).size, 12);
-  assert.equal(new Set(files.map(f => f.slot)).size, 12);
-  for (const f of files) { assert.match(f.file, /^[a-z]+\.webp$/); assert.ok(f.width > 0 && f.height > 0); }
+  assert.equal(files.length, 13);
+  assert.equal(new Set(files.map(f => f.file)).size, 13);
+  assert.equal(new Set(files.map(f => f.slot)).size, 13);
+  for (const f of files) { assert.match(f.file, /^[a-z]+(-[a-z]+)*\.webp$/); assert.ok(f.width > 0 && f.height > 0); }
   assert.deepEqual(files.filter(f => f.alpha).map(f => f.slot), ['cards']);
   assert.ok(Object.isFrozen(SPACE_ART) && Object.isFrozen(SPACE_ART.surfaces.meadow));
+});
+test('the lit window is a panel the size of the dark one', () => {
+  const lit = artFiles().find(f => f.slot === 'windowLit');
+  assert.deepEqual(lit, {slot: 'windowLit', file: 'window-lit.webp', width: 256, height: 256, alpha: false});
 });
 test('card cells tile the atlas without overlap', () => {
   const used = Object.values(SPACE_ART.cards.cells).flat();
