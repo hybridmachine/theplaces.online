@@ -325,6 +325,19 @@ test('leaves on the window side are cut short where a plant has little room', ()
   assert.ok(cut > 20, `only ${cut} plants reach past ${ROOM} m`);
 });
 
+test('a bean\'s leaves, blossoms and pods never stand above the tip of its climbing vine', () => {
+  const plant = gardenState(S, D, 150).plants.find(p => p.kind === 'bean'), alone = (space, dressing, day) => { const s = gardenState(space, dressing, day); return {...s, plants: s.plants.filter(p => p.id === plant.id)}; };
+  let drawn = 0;
+  for (let d = 138; d <= 200; d++) {
+    const garden = buildGarden(THREE, {space: S, dressing: D, art: stubArt(), day: d, stateOf: alone}), p = garden.object.getObjectByName('leaves').geometry.getAttribute('position');
+    const h = alone(S, D, d).plants[0].stage.height, tip = plant.foot[2] + plant.height * Math.min(.98, 1.05 * h);
+    // each card is four vertices; three's y is up
+    for (let i = 0; i < p.count; i += 4) { const z = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2) + p.getY(i + 3)) / 4; drawn++; assert.ok(z <= tip + .03, `day ${d}: a card ${(z - plant.foot[2]).toFixed(3)} m up, the vine's tip at ${(tip - plant.foot[2]).toFixed(3)} m`); }
+    garden.object.traverse(o => o.geometry?.dispose());
+  }
+  assert.ok(drawn > 500);
+});
+
 test('the path lights are drawn: stakes, lamps, halos and pools of light that follow the level', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), lights = scene.parts.lights, plan = pathLightPlan(S, D);
   assert.equal(lights.name, 'lights');

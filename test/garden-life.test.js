@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CROPS, DAILY_STEP, EVENT_DAYS, OFFSET_DAYS, cropStage, gardenState, plotSoil} from '../shared/garden-life.js';
+import {CROPS, DAILY_STEP, EVENT_DAYS, OFFSET_DAYS, cropStage, fruitOn, fruitTurn, gardenState, plotSoil} from '../shared/garden-life.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
 
@@ -22,11 +22,28 @@ test('supports stand only between their up and down days', () => {
   }
 });
 test('nothing jumps from one day to the next except on a gardener\'s day', () => {
-  for (const kind of KINDS) for (let d = 1; d < 365; d++) {
+  // a plant early or late by its own offset still changes suddenly only on the gardener's days, which no offset moves
+  for (const kind of KINDS) for (const offset of [-OFFSET_DAYS, 0, OFFSET_DAYS]) for (let d = 1; d < 365; d++) {
     if (EVENT_DAYS(kind).includes(d)) continue;
-    const a = cropStage(kind, d - 1), b = cropStage(kind, d);
-    for (const k of NUMS) assert.ok(Math.abs(b[k] - a[k]) <= DAILY_STEP, `${kind} ${k} day ${d}`);
+    const a = cropStage(kind, d - 1, offset), b = cropStage(kind, d, offset);
+    for (const k of NUMS) assert.ok(Math.abs(b[k] - a[k]) <= DAILY_STEP, `${kind} ${k} day ${d} offset ${offset}`);
   }
+});
+test('the corn is picked on its harvest day, whatever a plant\'s offset', () => {
+  for (const offset of [-OFFSET_DAYS, 0, OFFSET_DAYS]) { assert.equal(cropStage('corn', 290, offset).fruit, 1); assert.equal(cropStage('corn', 291, offset).fruit, 0); }
+});
+test('a tomato is seen ripe before it is picked, and every one is picked in the end', () => {
+  for (const offset of [-OFFSET_DAYS, 0, OFFSET_DAYS]) for (let at = 0; at <= .85; at += .05) for (const jitter of [0, .5, .999]) {
+    const on = d => { const st = cropStage('tomato', d, offset); return fruitOn(st, at, fruitTurn(st, at, jitter)); };
+    let hung = false;
+    for (let d = 136; d < 300; d++) {
+      if (on(d)) hung = true;
+      if (on(d - 1) && !on(d)) { const st = cropStage('tomato', d - 1, offset); assert.ok(fruitTurn(st, at, jitter) >= 1, `at ${at} jitter ${jitter} offset ${offset}: picked on day ${d} at ${fruitTurn(st, at, jitter)}`); }
+    }
+    assert.ok(hung); assert.equal(on(CROPS.tomato.yellow[1] + OFFSET_DAYS + 1), false);
+  }
+  // a pod, with no ripeness of its own to wait for, goes as the picking reaches it
+  const st = cropStage('bean', 270); assert.equal(fruitOn(st, 0), false); assert.equal(fruitOn(cropStage('bean', 240), .5), true);
 });
 test('a crop reaches full height, ripens without going back, and its fruit rises then goes', () => {
   for (const kind of KINDS) {

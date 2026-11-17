@@ -1,5 +1,5 @@
 import {gardenPlan, windowSpan} from '../../../shared/lakeside-dressing.js';
-import {gardenState} from '../../../shared/garden-life.js';
+import {fruitOn, fruitTurn, gardenState} from '../../../shared/garden-life.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, tube, V} from '../geometry.js';
 import {clamp01, hash, mix, noise, smoothstep, stream} from './noise.js';
@@ -115,10 +115,6 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         const cell = cells[r() < .5 ? 0 : 1];
         blade(V.add(centre, dir, -radius), dir, across, radius * 2, radius * 1.7, colour, cell);
       };
-      // Whether a fruit set at share `at` is on the plant: once the set share passes it, until it is picked. Each fruit's `at` is
-      // drawn under .85, so it swells to full size (over .15 of the set share) before the share tops out at 1. Picking takes the
-      // earliest-set (ripest) first, so as the fruit share falls below the set share, those with `at` under 1 − fruit are gone.
-      const hangs = at => st.set > at && (st.fruit >= st.set || at > 1 - st.fruit);
       // How far a leaf with order `rank` (0–.85, fixed by the seed) is out on a day: it unfurls as the leaf share passes it, and
       // dry plants drop leaves at random (`drop`) until a third are left.
       const unfurled = (rank, drop) => drop < st.dry * 2 / 3 ? 0 : clamp01((st.leaf - rank) / .15);
@@ -151,13 +147,14 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         for (let i = 0; i < n; i++) {
           const t = .06 + .88 * (i + r()) / n, a = r() * TAU, out = [Math.sin(a), Math.cos(a), 0], c = V.add(along(t, 1), out, .04 + r() * .07), rank = .85 * (t - .06) / .88, drop = r();
           const normal = V.add(out, [r() - .5, r() - .5, r() * .9 - .6 * st.dry], .8), radius = .045 + r() * .025, tone = .85 + r() * .4;
-          const leaf = unfurled(rank, drop);
+          // a leaf opens only once the vine's tip has climbed past where it is attached
+          const leaf = unfurled(rank, drop) * clamp01((top - t) / .04);
           round(V.add(c, UP, -.03 * st.dry), normal, radius * leaf * (.6 + .4 * h), shade(aged(BEAN, st, rank / .85), tone));
           round(V.add(c, out, .03), out, r() < .14 && leaf > 0 ? .022 * st.flower : 0, BLOSSOM);
         }
         // pods: narrow blades hanging below the leaves, each growing once the set share passes its own threshold, picked whole
         for (let i = 0; i < 10; i++) {
-          const t = .15 + .75 * r(), a = r() * TAU, [dir, across] = aim(a, -1.35, r() * TAU), length = .09 + r() * .05, at = .85 * r(), out = hangs(at) ? clamp01((st.set - at) / .15) : 0;
+          const t = .15 + .75 * r(), a = r() * TAU, [dir, across] = aim(a, -1.35, r() * TAU), length = .09 + r() * .05, at = .85 * r(), out = fruitOn(st, at) ? clamp01((st.set - at) / .15) : 0;
           blade(V.add(along(t, 1), [Math.sin(a), Math.cos(a), 0], .07), dir, across, length * out, .014, mix(mix(POD, HUSK, st.ripe), DRY, st.dry));
         }
       } else {
@@ -176,10 +173,11 @@ export function buildGarden(THREE, {space, dressing, art, day = GARDEN_DAY, stat
         }
         for (let i = 0, n = 5 + Math.floor(r() * 4); i < n; i++) {
           const [d] = shell(1, true), c = V.add(centre, [d[0] * rx * 1.08, d[1] * rx * 1.08, d[2] * rz]), size = .032 + r() * .014, at = .85 * r();
-          // each fruit swells from nothing as the set share passes `at`, and hangs full size until it is picked; it ripens
-          // green → orange → red as the ripeness passes its own threshold, the early-set fruit first, so they turn a few at a time
-          const turn = clamp01((st.ripe - (.7 * at + .1 * r())) / .2), out = clamp01((st.set - at) / .15);
-          const colour = mix(turn < .5 ? mix(GREEN_FRUIT, ORANGE, turn * 2) : mix(ORANGE, RED, turn * 2 - 1), BLACK, st.dry), radius = hangs(at) ? size * out : 0;
+          // each fruit swells from nothing as the set share passes `at` (drawn under .85, so it is full size before the share tops
+          // out), and hangs full size until it is picked, which waits until it has been seen ripe; it ripens green → orange → red
+          // as the ripeness passes its own threshold, the early-set fruit first, so they turn a few at a time
+          const ripening = fruitTurn(st, at, r()), turn = clamp01(ripening), out = clamp01((st.set - at) / .15);
+          const colour = mix(turn < .5 ? mix(GREEN_FRUIT, ORANGE, turn * 2) : mix(ORANGE, RED, turn * 2 - 1), BLACK, st.dry), radius = fruitOn(st, at, ripening) ? size * out : 0;
           // two cards crossed, so a fruit shows from the side as well as face on
           round(c, [d[0], d[1], 0], radius, colour); round(c, [-d[1], d[0], 0], radius, colour);
         }
