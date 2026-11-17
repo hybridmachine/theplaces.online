@@ -3,14 +3,16 @@ import {buildCover} from './cover.js';
 import {buildGarden} from './garden.js';
 import {buildGround} from './ground.js';
 import {buildHills} from './hills.js';
+import {buildPathLights} from './lights.js';
 import {buildOak, buildWoods} from './trees.js';
 
-// The painted yard as named parts: terrain, lake, wall, cabin, oak, woods, cover, garden, hills. `art` is the loaded bundle
+// The painted yard as named parts: terrain, lake, wall, cabin, oak, woods, cover, garden, lights, hills. `art` is the loaded bundle
 // (art-loader.js); the scene uses its textures but leaves them to the bundle's own dispose.
 export function buildScene(THREE, {space, dressing, art}) {
   const ground = buildGround(THREE, {space, dressing, art}), cover = buildCover(THREE, {space, dressing, art}).object, cabin = buildCabin(THREE, {space, dressing, art});
+  const lights = buildPathLights(THREE, {space, dressing, art});
   const parts = {terrain: ground.terrain, lake: ground.lake, wall: ground.wall, cabin: cabin.object, oak: buildOak(THREE, {space, dressing, art}).object,
-    woods: buildWoods(THREE, {space, dressing, art}).object, cover, garden: buildGarden(THREE, {space, dressing, art}).object, hills: buildHills(THREE, {space, dressing, art}).object};
+    woods: buildWoods(THREE, {space, dressing, art}).object, cover, garden: buildGarden(THREE, {space, dressing, art}).object, lights: lights.object, hills: buildHills(THREE, {space, dressing, art}).object};
   const group = new THREE.Group(); group.name = 'yard';
   group.add(...Object.values(parts));
   // What setSky last received, for the things that take the lake's colours (the puddle).
@@ -24,6 +26,8 @@ export function buildScene(THREE, {space, dressing, art}) {
     setRipple(r) { ground.setRipple(r); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
     setCottage(pose) { cabin.setCottage(pose); },
+    // How brightly the path lights burn, 0–1 (lights.js).
+    setPathLights(level) { lights.setLevel(level); },
     dispose() {
       const materials = new Set();
       group.traverse(o => {

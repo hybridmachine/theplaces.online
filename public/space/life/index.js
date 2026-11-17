@@ -11,9 +11,10 @@ import {createRipples} from './ripples.js';
 import {createBird} from './bird.js';
 import {createNest} from './nest.js';
 import {createFarBirds} from './far-birds.js';
+import {createPathLights} from './path-lights.js';
 
 // Ordered; later tasks add the presenters here one at a time.
-export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke, rain: createRain, traces: createTraces, ripples: createRipples,
+export const PRESENTERS = {wind: createWind, cottage: createCottage, pathLights: createPathLights, smoke: createSmoke, rain: createRain, traces: createTraces, ripples: createRipples,
   bird: createBird, nest: createNest, farBirds: createFarBirds};
 
 export function createLife(THREE, ctx, makers = PRESENTERS) {

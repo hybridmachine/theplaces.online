@@ -24,6 +24,9 @@ export const LAKESIDE_DRESSING = deep({
   cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
   // The kitchen garden's planting, in the space's beds: the boards' thickness, and how many of each crop.
   garden: {board: .045, corn: {count: 9}, beans: {poles: 4}, tomatoes: {count: 4}},
+  // The low lights along the path's last stretch to the door: how many, how far back along the path from its end the first
+  // stands and the rest follow, how far outside the path's edge, the lamp's height, and the radius of the light each lays.
+  pathLights: {count: 5, from: 1.6, spacing: 1.6, offset: .4, height: .45, pool: 1.3},
 });
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
@@ -173,6 +176,21 @@ export function gardenPlan(space, dressing) {
       plant('tomato', tomatoBed, (-l + .35) + (2 * l - .7) * (tomatoes.count > 1 ? k / (tomatoes.count - 1) : .5), (r() - .5) * .12, .7 + r() * .15, [(r() - .5) * .08, (r() - .5) * .08]);
   }
   return {beds: beds.map(({at, ...b}) => b), plants};
+}
+
+// The path lights as placed: nearest the door first, on alternate sides of the path (`side` 1 is the left hand walking to the
+// door, the garden's side), the first on the side away from the beds. `foot` is on the ground, `lamp` the middle of its light.
+export function pathLightPlan(space, dressing) {
+  const {count, from, spacing, offset, height} = dressing.pathLights, path = dressing.path, out = [];
+  for (let k = 0; k < count; k++) {
+    let back = from + k * spacing, i = path.length - 1;
+    for (; i > 1; i--) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); if (back <= l) break; back -= l; }
+    const [ax, ay] = path[i - 1], [bx, by] = path[i], l = Math.hypot(bx - ax, by - ay), d = [(bx - ax) / l, (by - ay) / l];
+    const side = k % 2 ? 1 : -1, reach = side * (dressing.pathHalfWidth + offset);
+    const x = bx - d[0] * back - d[1] * reach, y = by - d[1] * back + d[0] * reach, z = terrainHeight(space, x, y);
+    out.push({id: `path-light-${k}`, side, foot: [x, y, z], lamp: [x, y, z + height]});
+  }
+  return out;
 }
 
 // Blend weights for the ground at a point; they sum to 1. The path wins over the shore, the shore over the meadow.
