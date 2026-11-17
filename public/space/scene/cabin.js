@@ -2,7 +2,7 @@ import {terrainHeight} from '../../../shared/space.js';
 import {PROUD, cabinFrame} from '../../../shared/lakeside-dressing.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, V} from '../geometry.js';
-import {clamp01, lin, noise, stream} from './noise.js';
+import {clamp01, hash, lin, noise, stream} from './noise.js';
 
 // The cabin in paint: stone walls a little out of true under an overhanging, sagging slate roof, a chimney, the door and
 // windows as panels just proud of the wall, dark eave boards and soffits under the overhang, dabs breaking the roof's edges
@@ -137,7 +137,8 @@ export function buildCabin(THREE, {space, dressing, art}) {
       const normal = V.norm([q() - .5, q() - .5, (q() - .5) * .4]), [right, up0] = basis(normal), turn = (q() - .5) * .5;
       const up = V.add(V.scale(up0, Math.cos(turn)), right, Math.sin(turn)), across = V.add(V.scale(right, Math.cos(turn)), up0, -Math.sin(turn));
       const s = size * (.5 + q() * .35), centre = V.add(foot, [(q() - .5) * size, (q() - .5) * size, s * .85 + q() * size * .2]), kk = .75 + q() * .35;
-      shrubs.add(centre, V.scale(across, s), V.scale(up, s), cells.woods[q() < .5 ? 0 : 1], shade([1, 1, 1], kk * .75), shade([1, 1, 1], kk), [0, 0, 1], q() < .5);
+      shrubs.add(centre, V.scale(across, s), V.scale(up, s), cells.woods[q() < .5 ? 0 : 1], shade([1, 1, 1], kk * .75), shade([1, 1, 1], kk), [0, 0, 1], q() < .5,
+        {kind: 'shrub', random: hash(shrubs.count, 4, 11)});
     }
   };
   shrub(-L - .2, front * (W + .45), 1.1); shrub(L + .1, front * (W + .45), 1.0);

@@ -1,4 +1,5 @@
 import {cellRect, SPACE_ART} from '../../shared/lakeside-space-art.js';
+import {SWAY, WIND} from '../../shared/lakeside-life.js';
 
 // Geometry helpers shared by the scene builders. World axes are x east, y north, z up, metres; three is passed in.
 
@@ -99,34 +100,87 @@ export function mergeGeometries(THREE, geometries) {
 
 // Flat quads cut from cells of the card atlas, gathered into one geometry. Each card is fixed in the world: `centre`, half-axes
 // `right` and `up` (world vectors), an atlas cell index, linear colours at its bottom and top edge (they multiply the cell, so
-// white dabs take any colour), and the normal it is lit with.
+// white dabs take any colour), and the normal it is lit with. A card that moves with the wind names its `sway`: {kind (a key
+// of SWAY), random in [0, 1)}; its vertices then carry `sway` = (weight, random, reach, leaf flag), where a leaf card is held
+// at .6 along its lower edge and 1 along its upper (a grass card at 0 and 1), and reach is the kind's reach times its
+// exposure, the metres it leans at full weight in full wind. A card with no `sway` has weight 0 and never moves.
 export function cardBatch(art = SPACE_ART) {
-  const position = [], normal = [], uv = [], color = [], index = [];
+  const position = [], normal = [], uv = [], color = [], swing = [], index = [];
   return {
     get count() { return position.length / 12; },
-    add(centre, right, up, cell, bottom, top = bottom, lit = [0, 0, 1], flip = false) {
-      const [u0, v0, du, dv] = cellRect(cell, art), base = position.length / 3;
+    add(centre, right, up, cell, bottom, top = bottom, lit = [0, 0, 1], flip = false, sway = null) {
+      const [u0, v0, du, dv] = cellRect(cell, art), base = position.length / 3, kind = sway && SWAY[sway.kind];
+      if (sway && !kind) throw new Error(`No sway for ${sway.kind}`);
+      const leaf = kind?.type === 'leaf', foot = leaf ? .6 : 0;
       for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
         position.push(...toThree(V.add(V.add(centre, right, a), up, b))); normal.push(...toThree(lit));
         uv.push(u0 + du * ((flip ? -a : a) + 1) / 2, v0 + dv * (b + 1) / 2); color.push(...(b < 0 ? bottom : top));
+        swing.push(...(kind ? [b < 0 ? foot : 1, sway.random, kind.reach * kind.exposure, leaf ? 1 : 0] : [0, 0, 0, 0]));
       }
       index.push(base, base + 1, base + 2, base, base + 2, base + 3);
     },
-    geometry(THREE) { return geometryFrom(THREE, {position: [position, 3], normal: [normal, 3], uv: [uv, 2], color: [color, 3]}, index); },
+    geometry(THREE) { return geometryFrom(THREE, {position: [position, 3], normal: [normal, 3], uv: [uv, 2], color: [color, 3], sway: [swing, 4]}, index); },
   };
 }
 
+// The wind as every card material sees it: one shared set of uniforms, set once a frame (life/wind.js) from windClock
+// (shared/foliage.js): windClock = (time wrapped to WIND_WRAP, crest, broad and settling phases at the yard's origin),
+// windStrength the wind's 0–1 share, windAlong the way it blows in the yard's axes (x east, y north). Plain {x, y, ...}
+// values, which three uploads as it would its own vectors, so this module needs no three of its own.
+export const SWAY_UNIFORMS = {
+  windClock: {value: {x: 0, y: 0, z: 0, w: 0}},
+  windStrength: {value: 0},
+  windAlong: {value: {x: WIND.direction[0], y: WIND.direction[1]}},
+};
+// foliageMotion (shared/foliage.js) in the vertex shader: each vertex leans along the wind (bend + flutter) and up (lift)
+// by its weight, in world space, a gust reaching it dot(position, windAlong) / gustSpeed seconds after the origin. Per card
+// the vertex attribute `sway` = (weight, random, reach, leaf flag); for instanced cover, random, reach and exposure come per
+// instance from `swayKind` (SWAY_PER_INSTANCE) and the weight from the card.
+const SWAY_VERTEX = `uniform vec4 windClock; uniform float windStrength; uniform vec2 windAlong;
+attribute vec4 sway;
+#ifdef SWAY_PER_INSTANCE
+attribute vec3 swayKind;
+#endif
+vec3 swayed( vec3 world ) {
+#ifdef SWAY_PER_INSTANCE
+  float seed = swayKind.x, reach = swayKind.y * swayKind.z;
+#else
+  float seed = sway.y, reach = sway.z;
+#endif
+  float leaf = sway.w, delay = dot( vec2( world.x, - world.z ), windAlong ) / ${WIND.gustSpeed.toFixed(3)};
+  float crest = smoothstep( 0., 1., ( sin( windClock.y - PI2 * delay / 17.3 ) + .25 ) / 1.25 );
+  float gust = crest * ( .6 + .4 * ( .5 + .5 * sin( windClock.z - PI2 * delay / 31.7 ) ) );
+  float period = leaf > .5 ? 3.8 + seed : 5.1 + seed * 1.7, quick = .65 + seed * .7;
+  float swing = sin( mod( windClock.x, period ) / period * PI2 + seed * PI2 );
+  float settling = sin( windClock.w - PI2 * delay / 8.1 + seed * .8 );
+  float lean = reach * windStrength, bend = lean * ( .13 + .55 * gust + .16 * swing + .06 * settling );
+  float flutter = lean * ( leaf > .5 ? .085 : .035 ) * sin( mod( windClock.x, quick ) / quick * PI2 + seed * PI2 ) * ( .25 + .75 * gust );
+  float lift = leaf > .5 ? bend * .16 : abs( bend ) * .12;
+  // the yard's (x, y) is three's (x, -z); up is three's y
+  return sway.x * vec3( windAlong.x * ( bend + flutter ), lift, - windAlong.y * ( bend + flutter ) );
+}`;
+const SWAY_PROJECT = `vec4 swayWorld = vec4( transformed, 1. );
+#ifdef USE_INSTANCING
+swayWorld = instanceMatrix * swayWorld;
+#endif
+swayWorld = modelMatrix * swayWorld;
+swayWorld.xyz += swayed( swayWorld.xyz );
+vec4 mvPosition = viewMatrix * swayWorld;
+gl_Position = projectionMatrix * mvPosition;`;
+
 // The material for card quads: alpha-tested (never blended or sorted), two-sided, lit by the card's own normal on both faces,
-// with alpha held up as the atlas mips down so distant cards do not thin away.
+// with alpha held up as the atlas mips down so distant cards do not thin away, and moved by the wind (SWAY_UNIFORMS).
 export function cardMaterial(THREE, atlas, art = SPACE_ART) {
   const m = new THREE.MeshLambertMaterial({map: atlas, vertexColors: true, alphaTest: .5, alphaToCoverage: true, side: THREE.DoubleSide});
   m.onBeforeCompile = s => {
+    Object.assign(s.uniforms, SWAY_UNIFORMS);
+    s.vertexShader = s.vertexShader.replace('#include <common>', `#include <common>\n${SWAY_VERTEX}`).replace('#include <project_vertex>', SWAY_PROJECT);
     s.fragmentShader = s.fragmentShader
       .replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0; vec3 normal = normalize( vNormal ); vec3 nonPerturbedNormal = normal;')
       .replace('#include <alphatest_fragment>', `{ vec2 q = vMapUv * ${art.cards.size.toFixed(1)};
   float lod = .5 * log2( max( dot( dFdx( q ), dFdx( q ) ), dot( dFdy( q ), dFdy( q ) ) ) ); diffuseColor.a *= 1. + max( lod, 0. ) * .22; }
 #include <alphatest_fragment>`);
   };
-  m.customProgramCacheKey = () => `painted-card-${art.cards.size}`;
+  m.customProgramCacheKey = () => `painted-card-sway-${art.cards.size}`;
   return m;
 }

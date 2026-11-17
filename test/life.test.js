@@ -41,9 +41,9 @@ test('dispose releases every live presenter once and a second call does nothing'
   assert.equal(log.a.disposed, 1); assert.equal(log.b.disposed, 1);
 });
 
-test('with no presenters registered the status is empty', () => {
-  assert.deepEqual(PRESENTERS, {});
-  assert.deepEqual(createLife({}, {}).status, {});
+test('every registered presenter is a maker, and with no presenters the status is empty', () => {
+  assert.ok(Object.values(PRESENTERS).every(make => typeof make === 'function'));
+  assert.deepEqual(createLife({}, {}, {}).status, {});
 });
 
 test('lifeFrame tolerates a world without cottage, bird, environment, coincidences or nest', () => {
@@ -52,4 +52,17 @@ test('lifeFrame tolerates a world without cottage, bird, environment, coincidenc
     conditions: {calendar: {total: 1}, weather: {rain: 0}},
   });
   assert.equal(frame.epoch, 5); assert.equal(frame.fixture, null); assert.deepEqual(frame.calendar, {total: 1});
+});
+
+import {SWAY_UNIFORMS} from '../public/space/geometry.js';
+import {windClock} from '../shared/foliage.js';
+import {lifeLayout} from '../shared/lakeside-life.js';
+test('the wind sets the card uniforms from the wind clock each frame and leaves them at rest', () => {
+  assert.equal(typeof PRESENTERS.wind, 'function');
+  const wind = PRESENTERS.wind({}, {layout: lifeLayout()}), t = 1e7 + .25, clock = windClock(t);
+  assert.equal(wind.update({motionSeconds: t}), true);
+  const {windClock: c, windStrength, windAlong} = SWAY_UNIFORMS;
+  assert.deepEqual([c.value.x, c.value.y, c.value.z, c.value.w], [clock.time, clock.crest, clock.broad, clock.settle]);
+  assert.equal(windStrength.value, clock.strength); assert.deepEqual([windAlong.value.x, windAlong.value.y], [0, -1]);
+  wind.dispose(); assert.equal(windStrength.value, 0);
 });

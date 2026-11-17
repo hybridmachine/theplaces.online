@@ -1,6 +1,7 @@
 import {terrainHeight} from '../../../shared/space.js';
 import {scatter} from '../../../shared/lakeside-dressing.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
+import {SWAY} from '../../../shared/lakeside-life.js';
 import {cardMaterial, toThree} from '../geometry.js';
 import {groundTint} from './ground.js';
 import {clamp01, hash, mix} from './noise.js';
@@ -25,31 +26,34 @@ const KINDS = {
 };
 const BASE_SHADE = .72, CELL = SPACE_ART.cards.cell / SPACE_ART.cards.size;
 
-// Two unit cards crossed at right angles about the vertical, base at the origin; UVs span one cell from (0, 0).
+// Two unit cards crossed at right angles about the vertical, base at the origin; UVs span one cell from (0, 0). Each vertex's
+// `sway` weight is its height up the card, so the foot stays in the ground and the tips lean furthest.
 function crossedCards(THREE) {
-  const position = [], uv = [], normal = [], color = [], index = [];
+  const position = [], uv = [], normal = [], color = [], sway = [], index = [];
   for (const [dx, dy] of [[1, 0], [0, 1]]) {
     const base = position.length / 3;
     for (const [a, b] of [[-1, 0], [1, 0], [1, 1], [-1, 1]]) {
       position.push(...toThree([dx * a * .5, dy * a * .5, b])); uv.push(CELL * (a + 1) / 2, CELL * b);
       // lit as the ground beneath is, so a tuft does not turn dark or bright against the meadow as it swings round
-      normal.push(...toThree([0, 0, 1])); color.push(...Array(3).fill(b ? 1 : BASE_SHADE));
+      normal.push(...toThree([0, 0, 1])); color.push(...Array(3).fill(b ? 1 : BASE_SHADE)); sway.push(b, 0, 0, 0);
     }
     index.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(position, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(normal, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(color, 3));
+  g.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 4));
   g.setIndex(index);
   return g;
 }
 
-// The card material, reading per instance `cell` = (u, v of the cell's corner, how much of the foot dissolves). The foot thins
+// The card material, swaying each instance by its `swayKind` (random, reach, exposure), and reading per instance `cell` = (u, v of the cell's corner, how much of the foot dissolves). The foot thins
 // out from the darker paint first, so the lit blades reach down into the ground and the dense base never shows as an edge.
 // The thresholds (.04–.3 of the height, weighted by .5 + 1.2 × luminance) are tuned to the grass cells' current paint: if the
 // atlas is re-exported with darker or lighter blade bases, look down at the ground again and retune them.
 function coverMaterial(THREE, atlas) {
   const m = cardMaterial(THREE, atlas, SPACE_ART), card = m.onBeforeCompile;
+  m.defines = {...m.defines, SWAY_PER_INSTANCE: ''};
   m.onBeforeCompile = (s, renderer) => {
     card(s, renderer);
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 cell;\nvarying vec2 vFoot;')
@@ -59,7 +63,7 @@ function coverMaterial(THREE, atlas) {
   diffuseColor.a *= mix( 1., smoothstep( .04, .3, vFoot.x * ( .5 + 1.2 * lum ) ), vFoot.y ); }
 #include <alphatest_fragment>`);
   };
-  m.customProgramCacheKey = () => `painted-cover-${SPACE_ART.cards.size}`;
+  m.customProgramCacheKey = () => `painted-cover-sway-${SPACE_ART.cards.size}`;
   return m;
 }
 
@@ -68,7 +72,7 @@ export function buildCover(THREE, {space, dressing, art}) {
   const material = coverMaterial(THREE, art.cards), matrix = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
   const at = new THREE.Vector3(), scale = new THREE.Vector3(), colour = new THREE.Color();
   for (const [kind, spec] of Object.entries(KINDS)) {
-    const items = scatter(space, dressing, kind), geometry = crossedCards(THREE), cells = new Float32Array(items.length * 3);
+    const items = scatter(space, dressing, kind), geometry = crossedCards(THREE), cells = new Float32Array(items.length * 3), sways = new Float32Array(items.length * 3);
     const mesh = new THREE.InstancedMesh(geometry, material, items.length); mesh.name = kind;
     items.forEach(({x, y, scale: s, turn, cell}, i) => {
       const r = [hash(i, 0, spec.seed), hash(i, 0, spec.seed + 100), hash(i, 0, spec.seed + 200), hash(i, 0, spec.seed + 300)], h = spec.size * s;
@@ -80,8 +84,10 @@ export function buildCover(THREE, {space, dressing, art}) {
       mesh.setMatrixAt(i, matrix.compose(at, q, scale));
       mesh.setColorAt(i, colour.setRGB(...spec.colour(x, y, r)));
       cells.set([...cellRect(spec.cells[cell], SPACE_ART).slice(0, 2), spec.fade], i * 3);
+      sways.set([hash(i, 0, spec.seed + 400), SWAY[kind].reach, SWAY[kind].exposure], i * 3);
     });
     geometry.setAttribute('cell', new THREE.InstancedBufferAttribute(cells, 3));
+    geometry.setAttribute('swayKind', new THREE.InstancedBufferAttribute(sways, 3));
     // the instances spread over the whole yard, so the bounds must cover them all, not the one card at the origin
     mesh.computeBoundingSphere(); mesh.computeBoundingBox();
     object.add(mesh);

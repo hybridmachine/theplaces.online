@@ -1,9 +1,10 @@
 // The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose()};
 // one that throws, while being built or while updating, is given up and never run again, and the rest carry on.
-// Imports nothing: three.js is handed in, so this runs in Node.
+// three.js is handed in, so this runs in Node.
+import {createWind} from './wind.js';
 
 // Ordered; later tasks add the presenters here one at a time.
-export const PRESENTERS = {};
+export const PRESENTERS = {wind: createWind};
 
 export function createLife(THREE, ctx, makers = PRESENTERS) {
   const live = new Map(), status = {};

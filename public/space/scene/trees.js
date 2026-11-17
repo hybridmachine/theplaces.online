@@ -1,5 +1,6 @@
 import {shoreDistance, terrainHeight} from '../../../shared/space.js';
 import {oakPlan, woodsPlan} from '../../../shared/lakeside-dressing.js';
+import {SWAY} from '../../../shared/lakeside-life.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V} from '../geometry.js';
 import {clamp01, hash, mix, noise, smoothstep, stream} from './noise.js';
@@ -111,7 +112,7 @@ export function buildOak(THREE, {space, dressing, art}) {
       const k0 = (.86 + .26 * h + .1 * sun) * (1 - .2 * depth) * (1 - .2 * under) * (.94 + r() * .12);
       const top = mix([k0 * .88, k0 * .96, k0 * 1.0], [k0 * 1.04, k0 * 1.0, k0 * .82], clamp01(h + .3 * sun));
       leaves.add(c, V.scale(across, size), V.scale(up, size), cells[Math.floor(r() * cells.length)], top.map(v => v * .8), top,
-        V.norm(V.add(V.norm(V.sub(c, crown)), [0, 0, .7])), r() < .5);
+        V.norm(V.add(V.norm(V.sub(c, crown)), [0, 0, .7])), r() < .5, {kind: 'oak', random: hash(leaves.count, 1, 61)});
       k++;
     }
     if (k < n) throw new Error(`oak clump ${clump.id} placed only ${k} of ${n} leaf cards`);
@@ -138,7 +139,8 @@ export function buildOak(THREE, {space, dressing, art}) {
 // ribbon has no ends to show: the cells repeat end to end along it (either way round, in no fixed order), and where it nears the
 // lake the wood thins out: the trees stand lower and in separate clumps, smaller toward the water, then none. Tone, height and light all vary smoothly along the band — by place, never by piece — so nothing
 // steps where two cells meet; the ribbons behind stand taller, paler and bluer. Crown height follows the planned clumps, evened
-// out over a wide neighbourhood so no tree stands clear. Fixed in the world, alpha-tested like every card.
+// out over a wide neighbourhood so no tree stands clear. Fixed in the world, alpha-tested like every card; each ribbon sways
+// as one (a random of its own, so neighbouring cells never part), held at its foot and leaning most at its crown.
 const WOODS = {
   layers: 5, step: 1.25,      // ribbons, and metres between a ribbon's uprights
   top: [4.6, 11],             // crown height of the nearest and the farthest ribbon, metres
@@ -181,13 +183,13 @@ export function buildWoods(THREE, {space, dressing, art}) {
     });
     return pts;
   };
-  const position = [], normal = [], uv = [], color = [], index = [];
+  const position = [], normal = [], uv = [], color = [], sway = [], index = [], lean = SWAY.woods.reach * SWAY.woods.exposure;
   for (let j = 0; j < WOODS.layers; j++) {
     const f = j / (WOODS.layers - 1), reach = near + (far - near) * f, middle = (near + far) / 2, pts = outline(reach), top = WOODS.top[0] + (WOODS.top[1] - WOODS.top[0]) * f;
     // each ribbon gives out its own distance short of the water, the tall ones behind first, so the wood comes down toward the
     // lake row by row and no common edge forms
     const back = WOODS.stagger * (f + .15 * hash(j, 1, 77));
-    const treePhase = hash(j, 3, 77);
+    const treePhase = hash(j, 3, 77), random = hash(j, 5, 77);
     const tile = WOODS.tile[0] + (WOODS.tile[1] - WOODS.tile[0]) * f, phase = hash(j, 0, 77) * tile;
     // where the ribbon stands `s` metres along its line: [x, y, outward x, outward y]. The band's edge wanders in bays and points
     // that every ribbon follows (so they never cross), each straying a little more by itself.
@@ -238,14 +240,14 @@ export function buildWoods(THREE, {space, dressing, art}) {
         const at = position.length / 3;
         for (const [p, e, high] of [[a, c / cols, 0], [b, (c + 1) / cols, 0], [b, (c + 1) / cols, 1], [a, c / cols, 1]]) {
           position.push(...toThree(high ? p.head : p.foot)); normal.push(...toThree(p.lit)); color.push(...p.base.map(v => v * (high ? 1 : .84)));
-          uv.push(u0 + du * (WOODS.inset + (1 - 2 * WOODS.inset) * (flip ? 1 - e : e)), v0 + dv * (high ? 1 : WOODS.inset));
+          uv.push(u0 + du * (WOODS.inset + (1 - 2 * WOODS.inset) * (flip ? 1 - e : e)), v0 + dv * (high ? 1 : WOODS.inset)); sway.push(high, random, lean, 1);
         }
         index.push(at, at + 1, at + 2, at, at + 2, at + 3);
       }
     }
   }
   const geometry = new THREE.BufferGeometry();
-  for (const [name, array, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) geometry.setAttribute(name, new THREE.Float32BufferAttribute(array, size));
+  for (const [name, array, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3], ['sway', sway, 4]]) geometry.setAttribute(name, new THREE.Float32BufferAttribute(array, size));
   geometry.setIndex(index);
   const object = new THREE.Group(); object.name = 'woods';
   const cards = cardMaterial(THREE, art.cards, SPACE_ART), masses = new THREE.Mesh(geometry, cards); masses.name = 'masses';
@@ -269,7 +271,7 @@ function buildGrove(THREE, {space, dressing, art, cards}) {
       const normal = V.norm([r() - .5, r() - .5, (r() - .5) * .4]), [right, up] = basis(normal), kk = .62 + r() * .25, flip = r() < .5, cell = r() < .5 ? 0 : 1;
       if (shoreDistance(space, ...foot) < size * 1.3 + .5) continue; // none in the water
       under.add([...foot, terrainHeight(space, ...foot) - .1 + size * .8], V.scale(right, size * 1.3), V.scale(up, size), SPACE_ART.cards.cells.woods[cell],
-        WOODS_SAGE.map(v => v * kk * .84), WOODS_SAGE.map(v => v * kk), [0, 0, 1], flip);
+        WOODS_SAGE.map(v => v * kk * .84), WOODS_SAGE.map(v => v * kk), [0, 0, 1], flip, {kind: 'woods', random: hash(under.count, 3, 31)});
     }
     // lobes round the crown, the upper ones smaller, so the outline is a tree's and not a ball's
     for (let k = 0, lobes = 6 + Math.floor(r() * 3); k < lobes; k++) {
@@ -293,7 +295,7 @@ function buildGrove(THREE, {space, dressing, art, cards}) {
         // the woods' sage rather than the oak's yellow-green, lighter toward the top and on the sun side
         const k0 = (.3 + .2 * h * h + .05 * V.dot(outward, SUN)) * (.9 + r() * .2), top = [k0 * .74, k0 * .9, k0 * .76];
         leaves.add(p, V.scale(across, size), V.scale(upAxis, size), leafCells[Math.floor(r() * leafCells.length)], top.map(v => v * .8), top,
-          V.norm(V.add(V.norm(V.sub(p, crown)), [0, 0, .7])), r() < .5);
+          V.norm(V.add(V.norm(V.sub(p, crown)), [0, 0, .7])), r() < .5, {kind: 'woods', random: hash(leaves.count, 2, 31)});
       }
     }
   }

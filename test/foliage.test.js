@@ -51,3 +51,26 @@ test('asset layout validates and rejects unsafe configuration before allocating 
   reject(c=>c.patches[0].bounds[0]=-1);reject(c=>c.patches[0].mesh=[0,3]);
   reject(c=>c.patches[1].id=c.patches[0].id);reject(c=>c.assets.day='');
 });
+import {foliageMotion,seedValue,windClock,WIND_WRAP} from '../shared/foliage.js';
+test('foliage motion is the patch sampler with its hash and delay passed in',()=>{
+  for(const patch of config.patches)for(const t of [0,12.5,1e3,1e7+.25]){
+    const [x,y]=patch.bounds,{type,exposure,maxDisplacement}=patch;
+    assert.deepEqual(foliageMotion(t,{type,exposure,maxDisplacement,random:seedValue(config.seed,patch.id),delay:x/520+y/1800},config.seed),sampleFoliage(t,patch,config.seed));
+  }
+});
+test('the wind clock keeps small, wrapped values that carry the gust phases',()=>{
+  const TAU=Math.PI*2,t=1e7+.25,clock=windClock(t);
+  assert.equal(WIND_WRAP,4096);
+  assert.ok(Object.values(clock).every(Number.isFinite));
+  assert.ok(clock.time>=0&&clock.time<4096);
+  for(const k of ['crest','broad','settle'])assert.ok(clock[k]>=0&&clock[k]<TAU,k);
+  const d=3,mod=(v,n)=>((v%n)+n)%n,expected=Math.sin(mod(t-d,17.3)/17.3*TAU+941*.01);
+  assert.ok(Math.abs(Math.sin(clock.crest-TAU*d/17.3)-expected)<1e-6);
+  assert.ok(clock.strength>=0&&clock.strength<=1);
+});
+test('foliage with no exposure holds still',()=>{
+  for(const t of [0,12.5,1e7+.25]){
+    const m=foliageMotion(t,{type:'leaf',exposure:0,maxDisplacement:1,random:.4,delay:2});
+    assert.deepEqual([m.bend,m.flutter,m.lift].map(Math.abs),[0,0,0]);
+  }
+});

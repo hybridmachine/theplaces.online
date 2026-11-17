@@ -150,3 +150,24 @@ test('the grove stands on land: no undergrowth card reaches into the water', () 
   for (let i = 0; i < p.count; i++) { w.fromBufferAttribute(p, i).applyMatrix4(under.matrixWorld); const [x, y] = fromThree(w); assert.ok(shoreDistance(S, x, y) > 0, `${x},${y}`); }
   scene.dispose();
 });
+test('every swaying card carries its sway, and the cabin dabs stay put', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  const weights = (mesh, name) => {
+    const a = mesh.geometry.getAttribute('sway'); assert.ok(a, `${name} has no sway`); assert.equal(a.itemSize, 4, name);
+    assert.ok([...a.array].every(Number.isFinite), name);
+    const w = []; for (let i = 0; i < a.count; i++) w.push(a.getX(i));
+    assert.ok(w.every(v => v >= 0 && v <= 1), name);
+    return w;
+  };
+  const swaying = [scene.parts.oak.getObjectByName('leaves'), scene.parts.woods.getObjectByName('masses'), scene.parts.woods.getObjectByName('grove-leaves'),
+    ...scene.parts.cover.children];
+  for (const mesh of swaying) assert.ok(weights(mesh, mesh.name).some(v => v > .5), mesh.name);
+  for (const mesh of scene.parts.cover.children) {
+    const k = mesh.geometry.getAttribute('swayKind'); assert.ok(k?.isInstancedBufferAttribute, mesh.name); assert.equal(k.itemSize, 3);
+    assert.equal(k.count, mesh.count); assert.ok([...k.array].every(Number.isFinite), mesh.name);
+  }
+  const cabin = scene.parts.cabin;
+  assert.ok(weights(cabin.getObjectByName('dabs'), 'dabs').every(v => v === 0));
+  assert.ok(weights(cabin.getObjectByName('shrubs'), 'shrubs').some(v => v > 0));
+  scene.dispose();
+});
