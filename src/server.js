@@ -9,12 +9,24 @@ const dataPath = process.env.A_VIEW_DB || resolve(root, 'data/world.sqlite');
 await mkdir(dirname(dataPath), { recursive: true });
 const store = new WorldStore(dataPath);
 const clients = new Set();
+const production = process.env.NODE_ENV === 'production';
+// One long-lived stream per open view; a bound keeps a flood of connections from exhausting memory and descriptors.
+const maxStreams = Number(process.env.A_VIEW_MAX_STREAMS) || 2000;
+// Everything the page loads is same-origin except the Google Fonts stylesheet and its font files.
+const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const badRequest = res => { res.writeHead(400, { 'Cache-Control': 'no-store' }); res.end('Bad request'); };
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url, 'http://localhost');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
+    res.setHeader('X-Frame-Options', 'DENY');
+    // A request target such as "//host/path" would otherwise be read as another origin's URL.
+    if (!req.url.startsWith('/') || req.url.startsWith('//') || !URL.canParse(req.url, 'http://localhost')) { badRequest(res); return; }
+    const url = new URL(req.url, 'http://localhost');
+    const isDevelopment = url.pathname === '/dev' || url.pathname.startsWith('/dev/');
+    // The developer studies carry inline scripts and styles; they are never served in production.
+    if (!isDevelopment) res.setHeader('Content-Security-Policy', contentSecurityPolicy);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     if (url.pathname === '/api/notes') {
       const raw=url.searchParams.get('interval');
@@ -33,6 +45,7 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify(snapshot)); return;
     }
     if (url.pathname === '/api/stream') {
+      if (clients.size >= maxStreams) { res.writeHead(503, { 'Retry-After': '30', 'Cache-Control': 'no-store' }); res.end('Too many open views'); return; }
       const snapshot = store.snapshot();
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
       res.write(`data: ${JSON.stringify(snapshot)}\n\n`);
@@ -40,9 +53,14 @@ const server = createServer(async (req, res) => {
     }
     const isShared = url.pathname.startsWith('/shared/');
     const folder = resolve(root, isShared ? 'shared' : 'public');
-    const relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(isShared ? 8 : 1));
+    let relative;
+    try { relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(isShared ? 8 : 1)); }
+    catch { badRequest(res); return; }
+    if (relative.includes('\0')) { badRequest(res); return; }
     const path = resolve(folder, relative);
     if (!path.startsWith(folder + sep)) { res.writeHead(403); res.end(); return; }
+    // The proxy also hides the developer studies; refuse them here so that does not rest on one matcher.
+    if (production && !isShared && (path + sep).startsWith(resolve(folder, 'dev') + sep)) { res.writeHead(404); res.end('Not found'); return; }
     const info = await stat(path);
     if (!info.isFile()) { res.writeHead(404); res.end(); return; }
     const body = await readFile(path);

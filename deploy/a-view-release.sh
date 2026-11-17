@@ -41,8 +41,11 @@ backup() {
     [[ -f $DATA_DIR/world.sqlite ]] || { printf 'No world database yet; no backup needed.\n'; return; }
     local destination
     destination="$BACKUP_DIR/world-$(date -u +%Y%m%dT%H%M%SZ)-$$.sqlite"
-    BACKUP_WORK=$(mktemp -d "$DATA_DIR/.backup.XXXXXXXXXX")
-    chown a-view:a-view "$BACKUP_WORK"
+    # The data directory belongs to the application account. Let that account
+    # create its own staging directory: a root chown of a path inside it could be
+    # redirected by swapping the path for a symlink.
+    BACKUP_WORK=$(runuser -u a-view -- mktemp -d "$DATA_DIR/.backup.XXXXXXXXXX")
+    [[ $BACKUP_WORK == "$DATA_DIR"/.backup.* && -d $BACKUP_WORK && ! -L $BACKUP_WORK ]] || { BACKUP_WORK=; die 'Unexpected backup staging path.'; }
     local temporary="$BACKUP_WORK/world.sqlite"
     # SQLite's online backup API includes committed WAL content safely.
     # Open the live DB as its owner so any WAL sidecars retain the right ownership.
@@ -50,6 +53,7 @@ backup() {
     # Validate a root-owned copy in the private backup directory, never a file
     # that the application account can replace while root is opening it.
     BACKUP_PENDING="$destination.partial"
+    [[ -f $temporary && ! -L $temporary ]] || die 'Backup staging file is not a regular file.'
     install -o root -g root -m 0600 "$temporary" "$BACKUP_PENDING"
     rm -rf -- "$BACKUP_WORK"
     BACKUP_WORK=
