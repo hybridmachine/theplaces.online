@@ -159,7 +159,9 @@ try{
     differ(turned.pixels[0],turned.pixels[1])&&canvasSize[0]===Math.round(1280*ratio)&&canvasSize[1]===Math.round(720*ratio),{centre:turned.pixels[0],corner:turned.pixels[1],canvasSize,ratio});
   await turning.context().close();
 
-  // 13. The windows stay dark at night: the middle of the front-left window, seen from in front of the door under the night study.
+  // 13. The windows stay dark at night: the middle of the front-left window, seen from in front of the door under the night study,
+  // is dark and darker than the stone beside it; under the day study the same point stays dark while the stone is lighter
+  // (so the projection is on the glass, not the wall).
   const dark=await visitor({width:1440,height:810});await dark.goto(`${base}/?space=1&check`);await ready(dark);await studyLight(dark,'night');
   const win=await dark.evaluate(async()=>{
     const [{LAKESIDE_SPACE:S},{LAKESIDE_DRESSING:D,cabinFront,doorPosition},{terrainHeight}]=await Promise.all([import('/shared/lakeside-space.js'),import('/shared/lakeside-dressing.js'),import('/shared/space.js')]);
@@ -178,9 +180,13 @@ try{
     // world [x, y, z] → three (x, z, −y), then through the camera to CSS pixels
     const e=c.matrixWorldInverse.elements,p=c.projectionMatrix.elements,m=(M,a)=>[0,1,2,3].map(r=>M[r]*a[0]+M[r+4]*a[1]+M[r+8]*a[2]+M[r+12]*a[3]);
     return points.map(([x,y,z])=>{const q=m(p,m(e,[x,z,-y,1]));return [(q[0]/q[3]+1)/2*innerWidth,(1-q[1]/q[3])/2*innerHeight];});},[win.centre,win.wall]);
-  const night=await drawAndRead(dark,[seen,beside]),nightLuma=luminance(night.pixels[0]);
-  check('Under the night study the front-left window is dark (luminance below 0.25)',seen.every(Number.isFinite)&&seen[0]>0&&seen[0]<1440&&seen[1]>0&&seen[1]<810&&nightLuma<.25,
-    {window:win,pixel:seen,rgba:night.pixels[0],luminance:nightLuma,wallBeside:{pixel:beside,rgba:night.pixels[1],luminance:luminance(night.pixels[1])}});
+  const night=await drawAndRead(dark,[seen,beside]),[nightWindow,nightWall]=night.pixels.map(luminance);
+  await studyLight(dark,'day');await dark.waitForTimeout(1500);
+  const day=await drawAndRead(dark,[seen,beside]),[dayWindow,dayWall]=day.pixels.map(luminance);
+  check('Under the night study the front-left window is dark (luminance below 0.25) and darker than the wall beside it; by day it stays dark and the wall is lighter',
+    seen.every(Number.isFinite)&&seen[0]>0&&seen[0]<1440&&seen[1]>0&&seen[1]<810&&nightWindow<.25&&nightWindow<nightWall&&dayWindow<.25&&dayWall>dayWindow+.1,
+    {window:win,pixel:seen,wallPixel:beside,night:{window:{rgba:night.pixels[0],luminance:nightWindow},wall:{rgba:night.pixels[1],luminance:nightWall}},
+      day:{window:{rgba:day.pixels[0],luminance:dayWindow},wall:{rgba:day.pixels[1],luminance:dayWall}}});
   await dark.context().close();
 
   // 14. No WebGL2: the painting.

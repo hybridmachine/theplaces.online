@@ -92,7 +92,7 @@
         "gl": {
           "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
           "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
-          "frame": 10,
+          "frame": 20,
           "calls": 1,
           "triangles": 1,
           "points": 0,
@@ -105,10 +105,10 @@
       "name": "Holding W for 2 s walks 2.2–3.2 m east",
       "pass": true,
       "detail": {
-        "east": 2.8,
-        "drift": 1.7145055188062959e-16,
-        "heldSeconds": 2.010896041000001,
-        "expectedAtWalkingPace": 2.8152544574000014,
+        "east": 2.7998599997997276,
+        "drift": 1.7144197934077228e-16,
+        "heldSeconds": 2.0117892920000005,
+        "expectedAtWalkingPace": 2.8165050088000005,
         "before": {
           "position": [
             0,
@@ -119,8 +119,8 @@
         },
         "after": {
           "position": [
-            2.8,
-            1.7145055188062959e-16
+            2.7998599997997276,
+            1.7144197934077228e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -134,7 +134,7 @@
       "detail": [
         {
           "yaw": 0,
-          "seconds": 40.062275084,
+          "seconds": 40.021842625000005,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -149,7 +149,7 @@
         },
         {
           "yaw": 1.5707963267948966,
-          "seconds": 40.05769495799999,
+          "seconds": 40.012096542,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -157,14 +157,14 @@
             0
           ],
           "end": [
-            25.440983004912205,
-            1.5578109202063956e-15
+            25.440983004926338,
+            1.5578109202072624e-15
           ],
-          "travelled": 25.440983004912205
+          "travelled": 25.440983004926338
         },
         {
           "yaw": 3.141592653589793,
-          "seconds": 40.062187042000005,
+          "seconds": 40.02297616600001,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -172,14 +172,14 @@
             0
           ],
           "end": [
-            1.0706236935641538e-15,
+            1.070623693564142e-15,
             -8.74230589839888
           ],
           "travelled": 8.74230589839888
         },
         {
           "yaw": 4.71238898038469,
-          "seconds": 40.061933458999995,
+          "seconds": 40.020094666000006,
           "samples": 161,
           "unwalkable": [],
           "start": [
@@ -187,10 +187,10 @@
             0
           ],
           "end": [
-            -13.999999999999986,
-            -2.5717582782094354e-15
+            -13.999999999999984,
+            -2.571758278209442e-15
           ],
-          "travelled": 13.999999999999986
+          "travelled": 13.999999999999984
         }
       ]
     },
@@ -199,19 +199,19 @@
       "name": "Opening #about-dialog while W is held stops walking",
       "pass": true,
       "detail": {
-        "walkedBeforeDialog": 0.4212599997997284,
+        "walkedBeforeDialog": 0.4670399998664858,
         "dialogStart": {
           "position": [
-            3.221259999799728,
-            1.9724528739880723e-16
+            3.2668999996662134,
+            2.0003993138628588e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
         },
         "dialogEnd": {
           "position": [
-            3.221259999799728,
-            1.9724528739880723e-16
+            3.2668999996662134,
+            2.0003993138628588e-16
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0
@@ -225,29 +225,29 @@
       "detail": {
         "stopped": {
           "position": [
-            3.983930316546825,
-            -0.30424992124191286
+            4.031528246042989,
+            -0.3060849174396953
           ],
-          "yaw": 2.4499563267376767,
+          "yaw": 2.452236326852117,
           "pitch": 0.2
         },
         "remembered": {
           "position": [
-            3.983930316546825,
-            -0.30424992124191286
+            4.031528246042989,
+            -0.3060849174396953
           ],
-          "yaw": 2.449956326737677,
+          "yaw": 2.452236326852116,
           "pitch": 0.2
         },
         "storedBeforeReload": {
           "version": 1,
           "position": [
-            3.983930316546825,
-            -0.30424992124191286
+            4.031528246042989,
+            -0.3060849174396953
           ],
-          "yaw": 2.4499563267376767,
+          "yaw": 2.452236326852117,
           "pitch": 0.2,
-          "savedAt": 1794875927425
+          "savedAt": 1794876499972
         }
       }
     },
@@ -288,7 +288,7 @@
           ],
           "yaw": 1.5707963267948966,
           "pitch": 0,
-          "savedAt": 1794875937948
+          "savedAt": 1794876510497
         },
         "storedAfterForget": null,
         "state": {
@@ -372,9 +372,9 @@
               255
             ],
             [
-              128,
-              133,
-              85,
+              118,
+              123,
+              78,
               255
             ]
           ],
@@ -427,12 +427,12 @@
         {
           "tier": "full",
           "fps": 60.25,
-          "triangles": 327026,
+          "triangles": 327968,
           "calls": 28,
           "frameMs": {
-            "median": 11,
-            "fastest": 10,
-            "slowest": 13.1
+            "median": 10.7,
+            "fastest": 10.5,
+            "slowest": 11
           },
           "backing": [
             1440,
@@ -442,12 +442,12 @@
         {
           "tier": "light",
           "fps": 60.25,
-          "triangles": 327026,
+          "triangles": 327968,
           "calls": 28,
           "frameMs": {
-            "median": 8.4,
-            "fastest": 7.5,
-            "slowest": 9.9
+            "median": 8.7,
+            "fastest": 7.9,
+            "slowest": 9.6
           },
           "backing": [
             1440,
@@ -457,12 +457,12 @@
         {
           "tier": "plain",
           "fps": 60.25,
-          "triangles": 327026,
+          "triangles": 327968,
           "calls": 28,
           "frameMs": {
-            "median": 5.3,
-            "fastest": 4.9,
-            "slowest": 7.2
+            "median": 7.2,
+            "fastest": 6.4,
+            "slowest": 8
           },
           "backing": [
             1440,
@@ -477,15 +477,15 @@
       "pass": true,
       "detail": {
         "centre": [
-          69,
-          74,
-          69,
+          129,
+          136,
+          120,
           255
         ],
         "corner": [
-          21,
-          19,
-          13,
+          36,
+          32,
+          18,
           255
         ],
         "canvasSize": [
@@ -497,7 +497,7 @@
     },
     {
       "n": 13,
-      "name": "Under the night study the front-left window is dark (luminance below 0.25)",
+      "name": "Under the night study the front-left window is dark (luminance below 0.25) and darker than the wall beside it; by day it stays dark and the wall is lighter",
       "pass": true,
       "detail": {
         "window": {
@@ -520,25 +520,49 @@
           720,
           514.5367712483039
         ],
-        "rgba": [
-          2,
-          4,
-          5,
-          255
+        "wallPixel": [
+          861.1892275083605,
+          519.6442073913689
         ],
-        "luminance": 0.014301960784313722,
-        "wallBeside": {
-          "pixel": [
-            861.1892275083605,
-            519.6442073913689
-          ],
-          "rgba": [
-            23,
-            23,
-            24,
-            255
-          ],
-          "luminance": 0.09047921568627453
+        "night": {
+          "window": {
+            "rgba": [
+              2,
+              4,
+              5,
+              255
+            ],
+            "luminance": 0.014301960784313722
+          },
+          "wall": {
+            "rgba": [
+              23,
+              23,
+              24,
+              255
+            ],
+            "luminance": 0.09047921568627453
+          }
+        },
+        "day": {
+          "window": {
+            "rgba": [
+              36,
+              40,
+              31,
+              255
+            ],
+            "luminance": 0.15097960784313727
+          },
+          "wall": {
+            "rgba": [
+              125,
+              102,
+              68,
+              255
+            ],
+            "luminance": 0.40954901960784307
+          }
         }
       }
     },
@@ -562,7 +586,7 @@
         "spaceHidden": true,
         "painting": true,
         "fallback": true,
-        "seconds": 0.03473420900000201
+        "seconds": 0.03760912499998813
       }
     },
     {
@@ -574,15 +598,15 @@
         "width": 390,
         "height": 844,
         "centre": [
-          69,
-          75,
-          69,
+          127,
+          135,
+          120,
           255
         ],
         "corner": [
-          24,
-          28,
-          13,
+          65,
+          65,
+          30,
           255
         ]
       }
