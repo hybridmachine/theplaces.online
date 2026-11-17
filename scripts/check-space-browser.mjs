@@ -1,5 +1,12 @@
 import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {LAKESIDE_DRESSING as D,cabinFrame,cabinFront,doorPosition,openingCentre,oakPlan} from '../shared/lakeside-dressing.js';
+import {lifeLayout,birdPlace} from '../shared/lakeside-life.js';
+import {terrainHeight} from '../shared/space.js';
+import {eyePosition} from '../shared/walker.js';
+import {birdFixture,createBirdState,birdProgress} from '../shared/bird.js';
+import {coincidenceFixture} from '../shared/coincidences.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const directory=process.env.SPACE_VALIDATION_DIR||'docs/space-validation';await mkdir(directory,{recursive:true});
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4190';
@@ -14,8 +21,8 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
 // Each visitor gets a fresh context, so its localStorage starts empty.
 // page.own: its page errors; page.consoleErrors: console errors other than a resource that failed to load (a check that
 // aborts a request expects that one).
-async function visitor(size=viewport,init){
-  const context=await browser.newContext({viewport:size,deviceScaleFactor:1});if(init)await context.addInitScript(init);
+async function visitor(size=viewport,init,options={}){
+  const context=await browser.newContext({viewport:size,deviceScaleFactor:1,...options});if(init)await context.addInitScript(init);
   const page=await context.newPage();const own=[],consoleErrors=[];page.on('pageerror',e=>{own.push(e.message);errors.push(e.message);});
   page.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource/.test(m.text()))consoleErrors.push(m.text());});
   await context.route('https://fonts.googleapis.com/**',route=>route.abort());page.own=own;page.consoleErrors=consoleErrors;return page;
@@ -30,6 +37,35 @@ const luminance=([r,g,b])=>(.2126*r+.7152*g+.0722*b)/255;
 const differ=(a,b)=>a.some((v,i)=>Math.abs(v-b[i])>2);
 // Presses a light-study button until it takes (the buttons do nothing until the first world snapshot has arrived).
 const studyLight=(page,name)=>page.waitForFunction(s=>{const b=document.querySelector(`[data-light="${s}"]`);b.click();return b.getAttribute('aria-pressed')==='true';},name,{timeout:15_000,polling:250});
+// Poses and pixels for the living things. A pose is {position, yaw, pitch}; lookFrom aims the eye at a world point [x, y, z].
+const lookFrom=(position,target)=>{const e=eyePosition(S,{position}),dx=target[0]-e[0],dy=target[1]-e[1];
+  return {position:[...position],yaw:Math.atan2(dx,dy),pitch:Math.atan2(target[2]-e[2],Math.hypot(dx,dy))};};
+const setPose=(page,pose)=>page.evaluate(p=>{window.__space.state=p;},pose);
+const setFixture=(page,fixture)=>page.evaluate(f=>{window.__space.fixture=f;},fixture);
+// World points [x, y, z] → CSS pixels through the camera as it now stands (world → three is (x, z, −y)).
+const project=(page,points)=>page.evaluate(points=>{const c=window.__space.camera;c.updateMatrixWorld();
+  const e=c.matrixWorldInverse.elements,p=c.projectionMatrix.elements,m=(M,a)=>[0,1,2,3].map(r=>M[r]*a[0]+M[r+4]*a[1]+M[r+8]*a[2]+M[r+12]*a[3]);
+  return points.map(([x,y,z])=>{const q=m(p,m(e,[x,z,-y,1]));return [(q[0]/q[3]+1)/2*innerWidth,(1-q[1]/q[3])/2*innerHeight];});},points);
+// The living things are looked at in 1440 × 810 windows.
+const SHOT={width:1440,height:810};
+const onScreen=([x,y],margin=0)=>Number.isFinite(x)&&Number.isFinite(y)&&x>=margin&&y>=margin&&x<=SHOT.width-margin&&y<=SHOT.height-margin;
+// Draws one frame and reads a square of pixels (side 2·half+1) round each CSS-pixel centre. With `hide` (names of objects in the
+// scene) it draws again with them hidden, in the same call so the world has not moved, and returns that too; with `unripple` the
+// lake's ring is taken away for the second draw (the next frame puts it back).
+const patchRead=(page,centres,half,{hide=[],unripple=false}={})=>page.evaluate(({centres,half,hide,unripple})=>{
+  const s=window.__space,g=s.renderer.getContext(),W=g.drawingBufferWidth,H=g.drawingBufferHeight,k=W/innerWidth;
+  const draw=()=>{if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera);};
+  const read=()=>centres.map(([cx,cy])=>{const x0=Math.max(0,Math.round(cx*k)-half),y0=Math.max(0,Math.round(H-1-cy*k)-half),w=Math.min(W-x0,2*half+1),h=Math.min(H-y0,2*half+1);
+    if(w<=0||h<=0)return null;const b=new Uint8Array(w*h*4);g.readPixels(x0,y0,w,h,g.RGBA,g.UNSIGNED_BYTE,b);return [...b];});
+  draw();const on=read();let off=null;
+  if(hide.length||unripple){const objects=hide.map(n=>s.scene.getObjectByName(n)).filter(Boolean),was=objects.map(o=>o.visible);
+    objects.forEach(o=>{o.visible=false;});if(unripple)s.yard.setRipple(null);draw();off=read();objects.forEach((o,i)=>{o.visible=was[i];});}
+  return {on,off,found:hide.map(n=>!!s.scene.getObjectByName(n))};},{centres,half,hide,unripple});
+// How many pixels of two patches differ by more than 2 in any channel, and of how many.
+const changed=(a,b)=>{if(!a||!b)return {n:0,of:0};let n=0;for(let i=0;i<a.length;i+=4)if(Math.abs(a[i]-b[i])>2||Math.abs(a[i+1]-b[i+1])>2||Math.abs(a[i+2]-b[i+2])>2)n++;return {n,of:a.length/4};};
+const changedAll=(as,bs)=>as.reduce((t,a,i)=>{const c=changed(a,bs[i]);return {n:t.n+c.n,of:t.of+c.of};},{n:0,of:0});
+const meanRgb=a=>{const t=[0,0,0];for(let i=0;i<a.length;i+=4)for(let c=0;c<3;c++)t[c]+=a[i+c];return t.map(v=>v/(a.length/4));};
+const meanLuminance=patches=>patches.reduce((t,a)=>t+luminance(meanRgb(a)),0)/patches.length;
 const SPACE_FILES=/three-|\/space\/|lakeside-space-v1/;
 // Ready: the 3D canvas is showing, the frame loop has stepped the walker at least once, and the clouds have arrived.
 const ready=page=>page.waitForFunction(()=>window.__space?.renderer&&!document.querySelector('#space').hidden&&window.__space.lastStep!==null&&window.__space.sky?.clouds.visible,null,{timeout:30_000});
@@ -54,7 +90,7 @@ try{
   const {artFiles}=await import('../shared/lakeside-space-art.js'),wanted=artFiles().map(f=>f.file);
   const bundleFiles=Object.fromEntries(wanted.map(f=>[f,bundle.get(f)??null]));
   check(`?space=1&check loads all ${wanted.length} bundle files as image/webp with status 200 and no console errors`,
-    wanted.length===12&&wanted.every(f=>bundle.get(f)?.status===200&&bundle.get(f)?.type==='image/webp')&&!page.consoleErrors.length,{files:bundleFiles,consoleErrors:page.consoleErrors});
+    wanted.length===13&&wanted.every(f=>bundle.get(f)?.status===200&&bundle.get(f)?.type==='image/webp')&&!page.consoleErrors.length,{files:bundleFiles,consoleErrors:page.consoleErrors});
 
   // 3. Arrival pose.
   const arrival=await arrivalPose(page),arrived=await state(page),gl=await page.evaluate(()=>{const g=window.__space.renderer.getContext(),d=g.getExtension('WEBGL_debug_renderer_info');
@@ -159,34 +195,29 @@ try{
     differ(turned.pixels[0],turned.pixels[1])&&canvasSize[0]===Math.round(1280*ratio)&&canvasSize[1]===Math.round(720*ratio),{centre:turned.pixels[0],corner:turned.pixels[1],canvasSize,ratio});
   await turning.context().close();
 
-  // 13. The windows stay dark at night: the middle of the front-left window, seen from in front of the door under the night study,
-  // is dark and darker than the stone beside it; under the day study the same point stays dark while the stone is lighter
-  // (so the projection is on the glass, not the wall).
-  const dark=await visitor({width:1440,height:810});await dark.goto(`${base}/?space=1&check`);await ready(dark);await studyLight(dark,'night');
-  const win=await dark.evaluate(async()=>{
-    const [{LAKESIDE_SPACE:S},{LAKESIDE_DRESSING:D,cabinFront,doorPosition},{terrainHeight}]=await Promise.all([import('/shared/lakeside-space.js'),import('/shared/lakeside-dressing.js'),import('/shared/space.js')]);
-    // As cabin.js places it: `along` metres along the cabin's long axis from the door's own spot, its sill measured from the threshold.
-    const w=D.cabin.windows.find(x=>x.id==='front-left'),{yaw,size:[,short]}=S.cabin,door=doorPosition(S,D),side=cabinFront(S),u=[Math.sin(yaw),Math.cos(yaw)],out=[Math.cos(yaw)*side,-Math.sin(yaw)*side];
-    const da=D.cabin.door,edge=a=>terrainHeight(S,door[0]+u[0]*(a-da.along),door[1]+u[1]*(a-da.along));
-    const threshold=Math.min(edge(da.along-da.width/2),edge(da.along+da.width/2));
-    const centre=[door[0]+u[0]*(w.along-da.along),door[1]+u[1]*(w.along-da.along),threshold+w.sill+w.height/2];
-    // and a point on the stone wall beside it, recorded for comparison
-    const wall=[door[0]+u[0]*(w.along+w.width+.3-da.along),door[1]+u[1]*(w.along+w.width+.3-da.along),centre[2]];
-    const at=[door[0]+out[0]*4,door[1]+out[1]*4];
-    window.__space.state={position:at,yaw:Math.atan2(centre[0]-at[0],centre[1]-at[1]),pitch:.12};
-    return {centre,wall,at};});
-  await dark.waitForTimeout(1500);
-  const [seen,beside]=await dark.evaluate(points=>{const s=window.__space,c=s.camera;c.updateMatrixWorld();
-    // world [x, y, z] → three (x, z, −y), then through the camera to CSS pixels
-    const e=c.matrixWorldInverse.elements,p=c.projectionMatrix.elements,m=(M,a)=>[0,1,2,3].map(r=>M[r]*a[0]+M[r+4]*a[1]+M[r+8]*a[2]+M[r+12]*a[3]);
-    return points.map(([x,y,z])=>{const q=m(p,m(e,[x,z,-y,1]));return [(q[0]/q[3]+1)/2*innerWidth,(1-q[1]/q[3])/2*innerHeight];});},[win.centre,win.wall]);
-  const night=await drawAndRead(dark,[seen,beside]),[nightWindow,nightWall]=night.pixels.map(luminance);
-  await studyLight(dark,'day');await dark.waitForTimeout(1500);
-  const day=await drawAndRead(dark,[seen,beside]),[dayWindow,dayWall]=day.pixels.map(luminance);
-  check('Under the night study the front-left window is dark (luminance below 0.25) and darker than the wall beside it; by day it stays dark and the wall is lighter',
-    seen.every(Number.isFinite)&&seen[0]>0&&seen[0]<1440&&seen[1]>0&&seen[1]<810&&nightWindow<.25&&nightWindow<nightWall&&dayWindow<.25&&dayWall>dayWindow+.1,
-    {window:win,pixel:seen,wallPixel:beside,night:{window:{rgba:night.pixels[0],luminance:nightWindow},wall:{rgba:night.pixels[1],luminance:nightWall}},
-      day:{window:{rgba:day.pixels[0],luminance:dayWindow},wall:{rgba:day.pixels[1],luminance:dayWall}}});
+  // 13. The windows are lit by their rooms. Under the night study, from 2.5 m in front of the door, the middle of each front window
+  // is brighter than the wall beside it and warm (red above blue); from 2.5 m behind the cabin the back window, whose room is not
+  // lit, is darker than the wall; under the day study the front windows are not brighter than the wall. Each sample is the mean of
+  // a 9 × 9 patch, so a glazing bar does not decide it.
+  const frame=cabinFrame(S,D),doorAt=doorPosition(S,D),frontOut=[Math.cos(S.cabin.yaw)*cabinFront(S),-Math.sin(S.cabin.yaw)*cabinFront(S)];
+  const windowProbe=id=>{const centre=openingCentre(S,D,`window-${id}`),w=D.cabin.windows.find(x=>x.id===id),side=Math.sign(w.along)||1,reach=w.width/2+.4;
+    return {id,centre,wall:[centre[0]+frame.u[0]*side*reach,centre[1]+frame.u[1]*side*reach,centre[2]]};};
+  const eyeFront=[doorAt[0]+frontOut[0]*2.5,doorAt[1]+frontOut[1]*2.5];
+  const backCentre=openingCentre(S,D,'window-back'),eyeBack=[backCentre[0]-frontOut[0]*2.5,backCentre[1]-frontOut[1]*2.5];
+  const dark=await visitor({width:1440,height:810});await dark.goto(`${base}/?space=1&check`);await ready(dark);
+  const litSample=async(probe,eye)=>{await setPose(dark,lookFrom(eye,probe.centre));await dark.waitForTimeout(1200);
+    const at=await project(dark,[probe.centre,probe.wall]),read=await patchRead(dark,at,4),[glass,wall]=read.on.map(meanRgb);
+    return {id:probe.id,pixel:at[0],wallPixel:at[1],inView:at.every(p=>onScreen(p,8)),glass,wall,glassLuminance:luminance(glass),wallLuminance:luminance(wall)};};
+  const probes=['front-left','front-right','back'].map(windowProbe),litSamples={};
+  for(const study of ['night','day']){
+    await studyLight(dark,study);await dark.waitForTimeout(800);
+    litSamples[study]=[await litSample(probes[0],eyeFront),await litSample(probes[1],eyeFront),await litSample(probes[2],eyeBack)];
+  }
+  const [nightLeft,nightRight,nightBack]=litSamples.night,[dayLeft,dayRight]=litSamples.day;
+  const lit=x=>x.inView&&x.glassLuminance>x.wallLuminance&&x.glass[0]>x.glass[2];
+  check('Under the night study from 2.5 m in front of the door each front window is brighter than the wall beside it and warm; from behind the cabin the back window is darker than the wall; by day the front windows are not brighter than the wall',
+    lit(nightLeft)&&lit(nightRight)&&nightBack.inView&&nightBack.glassLuminance<nightBack.wallLuminance&&
+    dayLeft.inView&&dayRight.inView&&dayLeft.glassLuminance<=dayLeft.wallLuminance&&dayRight.glassLuminance<=dayRight.wallLuminance,litSamples);
   await dark.context().close();
 
   // 14. No WebGL2: the painting.
@@ -283,6 +314,135 @@ try{
     dullFrame.pixels.some(p=>differ(p,dullFrame.pixels[0]))&&!dull.own.length&&!dull.consoleErrors.length,
     {...dullView,glErrorAfterDraw:dullAfter,frame:dullFrame,pageErrors:dull.own,consoleErrors:dull.consoleErrors});
   await dull.context().close();
+
+  // ── The yard's living things (checks 23–29). Poses are computed from lifeLayout() and the cabin's frame, never typed; each
+  // sample point is projected through the camera. A fixture (honoured only under ?check) sets what a presenter shows.
+  const layout=lifeLayout(S,D),arrivalEye=S.arrival.position,[ox,oy]=S.oak.position;
+  const aroundOak=(radius,degrees)=>[ox+radius*Math.sin(degrees*Math.PI/180),oy+radius*Math.cos(degrees*Math.PI/180)];
+  const alive=await visitor({width:1440,height:810});await alive.goto(`${base}/?space=1&check`);await ready(alive);await studyLight(alive,'day');
+  const lifeStatus=page=>page.evaluate(()=>({...window.__space.life.status}));
+
+  // 23. The casement: with the main room's casement set open the pixels over the window differ from the same view with it shut.
+  const casementEye=lookFrom(eyeFront,probes[0].centre);await setPose(alive,casementEye);await alive.waitForTimeout(600);
+  const casementAt=await project(alive,[probes[0].centre]),casement={};
+  for(const [label,open] of [['open',1],['shut',0],['shutAgain',0]]){
+    await setFixture(alive,{cottagePose:{main:0,second:0,open}});await alive.waitForTimeout(800);casement[label]=(await patchRead(alive,casementAt,45)).on[0];}
+  const casementDiff=changed(casement.open,casement.shut),casementControl=changed(casement.shut,casement.shutAgain);
+  check('With the casement set open the pixels over the front-left window differ from the same view with it shut (and two shut frames agree)',
+    onScreen(casementAt[0],45)&&casementDiff.n>=200&&casementControl.n<casementDiff.n/10,{pixel:casementAt[0],open:casementDiff,control:casementControl});
+  await setFixture(alive,null);
+
+  // 24. Wind in the oak's crown: two frames 1.5 s apart differ over the crown's sprays; with reduced motion they are identical.
+  const crownPoints=async page=>{const at=await project(page,oakPlan(S,D).clumps.map(c=>c.center));return at.filter(q=>onScreen(q,20)).slice(0,12);};
+  const crownFrames=async page=>{await setPose(page,structuredClone(S.arrival));await page.waitForTimeout(800);const at=await crownPoints(page);
+    const first=(await patchRead(page,at,8)).on;await page.waitForTimeout(1500);const second=(await patchRead(page,at,8)).on;return {sprays:at.length,...changedAll(first,second)};};
+  const moving=await crownFrames(alive);
+  const still=await visitor({width:1440,height:810},null,{reducedMotion:'reduce'});await still.goto(`${base}/?space=1&check`);await ready(still);await studyLight(still,'day');
+  const stillMotion=await still.evaluate(()=>window.__space.motion),stillCrown=await crownFrames(still);
+  check('Two frames 1.5 s apart differ within the oak\'s crown; with reduced motion emulated they are identical there',
+    moving.sprays>=4&&moving.n>=20&&stillMotion===false&&stillCrown.sprays>=4&&stillCrown.n===0,{moving,reducedMotion:{motion:stillMotion,...stillCrown}});
+  await still.context().close();
+
+  // 25. Rain: the path ahead is darker than by day, the rain presenter is active, and a view along the front wall from under the
+  // eave draws the same with the streaks hidden (nothing falls there) where, in the open, hiding them changes the picture.
+  const pathPoints=[[1.5,.2],[3.5,.3],[5.5,.9],[7.5,1.6],[9.5,2.4],[11.5,3.4]].map(([x,y])=>[x,y,terrainHeight(S,x,y)]);
+  await setPose(alive,structuredClone(S.arrival));
+  const pathLuminance={};
+  for(const study of ['day','rain']){await studyLight(alive,study);await alive.waitForTimeout(1500);
+    pathLuminance[study]=meanLuminance((await patchRead(alive,await project(alive,pathPoints),6)).on);}
+  const rainStatus=(await lifeStatus(alive)).rain;
+  const grid=(xs,ys)=>ys.flatMap(y=>xs.map(x=>[x,y])),across=(from,to,n)=>Array.from({length:n},(_,i)=>from+(to-from)*i/(n-1));
+  const rainOpen=await patchRead(alive,grid(across(80,1360,8),[260,420,580]),10,{hide:['rain']}),openChange=changedAll(rainOpen.on,rainOpen.off);
+  const eaveSide=frontOut.map(v=>v*(frame.W+.2));
+  const eaveEye=[S.cabin.center[0]+frame.u[0]*(frame.L-1.5)+eaveSide[0],S.cabin.center[1]+frame.u[1]*(frame.L-1.5)+eaveSide[1]];
+  const eaveHeight=eyePosition(S,{position:eaveEye})[2],eaveTarget=[eaveEye[0]-frame.u[0]*6,eaveEye[1]-frame.u[1]*6,eaveHeight];
+  await setPose(alive,lookFrom(eaveEye,eaveTarget));await alive.waitForTimeout(1200);
+  const eaveState=await state(alive),wallAt=(await project(alive,[[S.cabin.center[0]+frame.u[0]*(frame.L-6)+frontOut[0]*frame.W,S.cabin.center[1]+frame.u[1]*(frame.L-6)+frontOut[1]*frame.W,eaveHeight]]))[0];
+  const wallSide=wallAt[0]<SHOT.width/2?across(80,620,5):across(820,1360,5);
+  const rainEave=await patchRead(alive,grid(wallSide,[260,420,580]),10,{hide:['rain']}),eaveChange=changedAll(rainEave.on,rainEave.off);
+  const sheltered=await import('../shared/lakeside-life.js').then(m=>m.sheltered(layout,[eaveState.position[0],eaveState.position[1],eaveHeight]));
+  check('Under the rain study the path ahead is darker than by day and the rain presenter is active; a view along the front wall from under the eave equals the same view with the rain hidden',
+    pathLuminance.rain<pathLuminance.day&&rainStatus==='active'&&sheltered===0&&eaveChange.n/eaveChange.of<.002&&openChange.n/openChange.of>.005,
+    {pathLuminance,rainStatus,eave:{position:eaveState.position,sheltered,wallPixel:wallAt,changed:eaveChange},open:openChange});
+
+  // 26. Ripples: with a fish ripple four seconds old set at each spot (no study, motion on) the lake differs there from the same
+  // frame without the ring, and the ripple presenter is active.
+  const water=await visitor({width:1440,height:810});await water.goto(`${base}/?space=1&check`);await ready(water);await setPose(water,structuredClone(S.arrival));
+  const spots={};
+  for(const [id,{center,radius}] of Object.entries(layout.ripples)){
+    await setFixture(water,{coincidence:coincidenceFixture(4,id)});await water.waitForTimeout(900);
+    const points=[[0,0],...[.4,.7,.95].flatMap(f=>Array.from({length:8},(_,i)=>[Math.sin(i*Math.PI/4)*radius*f,Math.cos(i*Math.PI/4)*radius*f]))].map(([dx,dy])=>[center[0]+dx,center[1]+dy,0]);
+    const at=(await project(water,points)).filter(q=>onScreen(q,10)),read=await patchRead(water,at,8,{unripple:true});
+    spots[id]={samples:at.length,...changedAll(read.on,read.off),active:await water.evaluate(()=>window.__space.coincidenceActive)};
+  }
+  check('With a ripple set at each of the three spots the lake there differs from the same frame without it and coincidenceActive is true',
+    Object.values(spots).every(v=>v.samples>=8&&v.n>=30&&v.active),spots);
+  await water.context().close();
+
+  // 27. The bird, drawn at each place: hiding the `bird` group changes pixels at its projected place, from where it is seen. The perch,
+  // the roof and the flight are seen from the arrival; the nest from beneath the crown; the sheltering bird from behind the oak, and
+  // from the arrival (where the trunk stands between) hiding it changes nothing.
+  const places=layout.bird.locations,above=p=>[p[0],p[1],p[2]+.1];
+  const birdSeen=async(fixture,target,eye)=>{await setFixture(alive,{bird:fixture});await setPose(alive,lookFrom(eye,target));await alive.waitForTimeout(800);
+    const at=await project(alive,[target]),read=await patchRead(alive,at,24,{hide:['bird']});
+    return {eye,pixel:at[0],inView:onScreen(at[0],24),group:read.found[0],changed:changed(read.on[0],read.off[0]),status:(await lifeStatus(alive)).bird};};
+  const seen=(r,min=8)=>r.group&&r.inView&&r.status==='active'&&r.changed.n>=min;
+  const perched=await birdSeen(birdFixture('Oak perch'),above(places['oak-perch'].point),arrivalEye);
+  const roofed=await birdSeen(birdFixture('Roof perch'),above(places['roof-perch'].point),arrivalEye);
+  const nested=[];for(const [r,b] of [[2.5,60],[2.5,270],[4,90],[4,300]])nested.push({radius:r,bearing:b,...await birdSeen({state:createBirdState(0,false),now:0},above(places.nest.point),aroundOak(r,b))});
+  const sheltered2=birdFixture('Sheltered bird'),shelterTarget=above(places['oak-shelter'].point);
+  const behind=await birdSeen(sheltered2,shelterTarget,aroundOak(5.5,315)),hidden=await birdSeen(sheltered2,shelterTarget,arrivalEye);
+  const flight=birdFixture('Roof flight',4500),flying=birdPlace(birdProgress(flight.state,null,flight.now),layout);
+  const flown=await birdSeen(flight,flying.position,[flying.position[0]-3,flying.position[1]-4]);
+  check('The bird is drawn at the oak perch, the nest, the sheltering place (from behind the oak, not from the arrival), the roof perch and mid-flight: hiding it changes pixels at its place',
+    seen(perched)&&seen(roofed)&&nested.some(n=>seen(n))&&seen(behind)&&hidden.group&&hidden.inView&&hidden.status==='active'&&hidden.changed.n===0&&flying.flying&&seen(flown),
+    {perched,roofed,nested,behind,hiddenFromArrival:hidden,flight:{position:flying.position,flying:flying.flying,...flown}});
+  // 28. Under a study with no fixture the bird is not shown and its presenter reports idle.
+  await setFixture(alive,null);await alive.waitForTimeout(800);
+  const noBird=await lifeStatus(alive),noBirdVisible=await alive.evaluate(()=>window.__space.scene.getObjectByName('bird').visible);
+  check('Under a study with no fixture life.status.bird is idle and the bird is not drawn',noBird.bird==='idle'&&noBirdVisible===false,{status:noBird,visible:noBirdVisible});
+  check('No page errors from the living things so far',!alive.own.length&&!alive.consoleErrors.length,{pageErrors:alive.own,consoleErrors:alive.consoleErrors});
+  await alive.context().close();
+
+  // 29. A presenter that throws is given up and the yard carries on: the rain's update and the ripples' build are stubbed to throw,
+  // under the rain study; the yard still draws, those two report failed and every other presenter active or idle.
+  const stubbed=await visitor({width:1280,height:720});
+  await stubbed.context().route('**/space/life/rain.js',route=>route.fulfill({contentType:'text/javascript',body:
+    "export const RAIN={count:0,radius:9,height:7,speed:9,length:.45,slant:.35};export const rainDrop=()=>[0,0,0];export function createRain(){return {update(){throw new Error('stub');},dispose(){}};}"}));
+  await stubbed.context().route('**/space/life/ripples.js',route=>route.fulfill({contentType:'text/javascript',body:
+    "export const rippleNow=()=>null;export function createRipples(){throw new Error('stub');}"}));
+  await stubbed.goto(`${base}/?space=1&check`);await ready(stubbed);await studyLight(stubbed,'rain');await stubbed.waitForTimeout(1500);
+  const stubStatus=await lifeStatus(stubbed),stubFrame=await drawAndRead(stubbed,[[640,360],[2,2],[320,560],[960,260],[640,90]]);
+  const others=Object.entries(stubStatus).filter(([name])=>!['rain','ripples'].includes(name));
+  check('With the rain and ripple presenters stubbed to throw, the yard still draws, they report failed and every other presenter reports active or idle, with no page errors',
+    stubStatus.rain==='failed'&&stubStatus.ripples==='failed'&&others.length>=7&&others.every(([,v])=>v==='active'||v==='idle')&&stubFrame.pixels.some(q=>differ(q,stubFrame.pixels[0]))&&!stubbed.own.length,
+    {status:stubStatus,frame:stubFrame,pageErrors:stubbed.own});
+  await stubbed.context().close();
+
+  // 30. Frame cost per tier at the arrival pose under the day and the rain studies (recorded, not asserted): rAF callbacks over 4 s, the
+  // synchronous time of one frame (as check 11), and the median and slowest time of the life's update on the CPU (the rain rebuilds its
+  // streaks there every frame); and a view left alone under the rain study still settles on the full tier.
+  const costs=[];
+  for(const tier of ['full','light','plain'])for(const study of ['day','rain']){
+    const t=await visitor({width:1440,height:810});await t.goto(`${base}/?space=1&check&tier=${tier}`);await ready(t);await studyLight(t,study);
+    await t.evaluate(async()=>{const {LAKESIDE_SPACE}=await import('/shared/lakeside-space.js'),s=window.__space,update=s.life.update.bind(s.life);window.__space.state=structuredClone(LAKESIDE_SPACE.arrival);
+      window.__lifeMs=[];s.life.update=f=>{const t0=performance.now();update(f);window.__lifeMs.push(performance.now()-t0);};});
+    await t.waitForTimeout(1500);await t.evaluate(()=>{window.__lifeMs.length=0;});
+    const callbacks=await t.evaluate(()=>new Promise(done=>{let n=0;const end=performance.now()+4000;const tick=now=>{n++;if(now<end)requestAnimationFrame(tick);else done(n);};requestAnimationFrame(tick);}));
+    const measured=await t.evaluate(()=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4),life=[...window.__lifeMs].sort((a,b)=>a-b);
+      s.renderer.render(s.scene,s.camera);const {triangles,calls}=s.renderer.info.render,rain=s.scene.getObjectByName('rain');
+      const draw=()=>{if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera);g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
+      draw();const times=[];for(let k=0;k<20;k++){const t0=performance.now();draw();times.push(performance.now()-t0);}times.sort((a,b)=>a-b);
+      return {triangles,calls,streaks:rain?.visible?rain.geometry.drawRange.count/2:0,frameMs:{median:+times[10].toFixed(2),fastest:+times[0].toFixed(2),slowest:+times[19].toFixed(2)},
+        lifeMs:{median:+life[life.length>>1].toFixed(3),slowest:+life.at(-1).toFixed(3),frames:life.length},rain:s.life.status.rain};});
+    costs.push({tier,study,fps:callbacks/4,...measured});await t.context().close();
+  }
+  const alone=await visitor({width:1280,height:720});await alone.goto(`${base}/?space=1&check`);await ready(alone);await studyLight(alone,'rain');await alone.waitForTimeout(7000);
+  const settled=await alone.evaluate(()=>({tier:window.__space.tier,locked:window.__space.meter.locked,passMode:window.__space.passMode,rain:window.__space.life.status.rain}));
+  check('Frame cost per tier under the day and rain studies (recorded); a view left alone under the rain study settles on the full tier, locked',
+    settled.tier==='full'&&settled.locked&&settled.passMode==='full'&&settled.rain==='active'&&costs.every(c=>c.study!=='rain'||c.rain==='active'),{costs,leftAloneUnderRain:settled});
+  for(const c of costs)console.log(`  ${c.tier} ${c.study}: ${c.fps} fps (display-capped), ${c.frameMs.median} ms per frame synchronously, life update ${c.lifeMs.median} ms (slowest ${c.lifeMs.slowest}), ${c.streaks} streaks, ${c.triangles} triangles, ${c.calls} draw calls`);
+  await alone.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;
