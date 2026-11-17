@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {BED_CLEAR, LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
+import {BED_CLEAR, LAKESIDE_SPACE as S, WHEELBARROW_HALF} from '../shared/lakeside-space.js';
+import {inCollider, shoreDistance, terrainHeight, walkable} from '../shared/space.js';
 import {CASEMENT, LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, gardenPlan, gardenPlots, groundBlend, oakPlan, openingCentre, ridgePoint, ROTATION, scatter, windowSpan, woodsPlan} from '../shared/lakeside-dressing.js';
 import {OFFSET_DAYS} from '../shared/garden-life.js';
 import {lifeLayout} from '../shared/lakeside-life.js';
@@ -100,6 +100,36 @@ test('the garden: two beds on the grass by the cottage, each a collider, clear o
     }
   }
   assert.ok(dist(S.beds[0].center, S.beds[1].center) > 2);
+});
+test('the wheelbarrow: parked on the meadow between the cottage and the tomato bed, its footprint a collider with room to walk past', () => {
+  const {center, yaw} = S.wheelbarrow, c = S.colliders.find(k => k.center[0] === center[0] && k.center[1] === center[1]);
+  assert.ok(c); assert.equal(c.type, 'box'); assert.deepEqual([...c.half], [...WHEELBARROW_HALF]); assert.equal(c.yaw, yaw); assert.equal(c.clearsCover, true);
+  assert.equal(walkable(S, center), false); assert.ok(groundBlend(S, D, ...center).earth < .2, 'off the path');
+  // a ring 0.25 m outside the footprint is meadow a visitor can stand on, but for where it runs under the cottage wall
+  const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], cabin = S.colliders[0]; let open = 0;
+  for (let k = 0; k < 80; k++) {
+    const t = k / 80 * 2 * Math.PI, m = Math.max(Math.abs(Math.cos(t)), Math.abs(Math.sin(t)));
+    const a = Math.cos(t) / m * (c.half[0] + .25), b = Math.sin(t) / m * (c.half[1] + .25);
+    const p = [center[0] + a * u[0] + b * v[0], center[1] + a * u[1] + b * v[1]];
+    assert.ok(groundBlend(S, D, ...p).earth < .2, `on the path ${p}`);
+    if (inCollider(cabin, p)) continue;
+    assert.ok(walkable(S, p), `${p}`); open++;
+  }
+  assert.ok(open > 40, 'most of the way round is open');
+  // the way between it and the tomato bed: the midpoints between the two footprints, all along the barrow
+  const bed = S.colliders.find(k => k.center[0] === S.beds[1].center[0] && k.center[1] === S.beds[1].center[1]);
+  const side = Math.sign((bed.center[0] - center[0]) * v[0] + (bed.center[1] - center[1]) * v[1]);
+  for (let k = 0; k <= 20; k++) {
+    const a = (k / 10 - 1) * c.half[0], b = side * (c.half[1] + .15), p = [center[0] + a * u[0] + b * v[0], center[1] + a * u[1] + b * v[1]];
+    assert.ok(walkable(S, p), `between the barrow and the bed ${p}`);
+  }
+  // no ground cover under it, and none moved by it
+  const without = {...S, wheelbarrow: undefined, colliders: S.colliders.filter(k => k !== c)};
+  for (const kind of ['grass', 'reeds', 'flowers']) {
+    const here = scatter(S, D, kind);
+    assert.ok(here.every(o => !inCollider(c, [o.x, o.y])), kind);
+    assert.deepEqual(here, scatter(without, D, kind).filter(o => !inCollider(c, [o.x, o.y])), kind);
+  }
 });
 test('the plots: each bed in two halves, four in all, the same every year', () => {
   const plots = gardenPlots(S);

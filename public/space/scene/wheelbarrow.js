@@ -2,7 +2,7 @@ import {terrainHeight} from '../../../shared/space.js';
 import {mergeGeometries, toThree, tube} from '../geometry.js';
 import {lin, noise} from './noise.js';
 
-const AXLE = -.62, FOOT = .29, RADIUS = .215;
+const AXLE = -.62, FOOT = .29, RADIUS = .215, SKID = .23; // the axle and the skids along y, the wheel's radius, a skid's x
 // Local metres: x across the tray, y toward the handles, z up. Rounded corners and a narrower nose
 // give the pressed tray its shape. The last two rings turn the sheet over into a worn rolled lip.
 function trayGeometry(THREE) {
@@ -54,9 +54,12 @@ function wheelGeometry(THREE) {
   return geometry.rotateZ(-Math.PI / 2);
 }
 
-export function buildWheelbarrow(THREE, {space, art}) {
+// The wheelbarrow parked where the space puts it (space.wheelbarrow: {center, yaw}); an empty group if the space has none.
+// `terrain` is the drawn ground (ground.js), which the wheel and skids are set down on.
+export function buildWheelbarrow(THREE, {space, art, terrain}) {
   const object = new THREE.Group();
   object.name = 'wheelbarrow';
+  if (!space.wheelbarrow) return object;
   const mesh = (name, geometry, material) => {
     const part = new THREE.Mesh(geometry, material);
     part.name = name;
@@ -75,19 +78,24 @@ export function buildWheelbarrow(THREE, {space, art}) {
       shaft(.19, .25, .415, .036), shaft(.26, .71, .59, .032), shaft(.28, .94, .64, .025),
       shaft(.28, .946, .64, .001)], {tile: 1.2}));
     // Each bent iron stand has a short skid on the ground and bolts up to the shaft at both ends.
-    iron.push(tube(THREE, [shaft(.155, -.17, .39, .016), shaft(.23, FOOT - .05, .019, .019),
-      shaft(.23, FOOT + .05, .019, .019), shaft(.193, .34, .45, .016)]));
+    iron.push(tube(THREE, [shaft(.155, -.17, .39, .016), shaft(SKID, FOOT - .05, .019, .019),
+      shaft(SKID, FOOT + .05, .019, .019), shaft(.193, .34, .45, .016)]));
   }
   for (const y of [-.24, .21]) iron.push(tube(THREE, [[-.19, y, .414, .022], [.19, y, .414, .022]]));
   mesh('stands', mergeGeometries(THREE, iron), new THREE.MeshLambertMaterial({color: 0x61574c}));
   mesh('shafts', mergeGeometries(THREE, wood), new THREE.MeshLambertMaterial({map: art.surfaces.bark, color: new THREE.Color(2.6, 2, 1.45)}));
 
-  // Settle the wheel and both skids onto the grade. The parked footprint supplies the same heading to the walker.
-  const {center: [cx, cy], yaw} = space.colliders.find(c => c.id === 'wheelbarrow');
-  const sin = Math.sin(yaw), cos = Math.cos(yaw);
-  const ground = (x, y) => terrainHeight(space, cx + x * cos + y * sin, cy - x * sin + y * cos);
-  const front = ground(0, AXLE), back = ground(0, FOOT);
-  const pitch = Math.atan2(back - front, FOOT - AXLE), roll = Math.atan2(ground(.23, FOOT) - ground(-.23, FOOT), .46);
+  // Settle the wheel and both skids onto the ground as it is drawn: the terrain is a 1 m grid, which cuts the corner where the
+  // slope changes, so the mesh is asked for its height and terrainHeight only stands in where there is no mesh under a point.
+  const {center: [cx, cy], yaw} = space.wheelbarrow;
+  const sin = Math.sin(yaw), cos = Math.cos(yaw), ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0);
+  const ground = (x, y) => {
+    const e = cx + x * cos + y * sin, n = cy - x * sin + y * cos;
+    if (terrain) { ray.set(new THREE.Vector3(e, 1e3, -n), down); const hit = ray.intersectObject(terrain)[0]; if (hit) return hit.point.y; }
+    return terrainHeight(space, e, n);
+  };
+  const left = ground(-SKID, FOOT), right = ground(SKID, FOOT), front = ground(0, AXLE), back = (left + right) / 2;
+  const pitch = Math.atan2(back - front, FOOT - AXLE), roll = Math.atan2(right - left, 2 * SKID);
   object.rotation.set(pitch, -yaw, roll, 'YXZ');
   object.position.set(...toThree([cx, cy, front - AXLE * Math.sin(pitch)]));
   return object;

@@ -129,6 +129,47 @@ test('the cabin walls stay inside the collider, clear of where a visitor can sta
   }
   assert.ok(checked > 50); scene.dispose();
 });
+test('the wheelbarrow stands in its footprint on the drawn ground, off the wall and clear of the casement as it swings', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), barrow = scene.parts.wheelbarrow;
+  scene.group.updateMatrixWorld(true);
+  assert.deepEqual(barrow.children.map(m => m.name).sort(), ['shafts', 'stands', 'tray', 'wheel']);
+  const {center, yaw} = S.wheelbarrow, half = S.colliders.find(c => c.center[0] === center[0] && c.center[1] === center[1]).half;
+  const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], cu = [Math.sin(S.cabin.yaw), Math.cos(S.cabin.yaw)], cv = [Math.cos(S.cabin.yaw), -Math.sin(S.cabin.yaw)];
+  const w = new THREE.Vector3(), ray = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0);
+  for (const part of barrow.children) {
+    const p = part.geometry.getAttribute('position'); let low = null;
+    for (let i = 0; i < p.count; i++) {
+      w.fromBufferAttribute(p, i).applyMatrix4(part.matrixWorld); const [x, y] = fromThree(w), dx = x - center[0], dy = y - center[1];
+      assert.ok(Math.abs(dx * u[0] + dy * u[1]) <= half[0] - .05 && Math.abs(dx * v[0] + dy * v[1]) <= half[1] - .05, `${part.name} outside the footprint`);
+      const off = Math.abs((x - S.cabin.center[0]) * cv[0] + (y - S.cabin.center[1]) * cv[1]) - S.cabin.size[1] / 2;
+      assert.ok(off > .08, `${part.name} ${off.toFixed(3)} m from the wall`);
+      if (!low || w.y < low.y) low = w.clone();
+    }
+    // the wheel and the skids rest on the terrain as it is drawn; nothing else comes near it
+    ray.set(new THREE.Vector3(low.x, 100, low.z), down); ray.far = Infinity;
+    const gap = low.y - ray.intersectObject(scene.parts.terrain)[0].point.y;
+    if (part.name === 'wheel' || part.name === 'stands') assert.ok(Math.abs(gap) < .01, `${part.name} ${gap.toFixed(3)} m off the ground`);
+    else assert.ok(gap > .1, part.name);
+  }
+  // the casement leaf, swept from shut to wide open, with 5 cm to spare past its free edge, meets nothing of the barrow
+  const leaf = scene.parts.cabin.getObjectByName('casement'), lp = leaf.geometry.getAttribute('position');
+  for (let k = 0; k <= 10; k++) {
+    scene.setCottage({open: k / 10}); leaf.updateWorldMatrix(true, true);
+    const pts = Array.from({length: lp.count}, (_, i) => new THREE.Vector3().fromBufferAttribute(lp, i).applyMatrix4(leaf.matrixWorld));
+    const out = q => (q.x - S.cabin.center[0]) * cv[0] + (-q.z - S.cabin.center[1]) * cv[1], run = q => (q.x - S.cabin.center[0]) * cu[0] + (-q.z - S.cabin.center[1]) * cu[1];
+    const hinge = pts.reduce((a, q) => run(q) < run(a) ? q : a), free = pts.reduce((a, q) => out(q) + run(q) > out(a) + run(a) ? q : a);
+    const lo = Math.min(...pts.map(q => q.y)), hi = Math.max(...pts.map(q => q.y));
+    for (let j = 0; j <= 30; j++) {
+      const y = lo + (hi - lo) * j / 30, from = new THREE.Vector3(hinge.x, y, hinge.z), dir = new THREE.Vector3(free.x - hinge.x, 0, free.z - hinge.z);
+      ray.far = dir.length() + .05; ray.set(from, dir.normalize());
+      assert.equal(ray.intersectObject(barrow, true).length, 0, `the leaf meets the barrow at ${k / 10} open`);
+    }
+  }
+  scene.dispose();
+  // a space with no wheelbarrow still builds: the part is there, empty
+  const bare = buildScene(THREE, {space: {...S, wheelbarrow: undefined, colliders: S.colliders.slice(0, -1)}, dressing: D, art: stubArt()});
+  assert.equal(bare.parts.wheelbarrow.children.length, 0); bare.dispose();
+});
 test('the cabin has a door and two windows in front and one small window behind', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
   assert.equal(scene.parts.cabin.getObjectByName('openings').children.length, 4); scene.dispose();

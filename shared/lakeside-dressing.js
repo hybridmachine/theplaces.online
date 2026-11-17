@@ -362,11 +362,13 @@ export function woodsPlan(space, dressing) {
 const cellCount = kind => (SPACE_ART.cards.cells[kind] ?? SPACE_ART.cards.cells[kind.replace(/s$/, '')]).length;
 
 // kind: 'grass' | 'reeds' | 'flowers' → [{x, y, scale, turn, cell, index}] (cell indexes into SPACE_ART.cards.cells[kind]).
-// Lay the cover before the garden furniture, then omit the tufts beneath it. The surviving tufts keep their seeds.
+// The cover is laid as if nothing stood on the meadow (the colliders marked `clearsCover`: the beds, the wheelbarrow), and whatever
+// falls under one is then left out, so none of them moves a tuft that stands anywhere else; `index` is each one's place in that
+// full laying, for whoever seeds its look from it.
 export function scatter(space, dressing, kind) {
-  const garden = space.colliders.filter(c => c.id === 'wheelbarrow' || space.beds?.some(b => b.center[0] === c.center[0] && b.center[1] === c.center[1]));
-  const open = {...space, colliders: space.colliders.filter(c => !garden.includes(c))};
-  return scatterOpen(open, dressing, kind).map((o, index) => ({...o, index})).filter(o => !garden.some(c => inCollider(c, [o.x, o.y])));
+  const standing = space.colliders.filter(c => c.clearsCover);
+  const open = standing.length ? {...space, colliders: space.colliders.filter(c => !c.clearsCover)} : space;
+  return scatterOpen(open, dressing, kind).map((o, index) => ({...o, index})).filter(o => !standing.some(c => inCollider(c, [o.x, o.y])));
 }
 function scatterOpen(space, dressing, kind) {
   const r = stream(dressing.seed, kind), want = dressing.cover[kind], cells = cellCount(kind), out = [];
