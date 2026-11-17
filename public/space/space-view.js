@@ -98,8 +98,8 @@ export class SpaceView {
     this.colours = {day: {}, night: {}};
     for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
-    this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode);
-    this.releasePass(); // started locked on plain (?tier=plain): the pass is never drawn, and nothing has been allocated yet
+    // Started locked on plain (?tier=plain), the pass would never be drawn.
+    if (!this.plainForGood()) { this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode); }
     this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();
     await this.sky.load(); // never rejects; a missing atlas leaves a clear sky
@@ -108,12 +108,15 @@ export class SpaceView {
   }
   setPass(mode) {
     if (!Object.hasOwn(PASS_SCALE, mode)) throw new Error(`Unknown painterly pass mode ${mode}`);
+    // Locked on plain the pass is gone for good (or never made); the view stays drawn straight to the canvas.
+    if (this.plainForGood() && !this.pass) return;
     this.passMode = mode;
     if (PASS_SCALE[mode]) this.pass?.setScale(PASS_SCALE[mode]);
   }
+  plainForGood() { return this.meter.locked && this.meter.tier === 'plain'; }
   // Locked on plain the pass is never drawn again, so its render targets are given back to the GPU.
   releasePass() {
-    if (!this.meter.locked || this.meter.tier !== 'plain' || !this.pass) return;
+    if (!this.plainForGood() || !this.pass) return;
     this.pass.dispose(); this.pass = null;
   }
   panBy() {} // Dragging pans only the 2D painting; here it looks (lookBy).
