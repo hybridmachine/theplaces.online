@@ -41,17 +41,23 @@ backup() {
     [[ -f $DATA_DIR/world.sqlite ]] || { printf 'No world database yet; no backup needed.\n'; return; }
     local destination
     destination="$BACKUP_DIR/world-$(date -u +%Y%m%dT%H%M%SZ)-$$.sqlite"
-    BACKUP_WORK=$(mktemp -d "$DATA_DIR/.backup.XXXXXXXXXX")
-    chown a-view:a-view "$BACKUP_WORK"
+    # The data directory belongs to the application account. Let that account
+    # create its own staging directory: a root chown of a path inside it could be
+    # redirected by swapping the path for a symlink.
+    BACKUP_WORK=$(runuser -u a-view -- mktemp -d "$DATA_DIR/.backup.XXXXXXXXXX")
+    [[ $BACKUP_WORK == "$DATA_DIR"/.backup.* && -d $BACKUP_WORK && ! -L $BACKUP_WORK ]] || { BACKUP_WORK=; die 'Unexpected backup staging path.'; }
     local temporary="$BACKUP_WORK/world.sqlite"
     # SQLite's online backup API includes committed WAL content safely.
     # Open the live DB as its owner so any WAL sidecars retain the right ownership.
     runuser -u a-view -- sqlite3 -readonly -cmd '.timeout 10000' "$DATA_DIR/world.sqlite" ".backup '$temporary'"
     # Validate a root-owned copy in the private backup directory, never a file
-    # that the application account can replace while root is opening it.
+    # that the application account can replace.
     BACKUP_PENDING="$destination.partial"
-    install -o root -g root -m 0600 "$temporary" "$BACKUP_PENDING"
-    rm -rf -- "$BACKUP_WORK"
+    # Root opens only the private destination. The application account opens and
+    # streams the staged file, so whatever that path names by then, nothing is
+    # read with more privilege than the account already has.
+    (umask 077; runuser -u a-view -- cat -- "$temporary" > "$BACKUP_PENDING")
+    runuser -u a-view -- rm -rf -- "$BACKUP_WORK"
     BACKUP_WORK=
     temporary=$BACKUP_PENDING
     # Make each backup a standalone file with no WAL/SHM dependencies.
@@ -84,7 +90,7 @@ restore_world() {
 recover() {
     local status=$?
     trap - EXIT INT TERM
-    if [[ -n $BACKUP_WORK ]]; then rm -rf -- "$BACKUP_WORK"; fi
+    if [[ -n $BACKUP_WORK ]]; then runuser -u a-view -- rm -rf -- "$BACKUP_WORK" || true; fi
     if [[ -n $BACKUP_PENDING ]]; then rm -f "$BACKUP_PENDING" "$BACKUP_PENDING-wal" "$BACKUP_PENDING-shm"; fi
     if [[ $SWITCHING == 1 ]]; then
         printf 'Activation failed; restoring the previous application release.\n' >&2

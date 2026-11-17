@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { WorldClient } from '../public/world-client.js';
+import { WorldClient, keepStream, STREAM_RETRY_MIN, STREAM_RETRY_MAX } from '../public/world-client.js';
 import { sceneText } from '../public/scene-description.js';
 import { WorldStore } from '../src/store.js';
 import { birdPose } from '../shared/world.js';
@@ -133,4 +133,29 @@ test('precise time remains readable without a live announcement on every clock u
     assert.match(night.announcement, /Night/);
     assert.doesNotMatch(night.announcement, /\d\d:\d\d/);
   } finally { store.close(); }
+});
+
+test('a stream the server refused is reopened with backoff, while ordinary drops are left to the browser', () => {
+  const sources=[],timers=[],errors=[],messages=[];
+  const stream=keepStream(()=>{const source={readyState:0,closed:false,close(){this.closed=true;}};sources.push(source);return source;},
+    {onMessage:event=>messages.push(event),onError:()=>errors.push(1),schedule:(fn,delay)=>{timers.push({fn,delay});return timers.length;},cancel:id=>{timers[id-1].cancelled=true;},random:()=>.5});
+  assert.equal(sources.length,1);
+  // CONNECTING after a network drop: the browser retries by itself.
+  sources[0].onerror();
+  assert.equal(timers.length,0);assert.equal(errors.length,1);
+  // CLOSED after an HTTP error such as 503: only a new source can reconnect.
+  sources[0].readyState=2;sources[0].onerror();sources[0].onerror();
+  assert.equal(timers.length,1);assert.equal(timers[0].delay,STREAM_RETRY_MIN);
+  timers[0].fn();assert.equal(sources.length,2);
+  sources[0].onerror();assert.equal(timers.length,1,'a replaced source cannot schedule another');
+  sources[1].readyState=2;sources[1].onerror();
+  assert.equal(timers[1].delay,STREAM_RETRY_MIN*2);
+  for(let i=2;i<8;i++){timers[i-1].fn();sources[i].readyState=2;sources[i].onerror();}
+  assert.equal(timers.at(-1).delay,STREAM_RETRY_MAX);
+  // A delivered message restores the shortest delay.
+  timers.at(-1).fn();const live=sources.at(-1);live.readyState=1;live.onmessage({data:'{}'});
+  assert.equal(messages.length,1);
+  live.readyState=2;live.onerror();assert.equal(timers.at(-1).delay,STREAM_RETRY_MIN);
+  stream.stop();assert.equal(timers.at(-1).cancelled,true);assert.equal(live.closed,true);
+  const count=sources.length;timers.at(-1).fn();assert.equal(sources.length,count);
 });

@@ -2,6 +2,12 @@
 @DOMAIN@ {
 	encode zstd gzip
 
+	header {
+		# Browsers that have visited once keep to HTTPS. Subdomains are not included.
+		Strict-Transport-Security "max-age=15552000"
+		-Server
+	}
+
 	@development path /dev /dev/*
 	respond @development 404
 

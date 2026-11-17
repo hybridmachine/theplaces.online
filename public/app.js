@@ -1,7 +1,7 @@
 import { clockLabel, viewConditions } from '/shared/world.js';
 import { Painting } from './painting.js';
 import { Ambience } from './sound.js';
-import { WorldClient } from './world-client.js';
+import { WorldClient, keepStream } from './world-client.js';
 import { SceneDescriber } from './scene-description.js';
 import {cottageDescription} from '/shared/cottage.js';
 import {birdDescription} from '/shared/bird.js';
@@ -161,9 +161,10 @@ async function startPainter(){
 // Displayed conditions can select the fallback while optional sky assets load.
 requestAnimationFrame(frame);
 try{await Promise.all([startPainter(),refresh()]);}catch(error){console.error(error);toast('The painting is here. Reconnecting to the world…');}
-const stream=new EventSource('/api/stream');
-stream.onmessage=event=>{try{client.accept(JSON.parse(event.data));}catch(error){console.error('Invalid world update',error);}};
-stream.onerror=()=>{connection='reconnecting';updateLabels();wake();};
+keepStream(()=>new EventSource('/api/stream'),{
+  onMessage:event=>{try{client.accept(JSON.parse(event.data));}catch(error){console.error('Invalid world update',error);}},
+  onError:()=>{connection='reconnecting';updateLabels();wake();}
+});
 setInterval(()=>{if(!document.hidden)client.recover(connection!=='live').catch(()=>{connection='reconnecting';updateLabels();});},1000);
 wake();
 // A bfcache suspension keeps the renderer; permanent navigation releases it.

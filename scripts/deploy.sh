@@ -49,10 +49,10 @@ case "$command" in
             cd "$root"
             npm run check
             npm test
-            # Deliberately exclude data/, .env, .git, and development dependencies.
+            # Deliberately exclude data/, .env, .git, development dependencies and the developer studies.
             # Runtime symlinks could accidentally bundle outside files; reject them.
             [[ -z $(find src shared public -type l -print) ]] || die 'Runtime directories must not contain symbolic links.'
-            COPYFILE_DISABLE=1 tar -czf "$local_work/release.tar.gz" package.json src shared public
+            COPYFILE_DISABLE=1 tar -czf "$local_work/release.tar.gz" --exclude=public/dev package.json src shared public
         else
             COPYFILE_DISABLE=1 tar -czf "$local_work/release.tar.gz" -C "$root" deploy
         fi
