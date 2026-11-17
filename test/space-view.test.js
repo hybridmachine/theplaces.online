@@ -41,3 +41,13 @@ test('rain greys the sky colours the far ground fades toward, and clear skies ke
   const wet = weatherSky(clear, RAIN);
   for (const key of ['zenith', 'horizon']) wet[key].forEach((v, i) => assert.ok(v < clear[key][i], `${key}[${i}]`));
 });
+
+test('thin cloud up to 0.2 lights the yard as clear skies do, and half cloud lies between clear and rain', () => {
+  for (const light of [0, .3, .7, 1]) {
+    const clear = lightLevels({light}, CLEAR), edge = lightLevels({light}, {cloud: .2, rain: 0}), half = lightLevels({light}, {cloud: .5, rain: 0}), rain = lightLevels({light}, RAIN);
+    assert.equal(edge.hemisphere, clear.hemisphere);
+    assert.ok(Math.abs(edge.direct - clear.direct) <= 2.3 * .02 * .65 + 1e-12, 'the sun keeps its own thin-cloud shade');
+    assert.ok(half.hemisphere < clear.hemisphere && half.hemisphere > rain.hemisphere, `hemisphere at light ${light}`);
+    assert.ok(half.direct < clear.direct && half.direct > rain.direct, `direct at light ${light}`);
+  }
+});

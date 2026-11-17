@@ -20,10 +20,11 @@ export {toThree};
 const PASS_SCALE = {full: 1, light: .6, off: null};
 const TIER_PASS = {full: 'full', light: 'light', plain: 'off'};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
-// Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black. Full overcast takes
-// this share from the sky's light, by day and night alike; cloud takes its own share from the sun or moon.
+// Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
-  night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}, overcastShade: .35, cloudShade: .65};
+  night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
+// Full overcast takes this share from the sky's light, by day and night alike; cloud takes its own share from the sun or moon.
+const OVERCAST_SHADE = .35, CLOUD_SHADE = .65;
 const pose = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch});
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
@@ -31,10 +32,10 @@ export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Ma
 // (or else the moon) lights the yard, and the directional light's intensity before that body's own opacity and phase.
 export function lightLevels(calendar, weather) {
   const blend = Math.max(0, Math.min(1, calendar.light)), sun = blend >= .5, {day, night} = LIGHT;
-  const hemisphere = (night.hemisphere + (day.hemisphere - night.hemisphere) * blend) * (1 - LIGHT.overcastShade * overcast(weather));
+  const hemisphere = (night.hemisphere + (day.hemisphere - night.hemisphere) * blend) * (1 - OVERCAST_SHADE * overcast(weather));
   // Fade through the hand-over so the shadow side never jumps.
   const handover = Math.min(1, Math.abs(blend - .5) / .15);
-  return {blend, sun, hemisphere, direct: (sun ? day.direct : night.direct) * (1 - weather.cloud * LIGHT.cloudShade) * handover};
+  return {blend, sun, hemisphere, direct: (sun ? day.direct : night.direct) * (1 - weather.cloud * CLOUD_SHADE) * handover};
 }
 
 export class SpaceView {
@@ -118,7 +119,7 @@ export class SpaceView {
     this.sky = new SkyDome(THREE, this.skyConfig); this.scene.add(this.sky.object3d);
     this.hemisphere = new THREE.HemisphereLight(); this.direct = new THREE.DirectionalLight(); this.scene.add(this.hemisphere, this.direct);
     this.colours = {day: {}, night: {}};
-    for (const time of ['day', 'night']) for (const [key, value] of Object.entries(LIGHT[time]))
+    for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
     // Started locked on plain (?tier=plain), the pass would never be drawn.
     if (!this.plainForGood()) { this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode); }
@@ -172,6 +173,8 @@ export class SpaceView {
   }
   render(snapshot, now, study = null) {
     if (!this.renderer || this.disposed || this.failed || !snapshot) return;
+    // Lost but not yet told (the event is asynchronous): three would compile on a dead context.
+    if (this.renderer.getContext().isContextLost()) return;
     if (this.shown) this.step();
     const epoch = snapshot.world.epoch, conditions = viewConditions(epoch, now, study), {calendar: c, weather: w} = conditions;
     // A deliberate study selection may choose a new still sky in reduced motion.

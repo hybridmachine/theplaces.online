@@ -16,8 +16,8 @@ async function visitor(size=viewport,init){
   const page=await context.newPage();const own=[];page.on('pageerror',e=>{own.push(e.message);errors.push(e.message);});
   await context.route('https://fonts.googleapis.com/**',route=>route.abort());page.own=own;return page;
 }
-// Ready: the 3D canvas is showing and the frame loop has stepped the walker at least once.
-const ready=page=>page.waitForFunction(()=>window.__space?.renderer&&!document.querySelector('#space').hidden&&window.__space.lastStep!==null,null,{timeout:30_000});
+// Ready: the 3D canvas is showing, the frame loop has stepped the walker at least once, and the clouds have arrived.
+const ready=page=>page.waitForFunction(()=>window.__space?.renderer&&!document.querySelector('#space').hidden&&window.__space.lastStep!==null&&window.__space.sky?.clouds.visible,null,{timeout:30_000});
 const state=page=>page.evaluate(()=>structuredClone(window.__space.state));
 const arrivalPose=page=>page.evaluate(async()=>structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival));
 const near=(a,b,e)=>Math.abs(a.position[0]-b.position[0])<=e&&Math.abs(a.position[1]-b.position[1])<=e&&Math.abs(a.yaw-b.yaw)<=e&&Math.abs(a.pitch-b.pitch)<=e;
@@ -123,6 +123,16 @@ try{
     const w=g.drawingBufferWidth,h=g.drawingBufferHeight;return {fov:s.camera.fov,width:w,height:h,centre:read(w>>1,h>>1),corner:read(0,h-1)};});
   check('At 390 × 844 the vertical field of view is ≤ 75° and the frame is drawn',portrait.fov<=75&&portrait.centre.some((v,i)=>v!==portrait.corner[i]),portrait);
   await phone.context().close();
+  // 12. A scene build that fails after the context exists: the 2D view, the context given back, no page errors.
+  const broken=await visitor(viewport,()=>{const original=HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext=function(type,...rest){const g=original.call(this,type,...rest);if(type==='webgl2'&&this.id==='space')window.__spaceGL=g;return g;};});
+  await broken.route('**/assets/lakeside-space-v1/meadow.webp',route=>route.abort());
+  await broken.goto(`${base}/?space=1&check`);await broken.waitForLoadState('load');
+  await broken.waitForFunction(()=>window.__space?.failed,null,{timeout:30_000}).catch(()=>{});await broken.waitForTimeout(1000);
+  const brokenView=await shows2D(broken),brokenGL=await broken.evaluate(()=>({context:!!window.__spaceGL,lost:window.__spaceGL?.isContextLost()??null}));
+  check('A failed scene build shows the 2D view and gives its WebGL context back',brokenView.spaceHidden&&(brokenView.painting||brokenView.fallback)&&brokenGL.context&&brokenGL.lost===true&&!broken.own.length,
+    {...brokenView,...brokenGL,pageErrors:broken.own});
+  await broken.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;
