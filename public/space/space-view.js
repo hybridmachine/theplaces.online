@@ -8,7 +8,7 @@ import {WALK, eyePosition, glide, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
-import {SkyDome} from './sky-dome.js';
+import {SkyDome, overcast} from './sky-dome.js';
 import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
 import {PainterlyPass} from './painterly-pass.js';
@@ -20,11 +20,22 @@ export {toThree};
 const PASS_SCALE = {full: 1, light: .6, off: null};
 const TIER_PASS = {full: 'full', light: 'light', plain: 'off'};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
-// Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
+// Blockout light, day and night, mixed by calendar.light. Night stays dim and blue rather than black. Full overcast takes
+// this share from the sky's light, by day and night alike; cloud takes its own share from the sun or moon.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
-  night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
+  night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}, overcastShade: .35, cloudShade: .65};
 const pose = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch});
-const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
+export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
+
+// The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
+// (or else the moon) lights the yard, and the directional light's intensity before that body's own opacity and phase.
+export function lightLevels(calendar, weather) {
+  const blend = Math.max(0, Math.min(1, calendar.light)), sun = blend >= .5, {day, night} = LIGHT;
+  const hemisphere = (night.hemisphere + (day.hemisphere - night.hemisphere) * blend) * (1 - LIGHT.overcastShade * overcast(weather));
+  // Fade through the hand-over so the shadow side never jumps.
+  const handover = Math.min(1, Math.abs(blend - .5) / .15);
+  return {blend, sun, hemisphere, direct: (sun ? day.direct : night.direct) * (1 - weather.cloud * LIGHT.cloudShade) * handover};
+}
 
 export class SpaceView {
   constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, sky = SCENES[0].sky, onFailure} = {}) {
@@ -78,33 +89,42 @@ export class SpaceView {
     const gl = this.canvas.getContext('webgl2', {alpha: false, antialias: true, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
-    const renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
-    // The yard is drawn from its art bundle; without it the painting is shown instead. The renderer is published (and
-    // frames drawn) only once the scene exists.
+    let renderer = null;
+    try {
+      renderer = new THREE.WebGLRenderer({canvas: this.canvas, context: gl, antialias: true, powerPreference: 'low-power'});
+      if (await this.build(renderer)) {
+        // The clouds come in when their atlas does (load never rejects; a missing atlas leaves a clear sky).
+        this.sky.load();
+        // Walking, looking and the tier meter begin only now the view is shown.
+        return this.shown = true;
+      }
+    } catch (error) { console.warn('The 3D view could not be built; showing the painting.', error); }
+    // The painting is shown instead: give the context back, so a lost-context event cannot report the failure again.
+    this.failed = true; this.canvas.removeEventListener('webglcontextlost', this.contextLost);
+    this.releaseScene(renderer); gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return false;
+  }
+  // The yard is drawn from its art bundle; without it the painting is shown instead. The renderer is published (and
+  // frames drawn) only once the scene exists. False if the art is missing or the view was disposed meanwhile.
+  async build(renderer) {
     let art;
     try { art = await loadSpaceArt(THREE, renderer); }
-    catch (error) {
-      console.warn("The yard's art could not be loaded; showing the painting.", error);
-      this.canvas.removeEventListener('webglcontextlost', this.contextLost); renderer.dispose();
-      return false;
-    }
-    if (this.disposed) { art.dispose(); renderer.dispose(); return false; }
+    catch (error) { console.warn("The yard's art could not be loaded; showing the painting.", error); return false; }
     this.art = art;
+    if (this.disposed) return false;
     this.scene = new THREE.Scene(); this.scene.fog = new THREE.FogExp2('#d3d3bf', FOG_DENSITY);
     this.camera = new THREE.PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
     this.yard = buildScene(THREE, {space: this.space, dressing: this.dressing, art}); this.scene.add(this.yard.group);
     this.sky = new SkyDome(THREE, this.skyConfig); this.scene.add(this.sky.object3d);
     this.hemisphere = new THREE.HemisphereLight(); this.direct = new THREE.DirectionalLight(); this.scene.add(this.hemisphere, this.direct);
     this.colours = {day: {}, night: {}};
-    for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
+    for (const time of ['day', 'night']) for (const [key, value] of Object.entries(LIGHT[time]))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
     // Started locked on plain (?tier=plain), the pass would never be drawn.
     if (!this.plainForGood()) { this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode); }
     this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();
-    await this.sky.load(); // never rejects; a missing atlas leaves a clear sky
-    // Frames are measured only once the view is shown.
-    return this.shown = !this.disposed;
+    return true;
   }
   setPass(mode) {
     if (!Object.hasOwn(PASS_SCALE, mode)) throw new Error(`Unknown painterly pass mode ${mode}`);
@@ -122,6 +142,7 @@ export class SpaceView {
   panBy() {} // Dragging pans only the 2D painting; here it looks (lookBy).
   // Grab-style: dragging right turns the view left, dragging down tilts it up.
   lookBy(dx, dy) {
+    if (!this.shown) return; // a drag before the view is shown is dropped
     this.look[0] -= dx * LOOK_PER_PIXEL; this.look[1] += dy * LOOK_PER_PIXEL;
     this.looked = true; this.glideFrom = null;
   }
@@ -151,7 +172,7 @@ export class SpaceView {
   }
   render(snapshot, now, study = null) {
     if (!this.renderer || this.disposed || this.failed || !snapshot) return;
-    this.step();
+    if (this.shown) this.step();
     const epoch = snapshot.world.epoch, conditions = viewConditions(epoch, now, study), {calendar: c, weather: w} = conditions;
     // A deliberate study selection may choose a new still sky in reduced motion.
     if (study !== this.celestialStudy) { this.frozenCelestial = null; this.celestialStudy = study; }
@@ -179,14 +200,11 @@ export class SpaceView {
   }
   // Hemisphere light from the sky, one directional light from the sun by day and the moon by night, fog in the horizon colour.
   applyLight(calendar, weather, bodies, horizon) {
-    const t = Math.max(0, Math.min(1, calendar.light)), {day, night} = this.colours, shade = 1 - weather.cloud * .65;
+    const {blend: t, sun, hemisphere, direct} = lightLevels(calendar, weather), {day, night} = this.colours, body = sun ? bodies.sun : bodies.moon;
     this.hemisphere.color.lerpColors(night.sky, day.sky, t); this.hemisphere.groundColor.lerpColors(night.ground, day.ground, t);
-    this.hemisphere.intensity = LIGHT.night.hemisphere + (LIGHT.day.hemisphere - LIGHT.night.hemisphere) * t;
-    const sun = t >= .5, body = sun ? bodies.sun : bodies.moon;
-    // Fade through the hand-over so the shadow side never jumps.
-    const handover = Math.min(1, Math.abs(t - .5) / .15);
+    this.hemisphere.intensity = hemisphere;
     this.direct.color.copy(sun ? day.sun : night.moon);
-    this.direct.intensity = (sun ? LIGHT.day.direct : LIGHT.night.direct * bodies.moon.illumination) * body.opacity * shade * handover;
+    this.direct.intensity = direct * (sun ? 1 : bodies.moon.illumination) * body.opacity;
     this.direct.position.set(...toThree(body.direction)).multiplyScalar(100);
     this.scene.fog.color.setRGB(...horizon, THREE.SRGBColorSpace);
     this.scene.fog.density = FOG_DENSITY * (1 + weather.rain);
@@ -195,10 +213,14 @@ export class SpaceView {
     if (this.disposed) return;
     this.disposed = true;
     this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
-    removeEventListener('resize', this.resize); this.media.removeEventListener('change', this.motionChanged);
+    this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
-    this.yard?.dispose(); this.art?.dispose(); this.sky?.dispose(); this.hemisphere?.dispose(); this.direct?.dispose();
-    this.pass?.dispose(); this.pass = null;
-    this.renderer?.dispose(); this.renderer = null;
+    this.releaseScene(this.renderer);
+  }
+  // Everything init made for the GPU, given back; safe to call again.
+  releaseScene(renderer) {
+    removeEventListener('resize', this.resize);
+    for (const part of ['yard', 'art', 'sky', 'hemisphere', 'direct', 'pass']) { this[part]?.dispose(); this[part] = null; }
+    renderer?.dispose(); this.renderer = null;
   }
 }

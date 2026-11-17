@@ -10,6 +10,8 @@ const DEG = Math.PI / 180, R = 1000, GLOW = 6, CLOUD_TOP = 60 * DEG, CLOUD_BOTTO
 const PAINTING_FOCAL = 1672 / (2 * Math.tan(50 * DEG));
 const DAY_TOP = [157, 179, 193], DAY_HORIZON = [211, 211, 191], NIGHT = [.22, .31, .43];
 const STAR = [231, 236, 218].map(v => v / 255), MOON = [230, 233, 215].map(v => v / 255);
+// Under full overcast the sky's colours lose this share of their colour and of their brightness.
+const SKY_GREY = .6, SKY_DIM = .3;
 const clamp = x => Math.max(0, Math.min(1, x));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const warm = (rgb, dusk, k) => [rgb[0] * (1 + dusk * .08 * k), rgb[1] * (1 - dusk * .025 * k), rgb[2] * (1 - dusk * .11 * k)];
@@ -18,6 +20,16 @@ const warm = (rgb, dusk, k) => [rgb[0] * (1 + dusk * .08 * k), rgb[1] * (1 - dus
 export function skyColours(calendar, dusk) {
   const tone = rgb => mix(rgb.map((v, i) => v / 255 * NIGHT[i]), rgb.map(v => v / 255), clamp(calendar.light));
   return {zenith: warm(tone(DAY_TOP), dusk, .5), horizon: warm(tone(DAY_HORIZON), dusk, 1.5)};
+}
+// How far the sky is overcast: nothing up to the thin cloud of clear skies (0.2), all of it at 0.9 and above.
+export const overcast = weather => clamp((weather.cloud - .2) / .7);
+// Rain greys and darkens the sky's colours, so the far ridges, lake and fog that fade toward them sit under the grey cloud.
+export function weatherSky({zenith, horizon}, weather) {
+  const k = overcast(weather), dull = rgb => {
+    const grey = (rgb[0] + rgb[1] + rgb[2]) / 3;
+    return rgb.map(v => (v + (grey - v) * SKY_GREY * k) * (1 - SKY_DIM * k));
+  };
+  return {zenith: dull(zenith), horizon: dull(horizon)};
 }
 
 const SKY_VERTEX = `varying vec3 vDir;
@@ -30,14 +42,17 @@ void main(){
   sky+=vec3(.08,.032,.006)*exp((dot(dir,sunDir)-1.)*9.)*sunWarmth;
   gl_FragColor=vec4(sky,1.);
 }`;
-// Stars are hidden inside a visible sun or moon disc, so the moon's dark side still covers them.
+// Stars are hidden inside a visible sun or moon disc, so the moon's dark side still covers them. A star smaller than its
+// 1.5 px point fades with its area, but never below how it fades in a drawing buffer 1600 px wide, so stars stay in a small window.
+const FLOOR_FOCAL = 800 / Math.tan(50 * DEG);
 const STAR_VERTEX = `attribute float opacity,angle;uniform float viewHeight;uniform vec4 moonDisc,sunDisc;varying float vAlpha;
 void main(){
   vec3 d=normalize(position);
   float hidden=max(step(moonDisc.w,dot(d,moonDisc.xyz)),step(sunDisc.w,dot(d,sunDisc.xyz)));
   float size=2.*angle*projectionMatrix[1][1]*viewHeight; // diameter in pixels
   gl_PointSize=max(size,1.5);
-  vAlpha=opacity*(1.-hidden)*min(1.,size*size/2.25);
+  float faded=max(size,2.*angle*${FLOOR_FOCAL.toFixed(3)});
+  vAlpha=opacity*(1.-hidden)*min(1.,faded*faded/2.25);
   gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const STAR_FRAGMENT = `uniform vec3 color;varying float vAlpha;
@@ -132,12 +147,12 @@ export class SkyDome {
       this.texture = texture; this.cloudMaterial.uniforms.atlas.value = texture; this.clouds.visible = true;
       return true;
     } catch (error) {
-      console.warn('The 3D sky has no clouds:', error.message);
+      if (!this.disposed) console.warn('The 3D sky has no clouds:', error.message);
       return false;
     }
   }
   update({calendar, weather, bodies, clouds, cameraPosition}) {
-    const {dusk} = skyLighting(calendar, weather), u = this.domeMaterial.uniforms, {zenith, horizon} = skyColours(calendar, dusk);
+    const {dusk} = skyLighting(calendar, weather), u = this.domeMaterial.uniforms, {zenith, horizon} = weatherSky(skyColours(calendar, dusk), weather);
     this.object3d.position.copy(cameraPosition);
     u.zenith.value.set(...zenith); u.horizon.value.set(...horizon);
     u.sunDir.value.set(...toThree(bodies.sun.direction));
