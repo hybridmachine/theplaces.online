@@ -40,7 +40,7 @@ async function fixture({previous,current,width=1440,fail=false,blocked=false}={}
       observed:{cursor:previous.notes.head,at:previous.serverTime},read:previous.notes.head}));
   },{previous,key:MEMORY_KEY,blocked});
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base);await page.waitForSelector('#painting.ready');
+  await page.goto(`${base}/?space=0`);await page.waitForSelector('#painting.ready');
   await page.waitForFunction(()=>document.querySelector('#event-list').children.length>0);
   return {context,page,state};
 }
@@ -146,7 +146,7 @@ try{
     await open(page);const recap=await page.locator('#recap-text').textContent();
     const visit=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),SESSION_KEY);
     state.current=day;
-    const other=await context.newPage();await other.goto(base);await other.waitForSelector('#painting.ready');await open(other);
+    const other=await context.newPage();await other.goto(`${base}/?space=0`);await other.waitForSelector('#painting.ready');await open(other);
     await page.waitForTimeout(100);
     const retained=await page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),SESSION_KEY);
     check('Another tab preserves this visit baseline and recap',JSON.stringify(visit.baseline)===JSON.stringify(retained.baseline)&&recap===await page.locator('#recap-text').textContent());

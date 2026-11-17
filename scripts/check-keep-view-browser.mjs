@@ -28,7 +28,7 @@ async function fixture({width=1280,height=800,fallback=false,unavailable=false,m
     URL.revokeObjectURL=url=>{window.__urls.delete(url);return revoke(url);};
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base);
+  await page.goto(`${base}/?space=0`);
   await page.waitForFunction(()=>document.querySelector('#fallback').complete&&document.querySelector('#fallback').naturalWidth>0);
   if(!fallback&&!unavailable)await page.waitForSelector('#painting.ready');
   if(!unavailable)await page.waitForFunction(()=>document.querySelector('#world-time').textContent!=='15:30');

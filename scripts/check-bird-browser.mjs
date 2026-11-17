@@ -96,7 +96,7 @@ try{
   for(const visitor of [a,b]){
     await visitor.addInitScript(()=>Object.defineProperty(performance,'now',{value:()=>10000}));
     await visitor.route('**/api/world',route=>route.fulfill({json:response}));await visitor.route('**/api/stream',route=>route.abort());
-    await visitor.goto(base);await visitor.waitForSelector('#painting.ready');
+    await visitor.goto(`${base}/?space=0`);await visitor.waitForSelector('#painting.ready');
     await visitor.waitForFunction(()=>document.querySelector('#bird-detail').textContent.includes('flying'));
   }
   const pixels=visitor=>visitor.locator('#life').evaluate(canvas=>canvas.toDataURL());

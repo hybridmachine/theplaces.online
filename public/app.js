@@ -23,8 +23,8 @@ const icons={
 function icon(element,name){element.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;}
 document.querySelectorAll('[data-icon]').forEach(element=>icon(element,element.dataset.icon));
 icon($('#sound-button .icon'),'muted');
-// ?space=1 asks for the optional 3D view; any failure falls back to the painting.
-let painter=new URLSearchParams(location.search).get('space')==='1'?await openSpace():new Painting($('#painting'),$('#life'));
+// The 3D view is the default and any failure falls back to the painting; ?space=0 asks for the painting.
+let painter=new URLSearchParams(location.search).get('space')==='0'?new Painting($('#painting'),$('#life')):await openSpace();
 const audio=new Ambience();
 const client=new WorldClient({onSnapshot:accept});
 const fieldNotes=new FieldNotes();

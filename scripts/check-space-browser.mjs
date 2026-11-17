@@ -76,11 +76,11 @@ const shows2D=page=>page.evaluate(()=>{const visible=id=>{const e=document.query
   return {spaceHidden:document.querySelector('#space').hidden,painting:visible('#painting'),fallback:visible('#fallback')};});
 async function hold(page,keys,ms){const start=performance.now();for(const k of keys)await page.keyboard.down(k);await wait(ms);for(const k of [...keys].reverse())await page.keyboard.up(k);return (performance.now()-start)/1000;}
 try{
-  // 1. The default page is the painting and never asks for three.js, the 3D view's modules or its art.
+  // 1. ?space=0 is the painting and never asks for three.js, the 3D view's modules or its art.
   const plain=await visitor(),fetched=[];plain.on('request',r=>fetched.push(r.url()));
-  await plain.goto(base);await plain.waitForLoadState('load');await plain.waitForTimeout(2000);
+  await plain.goto(`${base}/?space=0`);await plain.waitForLoadState('load');await plain.waitForTimeout(2000);
   const spaceRequests=fetched.filter(u=>SPACE_FILES.test(u)),plainHidden=await plain.locator('#space').evaluate(e=>e.hidden);
-  check('Default page requests nothing of the 3D view (three-, /space/, lakeside-space-v1) and hides #space',!spaceRequests.length&&plainHidden,{spaceRequests,spaceHidden:plainHidden,requests:fetched.length});
+  check('?space=0 requests nothing of the 3D view (three-, /space/, lakeside-space-v1) and hides #space',!spaceRequests.length&&plainHidden,{spaceRequests,spaceHidden:plainHidden,requests:fetched.length});
   await plain.context().close();
 
   // 2. The 3D view loads the whole art bundle as WebP, without console errors.
@@ -145,16 +145,16 @@ try{
   check('Forget visit memory returns the next visit to the arrival pose',near(forgotten,arrival,1e-9),{state:forgotten,storedAfterForget:afterForget});
   await page.context().close();
 
-  // 9. Forget visit memory on the default painting page also forgets the place.
+  // 9. Forget visit memory on the painting page also forgets the place.
   const painted=await visitor();await painted.goto(`${base}/?space=1&check`);await ready(painted);
   const walkedState=await painted.evaluate(()=>{window.__space.state={...window.__space.state,position:[1,0]};return structuredClone(window.__space.state);});
   await painted.waitForFunction(()=>localStorage.getItem('a-view:place:lakeside-cottage')!==null,null,{timeout:10_000});
   const seeded=await painted.evaluate(()=>localStorage.getItem('a-view:place:lakeside-cottage'));
-  await painted.goto(base);await painted.waitForLoadState('load');
+  await painted.goto(`${base}/?space=0`);await painted.waitForLoadState('load');
   await painted.locator('#notes-button').click();await painted.locator('#forget-visits').click();await painted.keyboard.press('Escape');
   const paintedAfterForget=await painted.evaluate(()=>localStorage.getItem('a-view:place:lakeside-cottage'));
   await painted.goto(`${base}/?space=1&check`);await ready(painted);const paintedReturn=await state(painted);
-  check('Forget visit memory on the default page forgets the place for the next 3D visit',!!seeded&&paintedAfterForget===null&&near(paintedReturn,arrival,1e-9),
+  check('Forget visit memory on the painting page forgets the place for the next 3D visit',!!seeded&&paintedAfterForget===null&&near(paintedReturn,arrival,1e-9),
     {walkedState,seeded:seeded&&JSON.parse(seeded),storedAfterForget:paintedAfterForget,state:paintedReturn});
   await painted.context().close();
 

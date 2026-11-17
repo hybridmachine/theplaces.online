@@ -97,7 +97,7 @@ try{
   const source=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
   await p.route('**/app.js',route=>route.fulfill({contentType:'text/javascript',body:source+'\nwindow.__soundApp={audio,painter,client}; const originalUpdate=audio.update.bind(audio); audio.update=(light,rain,display)=>{window.__soundFrame=display;return originalUpdate(light,rain,display);};'}));
   await p.route('https://fonts.googleapis.com/**',route=>route.abort());
-  await p.goto(base);await p.waitForFunction(()=>window.__soundFrame);
+  await p.goto(`${base}/?space=0`);await p.waitForFunction(()=>window.__soundFrame);
   check('Painting stays opt-in and passes shared sound inputs',await p.evaluate(()=>!__soundApp.audio.context&&Number.isFinite(__soundFrame.epoch)&&!!__soundFrame.cottage&&typeof __soundFrame.birdActive==='boolean'&&typeof __soundFrame.cottageActive==='boolean'));
   await p.locator('#sound-button').click();await p.waitForFunction(()=>window.__soundApp.audio.enabled);
   const boundary=await p.evaluate(async()=>{
