@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CROPS, DAILY_STEP, EVENT_DAYS, OFFSET_DAYS, cropStage, plotSoil} from '../shared/garden-life.js';
+import {CROPS, DAILY_STEP, EVENT_DAYS, OFFSET_DAYS, cropStage, gardenState, plotSoil} from '../shared/garden-life.js';
+import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
 
 const KINDS = ['corn', 'bean', 'tomato'], NUMS = ['height', 'leaf', 'flower', 'fruit', 'ripe', 'yellow', 'dry'];
 
@@ -43,4 +45,27 @@ test('the soil: dug dark in spring, mulch on the resting plot from spring to aut
   assert.equal(plotSoil('rest', 114).mulch, 0); assert.equal(plotSoil('rest', 115).mulch, 1); assert.ok(Math.abs(plotSoil('rest', 317).mulch - .6) < .01);
   for (const d of [318, 364, 0, 50]) assert.equal(plotSoil('rest', d).mulch, 0);
   assert.equal(plotSoil('tomato', 200).mulch, 0);
+});
+
+test('the garden on a day: bare in winter, planted in summer, the same on every call', () => {
+  assert.deepEqual(gardenState(S, D, 230), gardenState(S, D, 230));
+  assert.equal(gardenState(S, D, 20).plants.length, 0);
+  const summer = gardenState(S, D, 230);
+  assert.equal(summer.plants.length, D.garden.corn.count + D.garden.beans.poles + D.garden.tomatoes.count);
+  assert.equal(summer.year, 0); assert.equal(summer.dayOfYear, 230);
+  assert.deepEqual(gardenState(S, D, 122).plants.map(p => p.kind), Array(D.garden.beans.poles).fill('bean'));
+});
+test('the turn of the year: nothing standing on either side, and the crops have moved on', () => {
+  const before = gardenState(S, D, 364), after = gardenState(S, D, 365);
+  assert.equal(before.plants.length, 0); assert.equal(after.plants.length, 0);
+  for (const s of [before, after]) for (const p of s.plots) assert.deepEqual(p.soil, {dug: 0, mulch: 0});
+  assert.equal(after.year, 1); for (let i = 0; i < 4; i++) assert.notEqual(before.plots[i].crop, after.plots[i].crop);
+});
+test('a far year is as sound as the first', () => {
+  const far = gardenState(S, D, 365 * 500 + 200);
+  assert.deepEqual(far.plots.map(p => p.crop), gardenState(S, D, 200).plots.map(p => p.crop));
+  for (const p of far.plants) for (const v of Object.values(p.stage)) assert.ok(typeof v === 'boolean' || Number.isFinite(v));
+});
+test('a day that is not a whole number gives no garden', () => {
+  for (const day of [NaN, undefined, null, 12.5, '230', Infinity]) assert.equal(gardenState(S, D, day), null);
 });

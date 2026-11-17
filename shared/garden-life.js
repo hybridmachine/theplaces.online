@@ -1,4 +1,5 @@
 import {clamp, smooth} from './world.js';
+import {gardenPlan} from './lakeside-dressing.js';
 
 // Each crop's year, in days of the year (0–364): `dig` the plot is turned, `supportUp`/`supportDown` its stakes or poles stand
 // (null for corn), `sow` it goes in (a tomato is set out at `shoot`), `shoot`..`full` it grows, then the [from, to] windows of
@@ -45,3 +46,13 @@ export function plotSoil(crop, dayOfYear) {
 // The days on which a crop's plot (or the resting plot, 'rest') may change suddenly: digging, setting out, picking, clearing.
 const EVENTS = {corn: [110, 125, 291, 315], bean: [110, 120, 130, 318], tomato: [110, 135, 300], rest: [115, 318]};
 export const EVENT_DAYS = kind => [...EVENTS[kind]];
+
+// The whole garden on a world day (whole days since the world began), or null when `day` is not a whole number: the plan for
+// that day's year, its plots with their soil, and the plants in the ground or on their stakes, each with its stage.
+export function gardenState(space, dressing, day) {
+  if (!Number.isInteger(day)) return null;
+  const year = Math.floor(day / 365), dayOfYear = ((day % 365) + 365) % 365, plan = gardenPlan(space, dressing, year);
+  return {day, year, dayOfYear, beds: plan.beds,
+    plots: plan.plots.map(p => ({...p, soil: plotSoil(p.crop, dayOfYear)})),
+    plants: plan.plants.map(p => ({...p, stage: cropStage(p.kind, dayOfYear, p.offset)})).filter(p => p.stage.present || p.stage.support)};
+}
