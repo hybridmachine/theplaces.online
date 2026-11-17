@@ -146,3 +146,12 @@ Wind, cottage, rain and traces, ripples, then the bird. Each is complete and vie
 - Sway amounts, smoke rise and size, rain speed and count, glow colour and reach, tuned by eye and kept quiet.
 - How the bird model is built and how its wings are hinged.
 - How fixtures are injected for the browser check.
+
+## As built
+
+Where the build differs from the design above (the design itself is not rewritten):
+
+- **Art bundle: 13 files.** The lit window panel (`window-lit.webp`) was added, so the bundle has thirteen slots, not twelve.
+- **Fixtures.** `window.__space.fixture` (honoured only under `?check`) may hold `{cottagePose, surface, coincidence: {state, now}, bird: {state, now}}`; `window.__space.life.status` maps each presenter (`wind`, `cottage`, `smoke`, `rain`, `traces`, `ripples`, `bird`, `nest`, `farBirds`) to `'active'`, `'idle'` or `'failed'`. Under a light study the ripple is omitted even when a fixture supplies one (`rippleNow` returns null under a study), so ripple checks run with no study and with motion on; the bird and the cottage take their fixtures under a study.
+- **Smoke, rain, ripples, drips, bird, as tuned.** Smoke opacity is `min(alpha × 9, .45)` and its radius grows .35 → 1.4 m. Rain is 2400 streaks fixed in the world in an 18 m square round the visitor, rebuilt on the CPU each frame. Ripple strokes are offset ×1.2 and brightened ×30; the spots are shore-reflection [28, −17.5] r 4.5, open-water [19, −14.5] r 4 and near-water [13, −12.6] r 3.5. Drips fall from a clump's underside to the ground. The bird is drawn at 1.4× its 18 cm length, its wings beating at half the 2D rate.
+- **Bird places, as the oak's leaves leave them.** The oak's leaves were not changed. The perch (on limb 1) is seen from the arrival view only when looking up about 0.3 rad; the nest (limb 2) is hidden by leaves from the arrival and from the path, and is seen from beneath the crown (about 2.5 m out at bearings 60° and 270°, 4 m out at 90° and 300° from the oak); the sheltering bird (limb 7, 4.4 m up) is hidden from the arrival by the trunk and found from about bearing 315° at 5.5 m behind the oak. The owner's delegate accepted this.
