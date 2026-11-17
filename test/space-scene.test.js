@@ -17,7 +17,7 @@ export function stubArt() {
 test('toThree maps east, north, up to three', () => { assert.deepEqual(toThree([1, 2, 3]), [1, 3, -2]); });
 test('the scene builds its named parts with finite geometry and disposes them', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
-  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'garden', 'lights', 'hills']) assert.ok(scene.parts[name], name);
+  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'garden', 'wheelbarrow', 'lights', 'hills']) assert.ok(scene.parts[name], name);
   let meshes = 0, disposed = 0;
   scene.group.traverse(o => { if (!o.geometry) return; meshes++;
     const p = o.geometry.getAttribute('position'); for (let i = 0; i < p.count * 3; i++) assert.ok(Number.isFinite(p.array[i]), o.name);
