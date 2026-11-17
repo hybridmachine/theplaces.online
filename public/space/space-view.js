@@ -204,6 +204,7 @@ export class SpaceView {
     const clouds = sampleCloudLayers({realSeconds, motionSeconds, weather: w, config: this.skyConfig});
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
     this.yard.setSky({zenith, horizon});
+    this.yard.setGarden(this.check && Number.isInteger(this.fixture?.gardenDay) ? this.fixture.gardenDay : c.day);
     this.applyLight(c, w, bodies, horizon);
     this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null}));
     if (this.passMode === 'off' || !this.pass) this.renderer.render(this.scene, this.camera);
