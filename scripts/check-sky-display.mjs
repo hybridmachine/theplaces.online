@@ -10,7 +10,7 @@ try{
   const page=await browser.newPage({viewport:{width:1440,height:900}});page.on('pageerror',e=>errors.push(e.message));
   // Avoid third-party font delivery in an otherwise local integration check.
   await page.route('https://fonts.googleapis.com/**',route=>route.abort());
-  await page.goto(base);await page.waitForSelector('#painting.ready');
+  await page.goto(`${base}/?space=0`);await page.waitForSelector('#painting.ready');
   await page.locator('#pause-button').click();
   // The control updates immediately; a slower GPU may still show the last live
   // frame. Observe the next real draw before capturing the paused baseline.

@@ -112,7 +112,7 @@ try{
     const painter=skyStudy.painter;painter.cottageRenderer.draw=()=>{throw new Error('injected draw failure');};skyStudy.render();
     return !painter.cottageRenderer&&!painter.cottageActive&&painter.ready&&!!painter.weatherRenderer&&!!painter.foliageRenderer&&painter.gl.getError()===0;
   });check('Partial draw failure restores the base and surviving layers',failureFrame);
-  const visitor=await page();await visitor.route('**/lakeside-cottage-v1/*.png',route=>route.abort());await visitor.goto(base);
+  const visitor=await page();await visitor.route('**/lakeside-cottage-v1/*.png',route=>route.abort());await visitor.goto(`${base}/?space=0`);
   await visitor.waitForFunction(()=>document.querySelector('#scene-description').textContent.includes('static painting'));
   check('Accessible description identifies the static cottage fallback',(await visitor.locator('#scene-description').textContent()).includes('static painting. Shared cottage state: '));await visitor.close();
   const pausedVisitor=await page(),store=new WorldStore(':memory:',1_800_000_000_000);
@@ -129,7 +129,7 @@ try{
   await pausedVisitor.addInitScript(()=>Object.defineProperty(performance,'now',{value:()=>10000}));
   let response=seed;
   await pausedVisitor.route('**/api/world',route=>route.fulfill({json:response}));await pausedVisitor.route('**/api/stream',route=>route.abort());
-  await pausedVisitor.goto(base);await pausedVisitor.waitForSelector('#painting.ready');
+  await pausedVisitor.goto(`${base}/?space=0`);await pausedVisitor.waitForSelector('#painting.ready');
   await pausedVisitor.waitForFunction(()=>document.querySelector('#cottage-detail').textContent.includes('windows are dark'));
   await pausedVisitor.locator('#pause-button').click();const pausedText=await pausedVisitor.locator('#cottage-detail').textContent();
   response=lit;const refreshed=pausedVisitor.waitForResponse('**/api/world');

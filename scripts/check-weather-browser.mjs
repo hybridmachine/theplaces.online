@@ -97,7 +97,7 @@ try{
   let response=structuredClone(seed);
   await visitor.route('**/api/world',route=>route.fulfill({json:response}));
   await visitor.route('**/api/stream',route=>route.abort());
-  await visitor.goto(base);await visitor.waitForFunction(()=>document.querySelector('#scene-description').textContent.includes('Year'));
+  await visitor.goto(`${base}/?space=0`);await visitor.waitForFunction(()=>document.querySelector('#scene-description').textContent.includes('Year'));
   response={...seed,serverTime:seed.serverTime+1000,validUntil:seed.serverTime+31_000,
     world:{...seed.world,revision:seed.world.revision+1,environment:{...seed.world.environment,pathWetness:.9,puddleStorage:.7}}};
   await visitor.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));

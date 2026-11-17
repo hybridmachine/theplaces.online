@@ -80,7 +80,7 @@ try{
   await saveReport(reportName,report);
   console.log(`Sampled a full world day: ${samples.length} checkpoints; ${JSON.stringify(report.eventsByType)}`);
   if(process.env.ENGAGEMENT_REALTIME==='1'){
-    await page.setViewportSize({width:800,height:450});await page.goto(base);await page.waitForSelector('#painting.ready');
+    await page.setViewportSize({width:800,height:450});await page.goto(`${base}/?space=0`);await page.waitForSelector('#painting.ready');
     const start=Date.now(),observations=[];
     while(Date.now()-start<duration){
       const snapshot=await (await page.request.get(base+'/api/world')).json();
