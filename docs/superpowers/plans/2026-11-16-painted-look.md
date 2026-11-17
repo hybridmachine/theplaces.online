@@ -704,9 +704,9 @@ git commit -m "Dim rain, keep stars in small windows, and tidy the view's start-
 
 **Files:**
 - Modify: `scripts/check-space-browser.mjs`, `scripts/capture-space-review.mjs`, `docs/space-validation/README.md`, `README.md`, `.gitignore`, and whichever scene or dressing files the arrival tuning needs
-- Create: `docs/space-validation/review/*.png` (the review pack), `docs/space-validation/arrival-vs-painting.png`
+- Create: `docs/space-validation/review/*.png` (the review pack), `docs/space-validation/arrival-vs-painting.jpg`
 
-- [ ] **Step 1: Tune the arrival view against the painting.** Add `--compare` to the capture script: it saves the `arrival` capture beside `public/assets/lakeside-day.png` (scaled to the same height) and a 50 % overlay, as `arrival-vs-painting.png`. Adjust placement and shapes (in `shared/lakeside-dressing.js` and the scene modules, keeping every test green) until, judged by eye: the oak's trunk and canopy frame the left as in the painting; the cabin's face, roof line, door and windows are recognisable in the same place; the path leads to the door; the shore curves away to the right; the hill line sits behind. The lake sitting higher in the frame than in the painting is accepted (parent spec).
+- [ ] **Step 1: Tune the arrival view against the painting.** Add `--compare` to the capture script: it saves the `arrival` capture beside `public/assets/lakeside-day.png` (scaled to the same height) and a 50 % overlay, as `arrival-vs-painting.jpg`. Adjust placement and shapes (in `shared/lakeside-dressing.js` and the scene modules, keeping every test green) until, judged by eye: the oak's trunk and canopy frame the left as in the painting; the cabin's face, roof line, door and windows are recognisable in the same place; the path leads to the door; the shore curves away to the right; the hill line sits behind. The lake sitting higher in the frame than in the painting is accepted (parent spec).
 - [ ] **Step 2: Extend the browser check** with these, each recorded in the results JSON:
   1. `/` requests nothing whose URL contains `three-`, `/space/` or `lakeside-space-v1`.
   2. `/?space=1&check` requests all twelve bundle files with status 200 and content type `image/webp`, with no console errors.

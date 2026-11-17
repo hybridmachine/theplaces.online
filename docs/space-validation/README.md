@@ -30,7 +30,7 @@ Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak
 
 ## Automated evidence
 
-`node scripts/check-space-browser.mjs` — last run: **19 PASS, 0 FAIL**, exit code 0, no page errors. Full detail, numbered as below, is in [space-browser-results.json](space-browser-results.json).
+`node scripts/check-space-browser.mjs` — last run: **21 PASS, 0 FAIL**, exit code 0, no page errors. Full detail, numbered as below, is in [space-browser-results.json](space-browser-results.json).
 
 1. `/` requests nothing whose URL contains `three-`, `/space/` or `lakeside-space-v1`, and `#space` stays hidden.
 2. `/?space=1&check` loads all twelve bundle files with status 200 and content type `image/webp`, with no console errors.
@@ -51,6 +51,8 @@ Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak
 17. A scene build that fails (meadow texture aborted) shows the 2D view and gives its WebGL context back.
 18. With `cards.webp` aborted, the 2D view is shown, `#space` is hidden, there is no toast and no page error.
 19. With `stone.webp` answered 200 with an empty body, the same.
+20. Left to itself, the tier meter settles on `full` and locks within about 6 s of the view being shown.
+21. A running view stepped down live (its meter swapped for a stub answering `light`, then `plain` locked) reports each tier and pass mode, runs the filter at 0.6 on `light`, releases the pass on `plain`, and draws a non-blank frame after each step and after a resize with no pass.
 
 ### Frame rate and counts (check 11)
 
@@ -62,7 +64,7 @@ At the arrival pose under the day study, 1440 × 810, pixel ratio 1, on the Appl
 | light | 60 | 8.7 ms | 327,968 | 28 |
 | plain | 60 | 7.2 ms | 327,968 | 28 |
 
-The callback count is capped by the display (about 60 per second), so it says only that every tier keeps up here. The synchronous time is one frame drawn and then read back so the GPU has finished; it is the better measure of headroom. It varies by a few milliseconds between runs (earlier runs the same evening gave 11.6, 7.7 and 8.3 ms, and 11.0, 8.4 and 5.3 ms). Triangles and draw calls are the scene alone (`renderer.info.render` after a plain scene render); the pass adds a few full-screen draws. The app itself draws at most 30 frames per second.
+The callback count is capped by the display (about 60 per second), so it says only that every tier keeps up here. The synchronous time is one frame drawn and then read back so the GPU has finished; it is the better measure of headroom. It varies by a few milliseconds between runs (earlier runs the same evening gave 11.6, 7.7 and 8.3 ms, and 11.0, 8.4 and 5.3 ms; the last run gave 11.4, 9.2 and 8.0 ms). Triangles and draw calls are the scene alone (`renderer.info.render` after a plain scene render); the pass adds a few full-screen draws. The app itself draws at most 30 frames per second.
 
 ## What was not measured
 

@@ -1,6 +1,6 @@
 # The painted look (navigable yard, phase 2) — design
 
-Status: proposed, November 16, 2026. Awaiting approval. Nothing in this document is built; a throwaway spike exists for reference.
+Status: built on branch `claude/painted-look`, November 16, 2026; awaiting the owner's review of the look.
 
 This is phase 2 of `docs/superpowers/specs/2026-11-15-navigable-yard-design.md`, which remains the parent design. Items marked **(call)** were decided by the author of this document, not by the project owner, and are open to correction.
 
@@ -85,6 +85,8 @@ The four slots where code is weakest, and where a plate would help most:
 | Distant woodland | A few tree-line silhouettes in sage and moss with lit tops |
 | Foreground grass and flowers | A sheet of long-grass tufts, cow parsley and reeds |
 
+As built, the far-hills slot (`hills`) is not a band: it is a brushwork tile that repeats both ways over the slopes. The hill silhouettes, the ragged crest and the mist are made in geometry and shader, so a hills plate changes the hills' paint but not their line. The oak, woodland and ground-cover plates are not separate files: they are cells of the one `cards` atlas.
+
 Phase 2 makes the best code-painted version of each. The owner's review decides whether any needs a plate.
 
 ### The place, rebuilt for paint
@@ -118,6 +120,7 @@ The flat blockout is replaced, not dressed. The blockout meshes are removed once
 | Plain | Painted scene, no pass (the spike's Look B) | Still under the target |
 
 - The tier is chosen from measured frame rate in the first seconds after the view is shown, steps down only, and holds for the page's life. The target is 24 fps. **(call)**
+- As built (`public/space/tier.js`): after 1.5 s of settling, frame intervals are gathered over a 3 s window, and the tier steps down one only when the window's median interval is more than 8 % longer than a frame at 24 fps (the tolerance keeps a 48 Hz display, whose median is exactly that frame, on its tier). An interval over 2 s is a stall or a hidden tab and empties the window; more than eight stalls in a row count as a very slow device. After a step down it settles and measures again; a window that holds locks the tier, and plain locks at once.
 - The Plain tier must stand on its own as a painted place. It is reviewed as carefully as Full.
 - Falling back to the 2D painting below 20 fps stays in phase 4.
 
