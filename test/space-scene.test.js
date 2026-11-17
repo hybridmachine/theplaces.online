@@ -206,6 +206,15 @@ test('every swaying card carries its sway, and the cabin dabs stay put', () => {
   scene.dispose();
 });
 
+test('a ripple can be set and cleared on the lake without touching another scene', () => {
+  const a = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), b = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  const u = scene => scene.parts.lake.material.uniforms;
+  a.setRipple({center: [30, -12], radius: 2, age: .4, variation: 1});
+  assert.deepEqual(u(a).ripple.value.toArray(), [30, -12, 2, .4]); assert.equal(u(a).rippleSeed.value, 1); assert.equal(u(b).ripple.value.w, 0);
+  a.setRipple(null); assert.ok(u(a).ripple.value.w <= 0);
+  a.dispose(); b.dispose();
+});
+
 test('wetting the ground does not throw, and does not touch another scene', () => {
   const a = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), b = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
   a.setWet({path: .5, stone: .25});

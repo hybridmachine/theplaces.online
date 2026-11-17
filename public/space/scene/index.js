@@ -19,6 +19,8 @@ export function buildScene(THREE, {space, dressing, art}) {
     setSky({zenith, horizon}) { sky.zenith = [...zenith]; sky.horizon = [...horizon]; ground.setSky({zenith, horizon}); },
     // How wet the path and the shore stones are, 0–1 each (ground.js).
     setWet(wet) { ground.setWet(wet); },
+    // The ring a rising fish leaves on the lake, {center: [x, y], radius, age, variation}, or null (ground.js).
+    setRipple(r) { ground.setRipple(r); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
     setCottage(pose) { cabin.setCottage(pose); },
     dispose() {

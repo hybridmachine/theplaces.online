@@ -216,3 +216,24 @@ test('traces darken the path and shore, fill the puddle in the sky\'s colour, an
   traces.update({...at, motion: false}); assert.equal(line.visible, false);
   traces.dispose(); assert.equal(scene.children.length, 0);
 });
+
+import {createRipples, rippleNow} from '../public/space/life/ripples.js';
+import {coincidenceFixture} from '../shared/coincidences.js';
+
+test('a rising fish rings the lake at its spot, and only in motion and outside a study', () => {
+  const layout = lifeLayout(), motion = true, fixture = {coincidence: coincidenceFixture(4, 'open-water')};
+  const r = rippleNow({fixture, motion, snapshot: {world: {}}, now: 0}, layout);
+  assert.deepEqual(r.center, layout.ripples['open-water'].center); assert.equal(r.radius, layout.ripples['open-water'].radius);
+  assert.ok(Math.abs(r.age - .4) < 1e-9); assert.ok(Number.isFinite(r.variation));
+  for (const id of ['shore-reflection', 'near-water']) assert.deepEqual(rippleNow({fixture: {coincidence: coincidenceFixture(1, id)}, motion, now: 0}, layout).center, layout.ripples[id].center);
+  assert.equal(rippleNow({fixture, motion, study: 'day', snapshot: {world: {}}, now: 0}, layout), null);
+  assert.equal(rippleNow({fixture, motion: false, snapshot: {world: {}}, now: 0}, layout), null);
+  assert.equal(rippleNow({fixture: {coincidence: {...coincidenceFixture(4), state: {}}}, motion, now: 0}, layout), null);
+  assert.equal(rippleNow({fixture: {coincidence: {...coincidenceFixture(4), now: 0}}, motion, now: 0}, layout), null);
+  assert.equal(rippleNow({fixture: {coincidence: {...coincidenceFixture(4), now: 1e9}}, motion, now: 0}, layout), null);
+  assert.equal(rippleNow({motion, snapshot: {}, now: 0}, layout), null);
+  const seen = [], ripples = createRipples(THREE, {yard: {setRipple: v => seen.push(v)}, layout});
+  assert.equal(ripples.update({fixture, motion, now: 0}), true); assert.ok(seen.at(-1).age > 0);
+  assert.equal(ripples.update({motion, snapshot: {world: {}}, now: 0}), false); assert.equal(seen.at(-1), null);
+  assert.equal(PRESENTERS.ripples, createRipples);
+});
