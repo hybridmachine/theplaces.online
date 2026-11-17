@@ -3,9 +3,10 @@
 // three.js is handed in, so this runs in Node.
 import {createCottage} from './cottage.js';
 import {createWind} from './wind.js';
+import {createSmoke} from './smoke.js';
 
 // Ordered; later tasks add the presenters here one at a time.
-export const PRESENTERS = {wind: createWind, cottage: createCottage};
+export const PRESENTERS = {wind: createWind, cottage: createCottage, smoke: createSmoke};
 
 export function createLife(THREE, ctx, makers = PRESENTERS) {
   const live = new Map(), status = {};

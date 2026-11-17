@@ -68,7 +68,7 @@ test('the wind sets the card uniforms from the wind clock each frame and leaves 
 });
 
 import {cottagePose} from '../public/space/life/cottage.js';
-import {cottageFixture, createCottageState, sampleCottage} from '../shared/cottage.js';
+import {cottageFixture, createCottageState, sampleCottage, smokePuffs} from '../shared/cottage.js';
 test('the cottage pose comes from a study, else from the shared cottage, snapping the casement under reduced motion', () => {
   const epoch = 1_800_000_000_000, at = epoch + 600_000, cottage = createCottageState(epoch, epoch);
   for (const study of ['night', 'dusk', 'day'])
@@ -99,4 +99,31 @@ test('the cottage lays warm light outside each lit window after dark and goes da
   assert.equal(cottage.update({snapshot: {world: {}}, now: 0, study: null, motion: true, calendar: {light: 0}, fixture: null}), false);
   assert.deepEqual(poses.at(-1), {main: 0, second: 0, open: 0}); assert.equal(main.intensity, 0); assert.equal(second.intensity, 0);
   cottage.dispose(); assert.equal(scene.children.length, 0);
+});
+
+test('the hearth smoke rises from the chimney while the hearth burns, and shows nothing for a study, reduced motion or no cottage', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), epoch = 1_800_000_000_000, now = epoch + 60_000;
+  const cottage = {...createCottageState(epoch, epoch), hearth: {on: true, since: epoch, lastBurn: null}};
+  const smoke = PRESENTERS.smoke(THREE, {scene, layout}), group = scene.getObjectByName('hearth-smoke');
+  const frame = {snapshot: {world: {epoch, cottage}}, epoch, now, study: null, motion: true, calendar: {light: 1}, camera: new THREE.PerspectiveCamera(), fixture: null};
+  const shown = () => group.children.filter(m => m.visible);
+  assert.equal(group.children.length, 16);
+  assert.equal(smoke.update(frame), true);
+  const puffs = smokePuffs(cottage, epoch, now); assert.equal(shown().length, puffs.length); assert.ok(puffs.length > 0);
+  const [cx, cy, cz] = layout.cottage.chimney;
+  for (const mesh of shown()) {
+    assert.ok(mesh.position.y >= cz - 1e-9 && mesh.position.y <= cz + 6 + 1e-9, 'rises at most 6 m');
+    assert.ok(Math.abs(mesh.position.x - cx) <= .15 + 1e-9, 'wanders at most .15 m across the wind');
+    const {opacity, tint} = mesh.material.uniforms; assert.ok(opacity.value <= .3 && opacity.value >= 0);
+    assert.ok(Math.abs(tint.value.r - 209 / 255) < 1e-6);
+    assert.equal(mesh.material.depthWrite, false); assert.equal(mesh.material.transparent, true);
+  }
+  assert.ok(Math.abs(Math.max(...shown().map(m => m.material.uniforms.tint.value.r)) - 209 / 255) < 1e-6);
+  smoke.update({...frame, calendar: {light: 0}});
+  assert.ok(Math.abs(shown()[0].material.uniforms.tint.value.r - .3 * 209 / 255) < 1e-6);
+  assert.equal(smoke.update({...frame, study: 'night'}), false); assert.equal(shown().length, 0);
+  smoke.update(frame); assert.equal(smoke.update({...frame, motion: false}), false); assert.equal(shown().length, 0);
+  smoke.update(frame); assert.equal(smoke.update({...frame, snapshot: {world: {epoch, cottage: {id: 'nonsense'}}}}), false); assert.equal(shown().length, 0);
+  assert.equal(smoke.update({...frame, snapshot: {world: {epoch}}}), false);
+  smoke.dispose(); assert.equal(scene.children.length, 0);
 });

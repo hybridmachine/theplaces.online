@@ -124,7 +124,7 @@ export function smokePuffs(state,epoch,now){
     const burning=(hearth.on&&emitted>=hearth.since)||(hearth.lastBurn&&emitted>=hearth.lastBurn.start&&emitted<hearth.lastBurn.end);
     if(!burning||age<0||age>=1)continue;
     const drift=integratedWind((now-epoch)/1000)-integratedWind((emitted-epoch)/1000);
-    puffs.push({x:drift*.8+Math.sin(age*5)*2,y:-age*70,r:4+age*12,alpha:Math.sin(Math.PI*clamp(age))*.09});
+    puffs.push({x:drift*.8+Math.sin(age*5)*2,y:-age*70,r:4+age*12,alpha:Math.sin(Math.PI*clamp(age))*.09,age});
   }
   return puffs;
 }

@@ -96,6 +96,7 @@ test('smoke emission starts with the hearth and disperses after extinction',()=>
   state.hearth={on:true,since:epoch,lastBurn:null};
   const puffs=smokePuffs(state,epoch,epoch+30_000);assert.ok(puffs.length>0&&puffs.length<=16);
   assert.deepEqual(smokePuffs(state,epoch,epoch+30_000),puffs);
+  for(const puff of puffs){assert.ok(puff.age>=0&&puff.age<1);assert.equal(puff.y,-puff.age*70);}
   state.hearth={on:false,since:epoch+32_000,lastBurn:{start:epoch,end:epoch+32_000}};
   assert.ok(smokePuffs(state,epoch,epoch+40_000).length>0);
   assert.deepEqual(smokePuffs(state,epoch,epoch+100_000),[]);

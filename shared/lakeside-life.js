@@ -14,6 +14,15 @@ const TAU = 2 * Math.PI;
 
 // The wind blows toward the south; a gust front travels at `gustSpeed` m/s.
 export const WIND = deep({bearing: Math.PI, direction: [0, -1], gustSpeed: 6});
+// Hearth smoke in the yard: metres risen over a puff's life, metres moved along the wind per unit of the 2D puff's x, the
+// puff's radius from birth to death, and its sideways wander across the wind.
+export const SMOKE = deep({rise: 6, drift: .12, radius: [.25, 1.1], sway: .15});
+// Where a puff from smokePuffs is in the yard: {position: [x, y, z], radius, alpha}.
+export function smokePlace(puff, layout) {
+  const [cx, cy, cz] = layout.cottage.chimney, [wx, wy] = layout.wind.direction, [ax, ay] = [-wy, wx];
+  const along = puff.x * SMOKE.drift, across = SMOKE.sway * Math.sin(puff.age * 5), [r0, r1] = SMOKE.radius;
+  return {position: [cx + wx * along + ax * across, cy + wy * along + ay * across, cz + SMOKE.rise * puff.age], radius: r0 + (r1 - r0) * puff.age, alpha: puff.alpha};
+}
 // How much each kind of planting leans with the wind: its type of motion, how exposed it is, and its reach in metres at full weight.
 export const SWAY = deep({
   grass: {type: 'grass', exposure: .85, reach: .08}, reeds: {type: 'grass', exposure: 1, reach: .16}, flowers: {type: 'grass', exposure: .7, reach: .06},
