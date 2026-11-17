@@ -22,6 +22,8 @@ export const LAKESIDE_DRESSING = deep({
   // [x, y, height in metres].
   grove: [[42.5, 27.5, 15], [44, 20, 15.5], [46.5, 13.5, 12.5], [47, 31, 16.5], [45.5, 24.5, 14], [49, 23, 16.5], [50, 17, 14.5], [51.5, 12, 11]],
   cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
+  // The kitchen garden's planting, in the space's beds: the boards' thickness, and how many of each crop.
+  garden: {board: .045, corn: {count: 9}, beans: {poles: 4}, tomatoes: {count: 4}},
 });
 
 const TAU = 2 * Math.PI, DEG = Math.PI / 180;
@@ -132,6 +134,45 @@ export function ridgePoint(space, dressing, along) {
 export function chimneyTop(space, dressing) {
   const f = cabinFrame(space, dressing), {chimney} = dressing.cabin;
   return f.at(chimney.along, 0, f.ridge + chimney.rise);
+}
+
+// The kitchen garden as named parts. Each bed: its middle, yaw and half-sizes [long, wide], `base` a little under the lowest
+// ground along its footprint and `top` its soil's height, the bed's `height` above the highest. Each plant: its kind, its bed,
+// its `foot` on the soil, its height, the way it leans ([dx, dy] in metres at its top) and a seed for whoever draws it. Corn
+// stands in two staggered rows up the corn bed's north two-thirds; the bean poles ring its south end and lean to one apex;
+// the tomatoes stand in a row along the tomato bed.
+export function gardenPlan(space, dressing) {
+  const r = stream(dressing.seed, 'garden'), {corn, beans, tomatoes} = dressing.garden, plants = [];
+  const beds = space.beds.map(({id, center, size: [long, wide], yaw, height}) => {
+    const u = [Math.sin(yaw), Math.cos(yaw)], v = [Math.cos(yaw), -Math.sin(yaw)], l = long / 2, w = wide / 2;
+    const at = (a, b) => [center[0] + a * u[0] + b * v[0], center[1] + a * u[1] + b * v[1]];
+    let low = Infinity, high = -Infinity;
+    for (let i = 0; i <= 8; i++) for (let j = 0; j <= 4; j++) { const z = terrainHeight(space, ...at(-l + i * l / 4, -w + j * w / 2)); low = Math.min(low, z); high = Math.max(high, z); }
+    return {id, center: [...center], yaw, half: [l, w], base: low - .15, top: high + height, at};
+  });
+  const bed = id => beds.find(b => b.id === id);
+  const plant = (kind, b, a, c, height, lean) => plants.push({id: `${kind}-${plants.filter(p => p.kind === kind).length}`, kind, bed: b.id,
+    foot: [...b.at(a, c), b.top], height, lean, seed: r()});
+  const cornBed = bed('corn'), tomatoBed = bed('tomato');
+  if (cornBed) {
+    // `a` runs along the bed; the cabin's yaw points its long axis south-east, so the north end is at −l
+    const [l, w] = cornBed.half, a0 = -l + .3, a1 = l - 1.05, rows = Math.ceil(corn.count / 2);
+    for (let k = 0; k < corn.count; k++) {
+      const row = k % 2, i = Math.floor(k / 2), a = a0 + (a1 - a0) * (i + .25 + .5 * row) / rows + (r() - .5) * .08;
+      plant('corn', cornBed, a, (row ? 1 : -1) * w * .42 + (r() - .5) * .08, 1.75 + r() * .3, [(r() - .5) * .16, (r() - .5) * .16]);
+    }
+    const mid = l - .55, ring = Math.min(.35, w - .2), apex = cornBed.at(mid, 0);
+    for (let k = 0; k < beans.poles; k++) {
+      const t = (k + .5) / beans.poles * TAU, a = mid + Math.cos(t) * ring, c = Math.sin(t) * ring, [x, y] = cornBed.at(a, c);
+      plant('bean', cornBed, a, c, 1.9, [apex[0] - x, apex[1] - y]);
+    }
+  }
+  if (tomatoBed) {
+    const [l] = tomatoBed.half;
+    for (let k = 0; k < tomatoes.count; k++)
+      plant('tomato', tomatoBed, (-l + .35) + (2 * l - .7) * (tomatoes.count > 1 ? k / (tomatoes.count - 1) : .5), (r() - .5) * .12, .7 + r() * .15, [(r() - .5) * .08, (r() - .5) * .08]);
+  }
+  return {beds: beds.map(({at, ...b}) => b), plants};
 }
 
 // Blend weights for the ground at a point; they sum to 1. The path wins over the shore, the shore over the meadow.

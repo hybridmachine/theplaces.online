@@ -15,12 +15,12 @@ export function stubArt() {
 test('toThree maps east, north, up to three', () => { assert.deepEqual(toThree([1, 2, 3]), [1, 3, -2]); });
 test('the scene builds its named parts with finite geometry and disposes them', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
-  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'hills']) assert.ok(scene.parts[name], name);
+  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'garden', 'hills']) assert.ok(scene.parts[name], name);
   let meshes = 0, disposed = 0;
   scene.group.traverse(o => { if (!o.geometry) return; meshes++;
     const p = o.geometry.getAttribute('position'); for (let i = 0; i < p.count * 3; i++) assert.ok(Number.isFinite(p.array[i]), o.name);
     o.geometry.addEventListener('dispose', () => disposed++); });
-  assert.ok(meshes >= 8);
+  assert.ok(meshes >= 12);
   scene.setSky({zenith: [.6, .7, .76], horizon: [.83, .83, .75]});
   scene.dispose(); assert.equal(disposed, meshes);
 });
@@ -236,4 +236,26 @@ test('the bird\'s oak places rest on the built oak\'s bark', () => {
     const below = point[2] + .5 - hit.distance - point[2];
     assert.ok(-below >= 0 && -below <= .05, `${id} is ${(-below * 100).toFixed(1)} cm above the drawn bark`);
   }
+});
+
+test('the garden is drawn: boards, soil, stems and swaying leaves, on its beds', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden;
+  assert.equal(garden.name, 'garden');
+  for (const name of ['beds', 'soil', 'stems', 'leaves']) assert.ok(garden.getObjectByName(name), name);
+  assert.notEqual(garden.getObjectByName('beds').material.side, THREE.DoubleSide);
+  const leaves = garden.getObjectByName('leaves').geometry, sway = leaves.getAttribute('sway');
+  assert.ok(sway.count >= 4 * 150); let moving = 0; for (let i = 0; i < sway.count; i++) if (sway.getX(i) > 0) moving++;
+  assert.equal(moving, sway.count);
+  // everything stands over a bed's footprint (leaves may hang a little past the boards)
+  const box = new THREE.Box3().setFromObject(garden), min = fromThree(box.min), max = fromThree(box.max);
+  const xs = S.beds.map(b => b.center[0]), ys = S.beds.map(b => b.center[1]);
+  assert.ok(Math.min(min[0], max[0]) > Math.min(...xs) - 2.2 && Math.max(min[0], max[0]) < Math.max(...xs) + 2.2);
+  assert.ok(Math.min(min[1], max[1]) > Math.min(...ys) - 2.2 && Math.max(min[1], max[1]) < Math.max(...ys) + 2.2);
+  // the boards face outward: from 3 m off each bed's long side, the first surface met faces the eye
+  for (const bed of S.beds) for (const side of [-1, 1]) {
+    const v = [Math.cos(bed.yaw) * side, -Math.sin(bed.yaw) * side], p = [bed.center[0] + v[0] * 3, bed.center[1] + v[1] * 3];
+    const eye = [...p, terrainHeight(S, ...p) + S.eyeHeight], {hit, dir} = firstHit(garden.getObjectByName('beds'), eye, [bed.center[0] + v[0] * bed.size[1] / 2, bed.center[1] + v[1] * bed.size[1] / 2, terrainHeight(S, ...bed.center) + .1]);
+    assert.ok(hit, bed.id); assert.ok(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0, `${bed.id} board inside out`);
+  }
+  scene.dispose();
 });

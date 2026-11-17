@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {BED_CLEAR, LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {shoreDistance, terrainHeight, walkable} from '../shared/space.js';
-import {LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, groundBlend, oakPlan, openingCentre, ridgePoint, scatter, woodsPlan} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, cabinFront, chimneyTop, doorPosition, gardenPlan, groundBlend, oakPlan, openingCentre, ridgePoint, scatter, woodsPlan} from '../shared/lakeside-dressing.js';
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 test('placement is deterministic', () => {
@@ -77,4 +77,37 @@ test('openings, ridge and chimney have anchors that sit where the cabin draws th
   const top = chimneyTop(S, D), at = ridgePoint(S, D, D.cabin.chimney.along);
   assert.ok(Math.abs(top[2] - (floor + S.cabin.ridgeHeight + D.cabin.chimney.rise)) < 1e-9);
   assert.ok(off(top, at) < 1e-9 && top[2] - at[2] > D.cabin.chimney.rise - .01 && top[2] - at[2] < D.cabin.chimney.rise + .05);
+});
+
+test('the garden: two beds on the grass by the cottage, each a collider, clear of the path, cabin and oak', () => {
+  assert.deepEqual(S.beds.map(b => b.id), ['corn', 'tomato']);
+  assert.equal(S.colliders[0].type, 'box'); assert.deepEqual(S.colliders[0].center, S.cabin.center);
+  for (const bed of S.beds) {
+    const c = S.colliders.find(k => k.type === 'box' && k.center[0] === bed.center[0] && k.center[1] === bed.center[1]);
+    assert.ok(c, bed.id); assert.deepEqual([...c.half], [bed.size[0] / 2 + BED_CLEAR, bed.size[1] / 2 + BED_CLEAR]); assert.equal(c.yaw, bed.yaw);
+    assert.equal(walkable(S, bed.center), false);
+    const u = [Math.sin(bed.yaw), Math.cos(bed.yaw)], v = [Math.cos(bed.yaw), -Math.sin(bed.yaw)];
+    // a ring 0.4 m outside the boards is all walkable meadow: off the path, out of the cabin, the oak and the other bed
+    for (let k = 0; k < 40; k++) {
+      const t = k / 40 * 2 * Math.PI, m = Math.max(Math.abs(Math.cos(t)), Math.abs(Math.sin(t)));
+      const a = Math.cos(t) / m * (bed.size[0] / 2 + .4), b = Math.sin(t) / m * (bed.size[1] / 2 + .4);
+      const p = [bed.center[0] + a * u[0] + b * v[0], bed.center[1] + a * u[1] + b * v[1]];
+      assert.ok(walkable(S, p), `${bed.id} ${p}`); assert.ok(groundBlend(S, D, ...p).earth < .2, `${bed.id} on the path`);
+    }
+  }
+  assert.ok(dist(S.beds[0].center, S.beds[1].center) > 2);
+});
+test('the planting: corn, a bean teepee and tomatoes, each standing in its bed', () => {
+  const plan = gardenPlan(S, D); assert.deepEqual(plan, gardenPlan(S, D));
+  const of = kind => plan.plants.filter(p => p.kind === kind);
+  assert.equal(of('corn').length, D.garden.corn.count); assert.equal(of('bean').length, D.garden.beans.poles); assert.equal(of('tomato').length, D.garden.tomatoes.count);
+  for (const p of plan.plants) {
+    const bed = plan.beds.find(b => b.id === p.bed), dx = p.foot[0] - bed.center[0], dy = p.foot[1] - bed.center[1];
+    const a = dx * Math.sin(bed.yaw) + dy * Math.cos(bed.yaw), b = dx * Math.cos(bed.yaw) - dy * Math.sin(bed.yaw);
+    assert.ok(Math.abs(a) <= bed.half[0] - .15 && Math.abs(b) <= bed.half[1] - .15, p.id);
+    assert.equal(p.foot[2], bed.top);
+  }
+  for (const bed of plan.beds) { assert.ok(bed.top - terrainHeight(S, ...bed.center) > .2); assert.ok(bed.base < terrainHeight(S, ...bed.center) - .1); }
+  assert.ok(of('corn').every(p => p.height >= 1.7 && p.height <= 2.1)); assert.ok(of('tomato').every(p => p.height <= .85));
+  assert.ok(of('bean').every(p => p.bed === 'corn')); assert.ok(of('tomato').every(p => p.bed === 'tomato'));
 });

@@ -38,6 +38,9 @@ const POSES = {
   'woods-end-northwest': {position: [-11, 20], yaw: 3.14, pitch: 0},
   'woods-end-north-gable': {position: [16, 16], yaw: 1.4, pitch: 0},
   'woods-end-northeast': {position: [20, 12], yaw: .9, pitch: 0},
+  // The kitchen garden, from the path side and from between it and the cabin.
+  garden: {position: [10.2, 5.2], yaw: toward([10.2, 5.2], [13.6, 8.3]), pitch: -.12},
+  'garden-behind': {position: [14.4, 12.6], yaw: toward([14.4, 12.6], [13.6, 8.4]), pitch: -.2},
 };
 
 // ── The living things. Each shot: a study (the light and the weather), a pose, and what the yard is told. `fixture` is what
