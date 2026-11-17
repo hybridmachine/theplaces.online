@@ -183,6 +183,48 @@ export function oakPlan(space, dressing) {
   return {trunk, limbs, clumps};
 }
 
+// A point and radius `f` of the way along a polyline of [x, y, z, radius], by length.
+export function alongLine(points, f) {
+  const lens = points.slice(1).map((q, k) => Math.hypot(q[0] - points[k][0], q[1] - points[k][1], q[2] - points[k][2])), total = lens.reduce((s, l) => s + l, 0);
+  let d = Math.max(0, Math.min(1, f)) * total, k = 0;
+  while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
+  const t = lens[k] ? d / lens[k] : 0;
+  return points[k].map((v, i) => v + (points[k + 1][i] - v) * t);
+}
+// A polyline smoothed through its points (Catmull-Rom), `steps` pieces per span.
+export function smoothLine(points, steps = 4) {
+  const out = [], n = points.length, P = k => points[Math.max(0, Math.min(n - 1, k))];
+  for (let k = 0; k < n - 1; k++) for (let s = 0; s < steps; s++) {
+    const t = s / steps, t2 = t * t, t3 = t2 * t, [a, b, c, d] = [P(k - 1), P(k), P(k + 1), P(k + 2)];
+    out.push(b.map((_, i) => .5 * (2 * b[i] + (c[i] - a[i]) * t + (2 * a[i] - 5 * b[i] + 4 * c[i] - d[i]) * t2 + (3 * b[i] - a[i] - 3 * c[i] + d[i]) * t3)));
+  }
+  out.push(points[n - 1]);
+  return out;
+}
+// How far the trunk's flutes (scene/trees.js: .07 sine + .05 noise + .1 swelling toward the root, which is nowhere more than
+// this together above head height) can swell its drawn radius beyond the centreline's own, as a fraction: an envelope the
+// trunk's drawing stays within, for whoever must stand on or hide behind it. test/space-scene.test.js checks the bird's places
+// against the built mesh.
+export const TRUNK_FLUTE = .14;
+const wood = new WeakMap();
+// The oak's wood centrelines as scene/trees.js draws them, each smoothed through its points: the trunk, its second leader
+// forking off to the north-west, and every limb grown out of the trunk's axis a little below where it leaves (so it comes
+// out of the bark with no open end showing). Lines are [x, y, z, radius]; `limbs` maps a limb's id to its line, whose first
+// four points (one span) are that root. The one description the yard's drawing and the bird's places both read.
+export function oakWood(plan) {
+  let drawn = wood.get(plan);
+  if (drawn) return drawn;
+  const main = plan.trunk, [ox, oy] = main[0], g = main[0][2] + .4;
+  const fork = [alongLine(main, .3).slice(0, 3).concat(.36), [ox - .7, oy + .55, g + 4.8, .32], [ox - 1.5, oy + 1.0, g + 6.8, .2], [ox - 2.1, oy + 1.2, g + 8.6, .05]];
+  const limbs = new Map(plan.limbs.map(limb => {
+    const [b] = limb.points, root = alongLine(main, (b[2] - .25 - main[0][2]) / (main.at(-1)[2] - main[0][2]));
+    return [limb.id, smoothLine([[root[0], root[1], b[2] - .25, b[3] * .9], ...limb.points])];
+  }));
+  drawn = {trunk: smoothLine(main), fork: smoothLine(fork), limbs};
+  wood.set(plan, drawn);
+  return drawn;
+}
+
 // Clumps of woodland 6–25 m beyond the yard wall, on its land sides, in three loose rows.
 export function woodsPlan(space, dressing) {
   const w = space.wall, r = stream(dressing.seed, 'woods'), out = [];

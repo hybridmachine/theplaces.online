@@ -223,3 +223,17 @@ test('wetting the ground does not throw, and does not touch another scene', () =
   a.setSky({zenith: [.1, .2, .3], horizon: [.4, .5, .6]}); assert.deepEqual(a.sky.zenith, [.1, .2, .3]);
   a.dispose(); b.dispose();
 });
+
+import {lifeLayout} from '../shared/lakeside-life.js';
+// The bird's oak places are computed from the oak's wood model (shared/lakeside-dressing.js oakWood), which the scene also draws
+// from; this checks them against the built mesh, so tuning either without the other shows here. The tube's flat sides (nine of
+// them) leave its faces up to a few mm inside the round section the layout rests on, hence 0-5 cm rather than 0-3.
+test('the bird\'s oak places rest on the built oak\'s bark', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), wood = ['trunk', 'limbs'].map(n => scene.parts.oak.getObjectByName(n));
+  for (const id of ['nest', 'oak-perch', 'oak-shelter']) {
+    const point = lifeLayout().bird.locations[id].point, {hit} = firstHit(wood, [point[0], point[1], point[2] + .5], [point[0], point[1], point[2] - 1]);
+    assert.ok(hit, `${id}: nothing drawn beneath it`);
+    const below = point[2] + .5 - hit.distance - point[2];
+    assert.ok(-below >= 0 && -below <= .05, `${id} is ${(-below * 100).toFixed(1)} cm above the drawn bark`);
+  }
+});

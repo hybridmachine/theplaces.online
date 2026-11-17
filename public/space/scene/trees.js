@@ -1,5 +1,5 @@
 import {shoreDistance, terrainHeight} from '../../../shared/space.js';
-import {oakPlan, woodsPlan} from '../../../shared/lakeside-dressing.js';
+import {alongLine as along, oakPlan, oakWood, smoothLine, woodsPlan} from '../../../shared/lakeside-dressing.js';
 import {SWAY} from '../../../shared/lakeside-life.js';
 import {cellRect, SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {basis, cardBatch, cardMaterial, mergeGeometries, sheet, toThree, tube, V} from '../geometry.js';
@@ -17,25 +17,6 @@ const SUN = [Math.sin(115 * DEG), Math.cos(115 * DEG), 0];
 const WOODS_SAGE = [1.1, 1.17, 1.04];
 // The trunk keeps this far inside its collider (space.colliders' circle) up to above head height.
 const TRUNK_CLEAR = .12;
-
-// A point and radius `f` of the way along a polyline of [x, y, z, radius], by length.
-function along(points, f) {
-  const lens = points.slice(1).map((p, k) => V.len(V.sub(p.slice(0, 3), points[k].slice(0, 3)))), total = lens.reduce((s, l) => s + l, 0);
-  let d = clamp01(f) * total, k = 0;
-  while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
-  const t = lens[k] ? d / lens[k] : 0;
-  return points[k].map((v, i) => v + (points[k + 1][i] - v) * t);
-}
-// A polyline smoothed through its points (Catmull–Rom), `steps` pieces per span.
-function smooth(points, steps = 4) {
-  const out = [], n = points.length, P = k => points[Math.max(0, Math.min(n - 1, k))];
-  for (let k = 0; k < n - 1; k++) for (let s = 0; s < steps; s++) {
-    const t = s / steps, t2 = t * t, t3 = t2 * t, [a, b, c, d] = [P(k - 1), P(k), P(k + 1), P(k + 2)];
-    out.push(b.map((_, i) => .5 * (2 * b[i] + (c[i] - a[i]) * t + (2 * a[i] - 5 * b[i] + 4 * c[i] - d[i]) * t2 + (3 * b[i] - a[i] - 3 * c[i] + d[i]) * t3)));
-  }
-  out.push(points[n - 1]);
-  return out;
-}
 
 export function buildOak(THREE, {space, dressing, art}) {
   const plan = oakPlan(space, dressing), [ox, oy] = space.oak.position, g = terrainHeight(space, ox, oy), r = stream(dressing.seed + 21, 23);
@@ -58,19 +39,18 @@ export function buildOak(THREE, {space, dressing, art}) {
       return V.add(c.slice(0, 3), dir, rad);
     }, {ns, nt, tile: SPACE_ART.surfaces.bark.metres, outward: p => { const c = along(points, clamp01((p[2] - points[0][2]) / (points.at(-1)[2] - points[0][2]))); return V.norm([p[0] - c[0], p[1] - c[1], 0]); }, colour: barkTint});
   };
-  const main = plan.trunk, fork = [along(main, .3).slice(0, 3).concat(.36), [ox - .7, oy + .55, g + 4.8, .32], [ox - 1.5, oy + 1.0, g + 6.8, .2], [ox - 2.1, oy + 1.2, g + 8.6, .05]];
-  const trunkParts = [lobed(smooth(main), 0, true), lobed(smooth(fork), 2.3, false)];
+  const wood = oakWood(plan);
+  const trunkParts = [lobed(wood.trunk, 0, true), lobed(wood.fork, 2.3, false)];
 
   // ── limbs: each planned limb smoothed, with twigs out to every clump it carries and finer ones through the leaves ──
   const limbParts = [], twigs = [];
   for (const limb of plan.limbs) {
-    // each limb starts on the trunk's axis a little below where it leaves, so it grows out of the bark with no open end showing
-    const [b] = limb.points, axis = along(main, clamp01((b[2] - .25 - main[0][2]) / (main.at(-1)[2] - main[0][2])));
-    limbParts.push(tube(THREE, smooth([[axis[0], axis[1], b[2] - .25, b[3] * .9], ...limb.points]), {sides: 9, tile: SPACE_ART.surfaces.bark.metres}));
+    // each limb starts on the trunk's axis a little below where it leaves (see oakWood)
+    limbParts.push(tube(THREE, wood.limbs.get(limb.id), {sides: 9, tile: SPACE_ART.surfaces.bark.metres}));
     for (const clump of plan.clumps.filter(c => c.limb === limb.id)) {
       const from = along(limb.points, .62 + r() * .2), to = V.add(clump.center, [0, 0, -.25 * clump.radius]);
       const mid = V.add(V.scale(V.add(from.slice(0, 3), to), .5), [0, 0, .3]);
-      twigs.push(tube(THREE, smooth([from.slice(0, 3).concat(Math.min(from[3], .11)), mid.concat(.06), to.concat(.025)], 3), {sides: 5}));
+      twigs.push(tube(THREE, smoothLine([from.slice(0, 3).concat(Math.min(from[3], .11)), mid.concat(.06), to.concat(.025)], 3), {sides: 5}));
       for (let k = 0; k < 3; k++) {
         const a = r() * TAU, out = clump.radius * (.6 + r() * .4), end = V.add(to, [Math.sin(a) * out, Math.cos(a) * out, (r() - .3) * .8]);
         twigs.push(tube(THREE, [to.concat(.03), V.add(V.scale(V.add(to, end), .5), [0, 0, .15]).concat(.02), end.concat(.008)], {sides: 4}));

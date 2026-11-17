@@ -140,3 +140,14 @@ test('a puff of smoke leaves the chimney top, rises, drifts south and swells', (
   assert.ok(Math.abs(mid.position[0] - (cx + sway)) < 1e-12 || Math.abs(mid.position[0] - (cx - sway)) < 1e-12);
   assert.ok(Math.abs(mid.radius - (.35 + .5 * 1.05)) < 1e-12); assert.equal(mid.alpha, .07);
 });
+
+test('with no candidate spot (an arrival at the trunk) the layout falls back to limb tops rather than throwing', () => {
+  const space = {...S, arrival: {...S.arrival, position: [ox + .5, oy + .5]}};
+  const layout = lifeLayout(space, D);
+  const limbs = ['nest', 'oak-perch', 'oak-shelter'].map(id => {
+    const p = layout.bird.locations[id].point; assert.ok(p.every(Number.isFinite), id);
+    const d = woodDistance(plan, p); assert.ok(d >= 0 && d <= .03, `${id} is ${d} m from the bark`);
+    return p;
+  });
+  assert.equal(new Set(limbs.map(p => p.join())).size, 3, 'three different places');
+});

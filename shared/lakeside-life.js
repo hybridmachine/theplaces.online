@@ -1,5 +1,5 @@
 import {LAKESIDE_SPACE} from './lakeside-space.js';
-import {LAKESIDE_DRESSING, cabinFrame, chimneyTop, oakPlan, openingCentre, ridgePoint} from './lakeside-dressing.js';
+import {LAKESIDE_DRESSING, TRUNK_FLUTE, alongLine, cabinFrame, chimneyTop, oakPlan, oakWood, openingCentre, ridgePoint} from './lakeside-dressing.js';
 import {shoreDistance, terrainHeight, walkable, DEG} from './space.js';
 import {LAKESIDE_BIRD} from './lakeside-bird.js';
 import {catmullRom} from './world.js';
@@ -40,35 +40,14 @@ const finite = p => Array.isArray(p) && p.every(Number.isFinite);
 // The least horizontal distance from the segment a–b to the point c.
 const segmentAxis = (a, b, c) => { const d = [b[0] - a[0], b[1] - a[1]], l = d[0] * d[0] + d[1] * d[1], t = l ? Math.max(0, Math.min(1, ((c[0] - a[0]) * d[0] + (c[1] - a[1]) * d[1]) / l)) : 0; return Math.hypot(a[0] + t * d[0] - c[0], a[1] + t * d[1] - c[1]); };
 
-// The oak's wood as the yard draws it (scene/trees.js), which is what a bird must stand on and what hides it: the trunk and its
-// second leader to the north-west, and every limb grown out of the trunk's axis a little below where it leaves, each smoothed
-// through its points (Catmull–Rom, four pieces a span). The trunk's flutes swell it by up to TRUNK_FLUTE of its radius.
-const TRUNK_FLUTE = .14, drawn = new WeakMap();
-function catmull(points, steps = 4) {
-  const out = [], n = points.length, P = k => points[Math.max(0, Math.min(n - 1, k))];
-  for (let k = 0; k < n - 1; k++) for (let s = 0; s < steps; s++) {
-    const t = s / steps, t2 = t * t, t3 = t2 * t, [a, b, c, d] = [P(k - 1), P(k), P(k + 1), P(k + 2)];
-    out.push(b.map((_, i) => .5 * (2 * b[i] + (c[i] - a[i]) * t + (2 * a[i] - 5 * b[i] + 4 * c[i] - d[i]) * t2 + (3 * b[i] - a[i] - 3 * c[i] + d[i]) * t3)));
-  }
-  out.push(points[n - 1]);
-  return out;
-}
-function byLength(points, f) {
-  const lens = points.slice(1).map((q, k) => dist3(points[k], q)), total = lens.reduce((s, l) => s + l, 0);
-  let d = Math.max(0, Math.min(1, f)) * total, k = 0;
-  while (k < lens.length - 1 && d > lens[k]) d -= lens[k++];
-  return lerp(points[k], points[k + 1], lens[k] ? d / lens[k] : 0);
-}
+// The oak's wood as the yard draws it, which is what a bird must stand on and what hides it: oakWood's centrelines (the trunk,
+// its second leader and every limb), the trunk and leader swollen by its flutes' envelope.
+const drawn = new WeakMap();
 export function drawnWood(plan) {
   let wood = drawn.get(plan);
   if (wood) return wood;
-  const main = plan.trunk, [ox, oy] = main[0], g = main[0][2] + .4, swell = line => line.map(p => [p[0], p[1], p[2], p[3] * (1 + TRUNK_FLUTE)]);
-  const fork = [byLength(main, .3).slice(0, 3).concat(.36), [ox - .7, oy + .55, g + 4.8, .32], [ox - 1.5, oy + 1.0, g + 6.8, .2], [ox - 2.1, oy + 1.2, g + 8.6, .05]];
-  const limbs = new Map(plan.limbs.map(limb => {
-    const [b] = limb.points, root = byLength(main, (b[2] - .25 - main[0][2]) / (main.at(-1)[2] - main[0][2]));
-    return [limb.id, catmull([[root[0], root[1], b[2] - .25, b[3] * .9], ...limb.points])];
-  }));
-  wood = {lines: [swell(catmull(main)), swell(catmull(fork)), ...limbs.values()], limbs};
+  const {trunk, fork, limbs} = oakWood(plan), swell = line => line.map(p => [p[0], p[1], p[2], p[3] * (1 + TRUNK_FLUTE)]);
+  wood = {lines: [swell(trunk), swell(fork), ...limbs.values()], limbs};
   drawn.set(plan, wood);
   return wood;
 }
@@ -86,7 +65,7 @@ export function woodDistance(plan, p) {
 // The point on top of a limb as drawn, `f` of the way along it from where it leaves the trunk: the highest point of the
 // limb's round section there, lifted `lift` clear of the bark, so a creature's feet rest on the wood and not in it.
 function limbTop(plan, limb, f, lift = .005) {
-  const line = drawnWood(plan).limbs.get(limb.id).slice(4), c = byLength(line, f), lens = line.slice(1).map((q, k) => dist3(line[k], q));
+  const line = drawnWood(plan).limbs.get(limb.id).slice(4), c = alongLine(line, f), lens = line.slice(1).map((q, k) => dist3(line[k], q));
   let d = f * lens.reduce((s, l) => s + l, 0), i = 0;
   while (i < lens.length - 1 && d > lens[i]) d -= lens[i++];
   const dir = [0, 1, 2].map(k => (line[i + 1][k] - line[i][k]) / lens[i]);
@@ -192,7 +171,10 @@ function build(space, dressing) {
   const seen = (eye, target) => woodClearance(plan, eye, target, CLEAR) > CLEAR;
   const spots = plan.limbs.flatMap(limb => [.08, .16, .24, .32, .4, .48, .56, .64].map(f => ({limb, f, point: limbTop(plan, limb, f)})))
     .filter(s => woodDistance(plan, s.point) >= 0);
-  const best = (list, score) => list.reduce((b, s) => { const v = score(s); return v > b.v ? {s, v} : b; }, {s: null, v: -Infinity}).s;
+  // The best-scoring spot, else (if the plan leaves no candidate: a doctored oak or arrival) the top of limb `n` at 40 % along it,
+  // so a layout always has somewhere for the bird; each place takes a different limb, so the nest never shares the perch's.
+  const best = (list, score, n) => list.reduce((b, s) => { const v = score(s); return v > b.v ? {s, v} : b; }, {s: null, v: -Infinity}).s
+    ?? (limb => ({limb, f: .4, point: limbTop(plan, limb, .4)}))(plan.limbs[n % plan.limbs.length]);
   const inView = p => turnDiff(bearing(arrival, p), space.arrival.yaw) <= 45 * DEG;
   // inside the arrival's own frame, looking level along its yaw (16:9, the sky camera's horizontal field and the vertical
   // field space-view.js derives from it), short of the edges by a tenth
@@ -204,20 +186,20 @@ function build(space, dressing) {
   // across the top-left of the arrival view is clear of wood, but its leaves hide a bird on it)
   const perchable = spots.filter(s => seen(from, lift(s.point, LOW))), leaves = s => leafClearance(plan, axis, from, lift(s.point, LOW));
   const framed = perchable.filter(s => inFrame(s.point) && leaves(s) > 1);
-  const perch = best(framed.length ? framed : perchable.filter(s => inView(s.point)), leaves);
+  const perch = best(framed.length ? framed : perchable.filter(s => inView(s.point)), leaves, 0);
   // the nest: on another limb, its rim seen past the wood from the arrival, its rim seen from the most places a visitor
   // naturally stands near the oak (2.5 and 4 m out from the trunk every 30°, and the path's corners within 15 m), the leaves
   // judged roughly from those places
   const near = [2.5, 4].flatMap(r => Array.from({length: 12}, (_, k) => [ox + r * Math.sin(k * TAU / 12), oy + r * Math.cos(k * TAU / 12)]))
     .concat(dressing.path.filter(q => dist2(q, axis) <= 15)).filter(q => walkable(space, q)).map(eyeAt);
   const nest = best(spots.filter(s => s.limb !== perch.limb && inView(s.point) && seen(from, lift(s.point, BOWL))),
-    s => near.filter(e => seen(e, lift(s.point, BOWL)) && leafClearance(plan, axis, e, lift(s.point, BOWL)) > 1).length);
+    s => near.filter(e => seen(e, lift(s.point, BOWL)) && leafClearance(plan, axis, e, lift(s.point, BOWL)) > 1).length, 1);
   // the shelter: 3–4.5 m up with the trunk between it and the arrival, its body seen past the wood from the most places
   // behind the oak (the half away from the arrival, every 15°, 3, 5.5 and 8 m out)
   const away = toArrival + Math.PI, far = [];
   for (let k = -6; k <= 6; k++) far.push([3, 5.5, 8].map(r => [ox + r * Math.sin(away + k * 15 * DEG), oy + r * Math.cos(away + k * 15 * DEG)]).filter(q => walkable(space, q)).map(eyeAt));
   const behind = s => s.point[2] - ground >= 3 && s.point[2] - ground <= 4.5 && segmentAxis(arrival, s.point, axis) <= space.oak.radius * .8 && !seen(from, lift(s.point, BOWL));
-  const shelter = best(spots.filter(behind), s => far.filter(es => es.some(e => seen(e, lift(s.point, LOW)))).length - dist2(s.point, axis) * .1);
+  const shelter = best(spots.filter(behind), s => far.filter(es => es.some(e => seen(e, lift(s.point, LOW)))).length - dist2(s.point, axis) * .1, 2);
   // a perched bird faces across its limb, toward `toward`
   const across = (s, toward) => { const h = bearing(s.limb.points[0], s.limb.points.at(-1)), t = bearing(s.point, toward); return turnDiff(h + Math.PI / 2, t) < turnDiff(h - Math.PI / 2, t) ? h + Math.PI / 2 : h - Math.PI / 2; };
   const place = (point, facing) => ({point, facing});
