@@ -129,12 +129,12 @@ test('the hearth smoke rises from the chimney while the hearth burns, and shows 
 });
 
 import {RAIN, rainDrop} from '../public/space/life/rain.js';
-test('a rain drop is a stable column that falls at speed, leans south with the wind and stays near the walker without following them', () => {
-  const eye = [3.2, -4.1, 1.6], at = (i, s, e = eye, w = 0) => rainDrop(i, s, e, w);
+test('a rain drop is a column fixed in the world that falls at speed, leans south with the wind and wraps around the walker', () => {
+  const eye = [3.2, -4.1, 1.6], at = (i, s, e = eye, w = 0) => rainDrop(i, s, e, w), R = RAIN.radius;
   for (let i = 0; i < RAIN.count; i++) {
     const d = at(i, 12.3, eye, .5); assert.ok(d.every(Number.isFinite));
-    assert.ok(Math.hypot(d[0] - eye[0], d[1] - eye[1]) <= RAIN.radius);
-    assert.ok(Math.hypot(...at(i, 5, eye, 1).slice(0, 2).map((v, k) => v - eye[k])) <= RAIN.radius);
+    const c = at(i, 12.3);
+    assert.ok(c[0] >= eye[0] - R && c[0] < eye[0] + R && c[1] >= eye[1] - R && c[1] < eye[1] + R);
   }
   assert.deepEqual(at(7, 3.3), at(7, 3.3));
   const a = at(7, 3.3), b = at(7, 3.4); assert.ok(Math.abs((a[2] - b[2]) - RAIN.speed * .1) < 1e-9 || Math.abs((a[2] - b[2]) + RAIN.height - RAIN.speed * .1) < 1e-9);
@@ -142,7 +142,15 @@ test('a rain drop is a stable column that falls at speed, leans south with the w
   const [e, f] = [at(7, 3.3, eye, .5), at(7, 3.4, eye, .5)]; assert.ok(e[1] - f[1] !== 0 && Math.abs(e[0] - f[0]) < 1e-12);
   const fallen = eye[2] + RAIN.height * .4 - at(7, 3.3)[2], leant = at(7, 3.3, eye, .5), upright = at(7, 3.3);
   assert.ok(Math.abs((upright[1] - leant[1]) - RAIN.slant * .5 * fallen) < 1e-9);
-  const moved = at(7, 3.3, [eye[0] + .5, eye[1] + .5, eye[2]]); assert.deepEqual(moved.slice(0, 2), upright.slice(0, 2));
+  let wrapped = 0;
+  for (const i of [0, 1, 2, 3, 50, 400, 899]) for (const [dx, dy] of [[.5, 0], [0, .5], [.5, .5], [-.5, -.5], [3, 2]]) {
+    const before = at(i, 3.3), after = at(i, 3.3, [eye[0] + dx, eye[1] + dy, eye[2]]);
+    for (const k of [0, 1]) {
+      const shift = Math.round((after[k] - before[k]) / (2 * R));
+      assert.ok(Math.abs(after[k] - before[k] - shift * 2 * R) < 1e-9 && Math.abs(shift) <= 1); wrapped += Math.abs(shift);
+    }
+  }
+  assert.ok(wrapped < 12);
 });
 
 test('rain falls in the open, is kept off by the roof and thinned by the oak, and shows nothing when it is not raining', () => {
@@ -150,14 +158,14 @@ test('rain falls in the open, is kept off by the roof and thinned by the oak, an
   const camera = (x, y, z) => ({position: {x, y: z, z: -y}});
   const frame = (at, extra = {}) => ({weather: {rain: .8, wind: .5}, motionSeconds: 5, camera: camera(...at), ...extra});
   const shown = () => lines.geometry.drawRange.count / 2;
-  const open = [14, 6, 1.6], {roof, oak} = layout.weather.shelter;
+  const open = [-25, -25, 1.6], {roof, oak} = layout.weather.shelter;
   assert.equal(rain.update(frame(open)), true); assert.equal(lines.visible, true);
-  assert.ok(shown() > 500 && shown() <= Math.round(RAIN.count * .8));
+  assert.equal(shown(), Math.round(RAIN.count * .8));
   assert.ok(Math.abs(lines.material.opacity - (.10 + .8 * .13)) < 1e-12); assert.equal(lines.material.depthWrite, false);
   assert.ok(lines.geometry.attributes.position.array.every(Number.isFinite));
   const inOpen = shown();
-  rain.update(frame([roof.center[0], roof.center[1], 1.6])); assert.ok(shown() < inOpen * .5, 'under the roof');
-  rain.update(frame([oak.center[0], oak.center[1], 1.6])); assert.ok(shown() < inOpen && shown() > 0, 'under the oak');
+  rain.update(frame([roof.center[0], roof.center[1], 1.6])); assert.ok(shown() < inOpen * .9, 'under the roof');
+  rain.update(frame([oak.center[0], oak.center[1], 1.6])); assert.ok(shown() < inOpen * .9 && shown() > 0, 'under the oak');
   assert.equal(rain.update(frame(open, {weather: {rain: .05, wind: .5}})), false); assert.equal(lines.visible, false); assert.equal(shown(), 0);
   rain.update(frame(open)); rain.update(frame(open)); assert.equal(shown(), inOpen);
   rain.dispose(); assert.equal(scene.children.length, 0);
