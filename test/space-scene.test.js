@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, pathLightPlan} from '../shared/lakeside-dressing.js';
 import {SPACE_ART, artFiles} from '../shared/lakeside-space-art.js';
 import {cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
 import {buildScene} from '../public/space/scene/index.js';
@@ -15,7 +15,7 @@ export function stubArt() {
 test('toThree maps east, north, up to three', () => { assert.deepEqual(toThree([1, 2, 3]), [1, 3, -2]); });
 test('the scene builds its named parts with finite geometry and disposes them', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
-  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'garden', 'hills']) assert.ok(scene.parts[name], name);
+  for (const name of ['terrain', 'lake', 'wall', 'cabin', 'oak', 'woods', 'cover', 'garden', 'lights', 'hills']) assert.ok(scene.parts[name], name);
   let meshes = 0, disposed = 0;
   scene.group.traverse(o => { if (!o.geometry) return; meshes++;
     const p = o.geometry.getAttribute('position'); for (let i = 0; i < p.count * 3; i++) assert.ok(Number.isFinite(p.array[i]), o.name);
@@ -257,5 +257,36 @@ test('the garden is drawn: boards, soil, stems and swaying leaves, on its beds',
     const eye = [...p, terrainHeight(S, ...p) + S.eyeHeight], {hit, dir} = firstHit(garden.getObjectByName('beds'), eye, [bed.center[0] + v[0] * bed.size[1] / 2, bed.center[1] + v[1] * bed.size[1] / 2, terrainHeight(S, ...bed.center) + .1]);
     assert.ok(hit, bed.id); assert.ok(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0, `${bed.id} board inside out`);
   }
+  scene.dispose();
+});
+
+test('the path lights are drawn: stakes, lamps, halos and pools of light that follow the level', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), lights = scene.parts.lights, plan = pathLightPlan(S, D);
+  assert.equal(lights.name, 'lights');
+  const part = name => lights.getObjectByName(name);
+  for (const name of ['stakes', 'lamps', 'halos', 'pools']) assert.ok(part(name), name);
+  // each stake stands on its planned foot and no higher than its hood
+  const box = new THREE.Box3().setFromObject(part('stakes')), {height, pool} = D.pathLights;
+  for (const {foot} of plan) assert.ok(box.containsPoint(new THREE.Vector3(...toThree(foot))), 'a foot outside the stakes');
+  assert.ok(box.max.y <= Math.max(...plan.map(l => l.foot[2])) + height + .1);
+  // each pool lies on the ground about its light, within its radius
+  const p = part('pools').geometry.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const [x, y, z] = [p.getX(i), -p.getZ(i), p.getY(i)];
+    assert.ok(Math.abs(z - terrainHeight(S, x, y) - .03) < 1e-4);
+    assert.ok(plan.some(l => Math.hypot(x - l.foot[0], y - l.foot[1]) <= pool + 1e-3)); // Float32 positions
+  }
+  // dark as built: nothing emitted, nothing added
+  const dark = () => { assert.equal(part('lamps').material.emissiveIntensity, 0); assert.equal(part('pools').visible, false); assert.equal(part('halos').visible, false); };
+  dark();
+  scene.setPathLights(1);
+  const full = part('lamps').material.emissiveIntensity;
+  assert.ok(full > 0); assert.ok(part('pools').visible && part('pools').material.opacity > 0); assert.ok(part('halos').visible && part('halos').material.opacity > 0);
+  for (const name of ['pools', 'halos']) { assert.equal(part(name).material.blending, THREE.AdditiveBlending); assert.equal(part(name).material.depthWrite, false); }
+  scene.setPathLights(.5); assert.ok(Math.abs(part('lamps').material.emissiveIntensity - full / 2) < 1e-9);
+  scene.setPathLights(7); assert.equal(part('lamps').material.emissiveIntensity, full);
+  scene.setPathLights(-1); dark(); scene.setPathLights(NaN); dark();
+  // no light sources: the yard's shaders are not rebuilt for them
+  let sources = 0; scene.group.traverse(o => { if (o.isLight) sources++; }); assert.equal(sources, 0);
   scene.dispose();
 });

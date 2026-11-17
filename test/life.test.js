@@ -390,3 +390,14 @@ test('a real presenter that fails gives back the yard state it set: the cottage 
   assert.deepEqual(scene.children.filter(o => o.isPointLight), lights, 'the dark lights stay in the scene'); assert.ok(lights.every(l => l.intensity === 0));
   life.dispose();
 }));
+
+import {createPathLights} from '../public/space/life/path-lights.js';
+test('the path lights follow the sun: lit at night, dark by day, dark without a calendar and when let go', () => {
+  assert.equal(PRESENTERS.pathLights, createPathLights);
+  const levels = [], lights = PRESENTERS.pathLights({}, {yard: {setPathLights: level => levels.push(level)}});
+  assert.equal(lights.update({calendar: {elevation: -.5, hour: 1}}), true); assert.equal(levels.at(-1), 1);
+  assert.equal(lights.update({calendar: {elevation: .6, hour: 13}}), false); assert.equal(levels.at(-1), 0);
+  assert.equal(lights.update({calendar: {elevation: -.5, hour: 23}}), true);
+  assert.equal(lights.update({}), false); assert.equal(levels.at(-1), 0);
+  lights.update({calendar: {elevation: -.5, hour: 1}}); lights.dispose(); assert.equal(levels.at(-1), 0);
+});
