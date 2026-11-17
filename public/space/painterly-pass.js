@@ -150,6 +150,14 @@ void main(){
   gl_FragColor=vec4(col,1.);
 }`;
 
+// The pass's structure target is RGBA16F, which WebGL2 can only draw into with one of the float colour-buffer extensions.
+// Without either, drawing into it fails every frame and the rest of the pass samples an unwritten target, so the view must
+// not build the pass at all.
+export function canPaint(gl) {
+  try { return !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')); }
+  catch { return false; }
+}
+
 export class PainterlyPass {
   constructor(THREE, renderer) {
     this.renderer = renderer; this.scale = 1; this.pixelRatio = 1; this.width = 1; this.height = 1;

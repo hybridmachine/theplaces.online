@@ -266,6 +266,23 @@ try{
     resized.passMode==='off'&&!resized.pass&&nonBlank(resized.frame)&&resized.canvas[0]===Math.round(1100*resized.ratio)&&resized.canvas[1]===Math.round(700*resized.ratio)&&!live.own.length,
     {steps,resized,pageErrors:live.own});
   await live.context().close();
+  // 22. A context that cannot render to half-float colour (neither EXT_color_buffer_float nor EXT_color_buffer_half_float)
+  // cannot run the painterly pass. The view starts locked on plain, builds no pass, draws the yard, and raises no GL error.
+  const dull=await visitor({width:1280,height:720},()=>{const original=HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext=function(type,...rest){const g=original.call(this,type,...rest);
+      if(g&&type==='webgl2'&&this.id==='space'&&!g.__withheld){g.__withheld=true;const ask=g.getExtension.bind(g);
+        g.getExtension=name=>/^EXT_color_buffer_(half_)?float$/.test(name)?null:ask(name);}
+      return g;};});
+  await dull.goto(`${base}/?space=1&check`);await ready(dull);await dull.waitForTimeout(6000);
+  const dullView=await dull.evaluate(()=>{const s=window.__space,g=s.renderer.getContext();const glErrors=[];for(let e=g.getError();e!==g.NO_ERROR&&glErrors.length<8;e=g.getError())glErrors.push(e);
+    return {tier:s.tier,locked:s.meter.locked,passMode:s.passMode,pass:!!s.pass,withheld:g.getExtension('EXT_color_buffer_float')===null&&g.getExtension('EXT_color_buffer_half_float')===null,glErrors};});
+  const dullFrame=await drawAndRead(dull,[[640,360],[2,2],[320,560],[960,260],[640,90]]);
+  const dullAfter=await dull.evaluate(()=>{const g=window.__space.renderer.getContext();return g.getError();});
+  check('Without half-float colour targets the view starts locked on plain, builds no painterly pass, draws the yard and raises no GL error',
+    dullView.withheld&&dullView.tier==='plain'&&dullView.locked&&dullView.passMode==='off'&&!dullView.pass&&!dullView.glErrors.length&&dullAfter===0&&
+    dullFrame.pixels.some(p=>differ(p,dullFrame.pixels[0]))&&!dull.own.length&&!dull.consoleErrors.length,
+    {...dullView,glErrorAfterDraw:dullAfter,frame:dullFrame,pageErrors:dull.own,consoleErrors:dull.consoleErrors});
+  await dull.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;

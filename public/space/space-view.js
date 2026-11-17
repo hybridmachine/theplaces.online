@@ -11,7 +11,7 @@ import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
 import {SkyDome, overcast} from './sky-dome.js';
 import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
-import {PainterlyPass} from './painterly-pass.js';
+import {PainterlyPass, canPaint} from './painterly-pass.js';
 import {TIERS, createTierMeter} from './tier.js';
 
 export {toThree};
@@ -121,7 +121,9 @@ export class SpaceView {
     this.colours = {day: {}, night: {}};
     for (const [time, values] of Object.entries(LIGHT)) for (const [key, value] of Object.entries(values))
       if (typeof value === 'string') this.colours[time][key] = new THREE.Color(value);
-    // Started locked on plain (?tier=plain), the pass would never be drawn.
+    // A context that cannot render to half-float colour cannot run the pass: stay on plain for good, as a slow device would.
+    if (!canPaint(renderer.getContext())) { this.meter = createTierMeter({start: 'plain', locked: true}); this.passMode = TIER_PASS.plain; }
+    // Locked on plain (?tier=plain, or no half-float targets), the pass would never be drawn.
     if (!this.plainForGood()) { this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode); }
     this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {lightLevels, verticalFov} from '../public/space/space-view.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
+import {canPaint} from '../public/space/painterly-pass.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -50,4 +51,16 @@ test('thin cloud up to 0.2 lights the yard as clear skies do, and half cloud lie
     assert.ok(half.hemisphere < clear.hemisphere && half.hemisphere > rain.hemisphere, `hemisphere at light ${light}`);
     assert.ok(half.direct < clear.direct && half.direct > rain.direct, `direct at light ${light}`);
   }
+});
+
+test('the painterly pass needs a context that can render to half-float colour', () => {
+  const gl = names => ({getExtension: name => names.includes(name) ? {} : null});
+  assert.equal(canPaint(gl(['EXT_color_buffer_float'])), true);
+  assert.equal(canPaint(gl(['EXT_color_buffer_half_float'])), true);
+  assert.equal(canPaint(gl(['EXT_color_buffer_float', 'EXT_color_buffer_half_float'])), true);
+  assert.equal(canPaint(gl(['OES_texture_float_linear', 'WEBGL_lose_context'])), false);
+  assert.equal(canPaint(gl([])), false);
+  // A context that is already lost answers null for every extension, and one that throws must not break start-up.
+  assert.equal(canPaint({getExtension() { throw new Error('lost'); }}), false);
+  assert.equal(canPaint(null), false);
 });

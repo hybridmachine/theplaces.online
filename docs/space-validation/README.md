@@ -30,7 +30,7 @@ Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak
 
 ## Automated evidence
 
-`node scripts/check-space-browser.mjs` — last run: **21 PASS, 0 FAIL**, exit code 0, no page errors. Full detail, numbered as below, is in [space-browser-results.json](space-browser-results.json).
+`node scripts/check-space-browser.mjs` — last run: **22 PASS, 0 FAIL**, exit code 0, no page errors. Full detail, numbered as below, is in [space-browser-results.json](space-browser-results.json).
 
 1. `/` requests nothing whose URL contains `three-`, `/space/` or `lakeside-space-v1`, and `#space` stays hidden.
 2. `/?space=1&check` loads all twelve bundle files with status 200 and content type `image/webp`, with no console errors.
@@ -53,6 +53,7 @@ Judged by eye against `public/assets/lakeside-day.png` with the overlay. The oak
 19. With `stone.webp` answered 200 with an empty body, the same.
 20. Left to itself, the tier meter settles on `full` and locks within about 6 s of the view being shown.
 21. A running view stepped down live (its meter swapped for a stub answering `light`, then `plain` locked) reports each tier and pass mode, runs the filter at 0.6 on `light`, releases the pass on `plain`, and draws a non-blank frame after each step and after a resize with no pass.
+22. With neither float colour-buffer extension (`EXT_color_buffer_float`, `EXT_color_buffer_half_float`) the view starts locked on `plain`, builds no painterly pass, draws the yard, and raises no GL error. The extensions are withheld from the page by the check; no real browser lacking them was tested.
 
 ### Frame rate and counts (check 11)
 
