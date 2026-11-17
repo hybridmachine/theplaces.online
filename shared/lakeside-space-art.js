@@ -8,7 +8,7 @@ export const SPACE_ART = deep({
     shore:  {file: 'shore.webp',  size: 1024, metres: 5},   stone: {file: 'stone.webp', size: 1024, metres: 2.4},
     slate:  {file: 'slate.webp',  size: 1024, metres: 2.6}, bark:  {file: 'bark.webp',  size: 1024, metres: 2},
     water:  {file: 'water.webp',  size: 1024, metres: 14},  drystone: {file: 'drystone.webp', size: 512, metres: 2},
-    hills:  {file: 'hills.webp',  size: 512,  metres: 220},
+    hills:  {file: 'hills.webp',  size: 512,  metres: 220}, // the cabin's eave boards and soffits borrow this brushwork too (cabin.js)
   },
   panels: {door: {file: 'door.webp', width: 256, height: 512}, window: {file: 'window.webp', width: 256, height: 256}},
   cards: {file: 'cards.webp', size: 2048, cell: 512,

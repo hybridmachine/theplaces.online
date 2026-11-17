@@ -142,3 +142,11 @@ test('the blockout is gone and the far hills close the view all round', () => {
   }
   scene.dispose();
 });
+import {shoreDistance} from '../shared/space.js';
+test('the grove stands on land: no undergrowth card reaches into the water', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), under = scene.parts.woods.getObjectByName('grove-undergrowth');
+  under.updateMatrixWorld(true); const p = under.geometry.getAttribute('position'), w = new THREE.Vector3();
+  assert.ok(p.count >= D.grove.length * 4 * 4, 'every tree has undergrowth');
+  for (let i = 0; i < p.count; i++) { w.fromBufferAttribute(p, i).applyMatrix4(under.matrixWorld); const [x, y] = fromThree(w); assert.ok(shoreDistance(S, x, y) > 0, `${x},${y}`); }
+  scene.dispose();
+});

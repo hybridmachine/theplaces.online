@@ -21,6 +21,8 @@ const noise = (x, y, seed) => {
 const stream = seed => { let n = 0; return () => hash(n++, 23, seed); };
 // The side the painting is lit from: over the lake, east-south-east.
 const SUN = [Math.sin(115 * DEG), Math.cos(115 * DEG), 0];
+// The woods' own sage, which the grove's undergrowth shares.
+const WOODS_SAGE = [1.1, 1.17, 1.04];
 // The trunk keeps this far inside its collider (space.colliders' circle) up to above head height.
 const TRUNK_CLEAR = .12;
 
@@ -163,7 +165,7 @@ const WOODS = {
 
 export function buildWoods(THREE, {space, dressing, art}) {
   const plan = woodsPlan(space, dressing), w = space.wall, cells = SPACE_ART.cards.cells.woods;
-  const SAGE = [1.1, 1.17, 1.04], MOSS = [1.21, 1.2, .93], FAR = [1.42, 1.56, 1.7];
+  const SAGE = WOODS_SAGE, MOSS = [1.21, 1.2, .93], FAR = [1.42, 1.56, 1.7];
   const smoothstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
   const ccw = w.reduce((s, p, k) => s + p[0] * w[(k + 1) % w.length][1] - w[(k + 1) % w.length][0] * p[1], 0) > 0;
   const edges = w.map((a, i) => { const b = w[(i + 1) % w.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), d = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
@@ -261,8 +263,9 @@ export function buildWoods(THREE, {space, dressing, art}) {
   return {object, dispose: () => disposeAll(object)};
 }
 
-// The grove: a few tall trees standing clear of the band (dressing.grove), each a bark trunk forking into a crown of leaf sprays
-// (the oak's cells, deeper and cooler), built as the oak's clumps are: fixed cards, half standing and half lying.
+// The grove: a few tall trees in loose rows in front of the band and into it (dressing.grove), each a bark trunk forking into a
+// crown of leaf sprays (the oak's cells, taken down to the woods' sage and moss) that comes low enough, with the undergrowth
+// at its foot, to hide the trunk over the wall; built as the oak's clumps are: fixed cards, half standing and half lying.
 function buildGrove(THREE, {space, dressing, art, cards}) {
   const r = stream(dressing.seed + 31), leafCells = SPACE_ART.cards.cells.oak, leaves = cardBatch(SPACE_ART), under = cardBatch(SPACE_ART), trunks = [];
   for (const [x, y, height] of dressing.grove ?? []) {
@@ -271,17 +274,19 @@ function buildGrove(THREE, {space, dressing, art, cards}) {
     trunks.push(tube(THREE, [[...stem(0), .34], [...stem(.4), .26], [...stem(.75), .19], [...stem(1), .1]], {sides: 7, tile: SPACE_ART.surfaces.bark.metres}));
     const crown = V.add(stem(1), [0, 0, height * .14]);
     // undergrowth round the foot, so the tree stands in the ground and not on it
-    for (let k = 0; k < 9; k++) {
-      const a = r() * TAU, d = .4 + r() * 2.2, size = 1 + r() * .9, foot = [x + Math.sin(a) * d, y + Math.cos(a) * d];
-      const normal = V.norm([r() - .5, r() - .5, (r() - .5) * .4]), [right, up] = basis(normal), kk = .55 + r() * .3;
-      under.add([...foot, terrainHeight(space, ...foot) - .1 + size * .8], V.scale(right, size * 1.3), V.scale(up, size), SPACE_ART.cards.cells.woods[r() < .5 ? 0 : 1],
-        [kk * .7, kk * .7, kk * .7], [kk, kk, kk], [0, 0, 1], r() < .5);
+    for (let k = 0; k < 12; k++) {
+      const a = r() * TAU, d = .4 + r() * 2.6, size = 1.4 + r() * 1.1, foot = [x + Math.sin(a) * d, y + Math.cos(a) * d];
+      const normal = V.norm([r() - .5, r() - .5, (r() - .5) * .4]), [right, up] = basis(normal), kk = .62 + r() * .25, flip = r() < .5, cell = r() < .5 ? 0 : 1;
+      if (shoreDistance(space, ...foot) < size * 1.3 + .5) continue; // none in the water
+      under.add([...foot, terrainHeight(space, ...foot) - .1 + size * .8], V.scale(right, size * 1.3), V.scale(up, size), SPACE_ART.cards.cells.woods[cell],
+        WOODS_SAGE.map(v => v * kk * .84), WOODS_SAGE.map(v => v * kk), [0, 0, 1], flip);
     }
     // lobes round the crown, the upper ones smaller, so the outline is a tree's and not a ball's
     for (let k = 0, lobes = 6 + Math.floor(r() * 3); k < lobes; k++) {
       const a = r() * TAU, up = k / (lobes - 1), out = spread * (.6 - .25 * up) * (.6 + r() * .5);
-      const centre = V.add(crown, [Math.sin(a) * out, Math.cos(a) * out, (up - .55) * height * .45]), R = spread * (.58 - .1 * up) * (.8 + r() * .4);
-      trunks.push(tube(THREE, [[...stem(.7 + .2 * r()), .12], [...V.add(centre, [0, 0, -.3 * R]), .03]], {sides: 4}));
+      // the lowest lobes hang to about a tenth of the tree's height, so little bare trunk shows over the wall
+      const centre = V.add(crown, [Math.sin(a) * out, Math.cos(a) * out, (up - .75) * height * .5]), R = spread * (.58 - .1 * up) * (.8 + r() * .4);
+      trunks.push(tube(THREE, [[...stem(.5 + .4 * r()), .12], [...V.add(centre, [0, 0, -.3 * R]), .03]], {sides: 4, tile: SPACE_ART.surfaces.bark.metres}));
       for (let n = Math.round(12 + R * 5), c = 0; c < n; c++) {
         const u = r() * TAU, w = Math.acos(2 * r() - 1), f = Math.sqrt(.3 + .7 * r());
         const p = V.add(centre, [Math.sin(w) * Math.cos(u) * f * R, Math.sin(w) * Math.sin(u) * f * R, Math.cos(w) * f * R * .8]);
@@ -295,8 +300,8 @@ function buildGrove(THREE, {space, dressing, art, cards}) {
           normal = V.norm([Math.sin(b) * Math.sin(tilt), Math.cos(b) * Math.sin(tilt), Math.cos(tilt)]); upAxis = basis(normal)[r() < .5 ? 0 : 1];
         }
         const across = V.norm(V.cross(upAxis, normal)), size = 1.1 + r() * .7, h = clamp01((p[2] - g) / height);
-        // deeper and cooler than the oak, lighter toward the top and on the sun side
-        const k0 = (.38 + .3 * h * h + .06 * V.dot(outward, SUN)) * (.9 + r() * .2), top = [k0 * .82, k0 * .92, k0 * .86];
+        // the woods' sage rather than the oak's yellow-green, lighter toward the top and on the sun side
+        const k0 = (.3 + .2 * h * h + .05 * V.dot(outward, SUN)) * (.9 + r() * .2), top = [k0 * .74, k0 * .9, k0 * .76];
         leaves.add(p, V.scale(across, size), V.scale(upAxis, size), leafCells[Math.floor(r() * leafCells.length)], top.map(v => v * .8), top,
           V.norm(V.add(V.norm(V.sub(p, crown)), [0, 0, .7])), r() < .5);
       }
@@ -309,8 +314,6 @@ function buildGrove(THREE, {space, dressing, art, cards}) {
   const undergrowth = new THREE.Mesh(under.geometry(THREE), cards); undergrowth.name = 'grove-undergrowth';
   return [stems, crowns, undergrowth];
 }
-
-
 
 function disposeAll(object) {
   const materials = new Set();

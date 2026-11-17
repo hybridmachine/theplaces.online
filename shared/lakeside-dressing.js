@@ -17,9 +17,10 @@ export const LAKESIDE_DRESSING = deep({
     // toward the far gable (north, up the yard), as in the painting
     chimney: {along: -3.8, size: .8, rise: 1.05}},
   oak: {clumps: 29, canopyHeight: 9.6},
-  // A few tall trees standing clear of the woods just beyond the east wall, behind the cabin and its far gable, where the
-  // painting has its dense band of trees rising over the roof: [x, y, height in metres].
-  grove: [[44, 30, 16], [41.5, 26.5, 15], [43, 21.5, 16.5], [45.5, 16.5, 14], [47.5, 12, 12], [49.5, 9.5, 9.5]],
+  // Tall trees beyond the east wall, behind the cabin and its far gable, where the painting has its dense band of trees rising
+  // over the roof: in two or three loose, unevenly spaced rows, the back ones standing into the woods so the grove joins them.
+  // [x, y, height in metres].
+  grove: [[42.5, 27.5, 15], [44, 20, 15.5], [46.5, 13.5, 12.5], [47, 31, 16.5], [45.5, 24.5, 14], [49, 23, 16.5], [50, 17, 14.5], [51.5, 12, 11]],
   cover: {grass: 7000, nearGrass: 1100, reeds: 260, flowers: 150, lowRadius: 6},
 });
 
