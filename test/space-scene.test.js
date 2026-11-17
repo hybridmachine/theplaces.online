@@ -10,7 +10,7 @@ import {buildScene} from '../public/space/scene/index.js';
 // Textures without images: enough to build and inspect geometry in Node.
 export function stubArt() {
   const t = () => new THREE.Texture();
-  return {surfaces: Object.fromEntries(Object.keys(SPACE_ART.surfaces).map(k => [k, t()])), panels: {door: t(), window: t()}, cards: t(), dispose() {}};
+  return {surfaces: Object.fromEntries(Object.keys(SPACE_ART.surfaces).map(k => [k, t()])), panels: {door: t(), window: t(), windowLit: t()}, cards: t(), dispose() {}};
 }
 test('toThree maps east, north, up to three', () => { assert.deepEqual(toThree([1, 2, 3]), [1, 3, -2]); });
 test('the scene builds its named parts with finite geometry and disposes them', () => {
@@ -24,7 +24,7 @@ test('the scene builds its named parts with finite geometry and disposes them', 
   scene.setSky({zenith: [.6, .7, .76], horizon: [.83, .83, .75]});
   scene.dispose(); assert.equal(disposed, meshes);
 });
-test('the art slots the scene needs all exist', () => { assert.equal(artFiles().length, 12); });
+test('the art slots the scene needs all exist', () => { assert.equal(artFiles().length, 13); });
 test('sheets face the side asked for, tubes face outward, and merging keeps every triangle', () => {
   // Mean face normal of an indexed geometry, back in world axes (x east, y north, z up).
   const facing = g => {
@@ -63,9 +63,9 @@ function firstHit(objects, eye, target) {
   hits.sort((a, b) => a.distance - b.distance);
   return {hit: hits[0], dir};
 }
-test('the cabin is solid from every side a visitor can stand', () => {
-  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin, [cx, cy] = S.cabin.center;
-  const solid = ['walls', 'roof', 'chimney'].map(name => cabin.getObjectByName(name));
+// From all round at 9 m, every ray toward the cabin's middle meets a surface drawn the right way out, and the walls are single-sided.
+function assertSolidAllRound(cabin, names) {
+  const [cx, cy] = S.cabin.center, solid = names.map(name => cabin.getObjectByName(name));
   for (let k = 0; k < 36; k++) {
     const a = k / 36 * Math.PI * 2, x = cx + Math.sin(a) * 9, y = cy + Math.cos(a) * 9;
     const eye = [x, y, terrainHeight(S, x, y) + S.eyeHeight];
@@ -77,6 +77,40 @@ test('the cabin is solid from every side a visitor can stand', () => {
       assert.notEqual(hit.side === THREE.DoubleSide && hit.object.name === 'walls', true, 'walls must be single-sided');
     }
   }
+}
+test('the cabin is solid from every side a visitor can stand', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney']);
+  scene.dispose();
+});
+test('the cabin is still solid from every side with its casement open', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  scene.setCottage({main: 1, second: 1, open: 1});
+  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney', 'casement']);
+  scene.dispose();
+});
+test('the front windows light by their own rooms and the main room\'s casement swings outward', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin;
+  const left = cabin.getObjectByName('window-front-left'), right = cabin.getObjectByName('window-front-right'), back = cabin.getObjectByName('window-back');
+  const casement = cabin.getObjectByName('casement');
+  assert.ok(casement?.isMesh); assert.equal(casement.material.side, THREE.DoubleSide);
+  assert.notEqual(left.material.side, THREE.DoubleSide); assert.notEqual(right.material.side, THREE.DoubleSide);
+  scene.setCottage({main: 0, second: 0, open: 0});
+  const shut = casement.rotation.clone();
+  scene.setCottage({main: 1, second: .5, open: 1});
+  assert.notEqual(left.material, right.material); assert.notEqual(left.material, back.material); assert.notEqual(right.material, back.material);
+  assert.equal(left.material.emissiveIntensity, 1); assert.equal(right.material.emissiveIntensity, .5);
+  assert.equal(casement.material.emissiveIntensity, 1);
+  assert.equal(back.material.emissiveMap, null);
+  assert.ok(!casement.rotation.equals(shut));
+  // Outward: the leaf's free edge moves away from the wall, toward the front.
+  casement.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(casement), [cx, cy] = S.cabin.center, front = S.arrival.position;
+  const centre = fromThree(box.getCenter(new THREE.Vector3())), toFront = [front[0] - cx, front[1] - cy];
+  const wall = fromThree(new THREE.Box3().setFromObject(left).getCenter(new THREE.Vector3()));
+  assert.ok((centre[0] - wall[0]) * toFront[0] + (centre[1] - wall[1]) * toFront[1] > .05, 'the open leaf stands out from the wall');
+  scene.setCottage({main: 0, second: 0, open: 0});
+  assert.ok(casement.rotation.equals(shut)); assert.equal(left.material.emissiveIntensity, 0);
   scene.dispose();
 });
 test('the cabin walls stay inside the collider, clear of where a visitor can stand', () => {

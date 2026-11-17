@@ -66,3 +66,37 @@ test('the wind sets the card uniforms from the wind clock each frame and leaves 
   assert.equal(windStrength.value, clock.strength); assert.deepEqual([windAlong.value.x, windAlong.value.y], [0, -1]);
   wind.dispose(); assert.equal(windStrength.value, 0);
 });
+
+import {cottagePose} from '../public/space/life/cottage.js';
+import {cottageFixture, createCottageState, sampleCottage} from '../shared/cottage.js';
+test('the cottage pose comes from a study, else from the shared cottage, snapping the casement under reduced motion', () => {
+  const epoch = 1_800_000_000_000, at = epoch + 600_000, cottage = createCottageState(epoch, epoch);
+  for (const study of ['night', 'dusk', 'day'])
+    assert.deepEqual(cottagePose({snapshot: {world: {cottage}}, now: at, study, motion: true, fixture: null}), cottageFixture(study));
+  const opening = {...cottage, casement: 0, pending: {id: 'cottage-v1-x-1', actor: 'lakeside-resident-01', kind: 'casement', room: 'main', from: 0, target: 1,
+    start: at - 10_000, motionStart: at - 2000, end: at + 2000}};
+  const mid = {snapshot: {world: {cottage: opening}}, now: at, study: null, fixture: null};
+  assert.equal(cottagePose({...mid, motion: false}).open, 0);
+  assert.ok(cottagePose({...mid, motion: true}).open > 0);
+  assert.deepEqual(cottagePose({...mid, motion: true}), sampleCottage(opening, at));
+  assert.equal(cottagePose({snapshot: {world: {cottage: {id: 'nonsense'}}}, now: at, study: null, motion: true, fixture: null}), null);
+  assert.equal(cottagePose({snapshot: {world: {}}, now: at, study: null, motion: true, fixture: null}), null);
+  assert.deepEqual(cottagePose({snapshot: {world: {}}, now: at, study: 'night', motion: true, fixture: {cottagePose: {main: .3, second: 0, open: 1}}}), {main: .3, second: 0, open: 1});
+});
+
+import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
+test('the cottage lays warm light outside each lit window after dark and goes dark when the world has no cottage', () => {
+  const scene = new THREE.Scene(), poses = [], layout = lifeLayout();
+  const cottage = PRESENTERS.cottage(THREE, {scene, yard: {setCottage: pose => poses.push(pose)}, layout});
+  const lights = scene.children.filter(o => o.isPointLight);
+  assert.equal(lights.length, 2);
+  for (const light of lights) { assert.equal(light.color.getHexString(), 'ffb561'); assert.equal(light.distance, 5); assert.equal(light.decay, 2); }
+  const [x, y, z] = layout.cottage.lights.main, main = scene.getObjectByName('cottage-main'), second = scene.getObjectByName('cottage-second');
+  assert.deepEqual(main.position.toArray(), [x, z, -y]);
+  assert.equal(cottage.update({snapshot: {world: {}}, study: 'night', calendar: {light: .25}, fixture: null}), true);
+  assert.deepEqual(poses.at(-1), cottageFixture('night'));
+  assert.ok(Math.abs(main.intensity - 1 * .75 * 2.2) < 1e-12); assert.ok(Math.abs(second.intensity - .65 * .75 * 2.2) < 1e-12);
+  assert.equal(cottage.update({snapshot: {world: {}}, now: 0, study: null, motion: true, calendar: {light: 0}, fixture: null}), false);
+  assert.deepEqual(poses.at(-1), {main: 0, second: 0, open: 0}); assert.equal(main.intensity, 0); assert.equal(second.intensity, 0);
+  cottage.dispose(); assert.equal(scene.children.length, 0);
+});
