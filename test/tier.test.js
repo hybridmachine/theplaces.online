@@ -68,6 +68,27 @@ test('more than eight stalls in a row are a very slow device; a short frame clea
   const broken = createTierMeter(options); intervals(broken, [2100, 2100, 2100, 2100, 2100, 30, 2100, 2100, 2100, 2100]);
   assert.equal(broken.tier, 'full'); assert.equal(broken.locked, false);
 });
+// A seeded stream of numbers in [0, 1) (mulberry32), so the jittered cases are the same on every run.
+const seeded = seed => () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+// app.js draws at most 30 frames a second, on whole display refreshes; on a 48 Hz display that is two refreshes, two, then one.
+const HZ48 = [41.67, 41.67, 20.83];
+test('a 48 Hz display holds the full tier and locks, as its clock reports it and with ±1.5 ms of jitter', () => {
+  const exact = createTierMeter(); intervals(exact, repeat(HZ48, 10_000));
+  assert.equal(exact.tier, 'full'); assert.equal(exact.locked, true);
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const random = seeded(seed), m = createTierMeter();
+    intervals(m, repeat(HZ48, 10_000).map(dt => dt + (random() * 2 - 1) * 1.5));
+    assert.equal(m.tier, 'full', `seed ${seed}`); assert.equal(m.locked, true, `seed ${seed}`);
+  }
+});
+test('a device held at 50 Hz (a frame every 40 ms) stays on full', () => {
+  const m = createTierMeter(); intervals(m, repeat([40], 10_000));
+  assert.equal(m.tier, 'full'); assert.equal(m.locked, true);
+});
+test('a device at 20 fps (a frame every 50 ms) still steps down', () => {
+  const m = createTierMeter(); intervals(m, repeat([50], 6_000));
+  assert.equal(m.tier, 'light');
+});
 test('a meter can start locked at a chosen tier', () => {
   const m = createTierMeter({start: 'light', locked: true});
   assert.equal(m.tier, 'light'); assert.equal(m.locked, true);

@@ -235,6 +235,37 @@ try{
       {...view,failed,toastShown,pageErrors:p.own});
     await p.context().close();
   }
+
+  // 20. Left to itself, the meter on this machine settles on the full tier and locks within about 6 s of the view being shown.
+  // 21. A running view stepped down live: its meter is swapped for a stub that answers light, then plain locked. After each
+  // step the view reports that tier and pass mode and draws a frame with something in it; on plain the pass is released and
+  // the scene drawn straight to the canvas; a resize afterwards (with no pass) still draws and sizes the canvas.
+  const live=await visitor({width:1280,height:720});await live.goto(`${base}/?space=1&check`);await ready(live);
+  await live.waitForTimeout(6000);
+  const untouched=await live.evaluate(()=>({tier:window.__space.tier,locked:window.__space.meter.locked,passMode:window.__space.passMode,pass:!!window.__space.pass}));
+  check('An untouched view on this machine reports the full tier, locked, after about 6 s',untouched.tier==='full'&&untouched.locked&&untouched.passMode==='full'&&untouched.pass,untouched);
+  await live.evaluate(()=>{const now={tier:'full',locked:false};window.__liveSteps=[];
+    window.__space.meter={get tier(){return now.tier;},get locked(){return now.locked;},frame(){const next=window.__liveSteps.shift();if(next)Object.assign(now,next);return now.tier;}};});
+  const livePoints=[[640,360],[2,2],[320,560],[960,260],[640,90]],nonBlank=f=>f.pixels.some(p=>differ(p,f.pixels[0]));
+  const liveView=()=>live.evaluate(()=>{const s=window.__space;return {tier:s.tier,locked:s.meter.locked,passMode:s.passMode,pass:!!s.pass,filterScale:s.pass?.scale??null};});
+  const steps=[];
+  for(const [tier,locked,passMode] of [['light',false,'light'],['plain',true,'off']]){
+    await live.evaluate(step=>window.__liveSteps.push(step),{tier,locked});
+    const took=await live.waitForFunction(mode=>window.__space.passMode===mode&&window.__liveSteps.length===0,passMode,{timeout:5000}).then(()=>true,()=>false);
+    await live.waitForTimeout(300);
+    steps.push({step:tier,took,...await liveView(),frame:await drawAndRead(live,livePoints)});
+  }
+  await live.setViewportSize({width:390,height:844});await live.waitForTimeout(500);
+  await live.setViewportSize({width:1100,height:700});await live.waitForTimeout(500);
+  const resized={...await liveView(),frame:await drawAndRead(live,[[550,350],[2,2],[275,520],[825,240],[550,80]]),
+    canvas:await live.evaluate(()=>{const c=document.querySelector('#space');return [c.width,c.height];}),ratio:await live.evaluate(()=>Math.min(devicePixelRatio||1,1.6))};
+  const [lightStep,plainStep]=steps;
+  check('A running view stepped down live (full → light → plain, locked) reports each tier and pass mode, releases the pass on plain, and draws after each step and after a resize',
+    lightStep.took&&lightStep.tier==='light'&&lightStep.passMode==='light'&&lightStep.pass&&lightStep.filterScale===.6&&nonBlank(lightStep.frame)&&
+    plainStep.took&&plainStep.tier==='plain'&&plainStep.locked&&plainStep.passMode==='off'&&!plainStep.pass&&nonBlank(plainStep.frame)&&
+    resized.passMode==='off'&&!resized.pass&&nonBlank(resized.frame)&&resized.canvas[0]===Math.round(1100*resized.ratio)&&resized.canvas[1]===Math.round(700*resized.ratio)&&!live.own.length,
+    {steps,resized,pageErrors:live.own});
+  await live.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;
