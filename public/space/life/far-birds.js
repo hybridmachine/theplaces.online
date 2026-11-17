@@ -8,7 +8,6 @@ import {hash, mod} from '../../../shared/world.js';
 
 const COUNT = 3, DISTANCE = 900, UNIT = 1.4, WIDTH = .85, SEGMENTS = 4;
 const INK = [0x42 / 255, 0x4b / 255, 0x48 / 255], ALPHA = .6, FALLBACK_SKY = [.83, .83, .75];
-const toThree = ([x, y, z]) => [x, z, -y];
 
 // The birds in the sky this second, [{azimuth, elevation, wing}] (wing in [-1, 1]), or [] — the 2D painting's positions mapped
 // onto the layout's ranges: across the painting's x (.45–1.05 at most) is the azimuth range, and down its y (the cycle's
@@ -55,10 +54,11 @@ export function createFarBirds(THREE, ctx) {
       if (!group.visible) return false;
       // The 2D strokes are the ink at .6 over the sky; here, opaque, the same mix of the two.
       const sky = yard?.sky?.horizon ?? FALLBACK_SKY;
-      material.color.setRGB(...INK.map((v, k) => v * ALPHA + sky[k] * (1 - ALPHA)), THREE.SRGBColorSpace);
+      const mix = k => INK[k] * ALPHA + sky[k] * (1 - ALPHA);
+      material.color.setRGB(mix(0), mix(1), mix(2), THREE.SRGBColorSpace);
       birds.forEach((mesh, i) => {
         const {azimuth, elevation, wing} = now[i], c = Math.cos(elevation);
-        direction.set(...toThree([Math.sin(azimuth) * c, Math.cos(azimuth) * c, Math.sin(elevation)]));
+        direction.set(Math.sin(azimuth) * c, Math.sin(elevation), -Math.cos(azimuth) * c); // in three's axes
         mesh.position.copy(frame.camera.position).addScaledVector(direction, DISTANCE);
         mesh.quaternion.copy(frame.camera.quaternion);
         strokes(mesh.geometry.attributes.position.array, wing); mesh.geometry.attributes.position.needsUpdate = true;

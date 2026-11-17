@@ -17,13 +17,18 @@ const TAU = 2 * Math.PI;
 // The wind blows toward the south; a gust front travels at `gustSpeed` m/s.
 export const WIND = deep({bearing: Math.PI, direction: [0, -1], gustSpeed: 6});
 // Hearth smoke in the yard: metres risen over a puff's life, metres moved along the wind per unit of the 2D puff's x, the
-// puff's radius from birth to death, and its sideways wander across the wind.
-export const SMOKE = deep({rise: 6, drift: .12, radius: [.35, 1.4], sway: .15});
-// Where a puff from smokePuffs is in the yard: {position: [x, y, z], radius, alpha}.
+// puff's radius from birth to death, and its sideways wander across the wind at the end of its life (none as it leaves the chimney).
+export const SMOKE = deep({rise: 6, drift: .12, radius: [.35, 1.9], sway: .6});
+// Where a puff from smokePuffs is in the yard: {position: [x, y, z], radius, alpha, seed}. Its wander is a slow wave along the
+// column, set by when the puff left the chimney (`emitted`, ms), so neighbouring puffs lie on one meandering line that shifts as
+// time goes on rather than all swinging together; it grows with the puff's age, and the puff widens faster as it rises. `seed`
+// (0–1) is the puff's own, for its ragged edge.
 export function smokePlace(puff, layout) {
-  const [cx, cy, cz] = layout.cottage.chimney, [wx, wy] = layout.wind.direction, [ax, ay] = [-wy, wx];
-  const along = puff.x * SMOKE.drift, across = SMOKE.sway * Math.sin(puff.age * 5), [r0, r1] = SMOKE.radius;
-  return {position: [cx + wx * along + ax * across, cy + wy * along + ay * across, cz + SMOKE.rise * puff.age], radius: r0 + (r1 - r0) * puff.age, alpha: puff.alpha};
+  const [cx, cy, cz] = layout.cottage.chimney, [wx, wy] = layout.wind.direction, [ax, ay] = [-wy, wx], [r0, r1] = SMOKE.radius;
+  const age = puff.age, born = (puff.emitted ?? 0) / 1000, along = puff.x * SMOKE.drift;
+  const across = SMOKE.sway * age * (.65 * Math.sin(age * 5 + born * .11) + .35 * Math.sin(age * 2.3 - born * .047 + 1.3));
+  const seed = ((born / 4 * .618034) % 1 + 1) % 1;
+  return {position: [cx + wx * along + ax * across, cy + wy * along + ay * across, cz + SMOKE.rise * age], radius: r0 + (r1 - r0) * age * (.6 + .4 * age), alpha: puff.alpha, seed};
 }
 // How much each kind of planting leans with the wind: its type of motion, how exposed it is, and its reach in metres at full weight.
 export const SWAY = deep({
@@ -264,10 +269,15 @@ export function birdPlace(progress, layout) {
 }
 
 // The share of rain (0–1) that reaches [x, y, z]: none under the cabin's roof, a little under the oak's crown, all in the open.
-export function sheltered(layout, [x, y, z]) {
-  const {roof, oak} = layout.weather.shelter, dx = x - roof.center[0], dy = y - roof.center[1], s = Math.sin(roof.yaw), k = Math.cos(roof.yaw);
-  if (z < roof.height && Math.abs(dx * s + dy * k) <= roof.half[0] && Math.abs(dx * k - dy * s) <= roof.half[1]) return 0;
-  return z < oak.base && Math.hypot(x - oak.center[0], y - oak.center[1]) <= oak.radius ? oak.share : 1;
+export function sheltered(layout, [x, y, z]) { return shelterOf(layout)(x, y, z); }
+// The same rule as a function of (x, y, z), its roof's turn worked out once, for a caller asking thousands of times a frame.
+export function shelterOf(layout) {
+  const {roof, oak} = layout.weather.shelter, [rx, ry] = roof.center, [ox, oy] = oak.center, s = Math.sin(roof.yaw), k = Math.cos(roof.yaw);
+  return (x, y, z) => {
+    const dx = x - rx, dy = y - ry;
+    if (z < roof.height && Math.abs(dx * s + dy * k) <= roof.half[0] && Math.abs(dx * k - dy * s) <= roof.half[1]) return 0;
+    return z < oak.base && Math.hypot(x - ox, y - oy) <= oak.radius ? oak.share : 1;
+  };
 }
 
 // Whether a layout (possibly a stale or tampered copy) is the sort the presenters rely on: every id of the 2D systems is

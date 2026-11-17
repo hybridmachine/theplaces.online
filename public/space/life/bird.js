@@ -8,13 +8,13 @@ import {mergeGeometries} from '../geometry.js';
 // depth like anything else (the sheltering bird really sits behind the trunk). As in the 2D painting a study omits it
 // (unless a fixture says otherwise), reduced motion settles it and never beats its wings. three.js is handed in, so this runs in Node.
 
-// Drawn at this many times the layout's 18 cm, so that from the arrival the bird on the roof ridge (22 m off) keeps a head and
-// a cocked tail rather than a dot; any larger and it reads as a toy close to.
-export const DRAWN = 1.4;
+// Drawn at this many times the layout's 18 cm (36 cm), so that the bird on the roof ridge (22 m from the arrival) and on its oak
+// perch can be found at all, with a head and a cocked tail rather than a dark speck.
+export const DRAWN = 2;
 // The model is built in the 2D silhouette's own units (one per centimetre, 18 from beak to tail) with x forward, y up from the
 // feet and z to its right; three's Group then scales it, so its forward is +x until turned.
 const UNITS = 18, BEAT = .85, LIFT = .25, TUCK = .7;
-const COLOURS = {body: '#4a4b3b', breast: '#736750', head: '#393e32', wing: '#4b5041', eye: '#d9d5b7', legs: '#62573f', twig: '#a88e63'};
+const COLOURS = {body: '#4a4b3b', breast: '#8f7d5c', head: '#393e32', wing: '#4b5041', eye: '#d9d5b7', legs: '#62573f', twig: '#a88e63'};
 const toThree = ([x, y, z]) => [x, z, -y];
 
 // Where the bird is this frame (birdPlace), or null: none in a study unless a fixture gives one, none while it is still building

@@ -98,7 +98,10 @@ test('the cottage lays warm light outside each lit window after dark and goes da
   assert.ok(Math.abs(main.intensity - 1 * .75 * 2.2) < 1e-12); assert.ok(Math.abs(second.intensity - .65 * .75 * 2.2) < 1e-12);
   assert.equal(cottage.update({snapshot: {world: {}}, now: 0, study: null, motion: true, calendar: {light: 0}, fixture: null}), false);
   assert.deepEqual(poses.at(-1), {main: 0, second: 0, open: 0}); assert.equal(main.intensity, 0); assert.equal(second.intensity, 0);
-  cottage.dispose(); assert.equal(scene.children.length, 0);
+  cottage.update({snapshot: {world: {}}, study: 'night', calendar: {light: .25}, fixture: null});
+  cottage.dispose(); assert.deepEqual(poses.at(-1), {main: 0, second: 0, open: 0});
+  assert.equal(scene.children.length, 2, 'given up, the lights stay so no shader is rebuilt'); assert.equal(main.intensity, 0); assert.equal(second.intensity, 0);
+  cottage.dispose({final: true}); assert.equal(scene.children.length, 0);
 });
 
 test('the hearth smoke rises from the chimney while the hearth burns, and shows nothing for a study, reduced motion or no cottage', () => {
@@ -113,11 +116,17 @@ test('the hearth smoke rises from the chimney while the hearth burns, and shows 
   const [cx, cy, cz] = layout.cottage.chimney;
   for (const mesh of shown()) {
     assert.ok(mesh.position.y >= cz - 1e-9 && mesh.position.y <= cz + 6 + 1e-9, 'rises at most 6 m');
-    assert.ok(Math.abs(mesh.position.x - cx) <= .15 + 1e-9, 'wanders at most .15 m across the wind');
+    assert.ok(Math.abs(mesh.position.x - cx) <= .6 + 1e-9, 'wanders at most .6 m across the wind');
     const {opacity, tint} = mesh.material.uniforms; assert.ok(opacity.value <= .45 && opacity.value >= 0);
     assert.ok(Math.abs(tint.value.r - 209 / 255) < 1e-6);
     assert.equal(mesh.material.depthWrite, false); assert.equal(mesh.material.transparent, true);
+    assert.equal(mesh.material.fog, true); assert.ok('fogColor' in mesh.material.uniforms && /#include <fog_fragment>/.test(mesh.material.fragmentShader));
   }
+  puffs.forEach((puff, i) => {
+    const {seed} = smokePlace(puff, layout), u = group.children[i].material.uniforms;
+    assert.equal(u.seed.value, seed); assert.equal(u.age.value, puff.age);
+  });
+  assert.equal(new Set(puffs.map(p => smokePlace(p, layout).seed)).size, puffs.length, 'each puff its own ragged edge');
   assert.ok(Math.abs(shown()[0].material.uniforms.opacity.value - Math.min(smokePlace(puffs[0], layout).alpha * 9, .45)) < 1e-9);
   smoke.update({...frame, calendar: {light: 0}});
   assert.ok(Math.abs(shown()[0].material.uniforms.tint.value.r - .3 * 209 / 255) < 1e-6);
@@ -151,6 +160,22 @@ test('a rain drop is a column fixed in the world that falls at speed, leans sout
     }
   }
   assert.ok(wrapped < 12);
+});
+
+test('the rain presenter draws each streak exactly where rainDrop puts it', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), rain = PRESENTERS.rain(THREE, {scene, layout}), lines = scene.getObjectByName('rain');
+  const p = lines.geometry.attributes.position.array, length = RAIN.length;
+  for (const [eye, seconds, wind] of [[[-25, -25, 1.6], 5, .5], [[-31.4, -22.2, 1.7], 1234.567, 1], [[-25, -28, 1.5], .2, 0]]) {
+    rain.update({weather: {rain: 1, wind}, motionSeconds: seconds, camera: {position: {x: eye[0], y: eye[2], z: -eye[1]}}});
+    assert.equal(lines.geometry.drawRange.count, RAIN.count * 2, 'the open: every streak drawn, in order');
+    const lean = RAIN.slant * wind * length;
+    for (const i of [0, 1, 2, 17, 600, 1999, RAIN.count - 1]) {
+      const [x, y, z] = rainDrop(i, seconds, eye, wind), k = i * 6;
+      for (const [got, want] of [[p[k], x], [p[k + 1], z], [p[k + 2], -y], [p[k + 3], x], [p[k + 4], z - length], [p[k + 5], -y + lean]])
+        assert.ok(Math.abs(got - want) < 1e-4, `streak ${i}: ${got} against ${want}`);
+    }
+  }
+  rain.dispose();
 });
 
 test('rain falls in the open, is kept off by the roof and thinned by the oak, and shows nothing when it is not raining', () => {
@@ -214,7 +239,8 @@ test('traces darken the path and shore, fill the puddle in the sky\'s colour, an
   assert.ok(Math.abs(line.material.opacity - pose.alpha) < 1e-12);
   assert.ok(drip.top[2] - drip.fall * 1 >= terrainHeight(SPACE, drip.top[0], drip.top[1]) - 1e-9);
   traces.update({...at, motion: false}); assert.equal(line.visible, false);
-  traces.dispose(); assert.equal(scene.children.length, 0);
+  traces.update(frame); assert.notDeepEqual(wets.at(-1), {path: 0, stone: 0});
+  traces.dispose(); assert.equal(scene.children.length, 0); assert.deepEqual(wets.at(-1), {path: 0, stone: 0}, 'disposed, it leaves the yard dry');
 });
 
 import {createRipples, rippleNow} from '../public/space/life/ripples.js';
@@ -284,7 +310,7 @@ test('the bird is a small painted model that sits with its feet on its place, be
   assert.ok(Math.abs(length - layout.bird.length * DRAWN) < .01 * DRAWN, 'its length, beak to tail');
   const facing = layout.bird.locations['oak-perch'].facing, nose = new THREE.Vector3(1, 0, 0).applyQuaternion(group.quaternion);
   assert.ok(Math.abs(nose.x - Math.sin(facing)) < 1e-9 && Math.abs(-nose.z - Math.cos(facing)) < 1e-9, 'it faces as the place says');
-  assert.ok(DRAWN >= 1 && DRAWN <= 1.6);
+  assert.equal(DRAWN, 2); assert.ok(Math.abs(length - .36) < .01, 'about 36 cm long');
   const building = {snapshot: {world: {bird: createBirdState(0, true), action: {start: 0, end: 60_000}}}, now: 48_000};
   assert.equal(bird.update(birdFrame(building)), true); assert.equal(part('twig').visible, true); assert.ok(finite());
   assert.equal(bird.update(birdFrame({...building, motion: false})), true); assert.equal(part('twig').visible, false);
@@ -344,3 +370,23 @@ test('three far birds cross the sky over the lake for 23 seconds in every 135, s
   birds.dispose(); assert.equal(scene.children.length, 0);
   assert.deepEqual(Object.keys(PRESENTERS).slice(-4), ['ripples', 'bird', 'nest', 'farBirds']); assert.equal(PRESENTERS.farBirds, createFarBirds);
 });
+
+test('a real presenter that fails gives back the yard state it set: the cottage dark, the ground dry, no ripple, the cards at rest', () => quiet(warnings => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), seen = {cottage: [], wet: [], ripple: []};
+  const yard = {setCottage: v => seen.cottage.push(v), setWet: v => seen.wet.push(v), setRipple: v => seen.ripple.push(v), sky: null};
+  // one good frame, then the presenter's own update runs again and throws after it has set the yard
+  const failing = make => (T, ctx) => { const p = make(T, ctx); let runs = 0; return {update(f) { const r = p.update(f); if (++runs === 2) throw new Error('boom'); return r; }, dispose: o => p.dispose(o)}; };
+  const life = createLife(THREE, {scene, yard, layout, space: SPACE}, Object.fromEntries(['cottage', 'traces', 'ripples', 'wind'].map(n => [n, failing(PRESENTERS[n])])));
+  const frame = {snapshot: {world: {}}, now: 0, epoch: 0, study: null, motion: true, motionSeconds: 1e7 + .25, calendar: {light: .25}, weather: {rain: 0},
+    fixture: {cottagePose: {main: 1, second: .65, open: 0}, surface: surfaceFixture('rain'), coincidence: coincidenceFixture(4, 'open-water')}};
+  life.update(frame);
+  assert.deepEqual(life.status, {cottage: 'active', traces: 'active', ripples: 'active', wind: 'active'});
+  assert.equal(seen.cottage.at(-1).main, 1); assert.ok(seen.wet.at(-1).path > 0); assert.ok(seen.ripple.at(-1)); assert.ok(SWAY_UNIFORMS.windStrength.value > 0);
+  const lights = scene.children.filter(o => o.isPointLight); assert.ok(lights.some(l => l.intensity > 0));
+  life.update(frame);
+  assert.deepEqual(life.status, {cottage: 'failed', traces: 'failed', ripples: 'failed', wind: 'failed'}); assert.equal(warnings.length, 4);
+  assert.deepEqual(seen.cottage.at(-1), {main: 0, second: 0, open: 0}); assert.deepEqual(seen.wet.at(-1), {path: 0, stone: 0});
+  assert.equal(seen.ripple.at(-1), null); assert.equal(SWAY_UNIFORMS.windStrength.value, 0);
+  assert.deepEqual(scene.children.filter(o => o.isPointLight), lights, 'the dark lights stay in the scene'); assert.ok(lights.every(l => l.intensity === 0));
+  life.dispose();
+}));

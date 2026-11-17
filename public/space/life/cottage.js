@@ -32,9 +32,11 @@ export function createCottage(THREE, ctx) {
       for (const room of rooms) lights[room].intensity = pose[room] * night * BRIGHTNESS;
       return true;
     },
-    dispose() {
+    // Given up (final unset), the lights stay in the scene, dark, so the yard's shaders are not rebuilt for a changed count of
+    // lights; they leave it only when the whole life is let go with the scene.
+    dispose({final = false} = {}) {
       dark();
-      for (const light of Object.values(lights)) { scene.remove(light); light.dispose(); }
+      if (final) for (const light of Object.values(lights)) { scene.remove(light); light.dispose(); }
     },
   };
 }

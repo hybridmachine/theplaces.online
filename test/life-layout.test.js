@@ -130,15 +130,30 @@ test('the far birds and the layout itself are fixed', () => {
   assert.deepEqual(L.farBirds, {azimuth: [92 * DEG, 150 * DEG], elevation: [.14, .2], period: 135, crossing: 23});
   assert.equal(lifeLayout(), lifeLayout()); assert.equal(lifeLayout(S, D), L); assert.ok(Object.isFrozen(L) && Object.isFrozen(L.bird.routes['nest:oak-perch'].points[0]));
 });
-test('a puff of smoke leaves the chimney top, rises, drifts south and swells', () => {
-  assert.deepEqual(SMOKE, {rise: 6, drift: .12, radius: [.35, 1.4], sway: .15});
-  const [cx, cy, cz] = L.cottage.chimney, start = smokePlace({x: 0, age: 0, alpha: .05}, L);
+test('a puff of smoke leaves the chimney top, rises, drifts south, meanders more as it ages and swells', () => {
+  assert.deepEqual(SMOKE, {rise: 6, drift: .12, radius: [.35, 1.9], sway: .6});
+  const [cx, cy, cz] = L.cottage.chimney, start = smokePlace({x: 0, age: 0, alpha: .05, emitted: 1_800_000_004_000}, L);
   assert.deepEqual(start.position, [cx, cy, cz]); assert.equal(start.radius, .35); assert.equal(start.alpha, .05);
-  const mid = smokePlace({x: 10, age: .5, alpha: .07}, L), sway = SMOKE.sway * Math.sin(2.5);
+  const emitted = 1_800_000_008_000, born = emitted / 1000, mid = smokePlace({x: 10, age: .5, alpha: .07, emitted}, L);
+  const sway = .6 * .5 * (.65 * Math.sin(2.5 + born * .11) + .35 * Math.sin(1.15 - born * .047 + 1.3));
   assert.ok(Math.abs(mid.position[2] - (cz + 3)) < 1e-12);
   assert.ok(Math.abs(mid.position[1] - (cy - 1.2)) < 1e-12);       // wind is [0, -1]: 1.2 m south
-  assert.ok(Math.abs(mid.position[0] - (cx + sway)) < 1e-12 || Math.abs(mid.position[0] - (cx - sway)) < 1e-12);
-  assert.ok(Math.abs(mid.radius - (.35 + .5 * 1.05)) < 1e-12); assert.equal(mid.alpha, .07);
+  assert.ok(Math.abs(mid.position[0] - (cx + sway)) < 1e-9 || Math.abs(mid.position[0] - (cx - sway)) < 1e-9);
+  assert.ok(Math.abs(mid.radius - (.35 + 1.55 * .5 * .8)) < 1e-12); assert.equal(mid.alpha, .07);
+  assert.ok(Math.abs(smokePlace({x: 0, age: 1, alpha: 0, emitted}, L).radius - 1.9) < 1e-12);
+  // wider high up: the radius grows faster as the puff rises
+  const r = a => smokePlace({x: 0, age: a, alpha: 0, emitted}, L).radius; assert.ok(r(1) - r(.75) > r(.25) - r(0));
+  // the wander: never more than .6 m, near nothing as the puff leaves, and different for puffs born 4 s apart at one age
+  let most = 0;
+  for (let n = 0; n < 200; n++) for (const age of [.05, .3, .6, .95]) most = Math.max(most, Math.abs(smokePlace({x: 0, age, alpha: 0, emitted: n * 4000}, L).position[0] - cx));
+  assert.ok(most <= .6 && most > .4, `${most}`);
+  assert.ok(Math.abs(smokePlace({x: 0, age: .02, alpha: 0, emitted}, L).position[0] - cx) < .02);
+  const across = e => smokePlace({x: 0, age: .8, alpha: 0, emitted: e}, L).position[0];
+  assert.ok(Math.abs(across(emitted) - across(emitted + 4000)) > 1e-3);
+  // each puff its own seed in [0, 1), the same for a puff whenever it is asked
+  const seeds = Array.from({length: 16}, (_, n) => smokePlace({x: 0, age: .5, alpha: 0, emitted: emitted + n * 4000}, L).seed);
+  assert.ok(seeds.every(v => v >= 0 && v < 1)); assert.equal(new Set(seeds).size, 16);
+  assert.equal(smokePlace({x: 3, age: .9, alpha: 0, emitted}, L).seed, smokePlace({x: 0, age: .1, alpha: 0, emitted}, L).seed);
 });
 
 test('with no candidate spot (an arrival at the trunk) the layout falls back to limb tops rather than throwing', () => {

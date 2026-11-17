@@ -1,5 +1,6 @@
-// The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose()};
-// one that throws, while being built or while updating, is given up and never run again, and the rest carry on.
+// The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose(options)};
+// one that throws, while being built or while updating, is given up (disposed with no options) and never run again, and the rest
+// carry on. Disposing the life disposes each with {final: true}: the scene is going too.
 // three.js is handed in, so this runs in Node.
 import {createCottage} from './cottage.js';
 import {createWind} from './wind.js';
@@ -40,7 +41,7 @@ export function createLife(THREE, ctx, makers = PRESENTERS) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      for (const presenter of live.values()) { try { presenter.dispose(); } catch {} }
+      for (const presenter of live.values()) { try { presenter.dispose({final: true}); } catch {} }
       live.clear();
     },
   };

@@ -62,7 +62,7 @@ const nestFixture = {state: createBirdState(0, false), now: 0}, shelter = birdFi
 // 6.5 s into the 9 s flight from the oak perch to the roof: over the lawn with sky behind it. The sight keeps clear of the crown.
 const flying = at => { const f = birdFixture('Roof flight', at); return {fixture: {bird: f}, place: birdPlace(birdProgress(f.state, null, f.now), layout).position}; };
 const flightA = flying(6500), flightB = flying(6560), flightEye = p => nearer(p, .6);
-// The bird is 25 cm long: the roof perch, 22 m from the arrival, is taken from partway along the sight (the oak's perches only show from where the check finds them).
+// The bird is drawn 36 cm long: the roof perch, 22 m from the arrival, is taken from partway along the sight (the oak's perches only show from where the check finds them).
 const nearer = (p, k) => [arrivalEye[0] + (p[0] - arrivalEye[0]) * k, arrivalEye[1] + (p[1] - arrivalEye[1]) * k];
 const nestEye = aroundOak(2.5, 60), nestAt = above(layout.bird.locations.nest.point);
 const rippleShot = id => ({study: 'day', live: true, fixture: {coincidence: coincidenceFixture(4, id)}, pose: lookFrom(arrivalEye, [...layout.ripples[id].center, 0])});

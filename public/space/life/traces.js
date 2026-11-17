@@ -65,7 +65,8 @@ export function createTraces(THREE, ctx) {
       patch.visible = fill > 0;
       if (patch.visible) {
         const {zenith, horizon} = yard.sky ?? FALLBACK_SKY;
-        patch.material.color.setRGB(...[0, 1, 2].map(k => Math.min((horizon[k] + zenith[k]) / 2 * 1.02, 1)), THREE.SRGBColorSpace);
+        const mix = k => Math.min((horizon[k] + zenith[k]) / 2 * 1.02, 1);
+        patch.material.color.setRGB(mix(0), mix(1), mix(2), THREE.SRGBColorSpace);
         patch.material.opacity = fill; active = true;
       }
       drips.forEach((drip, i) => {
@@ -73,12 +74,14 @@ export function createTraces(THREE, ctx) {
         line.visible = !!pose;
         if (!pose) return;
         const z = drip.top[2] - drip.fall * pose.y, p = line.geometry.attributes.position, [x, y] = drip.top;
-        p.array.set([...toThree([x, y, z]), ...toThree([x, y, Math.min(z + DROP, drip.top[2])])]); p.needsUpdate = true;
+        p.setXYZ(0, x, z, -y); p.setXYZ(1, x, Math.min(z + DROP, drip.top[2]), -y); p.needsUpdate = true; // in three's axes
         line.material.opacity = pose.alpha; active = true;
       });
       return active;
     },
+    // the terrain's wetness outlives the presenter; leave the path and shore dry
     dispose() {
+      yard.setWet({path: 0, stone: 0});
       scene.remove(group); patch.geometry.dispose(); patch.material.dispose();
       for (const line of streaks) { line.geometry.dispose(); line.material.dispose(); }
     },
