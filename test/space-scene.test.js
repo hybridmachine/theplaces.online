@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING as D, pathLightPlan} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, openingCentre, pathLightPlan, windowSpan} from '../shared/lakeside-dressing.js';
 import {SPACE_ART, artFiles} from '../shared/lakeside-space-art.js';
 import {cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
 import {buildScene} from '../public/space/scene/index.js';
+import {GARDEN_DAY} from '../public/space/scene/garden.js';
 
 // Textures without images: enough to build and inspect geometry in Node.
 export function stubArt() {
@@ -53,11 +54,12 @@ import {eyePosition} from '../shared/walker.js';
 import {terrainHeight} from '../shared/space.js';
 const fromThree = v => [v.x, -v.z, v.y];
 
-// First surface hit by a ray from `eye` toward `target`, among the meshes of `objects` (one object or an array), left in place in the scene.
-function firstHit(objects, eye, target) {
+// First surface hit by a ray from `eye` toward `target`, among the meshes of `objects` (one object or an array), left in place in the scene,
+// no further than `far` metres.
+function firstHit(objects, eye, target, far = Infinity) {
   const list = [].concat(objects); for (const o of list) o.updateWorldMatrix(true, true);
   const origin = new THREE.Vector3(...toThree(eye)), dir = new THREE.Vector3(...toThree(target)).sub(origin).normalize();
-  const ray = new THREE.Raycaster(origin, dir); ray.params.Points = {threshold: 0};
+  const ray = new THREE.Raycaster(origin, dir, 0, far); ray.params.Points = {threshold: 0};
   const hits = [];
   for (const object of list) object.traverse(o => { if (o.isMesh) { const side = o.material.side; o.material.side = THREE.DoubleSide; hits.push(...ray.intersectObject(o, false).map(h => ({...h, side}))); o.material.side = side; } });
   hits.sort((a, b) => a.distance - b.distance);
@@ -256,6 +258,49 @@ test('the garden is drawn: boards, soil, stems and swaying leaves, on its beds',
     const v = [Math.cos(bed.yaw) * side, -Math.sin(bed.yaw) * side], p = [bed.center[0] + v[0] * 3, bed.center[1] + v[1] * 3];
     const eye = [...p, terrainHeight(S, ...p) + S.eyeHeight], {hit, dir} = firstHit(garden.getObjectByName('beds'), eye, [bed.center[0] + v[0] * bed.size[1] / 2, bed.center[1] + v[1] * bed.size[1] / 2, terrainHeight(S, ...bed.center) + .1]);
     assert.ok(hit, bed.id); assert.ok(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).dot(dir) < 0, `${bed.id} board inside out`);
+  }
+  scene.dispose();
+});
+
+test('cards scale their sway reach by sway.scale', () => {
+  const cards = cardBatch(), reach = scale => { cards.add([0, 0, 1], [.5, 0, 0], [0, 0, .5], SPACE_ART.cards.cells.dab[0], [1, 1, 1], [1, 1, 1], [0, 0, 1], false, {kind: 'crop', random: .5, scale}); };
+  reach(undefined); reach(.25);
+  const sway = cards.geometry(THREE).getAttribute('sway');
+  assert.ok(sway.getZ(0) > 0); assert.ok(Math.abs(sway.getZ(4) - sway.getZ(0) * .25) < 1e-6);
+});
+test('the garden follows the day: bare in winter, seedlings in spring, redrawn only when the day changes', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden;
+  const leaves = () => garden.getObjectByName('leaves').geometry, count = () => leaves().getAttribute('position').count;
+  const full = count(), first = leaves(); let disposed = 0; first.addEventListener('dispose', () => disposed++);
+  assert.equal(scene.setGarden(GARDEN_DAY), false); assert.equal(leaves(), first);
+  assert.equal(scene.setGarden(20), true); assert.equal(count(), 0); assert.equal(disposed, 1);
+  assert.equal(garden.getObjectByName('stems').geometry.getAttribute('position').count, 0);
+  assert.equal(scene.setGarden(150), true); assert.ok(count() > 0 && count() < full / 2);
+  for (const bad of [NaN, undefined, 12.5, '230']) { const g = leaves(); assert.equal(scene.setGarden(bad), false); assert.equal(leaves(), g); }
+  assert.equal(garden.children.length, 4);
+  scene.dispose();
+});
+test('every tenth day of four years draws finite geometry and leaves nothing behind', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden; let made = 0, gone = 0;
+  const watch = () => { for (const name of ['soil', 'stems', 'leaves']) { const g = garden.getObjectByName(name).geometry; if (!g.userData.watched) { g.userData.watched = true; made++; g.addEventListener('dispose', () => gone++); } } };
+  watch();
+  for (let day = 0; day < 4 * 365; day += 10) {
+    scene.setGarden(day); watch();
+    for (const name of ['soil', 'stems', 'leaves']) { const p = garden.getObjectByName(name).geometry.getAttribute('position'); for (let i = 0; i < p.array.length; i++) assert.ok(Number.isFinite(p.array[i]), `${name} day ${day}`); }
+  }
+  assert.equal(gone, made - 3); scene.dispose(); assert.equal(gone, made);
+});
+test('the window is never crossed: from the arrival, no part of the garden lies before it in any year', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), garden = scene.parts.garden, eye = [...S.arrival.position, terrainHeight(S, ...S.arrival.position) + S.eyeHeight];
+  const [azMin, azMax] = windowSpan(S, D), centre = openingCentre(S, D, 'window-front-left'), w = D.cabin.windows.find(x => `window-${x.id}` === 'window-front-left');
+  const range = Math.hypot(centre[0] - eye[0], centre[1] - eye[1]);
+  for (let year = 0; year < 4; year++) for (const d of [200, 230, 262, 290]) {
+    scene.setGarden(year * 365 + d); garden.updateMatrixWorld(true);
+    for (let i = 0; i <= 12; i++) for (let j = 0; j <= 8; j++) {
+      const az = azMin + (azMax - azMin) * i / 12, z = centre[2] - w.height / 2 + w.height * j / 8, target = [eye[0] + Math.sin(az) * range, eye[1] + Math.cos(az) * range, z];
+      const {hit} = firstHit(garden, eye, target, Math.hypot(range, z - eye[2]));
+      assert.ok(!hit, `year ${year} day ${d}: the garden crosses the window at bearing ${az.toFixed(3)}, height ${z.toFixed(2)}`);
+    }
   }
   scene.dispose();
 });

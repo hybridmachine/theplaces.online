@@ -103,7 +103,7 @@ export function mergeGeometries(THREE, geometries) {
 // white dabs take any colour), and the normal it is lit with. A card that moves with the wind names its `sway`: {kind (a key
 // of SWAY), random in [0, 1)}; its vertices then carry `sway` = (weight, random, reach, leaf flag), where a leaf card is held
 // at .6 along its lower edge and 1 along its upper (a grass card at 0 and 1), and reach is the kind's reach times its
-// exposure, the metres it leans at full weight in full wind. A card with no `sway` has weight 0 and never moves.
+// exposure, the metres it leans at full weight in full wind, times the card's own `sway.scale` (default 1). A card with no `sway` has weight 0 and never moves.
 export function cardBatch(art = SPACE_ART) {
   const position = [], normal = [], uv = [], color = [], swing = [], index = [];
   return {
@@ -115,7 +115,7 @@ export function cardBatch(art = SPACE_ART) {
       for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
         position.push(...toThree(V.add(V.add(centre, right, a), up, b))); normal.push(...toThree(lit));
         uv.push(u0 + du * ((flip ? -a : a) + 1) / 2, v0 + dv * (b + 1) / 2); color.push(...(b < 0 ? bottom : top));
-        swing.push(...(kind ? [b < 0 ? foot : 1, sway.random, kind.reach * kind.exposure, leaf ? 1 : 0] : [0, 0, 0, 0]));
+        swing.push(...(kind ? [b < 0 ? foot : 1, sway.random, kind.reach * kind.exposure * (sway.scale ?? 1), leaf ? 1 : 0] : [0, 0, 0, 0]));
       }
       index.push(base, base + 1, base + 2, base, base + 2, base + 3);
     },
