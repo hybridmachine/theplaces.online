@@ -20,6 +20,9 @@ const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
 const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58];
 // The front door opens inward this far (radians), over a doorway of this flat dark tone (linear).
 const DOOR_SWING = 1.45, DOORWAY = [.035, .03, .025];
+// The doorway is cut this far inside the door leaf all round, so the shut leaf covers it; it is lined with stone this deep (the
+// wall's thickness) and then dark back to a backing this far in, past the open leaf's free edge, over a floor this far above the ground.
+const HOLE_INSET = .03, REVEAL = .3, RECESS = 1.2, RECESS_FLOOR = .03;
 const shade = (colour, k) => colour.map(c => c * k);
 
 export function buildCabin(THREE, {space, dressing, art}) {
@@ -36,10 +39,62 @@ export function buildCabin(THREE, {space, dressing, art}) {
 
   const merged = list => { const g = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return g; };
 
-  // ── walls: two long faces to the eaves and two gables to just under the roof ──
+  // ── the doorway: a hole in the door's wall a little inside the door leaf, so the shut leaf covers it, lined with stone
+  // for the wall's depth and then dark back to a backing deeper than the door is wide, so the leaf swings into it in sight ──
+  const {door} = dressing.cabin, doorSide = (door.face === 'back' ? -1 : 1) * front, wallTop = a => roofZ(a, doorSide * W) - UNDER_ROOF;
+  const hole = {a0: door.along - door.width / 2 + HOLE_INSET, a1: door.along + door.width / 2 - HOLE_INSET, head: doorGround + door.height - HOLE_INSET};
+  // A point `d` metres in from the door's wall surface; the recess floor keeps a little above the ground inside, never below the threshold.
+  const recessPoint = (a, d, z) => wallPoint(doorSide, true, a, doorSide * W, z, -d);
+  const floorZ = (a, d) => { const p = recessPoint(a, d, doorGround); return Math.max(doorGround, terrainHeight(space, p[0], p[1]) + RECESS_FLOOR); };
+  const sill = a => floorZ(Math.min(hole.a1, Math.max(hole.a0, a)), 0);
+  const outward = V.scale(v, doorSide);
+
+  // ── walls: two long faces to the eaves and two gables to just under the roof; the door's wall has its hole ──
   const walls = [];
+  // The door's wall is one grid whose lines run round the hole, with the hole's cells left out; its texture coordinates are
+  // those of the whole wall as one 24 × 12 sheet (metres along each row from the wall's end, and up each column), so the stone
+  // lies as it would without the hole.
+  const frontAt = (a, t) => wallPoint(doorSide, true, a, doorSide * W, base + (wallTop(a) - base) * t);
+  const stoneUV = (a, z) => {
+    const t = (z - base) / (wallTop(a) - base), step = 2 * L / 24, n = Math.min(24, Math.ceil((a + L) / step - 1e-9));
+    let x = 0, y = 0, p = frontAt(-L, t);
+    for (let i = 1; i <= n; i++) { const q = frontAt(Math.min(a, -L + i * step), t); x += V.len(V.sub(q, p)); p = q; }
+    p = frontAt(a, 0);
+    for (let j = 1, m = Math.ceil(t * 12 - 1e-9); j <= m; j++) { const q = frontAt(a, Math.min(t, j / 12)); y += V.len(V.sub(q, p)); p = q; }
+    return [x / STONE_TILE, y / STONE_TILE];
+  };
+  const doorWall = () => {
+    const cols = [...Array.from({length: 11}, (_, i) => -L + (hole.a0 + L) * i / 11), ...Array.from({length: 4}, (_, i) => hole.a0 + (hole.a1 - hole.a0) * i / 4),
+      ...Array.from({length: 12}, (_, i) => hole.a1 + (L - hole.a1) * i / 11)];
+    // Rows from the base to the sill, the sill to the head, and the head to the eaves.
+    const bands = [[4, a => base, sill], [7, sill, () => hole.head], [2, () => hole.head, wallTop]], rows = [];
+    for (const [n, lo, hi] of bands) for (let j = rows.length ? 1 : 0; j <= n; j++) rows.push(a => lo(a) + (hi(a) - lo(a)) * j / n);
+    const ns = cols.length - 1, nt = rows.length - 1, point = (s, t) => { const a = cols[Math.round(s * ns)]; return frontAt(a, (rows[Math.round(t * nt)](a) - base) / (wallTop(a) - base)); };
+    const g = sheet(THREE, point, {ns, nt, tile: STONE_TILE, outward, colour: stoneTint});
+    const uv = g.getAttribute('uv'), index = g.index.array, keep = [];
+    for (let k = 0; k < uv.count; k++) { const a = cols[k % (ns + 1)]; uv.setXY(k, ...stoneUV(a, rows[Math.floor(k / (ns + 1))](a))); }
+    for (let k = 0; k < index.length; k += 6) {
+      const i = (k / 6) % ns, j = Math.floor(k / 6 / ns);
+      if (!(i >= 11 && i < 15 && j >= 4 && j < 11)) keep.push(...index.slice(k, k + 6));
+    }
+    g.setIndex(keep); g.computeVertexNormals();
+    return g;
+  };
+  // The hole's stone sides and head, as deep as the wall, and its dark sides, top, floor and backing behind them.
+  const jamb = (a, d0, d1) => (s, t) => { const d = d0 + (d1 - d0) * s, z = floorZ(a, d); return recessPoint(a, d, z + (hole.head - z) * t); };
+  const reveals = [], recess = [];
+  for (const [a, facing] of [[hole.a0, u], [hole.a1, V.scale(u, -1)]]) {
+    reveals.push(sheet(THREE, jamb(a, 0, REVEAL), {ns: 2, nt: 8, tile: STONE_TILE, outward: facing, colour: stoneTint}));
+    recess.push(sheet(THREE, jamb(a, REVEAL, RECESS), {ns: 2, nt: 2, outward: facing}));
+  }
+  const ceiling = (d0, d1) => (s, t) => recessPoint(hole.a0 + (hole.a1 - hole.a0) * s, d0 + (d1 - d0) * t, hole.head);
+  reveals.push(sheet(THREE, ceiling(0, REVEAL), {ns: 4, nt: 2, tile: STONE_TILE, outward: [0, 0, -1], colour: stoneTint}));
+  recess.push(sheet(THREE, ceiling(REVEAL, RECESS), {ns: 2, nt: 2, outward: [0, 0, -1]}),
+    sheet(THREE, (s, t) => { const a = hole.a0 + (hole.a1 - hole.a0) * s, d = RECESS * t; return recessPoint(a, d, floorZ(a, d)); }, {ns: 6, nt: 6, outward: [0, 0, 1]}),
+    sheet(THREE, (s, t) => { const a = hole.a0 + (hole.a1 - hole.a0) * s, z = floorZ(a, RECESS); return recessPoint(a, RECESS, z + (hole.head - z) * t); }, {ns: 2, nt: 2, outward}));
+  walls.push(doorWall(), ...reveals);
   for (const side of [-1, 1]) {
-    walls.push(sheet(THREE, (s, t) => { const a = -L + 2 * L * s, b = side * W; return wallPoint(side, true, a, b, base + (roofZ(a, b) - UNDER_ROOF - base) * t); },
+    if (side !== doorSide) walls.push(sheet(THREE, (s, t) => { const a = -L + 2 * L * s, b = side * W; return wallPoint(side, true, a, b, base + (roofZ(a, b) - UNDER_ROOF - base) * t); },
       {ns: 24, nt: 12, tile: STONE_TILE, outward: V.scale(v, side), colour: stoneTint}));
     walls.push(sheet(THREE, (s, t) => { const a = side * L, b = -W + 2 * W * s; return wallPoint(side, false, a, b, base + (roofZ(a, b) - UNDER_ROOF - base) * t); },
       {ns: 16, nt: 12, tile: STONE_TILE, outward: V.scale(u, side), colour: stoneTint}));
@@ -93,7 +148,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   // ── the door and windows: panels following the wall's surface, just proud of it, textured edge to edge. The back window
   // is a plain dark panel; each front window has its own material mixing the dark panel with the lit one by its room's light,
   // and the main room's has its casement leaf as a separate two-sided mesh hinged on its outer edge ──
-  const {door, windows} = dressing.cabin, cottage = lifeLayout(space, dressing).cottage;
+  const {windows} = dressing.cabin, cottage = lifeLayout(space, dressing).cottage;
   const openings = new THREE.Group(); openings.name = 'openings';
   const panelMaterials = {door: new THREE.MeshLambertMaterial({map: art.panels.door, side: THREE.DoubleSide}), window: new THREE.MeshLambertMaterial({map: art.panels.window})};
   // The lit panel is emitted, so lamplight is the same by day or night; the dark panel is lit by the scene and fades as the room lights.
@@ -109,12 +164,11 @@ export function buildCabin(THREE, {space, dressing, art}) {
   };
   const panel = (name, geometry, material) => { const m = new THREE.Mesh(geometry, material); m.name = name; openings.add(m); return m; };
   // The threshold height (doorGround) comes from cabinFrame, as do the panel positions the life layout anchors to.
-  // The door is a leaf hinged on one edge over a dark doorway half as proud, which the shut door covers; built about its
+  // The door is a leaf hinged on one edge over the dark recess cut into the wall, which the shut door covers; built about its
   // hinge as the casement is, it swings the other way, in.
-  const doorSheet = off => panelSheet(door.face, door.along, doorGround - .03, door.width, door.height + .03, {off});
-  const doorway = panel('doorway', doorSheet(PROUD / 2).g, new THREE.MeshBasicMaterial({color: new THREE.Color(...DOORWAY)}));
+  const doorway = panel('doorway', merged(recess), new THREE.MeshBasicMaterial({color: new THREE.Color(...DOORWAY)}));
   const frontDoor = (() => {
-    const {g, at, side} = doorSheet(PROUD);
+    const {g, at, side} = panelSheet(door.face, door.along, doorGround - .03, door.width, door.height + .03);
     const [h0, h1, free] = [at(0, 0), at(0, 1), at(1, .5)].map(p => new THREE.Vector3(...toThree(p)));
     g.translate(-h0.x, -h0.y, -h0.z);
     const axis = h1.clone().sub(h0).normalize(), out = new THREE.Vector3(...toThree(V.scale(v, side)));
@@ -124,12 +178,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
     return {mesh, axis, turn};
   })();
   // How far the front door stands open, 0 shut to 1 open.
-  // The dark doorway shows only while the door stands open, so no sliver of it shows beside the shut leaf; it is hidden by its
-  // material, as the door is its child and must stay visible.
-  const setDoor = open => {
-    frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING);
-    doorway.material.visible = open > 0;
-  };
+  const setDoor = open => frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING);
   setDoor(0);
   let leaf = null;
   for (const w of windows) {
