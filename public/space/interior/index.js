@@ -9,11 +9,13 @@ import {noise} from '../scene/noise.js';
 // wall is its two faces, 0.15 m apart, with reveals inside each opening.
 
 // The brushwork tiles every metre and a half, as on the cabin's eaves; sheets are cut finer than this so the vertex tint
-// varies smoothly across them. Tints are linear.
-const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [.86, .8, .7], BOARDS = [.42, .3, .2];
+// varies smoothly across them. Tints are linear and may pass 1: the brushwork texture is dark (about linear .33) and three's
+// Lambert divides the hemisphere light by π. Plaster also glows a pale base of its own, so its strokes are a gentle
+// variation on a pale ground rather than camouflage; boards have none and stay darker than the walls.
+const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
 const ROOF_REVEAL = .15, RAIL = .9, RAIL_THICK = .04, TREADS = 15;
-const SKY = 0xf1e6d2, GROUND = 0x6b5a48, LIGHT = 1.6, FIRST_SKY = [.83, .83, .75];
+const SKY = 0xf4ead8, GROUND = 0xd9cdb8, LIGHT = 3.1, FIRST_SKY = [.83, .83, .75];
 const tint = (base, seed, depth = .08) => p => {
   const k = 1 - depth + 2 * depth * noise((p[0] + p[2] * .6) * .7, (p[1] - p[2] * .4) * .7, seed);
   return base.map(c => c * k);
@@ -117,7 +119,7 @@ export function buildInterior(THREE, {interior: I, art}) {
   floors.push(face((s, t) => [I.door.a + (s - .5) * I.door.width, -half * t, 0], I.door.width, half, [0, 0, 1], boards));
   // the stairwell's edges between the ground ceiling and the floor above, where no wall closes them: its front, its open
   // side, and the strip of wall along a = 11
-  const band = (pt, length, outward) => floors.push(face((s, t) => pt(s, I.groundCeiling + (rise - I.groundCeiling) * t), length, rise - I.groundCeiling, outward, plaster));
+  const band = (pt, length, outward) => walls.push(face((s, t) => pt(s, I.groundCeiling + (rise - I.groundCeiling) * t), length, rise - I.groundCeiling, outward, plaster));
   band((s, z) => [well.a0 + (well.a1 - well.a0) * s, well.d0, z], well.a1 - well.a0, [0, 1, 0]);
   band((s, z) => [well.a0, well.d0 + (well.d1 - well.d0) * s, z], well.d1 - well.d0, [1, 0, 0]);
   band((s, z) => [well.a1 - half, well.d0 + (well.d1 - well.d0) * s, z], well.d1 - well.d0, [-1, 0, 0]);
@@ -140,10 +142,10 @@ export function buildInterior(THREE, {interior: I, art}) {
   for (let k = 0; k < TREADS; k++) {
     const d0 = sd0 + k * run, d1 = d0 + run, z0 = k * lift, z1 = z0 + lift;
     stair.push(face((s, t) => [sa0 + width * s, d0, z0 + lift * t], width, lift, [0, -1, 0], boards),
-      face((s, t) => [sa0 + width * s, d0 + run * t, z1], width, run, [0, 0, 1], boards),
-      face((s, t) => [sa0, d0 + run * s, z1 * t], run, z1, [-1, 0, 0], plaster));
+      face((s, t) => [sa0 + width * s, d0 + run * t, z1], width, run, [0, 0, 1], boards));
+    walls.push(face((s, t) => [sa0, d0 + run * s, z1 * t], run, z1, [-1, 0, 0], plaster));   // its plastered side, with the walls
   }
-  stair.push(face((s, t) => [sa0 + width * s, sd1, I.groundCeiling * t], width, I.groundCeiling, [0, 1, 0], plaster));
+  walls.push(face((s, t) => [sa0 + width * s, sd1, I.groundCeiling * t], width, I.groundCeiling, [0, 1, 0], plaster));
   const rail = (pt, length, outward) => stair.push(face((s, t) => pt(s, rise + RAIL * t), length, RAIL, outward, dark));
   const runD = sd1 - sd0, side = sa0 + RAIL_THICK, front = sd0 + RAIL_THICK;
   rail((s, z) => [sa0, sd0 + runD * s, z], runD, [-1, 0, 0]);                        // along a = 9.6, landing side
@@ -158,11 +160,13 @@ export function buildInterior(THREE, {interior: I, art}) {
 
   // ── assembly ──
   const merged = list => { const g = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return g; };
+  // Boards (floors, treads, rail) and plaster (walls, ceilings, the stair's plastered sides and the stairwell's bands).
   const surface = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true});
+  const plastered = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true, emissive: new THREE.Color().setRGB(...PLASTER_BASE, THREE.LinearSRGBColorSpace)});
   const glass = new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...FIRST_SKY, THREE.SRGBColorSpace)});
   const scene = new THREE.Scene(); scene.name = 'interior';
   const mesh = (name, list, material) => { const m = new THREE.Mesh(merged(list), material); m.name = name; scene.add(m); };
-  mesh('floors', floors, surface); mesh('ceilings', ceilings, surface); mesh('walls', walls, surface); mesh('stair', stair, surface); mesh('glass', panes, glass);
+  mesh('floors', floors, surface); mesh('ceilings', ceilings, plastered); mesh('walls', walls, plastered); mesh('stair', stair, surface); mesh('glass', panes, glass);
   scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   return {scene,
     // Display-space sky colours, 0–1, as the yard's setSky receives them; the glass shows the horizon.
