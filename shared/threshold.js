@@ -2,7 +2,7 @@
 // Pure rules: yard axes are x east, y north, yaw is azimuth clockwise from north; indoors `[a, d]` is used as the yard's `[x, y]`.
 import {cabinFront, doorPosition} from './lakeside-dressing.js';
 
-export const THRESHOLD = {openWithin: 1.5, enterWithin: .7, facing: Math.PI / 3, leaveBefore: .45, outside: .9, swingSeconds: .8, fadeSeconds: .6};
+export const THRESHOLD = Object.freeze({openWithin: 1.5, enterWithin: .7, facing: Math.PI / 3, leaveBefore: .45, outside: .9, swingSeconds: .8, fadeSeconds: .6});
 
 // Unit vector pointing out of the front wall (the front face's outward side, as in the dressing's facePoint).
 export function doorOutward(space) {
@@ -23,8 +23,13 @@ export function doorWanted(space, dressing, state) {
   return distance <= THRESHOLD.openWithin && (distance === 0 || angleBetween(state.yaw, [v[0] / distance, v[1] / distance]) <= THRESHOLD.facing);
 }
 
-export const entering = (space, dressing, state, input) =>
-  doorWanted(space, dressing, state) && Math.hypot(...toDoor(space, dressing, state)) <= THRESHOLD.enterWithin && input.forward > 0;
+// As strict as leaving: close, in front of the doorway (off its centre line by at most half its width) and heading in.
+export function entering(space, dressing, state, input) {
+  const v = toDoor(space, dressing, state), [ox, oy] = doorOutward(space);
+  return doorWanted(space, dressing, state) && Math.hypot(...v) <= THRESHOLD.enterWithin
+    && Math.abs(v[1] * ox - v[0] * oy) <= dressing.cabin.door.width / 2
+    && angleBetween(state.yaw, [-ox, -oy]) <= THRESHOLD.facing && input.forward > 0;
+}
 
 export function leaving(interior, state, input) {
   const {a, width} = interior.door, [sa, sd] = state.position;
