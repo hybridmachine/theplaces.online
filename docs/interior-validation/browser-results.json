@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.0781800000667572
+            1.1270400002002716
           ],
           "yaw": 0,
           "pitch": 0,
@@ -31,12 +31,12 @@
           "opacity": "1"
         },
         "darkestOpacity": 0,
-        "samples": 74
+        "samples": 76
       }
     },
     {
       "n": 34,
-      "name": "Holding W from the stair foot reaches floor 1 with the camera 3 m higher",
+      "name": "Holding W from the stair foot reaches floor 1 within 8 s, with the camera 3 m higher",
       "pass": true,
       "detail": {
         "foot": {
@@ -57,13 +57,14 @@
           "floor": 1,
           "position": [
             10.3,
-            6.038880000066753
+            5.479999999999998
           ],
           "yaw": 0,
           "pitch": 0,
           "room": "landing",
           "cameraY": 4.6,
-          "opacity": "1"
+          "opacity": "1",
+          "climbed": true
         }
       }
     },
@@ -77,20 +78,21 @@
           "floor": 1,
           "position": [
             10.3,
-            6.038880000066753
+            5.479999999999998
           ],
           "yaw": 0,
           "pitch": 0,
           "room": "landing",
           "cameraY": 4.6,
-          "opacity": "1"
+          "opacity": "1",
+          "climbed": true
         },
         "back": {
           "place": "cabin",
           "floor": 1,
           "position": [
             10.3,
-            6.038880000066753
+            5.479999999999998
           ],
           "yaw": 0,
           "pitch": 0,
@@ -104,11 +106,11 @@
           "floor": 1,
           "position": [
             10.3,
-            6.038880000066753
+            5.479999999999998
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1794971783694
+          "savedAt": 1794973120926
         }
       }
     },
@@ -172,6 +174,31 @@
           "kitchen": "kitchen",
           "sky-room": "sky room"
         }
+      }
+    },
+    {
+      "n": 39,
+      "name": "With the interior build forced to fail, standing at the door and holding W leaves the door shut and the visitor in the yard, with one warning and no page errors",
+      "pass": true,
+      "detail": {
+        "stuck": {
+          "place": "yard",
+          "position": [
+            17.788715541799945,
+            5.881958886390109
+          ],
+          "yaw": 1.2217304763960306,
+          "pitch": 0,
+          "room": null,
+          "cameraY": 3.386636402111094,
+          "opacity": "1",
+          "door": 0,
+          "insideFailed": true
+        },
+        "warnings": [
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:164:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:157:25)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:220:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:232:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+        ],
+        "pageErrors": []
       }
     }
   ],
