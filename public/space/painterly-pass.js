@@ -89,7 +89,7 @@ void main(){
   gl_FragColor=vec4(o.w>1e-9?o.rgb/o.w:centre.rgb,1.);
 }`;
 // Impasto light from the upper left on the painted strokes' edges, then the linen.
-const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel;uniform mat4 unproject,eye;uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
+const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel,waterMask;uniform mat4 unproject,eye;uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
 float h1(float x){return fract(sin(x*91.37)*43758.55);}
 float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.55);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -97,10 +97,11 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
 float L(vec4 c){return dot(c.rgb,vec3(.3,.59,.11));}
 void main(){
   float d=texture(depth,vUv).r,land=d<${SKY_DEPTH}?1.:0.;
-  // Where this pixel lies in the world: its distance, and whether it is the lake (the only surface at the water's level).
+  // Where this pixel lies in the world: its distance, and whether it is the lake (the only surface at the water's level). Indoors
+  // there is no lake (the downstairs floor lies at its height), and waterMask is 0.
   vec4 view=unproject*vec4(vUv*2.-1.,d*2.-1.,1.);view/=view.w;
   float z=length(view.xyz),near=1.-smoothstep(reach.x,reach.y,z);
-  float water=land*(1.-smoothstep(.01+z*2e-4,.03+z*4e-4,abs((eye*view).y-waterLevel)));
+  float water=waterMask*land*(1.-smoothstep(.01+z*2e-4,.03+z*4e-4,abs((eye*view).y-waterLevel)));
   // The marks laid over the paint (impasto, bristle, the weave's full depth) belong to the near and middle distance. Seen from
   // farther off, or on the water, they would stay fixed to the screen while the land moved under them, so they fade out there.
   float grain=(1.-smoothstep(grainReach.x,grainReach.y,z))*(1.-water);
@@ -179,7 +180,7 @@ export class PainterlyPass {
     this.kuwahara = material(KUWAHARA, {src: {value: this.prepared.texture}, tensor: {value: this.structure.texture}, depth: {value: this.depth},
       texel: {value: new THREE.Vector2()}, clip, reach,
       radius: {value: RADIUS}, sharpness: {value: SHARPNESS}});
-    this.canvas = material(CANVAS, {waterLevel: {value: LAKE_LEVEL}, unproject: {value: new THREE.Matrix4()}, eye: {value: new THREE.Matrix4()},
+    this.canvas = material(CANVAS, {waterLevel: {value: LAKE_LEVEL}, waterMask: {value: 1}, unproject: {value: new THREE.Matrix4()}, eye: {value: new THREE.Matrix4()},
       grainReach: {value: new THREE.Vector2(...GRAIN_REACH)}, distant: {value: new THREE.Vector2(...DISTANT)}, paint: {value: this.painted.texture}, structure: {value: this.structure.texture}, bristle: {value: BRISTLE}, scene: {value: this.sceneTarget.texture}, depth: {value: this.depth},
       texel: {value: new THREE.Vector2()}, paintSize: {value: new THREE.Vector2(1, 1)}, sceneTexel: {value: new THREE.Vector2()}, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
       weave: {value: new THREE.Vector2(WEAVE_LAND, WEAVE_SKY)}, detail: {value: new THREE.Vector2(...DETAIL)}, steps: {value: new THREE.Vector2(...IMPASTO_STEP)}, lift: {value: new THREE.Vector2(...IMPASTO_CLAMP)}});
@@ -210,8 +211,10 @@ export class PainterlyPass {
     this.canvas.uniforms.detail.value.y = this.scale < 1 ? LIGHT_NEAR_DETAIL : DETAIL[1];
     this.canvas.uniforms.dpr.value = this.pixelRatio;
   }
-  render(scene, camera) {
+  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water.
+  render(scene, camera, {water = true} = {}) {
     const {renderer} = this;
+    this.canvas.uniforms.waterMask.value = water ? 1 : 0;
     this.kuwahara.uniforms.clip.value.set(camera.near, camera.far);
     camera.updateMatrixWorld();
     this.canvas.uniforms.unproject.value.copy(camera.projectionMatrixInverse); this.canvas.uniforms.eye.value.copy(camera.matrixWorld);

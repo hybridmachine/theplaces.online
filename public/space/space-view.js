@@ -253,7 +253,7 @@ export class SpaceView {
     // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same.
     const scene = indoors ? this.inside.scene : this.scene;
     if (this.passMode === 'off' || !this.pass) this.renderer.render(scene, this.camera);
-    else this.pass.render(scene, this.camera);
+    else this.pass.render(scene, this.camera, {water: !indoors});
     // The rooms are far cheaper to draw than the yard, so frames indoors or across the door say nothing of this device's tier.
     if (this.shown && this.state.place !== 'cabin' && !this.passage?.busy) {
       const tier = this.meter.tier, next = this.meter.frame(performance.now());

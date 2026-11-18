@@ -466,13 +466,16 @@ try{
   const inside=await visitor();await inside.goto(`${base}/?check&interior=1`);await ready(inside);
   await setPose(inside,atDoor(1.45));await inside.waitForTimeout(350);await inside.screenshot(shotJpeg(`${interiorDirectory}/door-opening.jpg`));
   await inside.waitForTimeout(1200);await inside.screenshot(shotJpeg(`${interiorDirectory}/door-open.jpg`));
+  // The painterly pass masks the lake in the yard; indoors, where the downstairs floor lies at the water's height, it masks nothing.
+  const waterMask=page=>page.evaluate(()=>{const s=window.__space;return s.pass&&s.passMode!=='off'?s.pass.canvas.uniforms.waterMask.value:null;});
+  const yardMask=await waterMask(inside);
   await setPose(inside,atDoor(.6));await inside.waitForTimeout(1500);const openAngle=await doorAngle(inside);
   await inside.evaluate(()=>{window.__veil=[];window.__veilTimer=setInterval(()=>window.__veil.push(+(window.__space.canvas.style.opacity||1)),20);});
   await hold(inside,['KeyW'],900);await inside.waitForTimeout(600);
-  const entered=await indoorsState(inside),veil=await inside.evaluate(()=>{clearInterval(window.__veilTimer);return window.__veil;});
-  check('With ?interior=1 the door opens for a visitor at it; holding W fades out and in and sets them in the entry hall',
-    openAngle>1&&entered.place==='cabin'&&entered.floor===0&&entered.room==='entry hall'&&Math.min(...veil)<.5&&entered.opacity==='1',
-    {openAngle,entered,darkestOpacity:Math.min(...veil),samples:veil.length});
+  const entered=await indoorsState(inside),hallMask=await waterMask(inside),veil=await inside.evaluate(()=>{clearInterval(window.__veilTimer);return window.__veil;});
+  check('With ?interior=1 the door opens for a visitor at it; holding W fades out and in and sets them in the entry hall, where the pass masks no water',
+    openAngle>1&&entered.place==='cabin'&&entered.floor===0&&entered.room==='entry hall'&&Math.min(...veil)<.5&&entered.opacity==='1'&&yardMask===1&&hallMask===0,
+    {openAngle,entered,darkestOpacity:Math.min(...veil),samples:veil.length,yardMask,hallMask});
   await inside.screenshot(shotJpeg(`${interiorDirectory}/hall.jpg`));
 
   // 34. From the stair's foot, holding W climbs to the upper floor, the eye 3 m higher.
