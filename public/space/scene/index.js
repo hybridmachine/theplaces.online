@@ -28,6 +28,8 @@ export function buildScene(THREE, {space, dressing, art}) {
     setRipple(r) { ground.setRipple(r); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
     setCottage(pose) { cabin.setCottage(pose); },
+    // How far the cabin's front door stands open, 0 shut to 1 open (cabin.js).
+    setDoor(open) { cabin.setDoor(open); },
     // How brightly the path lights burn, 0–1 (lights.js).
     setPathLights(level) { lights.setLevel(level); },
     // The world day the garden stands at, whole days since the world began; true if it was redrawn (garden.js).

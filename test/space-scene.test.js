@@ -413,3 +413,15 @@ test('the path lights are drawn: stakes, lamps, halos and pools of light that fo
   let sources = 0; scene.group.traverse(o => { if (o.isLight) sources++; }); assert.equal(sources, 0);
   scene.dispose();
 });
+test('the front door is shut by default, swings inward when opened, and shows a dark doorway behind', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), openings = scene.parts.cabin.getObjectByName('openings');
+  const door = openings.getObjectByName('door'), doorway = openings.getObjectByName('doorway');
+  assert.ok(door && doorway && doorway.material.isMeshBasicMaterial);
+  const centre = () => { door.updateWorldMatrix(true, false); door.geometry.computeBoundingBox(); return door.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(door.matrixWorld); };
+  const shut = centre(), want = new THREE.Vector3(...toThree(openingCentre(S, D, 'door')));
+  assert.ok(shut.distanceTo(want) < .05, `shut door at its panel: ${shut.distanceTo(want)}`);
+  scene.setDoor(1); const open = centre(), cabin = new THREE.Vector3(...toThree([S.cabin.center[0], S.cabin.center[1], want.y]));
+  assert.ok(open.distanceTo(shut) > .3); assert.ok(open.distanceTo(cabin) < shut.distanceTo(cabin), 'swings inward');
+  scene.setDoor(0); assert.ok(centre().distanceTo(shut) < 1e-6);
+  scene.dispose();
+});

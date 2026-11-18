@@ -9,7 +9,7 @@ import {clamp01, hash, lin, noise, stream} from './noise.js';
 // windows as panels just proud of the wall, dark eave boards and soffits under the overhang, dabs breaking the roof's edges
 // and the corners, and shrubs at its foot.
 // Every wall, chimney, board and soffit face is wound outward and drawn single-sided; only the roof (its overhang is seen from
-// below) and the casement leaf are two-sided. World axes x east, y north, z up, metres; three is passed in. Local axes: `a` along the long axis, `b` across it.
+// below) and the casement leaf are two-sided; so is the front door, seen from either side once it swings in. World axes x east, y north, z up, metres; three is passed in. Local axes: `a` along the long axis, `b` across it.
 
 // The eaves carry the hills' loose brushwork (no joints in it) under their own dark colour.
 const BRUSH_TILE = 1.6, UNDER_ROOF = .03, FASCIA = .12, STONE_TILE = SPACE_ART.surfaces.stone.metres;
@@ -18,6 +18,8 @@ const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
 // bars at thirds of the 212 px between, on 256 px), stands this far proud of the panel, and behind it the opening shows the middle
 // pane's glass, stretched, so the room's light shows through without bars.
 const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58];
+// The front door opens inward this far (radians), over a doorway of this flat dark tone (linear).
+const DOOR_SWING = 1.45, DOORWAY = [.035, .03, .025];
 const shade = (colour, k) => colour.map(c => c * k);
 
 export function buildCabin(THREE, {space, dressing, art}) {
@@ -93,7 +95,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
   // and the main room's has its casement leaf as a separate two-sided mesh hinged on its outer edge ──
   const {door, windows} = dressing.cabin, cottage = lifeLayout(space, dressing).cottage;
   const openings = new THREE.Group(); openings.name = 'openings';
-  const panelMaterials = {door: new THREE.MeshLambertMaterial({map: art.panels.door}), window: new THREE.MeshLambertMaterial({map: art.panels.window})};
+  const panelMaterials = {door: new THREE.MeshLambertMaterial({map: art.panels.door, side: THREE.DoubleSide}), window: new THREE.MeshLambertMaterial({map: art.panels.window})};
   // The lit panel is emitted, so lamplight is the same by day or night; the dark panel is lit by the scene and fades as the room lights.
   const litMaterial = (side = THREE.FrontSide) => new THREE.MeshLambertMaterial({map: art.panels.window, emissiveMap: art.panels.windowLit, emissive: 0xffffff, emissiveIntensity: 0, side});
   const roomOf = Object.fromEntries(Object.entries(cottage.rooms).map(([room, id]) => [id, room]));
@@ -107,7 +109,22 @@ export function buildCabin(THREE, {space, dressing, art}) {
   };
   const panel = (name, geometry, material) => { const m = new THREE.Mesh(geometry, material); m.name = name; openings.add(m); return m; };
   // The threshold height (doorGround) comes from cabinFrame, as do the panel positions the life layout anchors to.
-  panel('door', panelSheet(door.face, door.along, doorGround - .03, door.width, door.height + .03).g, panelMaterials.door);
+  // The door is a leaf hinged on one edge over a dark doorway half as proud, which the shut door covers; built about its
+  // hinge as the casement is, it swings the other way, in.
+  const doorSheet = off => panelSheet(door.face, door.along, doorGround - .03, door.width, door.height + .03, {off});
+  const doorway = panel('doorway', doorSheet(PROUD / 2).g, new THREE.MeshBasicMaterial({color: new THREE.Color(...DOORWAY)}));
+  const frontDoor = (() => {
+    const {g, at, side} = doorSheet(PROUD);
+    const [h0, h1, free] = [at(0, 0), at(0, 1), at(1, .5)].map(p => new THREE.Vector3(...toThree(p)));
+    g.translate(-h0.x, -h0.y, -h0.z);
+    const axis = h1.clone().sub(h0).normalize(), out = new THREE.Vector3(...toThree(V.scale(v, side)));
+    const turn = axis.clone().cross(free.clone().sub(h0)).dot(out) >= 0 ? -1 : 1; // the way that takes the free edge in from the wall
+    const mesh = new THREE.Mesh(g, panelMaterials.door); mesh.name = 'door'; mesh.position.copy(h0);
+    doorway.add(mesh);
+    return {mesh, axis, turn};
+  })();
+  // How far the front door stands open, 0 shut to 1 open.
+  const setDoor = open => { frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING); };
   let leaf = null;
   for (const w of windows) {
     const name = `window-${w.id}`, z0 = doorGround + w.sill, material = lit[w.id] ?? panelMaterials.window;
@@ -191,7 +208,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
     mesh('chimney', merged(stack), stone), openings,
     mesh('shrubs', shrubs.geometry(THREE), cards), mesh('dabs', dabs.geometry(THREE), cards));
   setCottage({});
-  return {object, setCottage, dispose() {
+  return {object, setCottage, setDoor, dispose() {
     const materials = new Set();
     object.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
     for (const m of materials) m.dispose();
