@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lightLevels, verticalFov} from '../public/space/space-view.js';
+import {SpaceView, lightLevels, verticalFov} from '../public/space/space-view.js';
+import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
 import {canPaint} from '../public/space/painterly-pass.js';
 
@@ -63,4 +65,17 @@ test('the painterly pass needs a context that can render to half-float colour', 
   // A context that is already lost answers null for every extension, and one that throws must not break start-up.
   assert.equal(canPaint({getExtension() { throw new Error('lost'); }}), false);
   assert.equal(canPaint(null), false);
+});
+
+test('an interior that fails to build is warned of once, keeps the door shut and sets an indoor visitor down at arrival', t => {
+  const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args));
+  // No art: the build reads the brushwork texture from it and throws.
+  const view = {interior: I, art: null, space: S, inside: null, insideFailed: false,
+    state: {place: 'cabin', floor: 1, position: [3, 9], yaw: .4, pitch: .1}};
+  SpaceView.prototype.buildInside.call(view);
+  assert.equal(view.insideFailed, true); assert.equal(view.inside, null);
+  assert.deepEqual(view.state, {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch});
+  assert.equal(warnings.length, 1);
+  assert.doesNotThrow(() => SpaceView.prototype.buildInside.call(view));
+  assert.equal(warnings.length, 1, 'a second call stays quiet'); assert.equal(view.inside, null);
 });
