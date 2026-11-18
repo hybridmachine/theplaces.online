@@ -36,3 +36,62 @@ export function validInterior(I) {
   const hall = byId.get('hall'), [a, d] = I.entry.position;
   return !!hall && inside(hall, [a, d]) && a >= hall.a[0] + I.wall / 2 + I.eyeClear && d >= hall.d[0] + I.wall / 2 + I.eyeClear;
 }
+
+const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary value (11 - 9.6 is not exactly 1.4)
+
+// Inside the flight's walkable strip: the stair's width less half a wall and the eye's clearance on the wall side, its run in full.
+export const onStair = (I, [a, d]) => a >= I.stair.a[0] + I.eyeClear - EPS && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear + EPS
+  && d >= I.stair.d[0] - EPS && d <= I.stair.d[1] + EPS;
+
+// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box excluded.
+export function floorArea(I, floor, [a, d]) {
+  const c = I.wall / 2 + I.eyeClear, [d0, d1] = I.stair.d;
+  if (a >= I.stair.a[0] - I.eyeClear - EPS && a <= I.stair.a[1] + EPS && (floor === 0 ? d >= d0 - EPS && d <= d1 + I.eyeClear + EPS : d >= d0 - I.eyeClear - EPS && d <= d1 + EPS)) return false;
+  if (I.rooms.some(r => r.floor === floor && a >= r.a[0] + c - EPS && a <= r.a[1] - c + EPS && d >= r.d[0] + c - EPS && d <= r.d[1] - c + EPS)) return true;
+  return I.openings.some(o => {
+    const [across, along] = o.line === 'a' ? [a, d] : [d, a];
+    return o.floor === floor && Math.abs(across - o.at) <= c + EPS && along >= o.span[0] + I.eyeClear - EPS && along <= o.span[1] - I.eyeClear + EPS;
+  });
+}
+
+// The floor a step from a pose ends on: the stair is left at the end it reaches, and is not left through its side.
+const targetFloor = (I, from, to) => !onStair(I, from.position) ? from.floor : to[1] < I.stair.d[0] ? 0 : to[1] > I.stair.d[1] ? 1 : null;
+
+// The one rule for moving indoors; `from` is {floor, position}, `to` the wanted [a, d].
+export function canStep(I, from, to) {
+  if (onStair(I, to)) return onStair(I, from.position) || (from.floor === 0 && from.position[1] < I.stair.d[0]) || (from.floor === 1 && from.position[1] > I.stair.d[1]);
+  const floor = targetFloor(I, from, to);
+  return floor !== null && floorArea(I, floor, to);
+}
+
+// The floor (0 or 1) the visitor is on after a permitted step.
+export const floorAfter = (I, from, to) => onStair(I, to) ? from.floor : targetFloor(I, from, to);
+
+// Metres above the ground floor at that point: along the flight on the stair, else the floor's own level.
+export const indoorHeight = (I, floor, p) => onStair(I, p) ? I.floorRise * (p[1] - I.stair.d[0]) / (I.stair.d[1] - I.stair.d[0]) : floor * I.floorRise;
+
+// Every wall line of that storey (outer walls and each shared room line) cut into solid runs and opening runs.
+export function wallSegments(I, floor) {
+  const lines = new Map(), rooms = I.rooms.filter(r => r.floor === floor);
+  for (const r of rooms) for (const [axis, along] of [['a', 'd'], ['d', 'a']]) for (const at of r[axis]) {
+    const key = `${axis}${at}`;
+    if (!lines.has(key)) lines.set(key, {axis, at, edges: [], cuts: new Set()});
+    const line = lines.get(key);
+    line.edges.push(r[along]); r[along].forEach(v => line.cuts.add(v));
+  }
+  const segs = [];
+  for (const {axis, at, edges, cuts} of lines.values()) {
+    const ops = I.openings.filter(o => o.floor === floor && o.line === axis && o.at === at);
+    for (const o of ops) o.span.forEach(v => cuts.add(v));
+    const pts = [...cuts].sort((x, y) => x - y);
+    for (let i = 1; i < pts.length; i++) {
+      const [lo, hi] = [pts[i - 1], pts[i]], mid = (lo + hi) / 2;
+      if (!edges.some(([x, y]) => x <= mid && mid <= y)) continue;
+      const op = ops.find(o => o.span[0] <= mid && mid <= o.span[1]) || null, last = segs[segs.length - 1];
+      const [from, to] = axis === 'a' ? [[at, lo], [at, hi]] : [[lo, at], [hi, at]];
+      if (!op && last && !last.opening && last.axis === axis && last.at === at && last.hi === lo) { last.hi = hi; last.to = to; }
+      else segs.push({from, to, solid: !op, opening: op && op.id, axis, at, hi});
+    }
+  }
+  return segs.map(({from, to, solid, opening}) => ({from, to, solid, opening}));
+}
