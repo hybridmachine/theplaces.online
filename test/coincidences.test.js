@@ -162,3 +162,22 @@ test('the description follows the drawn ripple between label refreshes, without 
     assert.equal(announced.length,1);
   }finally{store.close();}
 });
+
+test('the description follows the room the visitor walks into between label refreshes, without a new announcement',()=>{
+  const store=new WorldStore(':memory:',epoch);
+  try{
+    const snapshot=store.snapshot(epoch+3000),now=snapshot.serverTime,described=[],announced=[];
+    const scene=new SceneDescriber({describe:text=>described.push(text),announce:text=>announced.push(text)});
+    scene.update(snapshot,now,{room:'entry hall'});
+    assert.match(described.at(-1),/^Inside the cabin, in the entry hall\./);assert.equal(announced.length,1);
+    // Frames in the same room write nothing.
+    assert.equal(scene.rendered(snapshot,now,{room:'entry hall'}),false);assert.equal(described.length,1);
+    // Each room crossed is named at once, even one passed through between refreshes, and out in the yard none is.
+    for(const room of ['living room','kitchen',null]){
+      assert.equal(scene.rendered(snapshot,now,{room}),true);
+      if(room)assert.match(described.at(-1),new RegExp(`^Inside the cabin, in the ${room}\\.`));else assert.doesNotMatch(described.at(-1),/Inside the cabin/);
+    }
+    assert.equal(scene.rendered(snapshot,now,{}),false,'no room given is the yard');
+    assert.equal(described.length,4);assert.equal(announced.length,1);
+  }finally{store.close();}
+});

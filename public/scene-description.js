@@ -25,18 +25,19 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
 }
 
 // The label timer and snapshot arrival can run before the frame that starts or
-// stops drawing a ripple. This keeps the description in step with what was drawn.
+// stops drawing a ripple, or that moves the visitor into another room. This keeps
+// the description in step with what was drawn.
 export class SceneDescriber {
-  constructor({describe,announce}){this.describe=describe;this.announce=announce;this.ripple=null;}
+  constructor({describe,announce}){this.describe=describe;this.announce=announce;this.ripple=null;this.room=undefined;}
   update(snapshot,now,options,{announce=true}={}){
     const {description,announcement}=sceneText(snapshot,now,options);
-    this.ripple=!!options.coincidenceActive;this.describe(description);
+    this.ripple=!!options.coincidenceActive;this.room=options.room??null;this.describe(description);
     if(announce)this.announce(announcement);
   }
   // Call after each frame with the rendered snapshot and its displayed time.
   // The live announcement keeps the cadence of update().
   rendered(snapshot,now,options){
-    if(!!options.coincidenceActive===this.ripple)return false;
+    if(!!options.coincidenceActive===this.ripple&&(options.room??null)===this.room)return false;
     this.update(snapshot,now,options,{announce:false});return true;
   }
 }
