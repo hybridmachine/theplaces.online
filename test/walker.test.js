@@ -75,3 +75,43 @@ test('a glide home is clear only where the straight way keeps to walkable ground
   assert.equal(glideClear(S, [9, 9], home), false, 'through the oak');
   assert.equal(glideClear(S, [30, 12], home), false, 'through the cabin');
 });
+
+import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
+import {floorArea, onStair} from '../shared/interior.js';
+import {indoorEye, stepIndoors} from '../shared/walker.js';
+
+const indoors = (state, input, seconds, dt = 1 / 30) => {
+  for (let i = 0, n = Math.round(seconds / dt); i < n; i++) state = stepIndoors(I, state, {...still, ...input}, dt);
+  return state;
+};
+const entry = {place: 'cabin', floor: 0, ...I.entry};
+const standable = s => onStair(I, s.position) || floorArea(I, s.floor, s.position);
+
+test('indoors W walks along +d from the entry at 1.4 m/s', () => {
+  const s = indoors(entry, {forward: 1}, 1);
+  assert.ok(Math.abs(s.position[1] - (I.entry.position[1] + 1.4)) < 1e-6 && s.position[0] === 9 && s.floor === 0 && s.place === 'cabin');
+});
+test('held into any wall from any heading, the visitor stays standable and on their floor', () => {
+  for (const start of [entry, {...entry, floor: 1, position: [9, 6.3]}, {...entry, position: [3.5, 3.5]}, {...entry, floor: 1, position: [3, 9]}])
+    for (let k = 0; k < 16; k++) {
+      let s = {...start, yaw: k * Math.PI / 8};
+      for (let i = 0; i < 1500; i++) { s = stepIndoors(I, s, {...still, forward: 1, fast: true}, 1 / 30); assert.ok(standable(s), `${start.position} yaw ${k} step ${i} at ${s.position} floor ${s.floor}`); }
+    }
+});
+test('up the stair to the landing, and down again', () => {
+  let s = indoors({...entry, position: [10.3, 1.2]}, {forward: 1}, 4);
+  assert.equal(s.floor, 1); assert.ok(s.position[1] > 5.4);
+  assert.ok(Math.abs(indoorEye(I, s, 1.6)[2] - 4.6) < 1e-9);
+  s = indoors({...s, yaw: Math.PI}, {forward: 1}, 4);
+  assert.equal(s.floor, 0); assert.ok(s.position[1] < 1.5);
+});
+test('turning back halfway up returns to the floor one came from', () => {
+  let s = indoors({...entry, position: [10.3, 1.2]}, {forward: 1}, 1.5);
+  assert.ok(onStair(I, s.position)); assert.ok(indoorEye(I, s, 1.6)[2] > 1.7);
+  s = indoors({...s, yaw: Math.PI}, {forward: 1}, 3);
+  assert.equal(s.floor, 0);
+});
+test('from the landing one cannot walk into the stairwell', () => {
+  const s = indoors({...entry, floor: 1, position: [9.3, 3], yaw: Math.PI / 2}, {forward: 1}, 1 / 3);
+  assert.ok(s.position[0] <= 9.6 - I.eyeClear + 1e-9 && s.floor === 1 && !onStair(I, s.position));
+});
