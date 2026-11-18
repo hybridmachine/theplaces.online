@@ -7,8 +7,10 @@ import {terrainHeight} from '../shared/space.js';
 import {eyePosition} from '../shared/walker.js';
 import {birdFixture,createBirdState,birdProgress} from '../shared/bird.js';
 import {coincidenceFixture} from '../shared/coincidences.js';
+import {doorOutward} from '../shared/threshold.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const directory=process.env.SPACE_VALIDATION_DIR||'docs/space-validation';await mkdir(directory,{recursive:true});
+const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null;
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4190';
 // Headless Chromium's default SwiftShader draws this scene at under 10 fps, below the walker's 0.1 s step cap, so the
 // walking checks would measure the software rasteriser. ANGLE uses the machine's GPU where one is available.
@@ -443,6 +445,69 @@ try{
     settled.tier==='full'&&settled.locked&&settled.passMode==='full'&&settled.rain==='active'&&costs.every(c=>c.study!=='rain'||c.rain==='active'),{costs,leftAloneUnderRain:settled});
   for(const c of costs)console.log(`  ${c.tier} ${c.study}: ${c.fps} fps (display-capped), ${c.frameMs.median} ms per frame synchronously, life update ${c.lifeMs.median} ms (slowest ${c.lifeMs.slowest}), ${c.streaks} streaks, ${c.triangles} triangles, ${c.calls} draw calls`);
   await alone.context().close();
+
+  // ── The cabin's interior, behind ?interior=1 (checks 32–38). Captures and their results go to INTERIOR_VALIDATION_DIR.
+  await mkdir(interiorDirectory,{recursive:true});interiorFrom=results.length;
+  const out=doorOutward(S),doorSpot=doorPosition(S,D),outYaw=Math.atan2(out[0],out[1]),wrapAngle=a=>Math.abs(Math.atan2(Math.sin(a),Math.cos(a)));
+  // A yard pose m metres out from the door, facing it; the door leaf's swing in radians, read from its quaternion.
+  const atDoor=m=>({place:'yard',position:[doorSpot[0]+out[0]*m,doorSpot[1]+out[1]*m],yaw:Math.atan2(-out[0],-out[1]),pitch:0});
+  const doorAngle=page=>page.evaluate(()=>{const q=window.__space.scene.getObjectByName('door').quaternion;return 2*Math.acos(Math.min(1,Math.abs(q.w)));});
+  const indoorsState=page=>page.evaluate(()=>({...structuredClone(window.__space.state),room:window.__space.room,cameraY:window.__space.camera.position.y,opacity:window.__space.canvas.style.opacity}));
+  // 32. Without ?interior=1 the door stays shut for a visitor standing at it, facing it.
+  const shut=await visitor();await shut.goto(`${base}/?check`);await ready(shut);
+  await setPose(shut,atDoor(1.2));await shut.waitForTimeout(2000);const shutAngle=await doorAngle(shut),shutBuilt=await shut.evaluate(()=>!!window.__space.inside||!!window.__space.passage);
+  await setPose(shut,atDoor(3));await shut.waitForTimeout(800);await shut.screenshot({path:`${interiorDirectory}/door-shut.png`});
+  check('Without ?interior=1, 2 s at the door facing it leaves the door shut and builds no interior',shutAngle<1e-6&&!shutBuilt,{shutAngle,shutBuilt,consoleErrors:shut.consoleErrors,pageErrors:shut.own});
+  const quietShut=!shut.consoleErrors.length&&!shut.own.length;await shut.context().close();
+
+  // 33. With it the door swings open, and holding W carries the visitor into the entry hall through a fade.
+  const inside=await visitor();await inside.goto(`${base}/?check&interior=1`);await ready(inside);
+  await setPose(inside,atDoor(1.45));await inside.waitForTimeout(350);await inside.screenshot({path:`${interiorDirectory}/door-opening.png`});
+  await inside.waitForTimeout(1200);await inside.screenshot({path:`${interiorDirectory}/door-open.png`});
+  await setPose(inside,atDoor(.6));await inside.waitForTimeout(1500);const openAngle=await doorAngle(inside);
+  await inside.evaluate(()=>{window.__veil=[];window.__veilTimer=setInterval(()=>window.__veil.push(+(window.__space.canvas.style.opacity||1)),20);});
+  await hold(inside,['KeyW'],900);await inside.waitForTimeout(600);
+  const entered=await indoorsState(inside),veil=await inside.evaluate(()=>{clearInterval(window.__veilTimer);return window.__veil;});
+  check('With ?interior=1 the door opens for a visitor at it; holding W fades out and in and sets them in the entry hall',
+    openAngle>1&&entered.place==='cabin'&&entered.floor===0&&entered.room==='entry hall'&&Math.min(...veil)<.5&&entered.opacity==='1',
+    {openAngle,entered,darkestOpacity:Math.min(...veil),samples:veil.length});
+  await inside.screenshot({path:`${interiorDirectory}/hall.png`});
+
+  // 34. From the stair's foot, holding W climbs to the upper floor, the eye 3 m higher.
+  await setPose(inside,{place:'cabin',floor:0,position:[10.3,1],yaw:0,pitch:0});await inside.waitForTimeout(300);const foot=await indoorsState(inside);
+  await hold(inside,['KeyW'],3600);await inside.waitForTimeout(300);const top=await indoorsState(inside);
+  check('Holding W from the stair foot reaches floor 1 with the camera 3 m higher',foot.floor===0&&top.floor===1&&top.room==='landing'&&Math.abs(top.cameraY-foot.cameraY-3)<.01,{foot,top});
+
+  // 35. Still on the landing, a reload returns to the same room and floor.
+  await inside.waitForTimeout(3500);const storedIndoors=await inside.evaluate(()=>JSON.parse(localStorage.getItem('a-view:place:lakeside-cottage')));
+  await inside.reload();await ready(inside);await inside.waitForTimeout(300);const back=await indoorsState(inside);
+  check('After 3.5 s still indoors, a reload returns to the same room and floor',back.place==='cabin'&&back.floor===top.floor&&back.room===top.room&&near(back,top,1e-6),{top,back,stored:storedIndoors});
+  await setPose(inside,{place:'cabin',floor:1,position:[8,1],yaw:0,pitch:0});await inside.waitForTimeout(800);await inside.screenshot({path:`${interiorDirectory}/landing.png`});
+
+  // The rooms, captured: each pose stands on that room's floor, looking across it.
+  const rooms=[['living-room',{place:'cabin',floor:0,position:[6.4,3.5],yaw:3*Math.PI/2,pitch:0},'living room'],
+    ['kitchen',{place:'cabin',floor:0,position:[6.4,7.6],yaw:-Math.PI/4+2*Math.PI,pitch:0},'kitchen'],
+    ['sky-room',{place:'cabin',floor:1,position:[6.4,7.6],yaw:-Math.PI/4+2*Math.PI,pitch:.25},'sky room']],roomsSeen={};
+  for(const [file,pose,name] of rooms){await setPose(inside,pose);await inside.waitForTimeout(800);roomsSeen[file]=(await indoorsState(inside)).room;await inside.screenshot({path:`${interiorDirectory}/${file}.png`});
+    if(roomsSeen[file]!==name)console.log(`  ${file}: expected ${name}, in ${roomsSeen[file]}`);}
+
+  // 36. The Return button from indoors fades to the arrival pose in the yard.
+  await setPose(inside,{place:'cabin',floor:1,position:[3,9],yaw:0,pitch:0});await inside.waitForTimeout(300);
+  await inside.evaluate(()=>document.querySelector('#arrival-button').click());await inside.waitForTimeout(1500);
+  const cameHome=await indoorsState(inside);
+  check('The Return button from indoors ends at the arrival pose in the yard',cameHome.place==='yard'&&near(cameHome,arrival,1e-9)&&cameHome.opacity==='1',{cameHome,arrival});
+
+  // 37. Walking out through the hall's doorway ends in the yard, facing away from the door.
+  await setPose(inside,{place:'cabin',floor:0,position:[9,1.2],yaw:Math.PI,pitch:0});await inside.waitForTimeout(300);
+  await hold(inside,['KeyW'],1200);await inside.waitForTimeout(600);const outside=await indoorsState(inside);
+  const outDistance=Math.hypot(outside.position[0]-doorSpot[0],outside.position[1]-doorSpot[1]);
+  check('Walking out through the doorway ends in the yard facing away from the door',outside.place==='yard'&&wrapAngle(outside.yaw-outYaw)<.01&&outDistance>=.85,{outside,outYaw,outDistance});
+
+  // 38. No page or console errors in any interior visitor.
+  check('No page or console errors with or without ?interior=1, and each room capture stands in its room',quietShut&&!inside.consoleErrors.length&&!inside.own.length&&rooms.every(([f,,name])=>roomsSeen[f]===name),
+    {consoleErrors:inside.consoleErrors,pageErrors:inside.own,roomsSeen});
+  await inside.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
-}finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');}
+}finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
+  if(interiorFrom!==null)await writeFile(`${interiorDirectory}/browser-results.json`,JSON.stringify({results:results.slice(interiorFrom),errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;

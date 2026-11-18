@@ -71,3 +71,11 @@ docs/space-validation/*.png
 docs/space-validation/review/*
 !docs/space-validation/review/*-full.jpg
 !docs/space-validation/review/*-plain.jpg
+
+# Regenerable interior captures; retain the five room frames.
+docs/interior-validation/*.png
+!docs/interior-validation/hall.png
+!docs/interior-validation/living-room.png
+!docs/interior-validation/kitchen.png
+!docs/interior-validation/landing.png
+!docs/interior-validation/sky-room.png

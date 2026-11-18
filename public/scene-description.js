@@ -4,7 +4,7 @@ import {cottageDescription} from '../shared/cottage.js';
 import {birdDescription} from '../shared/bird.js';
 import {sampleCoincidence} from '../shared/coincidences.js';
 
-export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false, coincidenceActive = false } = {}) {
+export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false, coincidenceActive = false, room = null } = {}) {
   const { calendar, weather } = viewConditions(snapshot.world.epoch, now, study);
   const nest = snapshot.world.nest.stage === 'built'
     ? 'A completed nest rests in the oak.'
@@ -17,7 +17,8 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
   const bird=study?'':birdDescription(snapshot.world.bird,snapshot.world.action,now,{reducedMotion,unavailable:birdUnavailable});
   const ripple=!study&&!reducedMotion&&coincidenceActive&&sampleCoincidence(snapshot.world.coincidences,now)?' A small ripple is spreading on the lake.':'';
   return {
-    description: `${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${ripple}${paused ? ' This view is paused.' : ''}`,
+    // Indoors the room comes first; the announcement keeps to the world's conditions.
+    description: `${room ? `Inside the cabin, in the ${room}. ` : ''}${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${ripple}${paused ? ' This view is paused.' : ''}`,
     // Keep the exact clock available for inspection without announcing every minute.
     announcement: `${prefix}${conditions}${disconnected ? ' Connection lost; holding the last consistent view.' : ''}`,
   };

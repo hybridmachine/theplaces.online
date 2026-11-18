@@ -2,9 +2,14 @@ import * as THREE from '../assets/vendor/three-0.170.0.module.js';
 import {toThree} from './geometry.js';
 import {loadSpaceArt} from './art-loader.js';
 import {buildScene} from './scene/index.js';
+import {buildInterior} from './interior/index.js';
+import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../../shared/lakeside-dressing.js';
-import {WALK, eyePosition, glide, glideClear, stepWalker} from '../../shared/walker.js';
+import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
+import {roomAt} from '../../shared/interior.js';
+import {doorWanted} from '../../shared/threshold.js';
+import {WALK, eyePosition, glide, glideClear, indoorEye, stepIndoors, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
@@ -27,7 +32,12 @@ const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#
   night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
 // Full overcast takes this share from the sky's light, by day and night alike; cloud takes its own share from the sun or moon.
 const OVERCAST_SHADE = .35, CLOUD_SHADE = .65;
-const pose = s => ({position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch});
+// A visitor's state: in the yard, or in the cabin on a floor. A pose with no place is in the yard.
+const pose = s => s.place === 'cabin'
+  ? {place: 'cabin', floor: s.floor, position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch}
+  : {place: 'yard', position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch};
+// The interior, until the owner approves it, only behind ?interior=1.
+const interiorSwitch = () => new URLSearchParams(location.search).get('interior') === '1' ? LAKESIDE_INTERIOR : null;
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 // The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
@@ -41,13 +51,17 @@ export function lightLevels(calendar, weather) {
 }
 
 export class SpaceView {
-  constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, sky = SCENES[0].sky, onFailure} = {}) {
-    this.canvas = canvas; this.space = space; this.dressing = dressing; this.skyConfig = sky; this.onFailure = onFailure;
+  constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, interior = interiorSwitch(), sky = SCENES[0].sky, onFailure} = {}) {
+    this.canvas = canvas; this.space = space; this.dressing = dressing; this.interior = interior; this.skyConfig = sky; this.onFailure = onFailure;
     this.state = pose(space.arrival);
     // Walking: held keys, drag deltas gathered since the last frame, an optional glide home, and the remembered place.
     this.keys = new WalkKeys(window, {blocked: () => [...document.querySelectorAll('dialog')].some(d => d.open)});
     let storage = null; try { storage = localStorage; } catch {}
-    this.memory = new PlaceMemory({storage, space});
+    this.memory = new PlaceMemory({storage, space, ...(interior ? {interior} : {})});
+    // The cabin's rooms are built when first wanted (inside: their scene; insideFailed: a build that threw, for good); the
+    // passage swings the door and carries the visitor through it.
+    this.inside = null; this.insideFailed = false;
+    this.passage = interior ? createPassage({space, dressing, interior, motion: () => this.motion}) : null;
     this.placed = false; this.look = [0, 0]; this.looked = false; this.glideFrom = null; this.glideStart = 0; this.lastStep = null;
     this.visibility = () => { if (document.hidden) this.keys.release(); };
     // Registered after WalkKeys, so a walking key tap shorter than a frame still cancels a glide.
@@ -121,6 +135,7 @@ export class SpaceView {
     this.scene = new THREE.Scene(); this.scene.fog = new THREE.FogExp2('#d3d3bf', FOG_DENSITY);
     this.camera = new THREE.PerspectiveCamera(MAX_VERTICAL_FOV, 1, .1, 4000); this.camera.rotation.order = 'YXZ';
     this.yard = buildScene(THREE, {space: this.space, dressing: this.dressing, art}); this.scene.add(this.yard.group);
+    if (this.state.place === 'cabin') this.buildInside();
     this.life = createLife(THREE, {scene: this.scene, yard: this.yard, space: this.space, dressing: this.dressing, art, layout: lifeLayout(this.space, this.dressing)});
     this.sky = new SkyDome(THREE, this.skyConfig); this.scene.add(this.sky.object3d);
     this.hemisphere = new THREE.HemisphereLight(); this.direct = new THREE.DirectionalLight(); this.scene.add(this.hemisphere, this.direct);
@@ -135,6 +150,18 @@ export class SpaceView {
     addEventListener('resize', this.resize); this.resize();
     return true;
   }
+  // The cabin's rooms, built once. A build that throws is logged once and leaves the door shut for good; a visitor
+  // remembered indoors is then set down at the arrival pose.
+  buildInside() {
+    if (this.inside || this.insideFailed || !this.interior) return;
+    try { this.inside = buildInterior(THREE, {interior: this.interior, art: this.art}); }
+    catch (error) {
+      this.insideFailed = true; console.warn("The cabin's interior could not be built; its door stays shut.", error);
+      if (this.state.place === 'cabin') this.state = pose(this.space.arrival);
+    }
+  }
+  // The name of the room the visitor is in, or null in the yard (or without the interior).
+  get room() { return this.interior && this.state.place === 'cabin' ? roomAt(this.interior, this.state.floor, this.state.position)?.name ?? null : null; }
   get birdActive() { return this.life?.status.bird === 'active'; }
   get cottageActive() { return this.life?.status.cottage === 'active'; }
   get coincidenceActive() { return this.life?.status.ripples === 'active'; }
@@ -160,6 +187,9 @@ export class SpaceView {
   }
   returnToArrival() {
     this.look = [0, 0];
+    if (this.passage?.busy) return;
+    // Indoors there is no straight way home: fade, then stand at the arrival pose.
+    if (this.state.place === 'cabin') { this.glideFrom = null; this.passage.send(pose(this.space.arrival)); return; }
     // A glide can be stopped partway, so it is taken only where the straight way home is all walkable; otherwise the visitor is set down there.
     if (this.motion && glideClear(this.space, this.state.position, this.space.arrival.position)) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
     else { this.glideFrom = null; this.state = pose(this.space.arrival); }
@@ -175,13 +205,25 @@ export class SpaceView {
     this.lastStep = t;
     const keys = this.keys.input(), walking = this.keys.moving(), look = this.look, looked = this.looked;
     this.look = [0, 0]; this.looked = false;
+    // While the passage carries the visitor across, walking and looking are ignored and the place is not recorded.
+    const crossing = this.passage?.busy ?? false;
     if (walking) this.glideFrom = null;
-    if (this.glideFrom) {
+    if (crossing) { /* held where they are */ }
+    else if (this.state.place === 'cabin') this.state = stepIndoors(this.interior, this.state, {...keys, look}, dt);
+    else if (this.glideFrom) {
       const k = (t - this.glideStart) / (WALK.glideSeconds * 1000);
-      this.state = glide(this.glideFrom, this.space.arrival, k);
+      this.state = pose(glide(this.glideFrom, this.space.arrival, k));
       if (k >= 1) this.glideFrom = null;
-    } else this.state = stepWalker(this.space, this.state, {...keys, look}, dt);
-    this.memory.note(this.state, walking || looked || this.glideFrom !== null);
+    } else this.state = pose(stepWalker(this.space, this.state, {...keys, look}, dt));
+    let moved = false;
+    if (this.passage) {
+      if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
+      const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
+      if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
+      this.yard.setDoor(this.inside ? door : 0);
+      this.canvas.style.opacity = String(1 - veil);
+    }
+    if (!this.passage?.busy) this.memory.note(this.state, walking || looked || moved || this.glideFrom !== null);
   }
   render(snapshot, now, study = null) {
     if (!this.renderer || this.disposed || this.failed || !snapshot) return;
@@ -198,17 +240,20 @@ export class SpaceView {
     if (!this.motion && this.frozenMotion === null) this.frozenMotion = realSeconds;
     const motionSeconds = this.motion ? realSeconds : this.frozenMotion;
     this.lastMotion = motionSeconds;
-    this.camera.position.set(...toThree(eyePosition(this.space, this.state)));
+    const indoors = this.state.place === 'cabin' && !!this.inside;
+    this.camera.position.set(...toThree(indoors ? indoorEye(this.interior, this.state, this.space.eyeHeight) : eyePosition(this.space, this.state)));
     this.camera.rotation.y = -this.state.yaw; this.camera.rotation.x = this.state.pitch;
     const bodies = skyBodies(c, {seed: this.skyConfig.seed, model: this.skyConfig.celestial, worldMs: celestialTime});
     const clouds = sampleCloudLayers({realSeconds, motionSeconds, weather: w, config: this.skyConfig});
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
-    this.yard.setSky({zenith, horizon});
+    this.yard.setSky({zenith, horizon}); this.inside?.setSky({zenith, horizon});
     this.yard.setGarden(this.check && Number.isInteger(this.fixture?.gardenDay) ? this.fixture.gardenDay : c.day);
     this.applyLight(c, w, bodies, horizon);
     this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null}));
-    if (this.passMode === 'off' || !this.pass) this.renderer.render(this.scene, this.camera);
-    else this.pass.render(this.scene, this.camera);
+    // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same.
+    const scene = indoors ? this.inside.scene : this.scene;
+    if (this.passMode === 'off' || !this.pass) this.renderer.render(scene, this.camera);
+    else this.pass.render(scene, this.camera);
     if (this.shown) {
       const tier = this.meter.tier, next = this.meter.frame(performance.now());
       if (next !== tier) { this.setPass(TIER_PASS[next]); this.releasePass(); }
@@ -231,13 +276,13 @@ export class SpaceView {
     this.disposed = true;
     this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
     this.media.removeEventListener('change', this.motionChanged);
-    this.canvas.removeEventListener('webglcontextlost', this.contextLost);
+    this.canvas.removeEventListener('webglcontextlost', this.contextLost); this.canvas.style.opacity = '';
     this.releaseScene(this.renderer);
   }
   // Everything init made for the GPU, given back; safe to call again.
   releaseScene(renderer) {
     removeEventListener('resize', this.resize);
-    for (const part of ['life', 'yard', 'art', 'sky', 'hemisphere', 'direct', 'pass']) { this[part]?.dispose(); this[part] = null; }
+    for (const part of ['life', 'inside', 'yard', 'art', 'sky', 'hemisphere', 'direct', 'pass']) { this[part]?.dispose(); this[part] = null; }
     renderer?.dispose(); this.renderer = null;
   }
 }
