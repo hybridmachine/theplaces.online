@@ -192,7 +192,7 @@ test('validInterior accepts the blueprint and rejects broken ones', () => {
 
 Rules to implement (the tests pin them):
 
-- `floorArea`: true when the point is inside a room of that floor shrunk by `wall/2 + eyeClear` (0.325) on every side, or inside an opening's passage: within 0.325 of the opening's line across it, and within its span shrunk by `eyeClear` at each end. In both cases false if inside the stair's shut-off box: a ≥ 9.6 − eyeClear, and d from 1.5 to 5.4 + eyeClear on floor 0 (the closed under-stair, open at the foot) or d from 1.5 − eyeClear to 5.4 on floor 1 (the railed stairwell, open at the top).
+- `floorArea`: true when the point is inside a room of that floor shrunk by `wall/2 + eyeClear` (0.325) on every side, or inside an opening's passage: within 0.325 of the opening's line across it, and within its span shrunk by `eyeClear` at each end. In both cases false if inside the stair's shut-off box: a from 9.6 − eyeClear to 11, and d from 1.5 to 5.4 + eyeClear on floor 0 (the closed under-stair, open at the foot) or d from 1.5 − eyeClear to 5.4 on floor 1 (the railed stairwell, open at the top).
 - `canStep`: if `to` is on the stair, allowed only when `from` is on the stair, or `from.floor === 0` and `from.position` d < 1.5, or `from.floor === 1` and `from.position` d > 5.4. Otherwise the target floor is `from.floor`, unless `from` is on the stair, when it is 0 for `to` d < 1.5 and 1 for `to` d > 5.4, and the step is refused for any other `to` (out through the flight's side); allowed when `floorArea(I, target, to)`.
 - `floorAfter`: `from.floor` while `to` is on the stair; otherwise the target floor above.
 - `indoorHeight`: on the stair, `floorRise × (d − 1.5) / 3.9` whatever `floor` says; otherwise `floor × floorRise`.
