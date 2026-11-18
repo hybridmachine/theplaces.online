@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {PlaceMemory, PLACE_KEY, STILL_MS} from '../public/space/place-memory.js';
 
 const store = (initial = {}) => { const m = new Map(Object.entries(initial)); let writes = 0;
@@ -18,11 +19,11 @@ test('a place is written only after three still seconds, and only once', () => {
   assert.equal(storage.writes, 0);
   now = 1000 + STILL_MS; memory.note(spot, false); now += 60_000; memory.note(spot, false);
   assert.equal(storage.writes, 1);
-  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), spot);
+  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), {place: 'yard', ...spot});
 });
 test('flush writes immediately; forget removes it', () => {
   const storage = store(), memory = new PlaceMemory({storage, space: S});
-  memory.flush(spot); assert.deepEqual(memory.load(), spot);
+  memory.flush(spot); assert.deepEqual(memory.load(), {place: 'yard', ...spot});
   memory.forget(); assert.equal(memory.load(), null); assert.equal(storage.getItem(PLACE_KEY), null);
 });
 test('anything invalid is ignored, so the visitor arrives at the painting view', () => {
@@ -50,5 +51,32 @@ test('forget stays forgotten while the visitor stands still, until they move', (
   const moved = {position: [12, 3], yaw: 2, pitch: 0};
   memory.note(moved, true); now += 1000; memory.note(moved, false); now += STILL_MS; memory.note(moved, false);
   assert.equal(storage.writes, 2);
-  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), moved);
+  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), {place: 'yard', ...moved});
+});
+
+test('an indoor place is stored as version 2 and restored with its floor', () => {
+  const storage = store(), m = new PlaceMemory({storage, space: S, interior: I});
+  m.flush({place: 'cabin', floor: 1, position: [3, 9], yaw: 1, pitch: .1});
+  const r = JSON.parse(storage.getItem(PLACE_KEY));
+  assert.equal(r.version, 2); assert.equal(r.place, 'cabin'); assert.equal(r.floor, 1);
+  assert.deepEqual(new PlaceMemory({storage, space: S, interior: I}).load(), {place: 'cabin', floor: 1, position: [3, 9], yaw: 1, pitch: .1});
+});
+test('without the interior an indoor record is ignored; a yard record still loads as version 1', () => {
+  const storage = store(); new PlaceMemory({storage, space: S, interior: I}).flush({place: 'cabin', floor: 0, position: [9, 3], yaw: 0, pitch: 0});
+  assert.equal(new PlaceMemory({storage, space: S}).load(), null);
+  const yard = store(); new PlaceMemory({storage: yard, space: S, interior: I}).flush({place: 'yard', position: [1, 1], yaw: 2, pitch: 0});
+  assert.equal(JSON.parse(yard.getItem(PLACE_KEY)).version, 1);
+  assert.deepEqual(new PlaceMemory({storage: yard, space: S}).load(), {place: 'yard', position: [1, 1], yaw: 2, pitch: 0});
+});
+test('a broken indoor record is ignored', () => {
+  for (const bad of [{floor: 2}, {floor: '0'}, {place: 'attic'}, {position: [.1, .1]}, {position: [10.3, 3], floor: 1, yaw: NaN}, {pitch: 9}]) {
+    const storage = store();
+    storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 0, position: [9, 3], yaw: 0, pitch: 0, ...bad}));
+    assert.equal(new PlaceMemory({storage, space: S, interior: I}).load(), null, JSON.stringify(bad));
+  }
+});
+test('moving between floors at the same spot counts as a change', () => {
+  const storage = store(), m = new PlaceMemory({storage, space: S, interior: I});
+  m.flush({place: 'cabin', floor: 0, position: [3, 3], yaw: 0, pitch: 0}); m.flush({place: 'cabin', floor: 1, position: [3, 3], yaw: 0, pitch: 0});
+  assert.equal(JSON.parse(storage.getItem(PLACE_KEY)).floor, 1);
 });
