@@ -1,0 +1,208 @@
+{
+  "results": [
+    {
+      "n": 32,
+      "name": "Without ?interior=1, 2 s at the door facing it leaves the door shut and builds no interior",
+      "pass": true,
+      "detail": {
+        "shutAngle": 0,
+        "shutBuilt": false,
+        "consoleErrors": [],
+        "pageErrors": []
+      }
+    },
+    {
+      "n": 33,
+      "name": "With ?interior=1 the door opens for a visitor at it; holding W fades out and in and sets them in the entry hall, where the pass masks no water",
+      "pass": true,
+      "detail": {
+        "openAngle": 1.45,
+        "entered": {
+          "place": "cabin",
+          "floor": 0,
+          "position": [
+            9,
+            1.1721199999332428
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "room": "entry hall",
+          "cameraY": 1.6,
+          "opacity": "1"
+        },
+        "darkestOpacity": 0,
+        "samples": 74,
+        "yardMask": 1,
+        "hallMask": 0
+      }
+    },
+    {
+      "n": 34,
+      "name": "Holding W from the stair foot reaches floor 1 within 8 s, with the camera 3 m higher",
+      "pass": true,
+      "detail": {
+        "foot": {
+          "place": "cabin",
+          "floor": 0,
+          "position": [
+            10.3,
+            1
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "room": "entry hall",
+          "cameraY": 1.6,
+          "opacity": "1"
+        },
+        "top": {
+          "place": "cabin",
+          "floor": 1,
+          "position": [
+            10.3,
+            5.4798600001335105
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "room": "landing",
+          "cameraY": 4.6,
+          "opacity": "1",
+          "climbed": true
+        }
+      }
+    },
+    {
+      "n": 35,
+      "name": "After 3.5 s still indoors, a reload returns to the same room and floor",
+      "pass": true,
+      "detail": {
+        "top": {
+          "place": "cabin",
+          "floor": 1,
+          "position": [
+            10.3,
+            5.4798600001335105
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "room": "landing",
+          "cameraY": 4.6,
+          "opacity": "1",
+          "climbed": true
+        },
+        "back": {
+          "place": "cabin",
+          "floor": 1,
+          "position": [
+            10.3,
+            5.4798600001335105
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "room": "landing",
+          "cameraY": 4.6,
+          "opacity": "1"
+        },
+        "stored": {
+          "version": 2,
+          "place": "cabin",
+          "floor": 1,
+          "position": [
+            10.3,
+            5.4798600001335105
+          ],
+          "yaw": 0,
+          "pitch": 0,
+          "savedAt": 1794977016485
+        }
+      }
+    },
+    {
+      "n": 36,
+      "name": "The Return button from indoors ends at the arrival pose in the yard",
+      "pass": true,
+      "detail": {
+        "cameHome": {
+          "place": "yard",
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0,
+          "room": null,
+          "cameraY": 3.346256500261598,
+          "opacity": "1"
+        },
+        "arrival": {
+          "position": [
+            0,
+            0
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "n": 37,
+      "name": "Walking out through the doorway ends in the yard facing away from the door",
+      "pass": true,
+      "detail": {
+        "outside": {
+          "place": "yard",
+          "position": [
+            17.33519877893496,
+            5.666121441029892
+          ],
+          "yaw": 4.363323129985823,
+          "pitch": 0,
+          "room": null,
+          "cameraY": 3.388589998545937,
+          "opacity": "1"
+        },
+        "outYaw": -1.9198621771937627,
+        "outDistance": 0.9
+      }
+    },
+    {
+      "n": 38,
+      "name": "No page or console errors with or without ?interior=1, and each room capture stands in its room",
+      "pass": true,
+      "detail": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "roomsSeen": {
+          "living-room": "living room",
+          "kitchen": "kitchen",
+          "sky-room": "sky room"
+        }
+      }
+    },
+    {
+      "n": 39,
+      "name": "With the interior build forced to fail, standing at the door and holding W leaves the door shut and the visitor in the yard, with one warning and no page errors",
+      "pass": true,
+      "detail": {
+        "stuck": {
+          "place": "yard",
+          "position": [
+            17.790958357623868,
+            5.87496019596045
+          ],
+          "yaw": 1.2217304763960306,
+          "pitch": 0,
+          "room": null,
+          "cameraY": 3.3851838347610266,
+          "opacity": "1",
+          "door": 0,
+          "insideFailed": true
+        },
+        "warnings": [
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:164:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:157:25)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:220:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:232:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+        ],
+        "pageErrors": []
+      }
+    }
+  ],
+  "errors": []
+}

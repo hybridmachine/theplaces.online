@@ -95,3 +95,29 @@ test('a meter can start locked at a chosen tier', () => {
   run(m, 5, 30); assert.equal(m.tier, 'light');
   assert.throws(() => createTierMeter({start: 'medium'}));
 });
+// Indoors the rooms are far cheaper to draw than the yard: their frames may step the tier down but never lock it.
+const runIndoors = (meter, fps, seconds, from = 0) => { let t = from; for (; t < from + seconds * 1000; t += 1000 / fps) meter.frame(t, {indoors: true}); return t; };
+test('slow frames indoors step the tier down, one at a time, as in the yard', () => {
+  const m = createTierMeter(); let t = runIndoors(m, 15, 6);
+  assert.equal(m.tier, 'light'); assert.equal(m.locked, false);
+  runIndoors(m, 10, 20, t); assert.equal(m.tier, 'plain'); assert.equal(m.locked, true);
+});
+test('fast frames indoors do not lock the tier, so a slow yard afterwards still steps it down', () => {
+  const m = createTierMeter(); let t = runIndoors(m, 30, 20);
+  assert.equal(m.tier, 'full'); assert.equal(m.locked, false, 'the rooms say nothing of the yard');
+  t = run(m, 15, 6, t); assert.equal(m.tier, 'light'); assert.equal(m.locked, false);
+  run(m, 28, 6, t); assert.equal(m.tier, 'light'); assert.equal(m.locked, true);
+});
+test('fast frames indoors and then a fast yard lock the full tier, as the yard alone does', () => {
+  const m = createTierMeter(); let t = runIndoors(m, 30, 20);
+  t = run(m, 30, 10, t); assert.equal(m.tier, 'full'); assert.equal(m.locked, true);
+  runIndoors(m, 5, 30, t); assert.equal(m.tier, 'full', 'never changes once locked');
+});
+test('stepping indoors or out starts a new window after settling, so neither place is measured by the other\'s frames', () => {
+  // 2 s of a slow yard, then fast rooms: the slow frames already gathered are dropped with the window.
+  const m = createTierMeter(); let t = run(m, 15, 2.9);
+  t = runIndoors(m, 30, 2, t); assert.equal(m.tier, 'full'); assert.equal(m.locked, false);
+  // Back out, the yard is measured afresh: its window fills only after settling again.
+  t = run(m, 15, 1.4, t); assert.equal(m.tier, 'full');
+  run(m, 15, 3.5, t); assert.equal(m.tier, 'light');
+});

@@ -84,7 +84,7 @@ $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light
 
 const setText=(selector,text)=>{if($(selector).textContent!==text)$(selector).textContent=text;};
 const scene=new SceneDescriber({describe:text=>setText('#scene-description',text),announce:text=>setText('#scene-announcement',text)});
-const sceneOptions=()=>({study,paused:pausedAt!==null,disconnected:client.isExpired(),staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive});
+const sceneOptions=()=>({study,paused:pausedAt!==null,disconnected:client.isExpired(),staticCottage:!painter.cottageActive,reducedMotion:!painter.motion,birdUnavailable:!painter.birdRenderer.valid,coincidenceActive:painter.coincidenceActive,room:painter.room??null});
 function accept(data){
   // WorldClient has checked ordering and anchored the shared clock before this callback.
   snapshot=data;connection='live';

@@ -13,20 +13,25 @@ const median = values => { const v = [...values].sort((a, b) => a - b), m = v.le
 // interval longer than stallMs (a stall or a hidden tab) is discarded and empties the window. If the window's median
 // interval is longer than a frame at target by more than TOLERANCE, the tier steps down one and measures again; otherwise,
 // or on plain, it locks for good. The median keeps one hitch from stepping a device down and jitter from hiding a slow one.
+// Frames drawn indoors (the cabin's rooms, far cheaper than the yard) are measured as well, but only to step down: a good
+// window indoors starts another instead of locking, so the yard still gets a window of its own. Stepping indoors or out
+// settles and starts the window afresh, so neither place is measured by the other's frames.
 export function createTierMeter({target = 24, settleMs = 1500, windowMs = 3000, stallMs = 2000, start = 'full', locked = false} = {}) {
   if (!TIERS.includes(start)) throw new Error(`Unknown tier ${start}`);
   let index = TIERS.indexOf(start), lock = locked || index === TIERS.length - 1;
-  let since = null, previous = null, frames = [], sum = 0, stalls = [];
+  let since = null, previous = null, frames = [], sum = 0, stalls = [], inside = false;
   const settle = t => { since = t; previous = null; frames = []; sum = 0; stalls = []; };
   const measured = (interval, t) => {
     if (interval > 1000 / target * TOLERANCE) { index++; if (index === TIERS.length - 1) lock = true; else settle(t); }
+    else if (inside) { frames = []; sum = 0; }
     else lock = true;
   };
   return {
     get tier() { return TIERS[index]; },
     get locked() { return lock; },
-    frame(t) {
+    frame(t, {indoors = false} = {}) {
       if (lock) return TIERS[index];
+      if (indoors !== inside) { inside = indoors; settle(t); }
       if (since === null) since = t;
       if (t - since < settleMs) return TIERS[index];
       if (previous === null) { previous = t; return TIERS[index]; }

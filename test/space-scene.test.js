@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING as D, openingCentre, pathLightPlan, windowSpan} from '../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING as D, PROUD, cabinFrame, openingCentre, pathLightPlan, windowSpan} from '../shared/lakeside-dressing.js';
 import {SPACE_ART, artFiles} from '../shared/lakeside-space-art.js';
-import {cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
+import {V, cardBatch, mergeGeometries, sheet, toThree, tube} from '../public/space/geometry.js';
 import {buildScene} from '../public/space/scene/index.js';
 import {GARDEN_DAY, buildGarden} from '../public/space/scene/garden.js';
 import {gardenState} from '../shared/garden-life.js';
@@ -83,13 +83,13 @@ function assertSolidAllRound(cabin, names) {
 }
 test('the cabin is solid from every side a visitor can stand', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
-  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney']);
+  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney', 'doorway']);
   scene.dispose();
 });
 test('the cabin is still solid from every side with its casement open', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
   scene.setCottage({main: 1, second: 1, open: 1});
-  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney', 'casement']);
+  assertSolidAllRound(scene.parts.cabin, ['walls', 'roof', 'chimney', 'doorway', 'casement']);
   scene.dispose();
 });
 test('the front windows light by their own rooms and the main room\'s casement swings outward', () => {
@@ -411,5 +411,52 @@ test('the path lights are drawn: stakes, lamps, halos and pools of light that fo
   scene.setPathLights(-1); dark(); scene.setPathLights(NaN); dark();
   // no light sources: the yard's shaders are not rebuilt for them
   let sources = 0; scene.group.traverse(o => { if (o.isLight) sources++; }); assert.equal(sources, 0);
+  scene.dispose();
+});
+test('the front door is shut by default, swings inward when opened, and shows a dark doorway behind', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), openings = scene.parts.cabin.getObjectByName('openings');
+  const door = openings.getObjectByName('door'), doorway = openings.getObjectByName('doorway');
+  assert.ok(door && doorway && doorway.material.isMeshBasicMaterial);
+  const centre = () => { door.updateWorldMatrix(true, false); door.geometry.computeBoundingBox(); return door.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(door.matrixWorld); };
+  const shut = centre(), want = new THREE.Vector3(...toThree(openingCentre(S, D, 'door')));
+  assert.ok(shut.distanceTo(want) < .05, `shut door at its panel: ${shut.distanceTo(want)}`);
+  assert.ok(doorway.material.visible && door.visible);
+  scene.setDoor(1); const open = centre(), cabin = new THREE.Vector3(...toThree([S.cabin.center[0], S.cabin.center[1], want.y]));
+  assert.ok(open.distanceTo(shut) > .3); assert.ok(open.distanceTo(cabin) < shut.distanceTo(cabin), 'swings inward');
+  assert.ok(doorway.material.visible && door.visible);
+  scene.setDoor(0); assert.ok(centre().distanceTo(shut) < 1e-6);
+  scene.dispose();
+});
+test('the front door stays in sight through its swing, over a dark recess cut into the wall, and covers the opening when shut', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin, door = cabin.getObjectByName('door');
+  const f = cabinFrame(S, D), {along, width, height} = D.cabin.door, out = V.scale(f.v, f.front);
+  const seen = ['walls', 'roof', 'openings'].map(name => cabin.getObjectByName(name)).concat(scene.parts.terrain);
+  // The leaf's middle, in world axes, wherever it has swung.
+  const middle = () => { door.updateWorldMatrix(true, false); door.geometry.computeBoundingBox(); return fromThree(door.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(door.matrixWorld)); };
+  // An eye 3 m out from a point of the door along the wall's outward normal, at eye height over the ground there.
+  const eyeOut = p => { const x = p[0] + 3 * out[0], y = p[1] + 3 * out[1]; return [x, y, terrainHeight(S, x, y) + S.eyeHeight]; };
+  const shut = middle();
+  for (const open of [.15, .3, .6, 1]) {
+    scene.setDoor(open);
+    const {hit} = firstHit(seen, eyeOut(shut), middle());
+    assert.equal(hit?.object.name, 'door', `at ${open} open the swung leaf is seen, not ${hit?.object.name}`);
+  }
+  // Fully open, the recess behind is dark all the way back: the backing and its floor, not stone, grass or the cabin's far side.
+  scene.setDoor(1);
+  for (const [s, t] of [[.5, .5], [.75, .2], [.75, .05], [.3, .9]]) {
+    const z = f.doorGround + .08 + (height - .2) * t, target = f.wallPoint(f.front, true, along + (s - .5) * width * f.front, f.front * f.W, z, -1.1);
+    const {hit} = firstHit(seen, eyeOut(shut), target);
+    assert.ok(hit?.object.name === 'doorway' || hit?.object.name === 'door', `the open doorway at ${s}, ${t} shows ${hit?.object.name}`);
+  }
+  // Shut, the leaf is the first thing seen all over its face, from straight out and from either side.
+  scene.setDoor(0);
+  for (const s of [.04, .5, .96]) for (const t of [.03, .5, .97]) {
+    const target = f.wallPoint(f.front, true, along + (s - .5) * width * f.front, f.front * f.W, f.doorGround - .03 + (height + .03) * t, PROUD);
+    for (const sway of [-2, 0, 2]) {
+      const eye = eyeOut(target), e = [eye[0] + sway * f.u[0], eye[1] + sway * f.u[1], eye[2]];
+      const {hit} = firstHit(seen, e, target);
+      assert.ok(hit?.object.name === 'door' || hit?.object.name === 'terrain', `the shut door at ${s}, ${t} from ${sway} m aside shows ${hit?.object.name}`);
+    }
+  }
   scene.dispose();
 });

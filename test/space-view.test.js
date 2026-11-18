@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lightLevels, verticalFov} from '../public/space/space-view.js';
+import {SpaceView, lightLevels, verticalFov} from '../public/space/space-view.js';
+import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
+import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
-import {canPaint} from '../public/space/painterly-pass.js';
+import {PainterlyPass, canPaint} from '../public/space/painterly-pass.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -63,4 +65,31 @@ test('the painterly pass needs a context that can render to half-float colour', 
   // A context that is already lost answers null for every extension, and one that throws must not break start-up.
   assert.equal(canPaint({getExtension() { throw new Error('lost'); }}), false);
   assert.equal(canPaint(null), false);
+});
+
+test('the painterly pass masks the lake in the yard and nothing indoors, where the downstairs floor lies at the water\'s height', async () => {
+  const THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
+  const drawn = [], renderer = {setRenderTarget() {}, render(scene) { drawn.push(scene); }};
+  const pass = new PainterlyPass(THREE, renderer), scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();
+  const mask = () => pass.canvas.uniforms.waterMask.value;
+  assert.match(pass.canvas.fragmentShader, /float water=waterMask\*land\*/);
+  pass.render(scene, camera); assert.equal(mask(), 1);
+  pass.render(scene, camera, {water: false}); assert.equal(mask(), 0);
+  pass.render(scene, camera, {water: true}); assert.equal(mask(), 1);
+  pass.render(scene, camera, {water: false}); pass.render(scene, camera); assert.equal(mask(), 1, 'the yard is masked again by default');
+  assert.equal(drawn.filter(x => x === scene).length, 5);
+  pass.dispose();
+});
+
+test('an interior that fails to build is warned of once, keeps the door shut and sets an indoor visitor down at arrival', t => {
+  const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args));
+  // No art: the build reads the brushwork texture from it and throws.
+  const view = {interior: I, art: null, space: S, inside: null, insideFailed: false,
+    state: {place: 'cabin', floor: 1, position: [3, 9], yaw: .4, pitch: .1}};
+  SpaceView.prototype.buildInside.call(view);
+  assert.equal(view.insideFailed, true); assert.equal(view.inside, null);
+  assert.deepEqual(view.state, {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch});
+  assert.equal(warnings.length, 1);
+  assert.doesNotThrow(() => SpaceView.prototype.buildInside.call(view));
+  assert.equal(warnings.length, 1, 'a second call stays quiet'); assert.equal(view.inside, null);
 });

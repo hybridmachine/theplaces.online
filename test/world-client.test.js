@@ -132,6 +132,9 @@ test('precise time remains readable without a live announcement on every clock u
     const night = sceneText(committed, committed.serverTime, { study: 'night' });
     assert.match(night.announcement, /Night/);
     assert.doesNotMatch(night.announcement, /\d\d:\d\d/);
+    assert.ok(sceneText(data, epoch, {room: 'study'}).description.startsWith('Inside the cabin, in the study. '));
+    assert.ok(!sceneText(data, epoch).description.startsWith('Inside'));
+    assert.equal(sceneText(data, epoch, {room: 'study'}).announcement, sceneText(data, epoch).announcement);
   } finally { store.close(); }
 });
 
