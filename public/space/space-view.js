@@ -254,7 +254,8 @@ export class SpaceView {
     const scene = indoors ? this.inside.scene : this.scene;
     if (this.passMode === 'off' || !this.pass) this.renderer.render(scene, this.camera);
     else this.pass.render(scene, this.camera);
-    if (this.shown) {
+    // The rooms are far cheaper to draw than the yard, so frames indoors or across the door say nothing of this device's tier.
+    if (this.shown && this.state.place !== 'cabin' && !this.passage?.busy) {
       const tier = this.meter.tier, next = this.meter.frame(performance.now());
       if (next !== tier) { this.setPass(TIER_PASS[next]); this.releasePass(); }
     }
