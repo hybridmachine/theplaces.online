@@ -124,7 +124,13 @@ export function buildCabin(THREE, {space, dressing, art}) {
     return {mesh, axis, turn};
   })();
   // How far the front door stands open, 0 shut to 1 open.
-  const setDoor = open => { frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING); };
+  // The dark doorway shows only while the door stands open, so no sliver of it shows beside the shut leaf; it is hidden by its
+  // material, as the door is its child and must stay visible.
+  const setDoor = open => {
+    frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING);
+    doorway.material.visible = open > 0;
+  };
+  setDoor(0);
   let leaf = null;
   for (const w of windows) {
     const name = `window-${w.id}`, z0 = doorGround + w.sill, material = lit[w.id] ?? panelMaterials.window;

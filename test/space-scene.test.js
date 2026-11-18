@@ -420,8 +420,10 @@ test('the front door is shut by default, swings inward when opened, and shows a 
   const centre = () => { door.updateWorldMatrix(true, false); door.geometry.computeBoundingBox(); return door.geometry.boundingBox.getCenter(new THREE.Vector3()).applyMatrix4(door.matrixWorld); };
   const shut = centre(), want = new THREE.Vector3(...toThree(openingCentre(S, D, 'door')));
   assert.ok(shut.distanceTo(want) < .05, `shut door at its panel: ${shut.distanceTo(want)}`);
+  assert.equal(doorway.material.visible, false, 'no dark doorway shows beside the shut door'); assert.ok(door.visible);
   scene.setDoor(1); const open = centre(), cabin = new THREE.Vector3(...toThree([S.cabin.center[0], S.cabin.center[1], want.y]));
   assert.ok(open.distanceTo(shut) > .3); assert.ok(open.distanceTo(cabin) < shut.distanceTo(cabin), 'swings inward');
-  scene.setDoor(0); assert.ok(centre().distanceTo(shut) < 1e-6);
+  assert.equal(doorway.material.visible, true, 'the dark doorway shows behind the open door'); assert.ok(door.visible);
+  scene.setDoor(0); assert.ok(centre().distanceTo(shut) < 1e-6); assert.equal(doorway.material.visible, false);
   scene.dispose();
 });
