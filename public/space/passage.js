@@ -27,7 +27,8 @@ export function createPassage({space, dressing, interior, motion}) {
       }
       crossing.start ??= seconds;
       // Without motion the crossing is a cut: moved at once, no veil.
-      if (!motion()) { const move = crossing.to; crossing = null; return {door, veil: 0, move}; }
+      // A crossing already moved (motion turned off while fading in) is not moved again.
+      if (!motion()) { const move = crossing.movedAt === null ? crossing.to : null; crossing = null; return {door, veil: 0, move}; }
       const half = THRESHOLD.fadeSeconds / 2;
       if (crossing.movedAt === null) {
         if (seconds - crossing.start < half) return {door, veil: (seconds - crossing.start) / half, move: null};

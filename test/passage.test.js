@@ -43,3 +43,12 @@ test('send carries the visitor to any pose through the same fade', () => {
   p.send(home); assert.ok(p.busy);
   assert.deepEqual(run(p, {place: 'cabin', floor: 1, position: [3, 9], yaw: 0, pitch: 0}, {forward: 0}, 0, 1).moves, [home]);
 });
+test('turning motion off part-way through a crossing moves the visitor only once', () => {
+  let motion = true; const p = createPassage({space: S, dressing: D, interior: I, motion: () => motion});
+  run(p, yard(.6), {forward: 0}, 0, 2);
+  const first = run(p, yard(.6), {forward: 1}, 2, 2 + T.fadeSeconds / 2 + .05);
+  assert.equal(first.moves.length, 1, 'moved at black'); assert.ok(p.busy, 'still fading in');
+  motion = false;
+  const rest = run(p, insidePose(I), {forward: 0}, 2 + T.fadeSeconds / 2 + .05 + 1 / 30, 4);
+  assert.deepEqual(rest.moves, []); assert.ok(!p.busy); assert.equal(rest.last.veil, 0);
+});
