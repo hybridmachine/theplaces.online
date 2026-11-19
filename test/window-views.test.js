@@ -96,12 +96,18 @@ test('a pane behind the visitor, or seen from its outward side, has no share', (
   assert.ok(screenShare(living, V(eyeOf(0, p), Math.PI)) > .01);
   assert.equal(screenShare(living, V(eyeOf(0, p), 0)), 0);            // looking away
   assert.equal(screenShare(living, V([living.centre[0], -2, 1.6], Math.PI)), 0);   // outside, seen from its outward side
-  assert.equal(screenShare(living, V(eyeOf(0, p), Math.PI, 0, 1.2, 1.6)) <= 1, true);
+  assert.ok(screenShare(living, V(eyeOf(0, p), Math.PI)) < .5);   // a window across a room is a part of the view, not all of it
 });
 
-test('a pane some of whose corners are behind the eye counts as filling the screen', () => {
-  const living = by('living'), a = living.centre[0];
-  assert.equal(screenShare(living, V([a, living.centre[1] + .05, 1.6], Math.PI)), 1);
+test('a pane beside the visitor that does not reach the screen has no share', () => {
+  const living = by('living'), p = [living.centre[0], 3], v = V(eyeOf(0, p), 3 * Math.PI / 2);   // facing the fireplace wall, level with the window
+  assert.equal(screenShare(living, v), 0);
+  assert.ok(!live(at(0, p), v).includes('living'));
+});
+
+test('standing right against a pane and looking through it, it nearly fills the screen', () => {
+  const living = by('living'), eye = [living.centre[0], living.centre[1] + .2, living.centre[2]];
+  assert.ok(screenShare(living, V(eye, Math.PI)) > .9);
 });
 
 test('the door counts only while it stands open', () => {
@@ -112,7 +118,8 @@ test('the door counts only while it stands open', () => {
 
 test('upstairs windows are not live from a ground floor room, but are from the hall and landing', () => {
   const p = [4.2, 3];
-  assert.ok(live(at(0, p), V(eyeOf(0, p), Math.PI, 1.2)).every(id => by(id).floor === 0));
+  const here = live(at(0, p), V(eyeOf(0, p), Math.PI));
+  assert.ok(here.length > 0 && here.every(id => by(id).floor === 0), `${here}`);
   const h = [9, 3.5], up = live(at(0, h), V(eyeOf(0, h), 0, 1.2, 2, 3)).filter(id => by(id).floor === 1);
   assert.ok(up.length > 0, 'a hall visitor looking up the stairwell sees upstairs openings');
   const l = [9, 3.5], down = live(at(1, l), V(eyeOf(1, l), Math.PI, -.5, 2, 3));   // from the landing, looking down towards the front
