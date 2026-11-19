@@ -80,3 +80,9 @@ test('moving between floors at the same spot counts as a change', () => {
   m.flush({place: 'cabin', floor: 0, position: [3, 3], yaw: 0, pitch: 0}); m.flush({place: 'cabin', floor: 1, position: [3, 3], yaw: 0, pitch: 0});
   assert.equal(JSON.parse(storage.getItem(PLACE_KEY)).floor, 1);
 });
+
+test('a remembered place inside the door leaf falls back to the arrival pose', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 0, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at([8.5, .5]), null);
+  assert.deepEqual(at([9, .8]).position, [9, .8]);
+});

@@ -96,3 +96,17 @@ test('wall segments cover every wall line once, with each opening as one run', (
     assert.ok(Math.abs(outer.reduce((n, s) => n + len(s), 0) - 60) < 1e-9);
   }
 });
+
+test('the open door leaf is an obstacle and the interior is still valid', () => {
+  assert.equal(validInterior(I), true);
+  for (const p of [[8.5, .5], [8.5 - .27, .5], [8.5 + .27, .5], [8.5, 1.2]]) assert.equal(floorArea(I, 0, p), false, `${p}`);
+  assert.equal(floorArea(I, 0, [9, .8]), true);
+  assert.equal(floorArea(I, 0, [8.5, 1.4]), true, 'beyond the leaf\'s free end');
+  assert.equal(floorArea(I, 1, [8.5, .5]), floorArea({...I, doorLeaf: undefined}, 1, [8.5, .5]));
+});
+test('a leaf hinged on the stair side, or shutting the cabin in two, is invalid', () => {
+  assert.equal(validInterior({...I, doorLeaf: {...I.doorLeaf, a: 9.5}}), false);
+  assert.equal(validInterior({...I, doorLeaf: undefined}), false);
+  assert.equal(validInterior({...I, doorLeaf: {...I.doorLeaf, d: [0, 13]}}), false, 'a leaf across the whole cabin walls off the living room');
+  assert.equal(validInterior({...I, doorLeaf: {...I.doorLeaf, thick: 0}}), false);
+});

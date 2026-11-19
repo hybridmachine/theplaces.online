@@ -33,8 +33,30 @@ export function validInterior(I) {
     const r = byId.get(win.room);
     if (!r || win.a - win.width / 2 < r.a[0] + I.wall || win.a + win.width / 2 > r.a[1] - I.wall) return false;
   }
-  const hall = byId.get('hall'), [a, d] = I.entry.position;
-  return !!hall && inside(hall, [a, d]) && a >= hall.a[0] + I.wall / 2 + I.eyeClear && d >= hall.d[0] + I.wall / 2 + I.eyeClear;
+  const hall = byId.get('hall'), [a, d] = I.entry.position, leaf = I.doorLeaf;
+  if (!hall || !inside(hall, [a, d]) || a < hall.a[0] + I.wall / 2 + I.eyeClear || d < hall.d[0] + I.wall / 2 + I.eyeClear) return false;
+  if (!leaf || !Array.isArray(leaf.d) || !(leaf.d[0] < leaf.d[1]) || !(leaf.thick > 0) || Math.abs(leaf.a - (I.door.a - I.door.width / 2)) > 1e-9) return false;
+  return leafLeavesWayOpen(I, byId);
+}
+
+// With the open leaf in place the entry spot is still standable and joins every ground-floor opening of the hall and the stair foot:
+// a flood over a 0.1 m grid of the ground floor's standable points.
+function leafLeavesWayOpen(I, byId) {
+  const N = 10, nA = I.size[0] * N, nD = I.size[1] * N, id = (i, j) => i * (nD + 1) + j;
+  const at = (i, j) => [i / N, j / N], ok = (i, j) => i >= 0 && j >= 0 && i <= nA && j <= nD && floorArea(I, 0, at(i, j));
+  const i0 = Math.round(I.entry.position[0] * N), j0 = Math.round(I.entry.position[1] * N);
+  if (!ok(i0, j0)) return false;
+  const reached = new Set([id(i0, j0)]), todo = [[i0, j0]];
+  while (todo.length) {
+    const [i, j] = todo.pop();
+    for (const [x, y] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (!reached.has(id(x, y)) && ok(x, y)) { reached.add(id(x, y)); todo.push([x, y]); }
+  }
+  const hit = fn => { for (const k of reached) if (fn(at(Math.floor(k / (nD + 1)), k % (nD + 1)))) return true; return false; };
+  const [d0] = I.stair.d, foot = ([a, d]) => a >= I.stair.a[0] + I.eyeClear && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear && d < d0 && d > d0 - .15;
+  return I.openings.filter(o => o.floor === 0 && o.rooms.includes('hall')).every(o => hit(([a, d]) => {
+    const [across, along] = o.line === 'a' ? [a, d] : [d, a];
+    return Math.abs(across - o.at) <= I.wall / 2 && along >= o.span[0] && along <= o.span[1];
+  })) && hit(foot);
 }
 
 const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary value (11 - 9.6 is not exactly 1.4)
@@ -43,9 +65,11 @@ const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary v
 export const onStair = (I, [a, d]) => a >= I.stair.a[0] + I.eyeClear - EPS && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear + EPS
   && d >= I.stair.d[0] - EPS && d <= I.stair.d[1] + EPS;
 
-// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box excluded.
+// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box and
+// the open door leaf (ground floor) excluded.
 export function floorArea(I, floor, [a, d]) {
-  const c = I.wall / 2 + I.eyeClear, [d0, d1] = I.stair.d;
+  const c = I.wall / 2 + I.eyeClear, [d0, d1] = I.stair.d, leaf = I.doorLeaf;
+  if (floor === 0 && leaf && Math.hypot(a - leaf.a, d - Math.min(Math.max(d, leaf.d[0]), leaf.d[1])) <= leaf.thick / 2 + I.eyeClear + EPS) return false;   // the open door leaf
   if (a >= I.stair.a[0] - I.eyeClear - EPS && a <= I.stair.a[1] + EPS && (floor === 0 ? d >= d0 - EPS && d <= d1 + I.eyeClear + EPS : d >= d0 - I.eyeClear - EPS && d <= d1 + EPS)) return false;
   if (I.rooms.some(r => r.floor === floor && a >= r.a[0] + c - EPS && a <= r.a[1] - c + EPS && d >= r.d[0] + c - EPS && d <= r.d[1] - c + EPS)) return true;
   return I.openings.some(o => {

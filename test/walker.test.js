@@ -77,7 +77,7 @@ test('a glide home is clear only where the straight way keeps to walkable ground
 });
 
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {floorArea, onStair} from '../shared/interior.js';
+import {floorArea, onStair, validInterior} from '../shared/interior.js';
 import {indoorEye, stepIndoors} from '../shared/walker.js';
 
 const indoors = (state, input, seconds, dt = 1 / 30) => {
@@ -114,4 +114,24 @@ test('turning back halfway up returns to the floor one came from', () => {
 test('from the landing one cannot walk into the stairwell', () => {
   const s = indoors({...entry, floor: 1, position: [9.3, 3], yaw: Math.PI / 2}, {forward: 1}, 1 / 3);
   assert.ok(s.position[0] <= 9.6 - I.eyeClear + 1e-9 && s.floor === 1 && !onStair(I, s.position));
+});
+
+test('holding W into the open door leaf from either side never crosses it', () => {
+  for (const [start, yaw, side] of [[[9, .8], -Math.PI / 2, 1], [[8, .6], Math.PI / 2, -1]]) {
+    let s = {...entry, position: start, yaw};
+    for (let i = 0; i < 150; i++) {
+      s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+      assert.ok(Math.sign(s.position[0] - 8.5) === side || s.position[1] >= 1, `crossed at ${s.position}`);
+      assert.ok(standable(s));
+    }
+    assert.ok(Math.abs(s.position[0] - 8.5) >= .27, `stopped at the leaf: ${s.position}`);
+  }
+});
+test('the living room, the study and the stair are all still reached from the entry spot', () => {
+  const study = indoors({...entry, yaw: Math.PI / 2}, {forward: 1}, 2);   // east from the entry spot, through the study door
+  assert.ok(study.position[0] > 11.5 && study.floor === 0 && standable(study));
+  const toLiving = indoors({...entry, position: [8, 3.5], yaw: -Math.PI / 2}, {forward: 1}, 2);
+  assert.ok(toLiving.position[0] < 6.5 && toLiving.floor === 0);
+  const up = indoors({...entry, position: [10.3, 1.0], yaw: 0}, {forward: 1}, 4);
+  assert.equal(up.floor, 1);
 });
