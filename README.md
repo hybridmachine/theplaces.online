@@ -203,6 +203,7 @@ The yard is built to look painted: ground, lake, drystone wall, the stone cabin 
 - **W A S D** walk; hold **Shift** to walk faster. Walking follows key positions, not letters: on other layouts use the keys in the same places, such as **Z Q S D** on French AZERTY. Where the browser reports the keyboard layout (Chromium), the on-screen hint names the keys as printed; elsewhere it says W A S D.
 - The **arrow keys** turn and tilt: left and right turn, up and down tilt. **Q** and **E** also turn, and dragging looks around.
 - The **Return** button goes back to the painting's view.
+- With `?interior=1` the cabin's door opens and its rooms can be walked; the windows and the open door now show the live yard outside, drawn into the frame itself (at most three at once on `full`, two on `light` and `plain`).
 - Standing still for a few seconds remembers where you stopped, in this browser only; the next visit starts there. **Forget visit memory** in Field notes also forgets the place. Your position never reaches the server.
 
 Without WebGL2, if any file of the art bundle is missing or broken, or if the 3D context is lost, the page returns to the painting.
