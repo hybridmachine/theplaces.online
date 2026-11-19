@@ -112,24 +112,38 @@ function crosses(p, q, {from, to}) {
   return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9;
 }
 
-// Whether the eye can see the pane past the interior walls: at least one of five plan sight lines, from the eye to the pane (its
-// centre and four points spread along its width, or for a roof pane along its width and its slope), crosses no solid wall run of the
-// pane's floor. Each line stops 0.05 m short of the pane. Another floor's pane (seen up or down the stairwell) is not judged.
+// Whether the 3D sight line from the eye to p passes between the floors only through the stairwell: where it crosses the ground
+// floor's ceiling and the upper floor's level, both points lie inside the well's rectangle. A height the line does not reach (an eye
+// on the flight, between the two) asks nothing of it.
+function throughWell(I, eye, p) {
+  return [I.groundCeiling, I.floorRise].every(h => {
+    if ((eye[2] - h) * (p[2] - h) > 0) return true;
+    const u = (h - eye[2]) / (p[2] - eye[2]), a = eye[0] + (p[0] - eye[0]) * u, d = eye[1] + (p[1] - eye[1]) * u;
+    return a > I.stair.a[0] && a < I.stair.a[1] && d > I.stair.d[0] && d < I.stair.d[1];
+  });
+}
+
+// Whether the eye ([a, d, z]) can see the pane. On the pane's own floor, past the interior walls: at least one plan sight line from
+// the eye to one of the pane's targets (points spread across it) crosses no solid wall run of that floor, each line stopping 0.05 m
+// short of the pane. A pane on the other floor is seen only up or down the stairwell: at least one 3D line from the eye to a target
+// passes the floor between them inside the well (throughWell).
 export function inSight(o, interior, state, eye) {
-  if (o.floor !== state.floor) return true;
-  const runs = hidingRuns(interior, o.floor), roof = o.kind === 'roof';
-  // 13 targets evenly across +-0.98 of the width; a roof pane is a 5 x 3 grid, five across and three up its slope (plan part of `up`).
+  // A 13 x 3 grid, thirteen evenly across +-0.98 of the width and three up it (foot, middle, head: the same in plan, apart for a
+  // line up or down the well); a roof pane is a 5 x 3 grid, five across and three up its slope.
   const across = (n, k = .98) => Array.from({length: n}, (_, i) => (i / (n - 1) * 2 - 1) * k);
-  const spread = roof ? across(5).flatMap(s => [-.98, 0, .98].map(t => [s, t])) : across(13).map(s => [s, 0]);
-  return spread.some(([s, t]) => {
-    const x = o.centre[0] + s * o.half[0] * o.across[0] + t * o.half[1] * o.up[0], y = o.centre[1] + s * o.half[0] * o.across[1] + t * o.half[1] * o.up[1];
+  const spread = across(o.kind === 'roof' ? 5 : 13).flatMap(s => [-.98, 0, .98].map(t => [s, t]));
+  const targets = spread.map(([s, t]) => o.centre.map((c, i) => c + s * o.half[0] * o.across[i] + t * o.half[1] * o.up[i]));
+  if (o.floor !== state.floor) return targets.some(p => throughWell(interior, eye, p));
+  const runs = hidingRuns(interior, o.floor), plan = o.kind === 'roof' ? targets : targets.filter((_, i) => i % 3 === 1);   // a wall pane's middles
+  return plan.some(([x, y]) => {
     const len = Math.hypot(x - eye[0], y - eye[1]), k = len > .05 ? 1 - .05 / len : 0, end = [eye[0] + (x - eye[0]) * k, eye[1] + (y - eye[1]) * k];
     return !runs.some(r => crosses([eye[0], eye[1]], end, r));
   });
 }
 
 // Ids of the openings worth drawing live this frame, largest on screen first, at most `limit`. The stairwell joins the floors, so
-// from the hall or landing the other floor's openings count too; the door only while it stands open.
+// from the hall or landing the other floor's openings count too, where seen through the well (inSight); the door only while it
+// stands open.
 export function liveOpenings(openings, interior, state, view, {limit = 0, doorOpen = 0}) {
   const room = roomAt(interior, state.floor, state.position), joined = room && (room.id === 'hall' || room.id === 'landing');
   return openings

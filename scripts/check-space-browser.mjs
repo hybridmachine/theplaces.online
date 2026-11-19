@@ -538,13 +538,12 @@ try{
   const paneBox=(page,o,pose,inset=.15)=>page.evaluate(({o,pose,inset,eye})=>({o,pose,inset,eye,cam:{fov:window.__space.camera.fov*Math.PI/180,aspect:window.__space.camera.aspect},W:innerWidth,H:innerHeight}),{o,pose,inset,eye:eyeAt(pose.floor,pose.position)})
     .then(({cam,W,H,eye})=>{const r=screenRect(o,{eye,yaw:pose.yaw,pitch:pose.pitch,fov:cam.fov,aspect:cam.aspect});if(!r)return null;
       const x0=(r[0]+1)/2*W,x1=(r[2]+1)/2*W,y0=(1-r[3])/2*H,y1=(1-r[1])/2*H,dx=(x1-x0)*inset,dy=(y1-y0)*inset;return [x0+dx,y0+dy,x1-dx,y1-dy].map(Math.round);});
-  // Draws one frame the way SpaceView.render draws it indoors (openWindows, then the pass with the live views: the view's own
-  // indoor branch reproduced, since render itself needs the world's snapshot) and reads each box's pixels; with `flat` the views
-  // are left out (the shell's flat glass), with `hide` those named objects of the yard are hidden for a second draw of the same frame.
+  // Draws one frame with SpaceView's own indoor draw (drawIndoors, which render calls: openWindows, then the rooms and the live
+  // views) and reads each box's pixels; with `flat` the views are left out (the shell's flat glass), with `hide` those named objects
+  // of the yard are hidden for a second draw of the same frame.
   const indoorRead=(page,boxes,{flat=false,hide=[]}={})=>page.evaluate(({boxes,flat,hide})=>{
     const s=window.__space,g=s.renderer.getContext(),W=g.drawingBufferWidth,H=g.drawingBufferHeight,k=W/innerWidth,b=[];
-    const draw=()=>{const ids=flat?(s.inside.setLive([]),[]):s.openWindows(),views=ids.length?s.viewDraw:null;
-      if(s.passMode==='off'||!s.pass){s.renderer.render(s.inside.scene,s.camera);views?.draw(s.renderer);}else s.pass.render(s.inside.scene,s.camera,{water:false,views});return ids;};
+    const draw=()=>s.drawIndoors({flat});
     const read=()=>boxes.map(([x0,y0,x1,y1])=>{const X=Math.round(x0*k),Y=Math.round(H-y1*k),w=Math.round((x1-x0)*k),h=Math.round((y1-y0)*k),p=new Uint8Array(w*h*4);g.readPixels(X,Y,w,h,g.RGBA,g.UNSIGNED_BYTE,p);return [...p];});
     const ids=draw(),on=read();let off=null;
     if(hide.length){const objects=hide.map(n=>s.scene.getObjectByName(n)).filter(Boolean),was=objects.map(o=>o.visible);objects.forEach(o=>{o.visible=false;});draw();off=read();objects.forEach((o,i)=>{o.visible=was[i];});}
@@ -654,13 +653,12 @@ try{
     {...yardShares,limit:STILL,wholePoints:wholeFrame.length,cabinPoints:cabinCrop.length,cabinBox,pinned:'frozenMotion = 1234, reduced motion, day study, arrival pose'});
 
   // 50. Speed, on &tier=full: the synchronous time of one whole frame forced to finish with readPixels (as check 30 measures it), the
-  // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (indoorRead's draw:
-  // SpaceView.render's indoor branch, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
+  // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (SpaceView's
+  // own indoor draw, drawIndoors, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
   const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&interior=1&tier=full`);await ready(speed);await studyLight(speed,'day');
   const median=a=>[...a].sort((p,q)=>p-q)[a.length>>1];
   const timeFrames=(page,indoors)=>page.evaluate(indoors=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
-    const draw=()=>{if(indoors){const ids=s.openWindows(),views=ids.length?s.viewDraw:null;
-        if(s.passMode==='off'||!s.pass){s.renderer.render(s.inside.scene,s.camera);views?.draw(s.renderer);}else s.pass.render(s.inside.scene,s.camera,{water:false,views});}
+    const draw=()=>{if(indoors)s.drawIndoors();
       else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});
       g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
     draw();draw();const times=[];for(let k=0;k<20;k++){const t0=performance.now();draw();times.push(performance.now()-t0);}return {times,live:[...s.live],tier:s.tier,passMode:s.passMode};},indoors);
@@ -676,7 +674,7 @@ try{
   const kept=rounds.slice(1),yardMs=+median(kept.map(r=>r.yardMs)).toFixed(2),roomMs=+median(kept.map(r=>r.roomMs)).toFixed(2),costRatio=+(roomMs/yardMs).toFixed(3);
   const roundRatios=kept.map(r=>+(r.roomMs/r.yardMs).toFixed(3));
   await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+median(hallTime.times).toFixed(2);
-  const speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.render\'s indoor branch reproduced (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  const speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
   check('Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose (median of rounds, yard and room alternating)',
     kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open'});
   console.log(`  speed (full): yard ${yardMs} ms, living room ${roomMs} ms (${costRatio}x), hall with the door open ${hallMs} ms (${hallTime.live.length} live)`);

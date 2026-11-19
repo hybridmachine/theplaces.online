@@ -84,7 +84,7 @@ test('the painterly pass masks the lake in the yard and nothing indoors, where t
 test('the painterly pass draws the views after the scene and before the filter, and tells the filter where they lie', async () => {
   const THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
   const order = [], renderer = {setRenderTarget(t) { order.push(['target', t]); }, render(scene) { order.push(['render', scene]); }};
-  const pass = new PainterlyPass(THREE, renderer), scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(), u = pass.canvas.uniforms;
+  const pass = new PainterlyPass(THREE, renderer, {stencil: true}), scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(), u = pass.canvas.uniforms;
   assert.equal(pass.sceneTarget.stencilBuffer, true); assert.equal(pass.sceneTarget.resolveStencilBuffer, false);
   assert.deepEqual([pass.depth.format, pass.depth.type], [THREE.DepthStencilFormat, THREE.UnsignedInt248Type]);
   const eyes = [new THREE.Matrix4().makeTranslation(1, 2, 3), new THREE.Matrix4().makeTranslation(4, 5, 6)];
@@ -109,6 +109,28 @@ test('the painterly pass draws the views after the scene and before the filter, 
   pass.dispose();
 });
 
+test('the painterly pass builds its depth-stencil scene target only when asked; by default its target is the plain one', async () => {
+  const THREE = await import('../public/assets/vendor/three-0.170.0.module.js'), renderer = {setRenderTarget() {}, render() {}};
+  const plain = new PainterlyPass(THREE, renderer), want = new THREE.DepthTexture(1, 1);
+  assert.equal(plain.sceneTarget.stencilBuffer, false); assert.equal(plain.sceneTarget.depthBuffer, true); assert.equal(plain.sceneTarget.samples, 4);
+  assert.deepEqual([plain.depth.format, plain.depth.type], [want.format, want.type]);
+  assert.equal(plain.sceneTarget.depthTexture, plain.depth);
+  const marked = new PainterlyPass(THREE, renderer, {stencil: true});
+  assert.equal(marked.sceneTarget.stencilBuffer, true); assert.equal(marked.sceneTarget.resolveStencilBuffer, false);
+  assert.deepEqual([marked.depth.format, marked.depth.type], [THREE.DepthStencilFormat, THREE.UnsignedInt248Type]);
+  plain.dispose(); marked.dispose();
+});
+
+test('the canvas asks for a stencil only with the interior switched on', async () => {
+  const asked = [], canvas = {getContext(kind, attributes) { asked.push([kind, attributes]); return null; }};
+  for (const interior of [null, I]) {
+    const view = {disposed: false, memory: {load: () => null}, space: S, canvas, interior};
+    assert.equal(await SpaceView.prototype.init.call(view), false);
+  }
+  assert.deepEqual(asked, [['webgl2', {alpha: false, antialias: true, stencil: false, powerPreference: 'low-power'}],
+    ['webgl2', {alpha: false, antialias: true, stencil: true, powerPreference: 'low-power'}]]);
+});
+
 test('an interior that fails to build is warned of once, keeps the door shut and sets an indoor visitor down at arrival', t => {
   const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args));
   // No art: the build reads the brushwork texture from it and throws.
@@ -125,13 +147,13 @@ test('an interior that fails to build is warned of once, keeps the door shut and
 // ── The cabin's windows, drawn through SpaceView.render with a recording renderer ──
 // A SpaceView without a page: its own render, buildInside and window wiring, with the yard's sky, life and light stubbed, a
 // real interior and a real painterly pass (or none, on plain) drawing into a renderer that records what it is asked.
-const rig = async ({tier = 'full', stencil = true, state = {place: 'cabin', floor: 0, position: [4.2, 3], yaw: Math.PI, pitch: 0}, yard = {}} = {}) => {
+const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I, state = {place: 'cabin', floor: 0, position: [4.2, 3], yaw: Math.PI, pitch: 0}, yard = {}} = {}) => {
   const THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
   const {LAKESIDE_DRESSING: D} = await import('../shared/lakeside-dressing.js'), {SCENES} = await import('../shared/world.js');
   const {createViewBudget} = await import('../public/space/view-budget.js');
   const stubArt = () => ({surfaces: {hills: new THREE.Texture()}});   // the rooms paint with the hills' brushwork alone
   const log = [], failing = {yard: false}, stencilState = {locked: false, test: false, func: null};
-  const renderer = {log, clippingPlanes: [], autoClear: true,
+  const renderer = {log, clippingPlanes: [], autoClear: true, extensions: {has: name => extensions.includes(name)},
     getContext: () => ({isContextLost: () => false, getContextAttributes: () => ({stencil})}),
     setRenderTarget(target) { log.push(['target', target]); },
     render(scene, camera) { log.push(['render', scene, camera, {...stencilState}]); if (failing.yard && scene === view.scene) throw new Error('lost'); },
@@ -140,15 +162,16 @@ const rig = async ({tier = 'full', stencil = true, state = {place: 'cabin', floo
   const view = Object.create(SpaceView.prototype), camera = new THREE.PerspectiveCamera(verticalFov(16 / 9), 16 / 9, .1, 4000);
   camera.rotation.order = 'YXZ';
   const meter = {tier, locked: true, frames: [], frame(t, o) { this.frames.push(o); return tier; }};
-  Object.assign(view, {space: S, dressing: D, interior: I, skyConfig: SCENES[0].sky, art: stubArt(), renderer, camera, check: false, fixture: null,
+  Object.assign(view, {space: S, dressing: D, interior, skyConfig: SCENES[0].sky, art: stubArt(), renderer, camera, check: false, fixture: null,
     motion: true, frozenMotion: null, lastMotion: null, frozenCelestial: null, lastCelestial: null, celestialStudy: null, shown: true, passage: null,
     disposed: false, failed: false, state: structuredClone(state), door: 0, inside: null, insideFailed: false, views: null, viewsFailed: false, live: [],
     scene: new THREE.Scene(), meter, budget: createViewBudget(), passMode: tier === 'plain' ? 'off' : tier,
-    pass: tier === 'plain' ? null : new PainterlyPass(THREE, renderer),
+    pass: null,
     yard: {cottage: {main: 0, second: 0, open: .6}, shown: true, setSky() {}, setGarden() {}, setCabinShown(s) { this.shown = s; }, ...yard},
     sky: {update: () => ({zenith: [.6, .7, .76], horizon: [.83, .83, .75]}), centreOn() {}},
     life: {frames: [], update(f) { this.frames.push(f); }, aim() {}}});
   view.step = () => {}; view.applyLight = () => {};
+  if (tier !== 'plain') view.pass = view.makePass(renderer);   // as build makes it
   view.buildInside();
   const frame = (n = 1) => { for (let i = 0; i < n; i++) view.render({world: {epoch: 0}}, 1_000_000 + i * 16); };
   // The yard scene's draws, and the options the pass was last given.
@@ -188,6 +211,15 @@ test('indoors facing the living room window, its pane is live and the yard is dr
   assert.equal(plainLog.indexOf(plain.yardDraws()[0]), plainLog.findIndex((e, i) => i > at && e[0] === 'render'));
 });
 
+test('render draws indoors through drawIndoors, the one indoor draw the browser checks call too, and its ids are the live ones', async () => {
+  const {view, frame, yardDraws} = await rig(), calls = [], draw = view.drawIndoors;
+  view.drawIndoors = function (...args) { const ids = draw.apply(this, args); calls.push(ids); return ids; };
+  frame(2);
+  assert.deepEqual(calls, [['living'], ['living']]); assert.deepEqual(view.liveViews, ['living']); assert.equal(yardDraws().length, 2);
+  // With `flat` no pane is live and the yard is not drawn through any.
+  assert.deepEqual(draw.call(view, {flat: true}), []); assert.equal(view.inside.stencilOf('living'), 0); assert.equal(yardDraws().length, 2);
+});
+
 test('with the door shut the doorway is not drawn through; opening it makes it live', async () => {
   const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [9, 2.5], yaw: Math.PI, pitch: 0}});
   frame(); assert.ok(!view.liveViews.includes('door'));
@@ -197,9 +229,13 @@ test('with the door shut the doorway is not drawn through; opening it makes it l
 });
 
 test('no more openings are live than the tier\'s cap and the budget allow', async () => {
-  const hall = {place: 'cabin', floor: 0, position: [9, 6], yaw: Math.PI, pitch: .4};   // looking a little up the stairwell: with the a = 7 wall in the way, level there are only two panes in sight
+  // Just inside the open door, past its leaf, turned towards the stair and looking down: the doorway at the screen's edge, the study
+  // window through the hall-study opening and the dining window through the hall-dining one, all on this floor and past its walls.
+  // (The only pose with three on this floor on a 0.2 m grid of the hall clear of the open leaf. A roof pane up the well, as the
+  // third bedroom's from [9, 6], passes the stairwell rule but stands behind the landing's walls, which that rule does not judge.)
+  const hall = {place: 'cabin', floor: 0, position: [8.8, .6], yaw: .916, pitch: -.6};
   const full = await rig({state: hall}); full.view.door = 1; full.frame();
-  assert.equal(full.view.liveViews.length, 3); assert.equal(full.yardDraws().length, 3);
+  assert.deepEqual([...full.view.liveViews].sort(), ['dining', 'door', 'study']); assert.equal(full.yardDraws().length, 3);
   assert.equal(full.view.pass.canvas.uniforms.viewCount.value, 3);
   const light = await rig({tier: 'light', state: hall}); light.view.door = 1; light.frame();
   assert.equal(light.view.liveViews.length, 2);
@@ -214,6 +250,25 @@ test('a context without stencil leaves every pane flat, with one warning and no 
   assert.equal(view.viewsFailed, true); assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
   assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0));
   assert.equal(view.pass.canvas.uniforms.viewCount.value, 0);
+});
+
+test('the pass gets the depth-stencil scene target with the interior on, and the plain one without it', async () => {
+  const on = await rig(), off = await rig({interior: null, state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
+  assert.equal(on.view.pass.sceneTarget.stencilBuffer, true);
+  assert.equal(off.view.pass.sceneTarget.stencilBuffer, false); assert.equal(off.view.pass.depth.format, new on.THREE.DepthTexture(1, 1).format);
+  off.frame(2); assert.deepEqual(off.view.liveViews, []);
+});
+
+test('a browser with multisampled render-to-texture leaves every pane flat, with one warning, and the pass without the stencil', async t => {
+  const warnings = quietWarnings(t), {view, frame, yardDraws} = await rig({extensions: ['WEBGL_multisampled_render_to_texture']});
+  assert.equal(view.pass.sceneTarget.stencilBuffer, false);
+  assert.doesNotThrow(() => frame(4));
+  assert.equal(warnings.length, 1); assert.match(String(warnings[0][0]), /windows could not be opened/);
+  assert.equal(view.viewsFailed, true); assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
+  assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0));
+  // On plain (no pass: the rooms straight to the canvas) the same.
+  const plain = await rig({tier: 'plain', extensions: ['WEBGL_multisampled_render_to_texture']});
+  assert.doesNotThrow(() => plain.frame(2)); assert.equal(warnings.length, 2); assert.deepEqual(plain.view.liveViews, []);
 });
 
 test('a view set-up that throws leaves every pane flat, with one warning', async t => {
@@ -233,10 +288,10 @@ test('more than one live opening holds the tier meter; one does not', async () =
   assert.deepEqual(out.meter.frames.at(-1), {indoors: false, hold: false});
 });
 
-test('rain is centred on the cabin while the visitor is indoors', async () => {
-  const {view, frame, THREE} = await rig(), {eyePosition} = await import('../shared/walker.js'), {toThree} = await import('../public/space/geometry.js');
+test('rain is centred on the cabin at its eaves while the visitor is indoors, so it reaches above the roof windows', async () => {
+  const {view, frame, THREE, D} = await rig(), {cabinFrame} = await import('../shared/lakeside-dressing.js'), {toThree} = await import('../public/space/geometry.js');
   frame();
-  const at = view.life.frames.at(-1).rainAt, want = new THREE.Vector3(...toThree(eyePosition(S, {position: S.cabin.center})));
+  const at = view.life.frames.at(-1).rainAt, want = new THREE.Vector3(...toThree([...S.cabin.center, cabinFrame(S, D).eave]));
   assert.ok(at?.isVector3 && at.distanceTo(want) < 1e-9, String(at?.toArray()));
 });
 

@@ -5,7 +5,7 @@ import {buildScene} from './scene/index.js';
 import {buildInterior} from './interior/index.js';
 import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
-import {LAKESIDE_DRESSING} from '../../shared/lakeside-dressing.js';
+import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
@@ -113,8 +113,8 @@ export class SpaceView {
     if (this.disposed) return false;
     this.state = pose(this.memory.load() ?? this.space.arrival); this.placed = true;
     // Opaque: with alpha the canvas would let the page show through wherever alpha-to-coverage leaves a card edge part covered.
-    // A stencil, for the cabin's live panes when the rooms are drawn straight to the canvas.
-    const gl = this.canvas.getContext('webgl2', {alpha: false, antialias: true, stencil: true, powerPreference: 'low-power'});
+    // A stencil only with the interior on, for the cabin's live panes when the rooms are drawn straight to the canvas.
+    const gl = this.canvas.getContext('webgl2', {alpha: false, antialias: true, stencil: !!this.interior, powerPreference: 'low-power'});
     if (!gl) return false;
     this.canvas.addEventListener('webglcontextlost', this.contextLost);
     let renderer = null;
@@ -153,11 +153,17 @@ export class SpaceView {
     // A context that cannot render to half-float colour cannot run the pass: stay on plain for good, as a slow device would.
     if (!canPaint(renderer.getContext())) { this.meter = createTierMeter({start: 'plain', locked: true}); this.passMode = TIER_PASS.plain; }
     // Locked on plain (?tier=plain, or no half-float targets), the pass would never be drawn.
-    if (!this.plainForGood()) { this.pass = new PainterlyPass(THREE, renderer); this.setPass(this.passMode); }
+    if (!this.plainForGood()) { this.pass = this.makePass(renderer); this.setPass(this.passMode); }
     this.renderer = renderer;
     addEventListener('resize', this.resize); this.resize();
     return true;
   }
+  // Whether the cabin's views can be drawn on this renderer: only with the interior on, and not where three would draw into the
+  // multisampled scene target through WEBGL_multisampled_render_to_texture, which attaches its depth-stencil so that the panes'
+  // stencil may not last from the rooms' draw to the views' (untried on such a device; nothing would throw).
+  viewsPossible(renderer) { return !!this.interior && !renderer.extensions.has('WEBGL_multisampled_render_to_texture'); }
+  // The painterly pass, its scene target carrying a stencil only where the views can be drawn.
+  makePass(renderer) { return new PainterlyPass(THREE, renderer, {stencil: this.viewsPossible(renderer)}); }
   // The cabin's rooms, built once. A build that throws is logged once and leaves the door shut for good; a visitor
   // remembered indoors is then set down at the arrival pose.
   buildInside() {
@@ -171,11 +177,12 @@ export class SpaceView {
       if (this.state.place === 'cabin') this.state = pose(this.space.arrival);
     }
   }
-  // The views of the yard through the cabin's panes, made once when first wanted. A context without a stencil, or a set-up that
-  // throws, leaves every pane flat for good, warned of once (dropViews).
+  // The views of the yard through the cabin's panes, made once when first wanted. A renderer they cannot be drawn on
+  // (viewsPossible), a context without a stencil, or a set-up that throws, leaves every pane flat for good, warned of once (dropViews).
   windowViews() {
     if (this.views || this.viewsFailed) return this.views;
     try {
+      if (!this.viewsPossible(this.renderer)) throw new Error('This browser draws multisampled targets through WEBGL_multisampled_render_to_texture.');
       if (!this.renderer.getContext().getContextAttributes()?.stencil) throw new Error('The drawing buffer has no stencil.');
       const views = this.views = createWindowViews(THREE, {openings: this.openings, yardScene: this.scene, yard: this.yard, life: this.life, sky: this.sky});
       // What the frame draws through: a draw that throws gives the views up rather than the frame, and reports false so the pass
@@ -200,6 +207,17 @@ export class SpaceView {
     if (!views) return [];
     try { views.prepare(camera, ids, inside.stencilOf); return ids; }
     catch (error) { this.dropViews(error); inside.setLive([]); return []; }
+  }
+  // Indoors, one frame: the openings chosen and prepared (openWindows), then the rooms drawn and the yard through each live pane
+  // into the same frame, through the pass or straight to the canvas. With `flat` (for the browser checks' comparisons) no pane is
+  // live and the shell's flat glass is drawn. Returns the live ids.
+  drawIndoors({flat = false} = {}) {
+    let ids = [];
+    if (flat) this.inside.setLive([]); else ids = this.openWindows();
+    const views = ids.length ? this.viewDraw : null;
+    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); views?.draw(this.renderer); }
+    else this.pass.render(this.inside.scene, this.camera, {water: false, views});
+    return ids;
   }
   // The ids of the openings drawn live in the last frame.
   get liveViews() { return [...this.live]; }
@@ -292,15 +310,14 @@ export class SpaceView {
     this.yard.setSky({zenith, horizon}); this.inside?.setSky({zenith, horizon});
     this.yard.setGarden(this.check && Number.isInteger(this.fixture?.gardenDay) ? this.fixture.gardenDay : c.day);
     this.applyLight(c, w, bodies, horizon);
-    // Indoors the rain falls round the cabin's outside, so it is seen through every window and never in a room.
-    const rainAt = indoors ? this.rainAt ??= new THREE.Vector3(...toThree(eyePosition(this.space, {position: this.space.cabin.center}))) : null;
+    // Indoors the rain falls round the cabin's outside, centred over it at its eaves so the streaks stand above the roof windows
+    // too: it is seen through every window and never in a room.
+    const rainAt = indoors ? this.rainAt ??= new THREE.Vector3(...toThree([...this.space.cabin.center, cabinFrame(this.space, this.dressing).eave])) : null;
     this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null, rainAt}));
     // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same, and is drawn again
     // through each live pane into the same frame.
-    const ids = this.live = indoors ? this.openWindows() : [], views = ids.length ? this.viewDraw : null;
-    const scene = indoors ? this.inside.scene : this.scene;
-    if (this.passMode === 'off' || !this.pass) { this.renderer.render(scene, this.camera); views?.draw(this.renderer); }
-    else this.pass.render(scene, this.camera, {water: !indoors, views});
+    const ids = this.live = indoors ? this.drawIndoors() : [];
+    if (!indoors) { if (this.passMode === 'off' || !this.pass) this.renderer.render(this.scene, this.camera); else this.pass.render(this.scene, this.camera, {water: true, views: null}); }
     // Frames across the door are not measured. The rooms are far cheaper to draw than the yard, so frames indoors may step the
     // tier down but never lock it: the yard is still measured the first time the visitor is out there.
     // With several openings live the meter is held, and the view budget sheds openings first.

@@ -175,15 +175,20 @@ export function canPaint(gl) {
 }
 
 export class PainterlyPass {
-  constructor(THREE, renderer) {
+  // `stencil` (only with the cabin's interior on, and only where its views can be drawn) gives the scene target a stencil.
+  constructor(THREE, renderer, {stencil = false} = {}) {
     this.renderer = renderer; this.scale = 1; this.pixelRatio = 1; this.width = 1; this.height = 1;
     // The scene target is marked as an XR target so three shades into it as it would into the canvas (tone mapping and the
-    // sRGB output transfer in the shaders, not linear), and its storage is plain RGBA8 so the values are kept as encoded. Its
-    // depth carries a stencil, which the cabin's live panes mark for the views through them (multisampled, as a 24/8
+    // sRGB output transfer in the shaders, not linear), and its storage is plain RGBA8 so the values are kept as encoded. With
+    // `stencil` its depth carries a stencil, which the cabin's live panes mark for the views through them (multisampled, as a 24/8
     // depth-stencil renderbuffer whose depth alone is resolved into the depth texture of the same format: nothing reads the
-    // stencil after the draw).
-    this.depth = new THREE.DepthTexture(1, 1, THREE.UnsignedInt248Type, undefined, undefined, undefined, undefined, undefined, undefined, THREE.DepthStencilFormat);
-    this.sceneTarget = new THREE.WebGLRenderTarget(1, 1, {samples: 4, depthBuffer: true, stencilBuffer: true, resolveStencilBuffer: false, depthTexture: this.depth, colorSpace: THREE.SRGBColorSpace});
+    // stencil after the draw); without it the target is the plain depth one it always was.
+    const target = {samples: 4, depthBuffer: true, colorSpace: THREE.SRGBColorSpace};
+    if (stencil) {
+      this.depth = new THREE.DepthTexture(1, 1, THREE.UnsignedInt248Type, undefined, undefined, undefined, undefined, undefined, undefined, THREE.DepthStencilFormat);
+      Object.assign(target, {stencilBuffer: true, resolveStencilBuffer: false});
+    } else this.depth = new THREE.DepthTexture(1, 1);
+    this.sceneTarget = new THREE.WebGLRenderTarget(1, 1, {...target, depthTexture: this.depth});
     this.sceneTarget.texture.internalFormat = 'RGBA8'; this.sceneTarget.isXRRenderTarget = true;
     const flat = {depthBuffer: false, colorSpace: THREE.NoColorSpace};
     this.prepared = new THREE.WebGLRenderTarget(1, 1, flat);

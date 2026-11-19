@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {ceilingHeight, floorArea, wallSegments} from '../shared/interior.js';
+import {ceilingHeight, floorArea, indoorHeight, onStair, roomAt, wallSegments} from '../shared/interior.js';
+import {verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D, cabinFrame, openingCentre} from '../shared/lakeside-dressing.js';
 import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenRect, screenShare, liveOpenings, inSight} from '../shared/window-views.js';
@@ -153,15 +154,17 @@ test('the door counts only while it stands open', () => {
   assert.ok(live(at(0, p), V(eyeOf(0, p), Math.PI), {doorOpen: .2}).includes('door'));
 });
 
-test('upstairs windows are not live from a ground floor room, but are from the hall and landing', () => {
-  const p = [4.2, 3];
+test('upstairs windows are not live from a ground floor room, but can be from the hall and landing, through the stairwell', () => {
+  const p = [4.2, 3], fov = verticalFov(16 / 9) * Math.PI / 180;
   const here = live(at(0, p), V(eyeOf(0, p), Math.PI));
   assert.ok(here.length > 0 && here.every(id => by(id).floor === 0), `${here}`);
-  const h = [9, 3.5], up = live(at(0, h), V(eyeOf(0, h), 0, 1.2, 2, 3)).filter(id => by(id).floor === 1);
-  assert.ok(up.length > 0, 'a hall visitor looking up the stairwell sees upstairs openings');
-  const l = [9, 3.5], down = live(at(1, l), V(eyeOf(1, l), Math.PI, -.5, 2, 3));   // from the landing, looking down towards the front
-  assert.ok(down.some(id => by(id).floor === 0), `${down}`);
-  const b = [3, 3], inRoom = live(at(1, b), V(eyeOf(1, b), Math.PI, -.5, 2, 3));      // the same look from a bedroom sees no ground floor
+  // From the hall by the living room wall, looking up past the stair: the third bedroom's roof pane, up the well.
+  const h = [7.6, 1.4], up = live(at(0, h), V(eyeOf(0, h), Math.PI / 12, .6, fov, 16 / 9));
+  assert.ok(up.includes('bedroom-3'), `${up}`);
+  // From the landing, looking down the well: the study window.
+  const l = [7.2, 3.4], down = live(at(1, l), V(eyeOf(1, l), Math.PI / 3, -.9, fov, 16 / 9));
+  assert.ok(down.includes('study'), `${down}`);
+  const b = [3, 3], inRoom = live(at(1, b), V(eyeOf(1, b), Math.PI, -.5, 2, 3));      // a bedroom sees no ground floor
   assert.ok(inRoom.every(id => by(id).floor === 1), `${inRoom}`);
 });
 
@@ -198,7 +201,10 @@ test('the dining window is in sight from the kitchen through the open plan', () 
 
 test('the front door is in sight from the dining room through the hall', () => assert.equal(sight('door', 0, [9, 9]), true));
 
-test('an opening on the other floor is not judged by this floor\'s walls', () => assert.equal(sight('bedroom-2', 0, [9, 3]), true));
+test('an opening on the other floor is judged by the stairwell, not by this floor\'s walls', () => {
+  assert.equal(sight('bedroom-2', 0, [9, 3]), false, 'the hall ceiling is between');
+  assert.equal(sight('bedroom-3', 0, [7.6, 1.4]), true, 'up the well');
+});
 
 test('liveOpenings leaves out a pane behind a wall even when it would fill the screen', () => {
   // The hall facing the front wall near the stair foot: the living window is on screen but the a = 7 wall's solid run d 0-2 is between.
@@ -261,4 +267,58 @@ test('a roof pane on the visitor\'s own floor is hidden by an interior wall, and
   assert.equal(eye([3.5, 3]), false, 'from bedroom 2 the a/d = 7 wall is between');
   assert.equal(eye([3.5, 9.5]), true, 'from the sky room itself');
   assert.equal(inSight(by('bedroom-3'), I, at(1, [13, 9]), eyeOf(1, [13, 9])), false, 'bedroom 3 pane from the upstairs bath');
+});
+
+// ---- the other floor, seen only through the stairwell ----
+// A reference: a 49 x 17 grid of 3D lines from the eye over each pane (at +-0.98, so it holds every target the rule uses), each
+// judged where it crosses the two heights between the floors (the ground floor's ceiling and the upper floor's level): both
+// crossing points must lie inside the stair well's rectangle.
+const grid = n => Array.from({length: n}, (_, i) => (i / (n - 1) * 2 - 1) * .98);
+const inWell = (e, p) => [I.groundCeiling, I.floorRise].every(h => {
+  if ((e[2] - h) * (p[2] - h) > 0) return true;
+  const u = (h - e[2]) / (p[2] - e[2]), a = e[0] + (p[0] - e[0]) * u, d = e[1] + (p[1] - e[1]) * u;
+  return a > I.stair.a[0] && a < I.stair.a[1] && d > I.stair.d[0] && d < I.stair.d[1];
+});
+const wellLine = (o, e) => grid(49).some(s => grid(17).some(t => inWell(e, o.centre.map((c, i) => c + s * o.half[0] * o.across[i] + t * o.half[1] * o.up[i]))));
+const eyeOn = (floor, p) => [p[0], p[1], indoorHeight(I, floor, p) + 1.6];
+
+test('at the hall\'s entry pose, facing in, no upstairs pane is live: the hall ceiling is between', () => {
+  const p = I.entry.position, v = V(eyeOf(0, p), I.entry.yaw, I.entry.pitch, verticalFov(16 / 9) * Math.PI / 180, 16 / 9);
+  for (const doorOpen of [0, 1]) {
+    const ids = live(at(0, p), v, {doorOpen});
+    assert.ok(ids.every(id => by(id).floor === 0), `${ids}`);
+  }
+  for (const o of O.filter(x => x.floor === 1)) assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), false, o.id);
+});
+
+test('from the stair foot looking up the flight, an upstairs pane is in sight only if a line to it passes up the well', () => {
+  const p = [10.25, 1.3], e = eyeOf(0, p);
+  for (const o of O.filter(x => x.floor === 1)) assert.equal(inSight(o, I, at(0, p), e), wellLine(o, e), o.id);
+});
+
+test('from the landing looking down the well, a ground-floor pane is in sight only if a line to it passes down the well', () => {
+  const seen = [];
+  for (const p of [[10.3, 6], [9.7, 5.8], [8, 3.5]]) {
+    const e = eyeOf(1, p);
+    for (const o of O.filter(x => x.floor === 0)) {
+      assert.equal(inSight(o, I, at(1, p), e), wellLine(o, e), `${o.id} from ${p}`);
+      if (wellLine(o, e)) seen.push(o.id);
+    }
+  }
+  assert.ok(seen.includes('door') && seen.includes('study'), `the door and the study window show down the well from somewhere: ${seen}`);
+});
+
+test('over the hall, the flight and the landing, no other-floor pane is in sight unless a line to it passes through the well', () => {
+  let across = 0, checked = 0;
+  for (const floor of [0, 1]) for (let a = 7.1; a < 11; a += .1) for (let d = .1; d < 7; d += .1) {
+    const p = [a, d];
+    if (!floorArea(I, floor, p) && !onStair(I, p)) continue;
+    if (roomAt(I, floor, p)?.id !== (floor ? 'landing' : 'hall')) continue;
+    const e = eyeOn(floor, p);
+    for (const o of O.filter(x => x.floor !== floor)) {
+      checked++;
+      if (inSight(o, I, at(floor, p), e)) { across++; assert.ok(wellLine(o, e), `${o.id} from floor ${floor} at ${a.toFixed(1)}, ${d.toFixed(1)}`); }
+    }
+  }
+  assert.ok(across > 0 && across < checked / 2, `some lines do pass the well, most do not: ${across} of ${checked}`);
 });
