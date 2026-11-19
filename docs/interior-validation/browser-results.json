@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.1266199999332427
+            1.08
           ],
           "yaw": 0,
           "pitch": 0,
@@ -30,8 +30,8 @@
           "cameraY": 1.6,
           "opacity": "1"
         },
-        "darkestOpacity": 0.111667,
-        "samples": 71,
+        "darkestOpacity": 0.002,
+        "samples": 70,
         "yardMask": 1,
         "hallMask": 0
       }
@@ -59,7 +59,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478599999999998
+            5.479439999866482
           ],
           "yaw": 0,
           "pitch": 0,
@@ -80,7 +80,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478599999999998
+            5.479439999866482
           ],
           "yaw": 0,
           "pitch": 0,
@@ -94,7 +94,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478599999999998
+            5.479439999866482
           ],
           "yaw": 0,
           "pitch": 0,
@@ -108,11 +108,11 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478599999999998
+            5.479439999866482
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1795057227873
+          "savedAt": 1795059531937
         }
       }
     },
@@ -151,17 +151,17 @@
         "outside": {
           "place": "yard",
           "position": [
-            17.29046941018555,
-            5.64984128220759
+            17.33519877893496,
+            5.666121441029892
           ],
           "yaw": 4.363323129985823,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.3896784315656174,
+          "cameraY": 3.388589998545937,
           "opacity": "1"
         },
         "outYaw": -1.9198621771937627,
-        "outDistance": 0.947599999999999
+        "outDistance": 0.9
       }
     },
     {
@@ -186,13 +186,13 @@
         "stuck": {
           "place": "yard",
           "position": [
-            17.79650472059864,
-            5.860367938988545
+            17.790900209599968,
+            5.875209851788176
           ],
           "yaw": 1.2217304763960306,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.3820774106927014,
+          "cameraY": 3.385233695470536,
           "opacity": "1",
           "door": 0,
           "insideFailed": true
@@ -230,11 +230,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52854,
+              "n": 52845,
               "of": 53760
             },
             "varied": {
-              "n": 53366,
+              "n": 53386,
               "of": 53760
             },
             "mean": [
@@ -265,11 +265,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 92932,
+              "n": 92916,
               "of": 97848
             },
             "varied": {
-              "n": 96575,
+              "n": 96706,
               "of": 97848
             },
             "mean": [
@@ -300,11 +300,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52639,
+              "n": 52687,
               "of": 53760
             },
             "varied": {
-              "n": 53739,
+              "n": 53390,
               "of": 53760
             },
             "mean": [
@@ -335,16 +335,16 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46016,
+              "n": 46015,
               "of": 46728
             },
             "varied": {
-              "n": 46699,
+              "n": 46695,
               "of": 46728
             },
             "mean": [
-              98,
-              102,
+              99,
+              103,
               72
             ],
             "room": "second bedroom"
@@ -370,17 +370,17 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46002,
+              "n": 45996,
               "of": 46728
             },
             "varied": {
-              "n": 46709,
+              "n": 46712,
               "of": 46728
             },
             "mean": [
-              145,
-              160,
-              162
+              146,
+              159,
+              159
             ],
             "room": "third bedroom"
           },
@@ -405,7 +405,7 @@
             ],
             "live": true,
             "unlike": {
-              "n": 237961,
+              "n": 237965,
               "of": 244860
             },
             "varied": {
@@ -415,7 +415,7 @@
             "mean": [
               159,
               177,
-              186
+              187
             ],
             "room": "sky room"
           }
@@ -443,7 +443,7 @@
             "of": 94392
           },
           "varied": {
-            "n": 93564,
+            "n": 93563,
             "of": 94392
           },
           "mean": [
@@ -481,7 +481,7 @@
           "of": 288
         },
         "parallaxControl": {
-          "n": 65,
+          "n": 83,
           "of": 288
         }
       }
@@ -521,34 +521,72 @@
     },
     {
       "n": 44,
-      "name": "From the stair foot facing the front wall (turned toward the living window) with the door open, at least two views are live",
+      "name": "From the hall near the entry spot with the door open, the door and the living window are both live and both show more than the flat glass",
       "pass": true,
       "detail": {
         "ids": [
           "door",
           "living"
         ],
-        "room": "entry hall"
+        "boxes": [
+          [
+            239,
+            419,
+            452,
+            828
+          ],
+          [
+            1249,
+            383,
+            1379,
+            576
+          ]
+        ],
+        "unlike": [
+          {
+            "n": 49646,
+            "of": 87117
+          },
+          {
+            "n": 24878,
+            "of": 25090
+          }
+        ],
+        "pose": {
+          "place": "cabin",
+          "floor": 0,
+          "position": [
+            8,
+            3
+          ],
+          "yaw": -2.853568320637768,
+          "pitch": 0
+        }
       }
     },
     {
       "n": 45,
-      "name": "Under the rain study streaks fall in the living window's pane and none in the wall beside it",
+      "name": "Under the rain study streaks fall in the living window's pane (at least 1 pixel in 2000 of it) and none in the wall beside it, which is on screen and not blank",
       "pass": true,
       "detail": {
         "pane": {
-          "n": 2763,
+          "n": 2435,
           "of": 70144
         },
+        "streakMin": 35,
         "wall": {
           "n": 0,
-          "of": 54800
+          "of": 109440
+        },
+        "wallVaries": {
+          "n": 106584,
+          "of": 109440
         },
         "wallBox": [
-          408,
-          345,
-          608,
-          619
+          276,
+          311,
+          596,
+          653
         ],
         "rainBox": [
           708,
@@ -579,7 +617,7 @@
           653
         ],
         "caseDiff": {
-          "n": 32772,
+          "n": 34870,
           "of": 109440
         }
       }
@@ -606,7 +644,7 @@
             "of": 53760
           },
           "varied": {
-            "n": 53303,
+            "n": 53344,
             "of": 53760
           },
           "mean": [
@@ -619,34 +657,92 @@
     },
     {
       "n": 49,
-      "name": "The yard from outdoors at the arrival pose is the same with and without ?interior=1 (no more points differ than between two loads without it; motion reduced)",
+      "name": "The yard from outdoors at the arrival pose is the same with and without ?interior=1 (no more points differ than between two loads without it, which themselves differ in about a third of the points: 25% and 8 points of slack)",
       "pass": true,
       "detail": {
-        "pointsDiffering": 36,
-        "twoLoadsWithoutIt": 40,
+        "pointsDiffering": 55,
+        "twoLoadsWithoutIt": 56,
         "of": 144
       }
     },
     {
       "n": 50,
-      "name": "Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose",
+      "name": "Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose (median of rounds, yard and room alternating)",
       "pass": true,
       "detail": {
-        "yardMs": 32.7,
-        "roomMs": 34.4,
-        "ratio": 1.052,
+        "yardMs": 27.2,
+        "roomMs": 27.7,
+        "ratio": 1.018,
         "limit": 1.1,
-        "method": "Synchronous time of one whole frame forced to finish with readPixels, median of 20, tier=full, 1440 x 810; indoors the draw is SpaceView.render's indoor branch reproduced (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
-        "yardLive": [],
-        "roomLive": [
-          "living"
+        "roundRatios": [
+          1.004,
+          1.026,
+          0.989,
+          1.127,
+          0.996
         ],
-        "hallDoorOpenMs": 50.5,
+        "ratioSpread": [
+          0.989,
+          1.127
+        ],
+        "rounds": [
+          {
+            "yardMs": 28,
+            "roomMs": 27.4,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.6,
+            "roomMs": 27.7,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.1,
+            "roomMs": 27.8,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.2,
+            "roomMs": 26.9,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 25.2,
+            "roomMs": 28.4,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.5,
+            "roomMs": 27.4,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          }
+        ],
+        "discardedFirstRound": true,
+        "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.render's indoor branch reproduced (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
+        "hallDoorOpenMs": 31.7,
         "hallLive": [
           "door",
           "living"
         ],
-        "hallNote": "recorded only, not a pass/fail: from the stair foot [10.3, 1] turned between the door and the living window, door open"
+        "hallNote": "recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open"
       }
     },
     {

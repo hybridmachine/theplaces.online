@@ -72,7 +72,7 @@ docs/space-validation/review/*
 !docs/space-validation/review/*-full.jpg
 !docs/space-validation/review/*-plain.jpg
 
-# Interior captures are JPEG (quality 85): retain the five room frames and the three door frames; PNGs stay local.
+# Interior captures are JPEG (quality 85): retain the five room frames, the three door frames and nine frames of the live windows; PNGs and the other window frames stay local.
 docs/interior-validation/*.png
 docs/interior-validation/*.jpg
 !docs/interior-validation/hall.jpg
@@ -83,3 +83,12 @@ docs/interior-validation/*.jpg
 !docs/interior-validation/door-shut.jpg
 !docs/interior-validation/door-opening.jpg
 !docs/interior-validation/door-open.jpg
+!docs/interior-validation/window-living.jpg
+!docs/interior-validation/window-sky-room.jpg
+!docs/interior-validation/door-from-hall.jpg
+!docs/interior-validation/living-left.jpg
+!docs/interior-validation/living-right.jpg
+!docs/interior-validation/living-rain.jpg
+!docs/interior-validation/living-night.jpg
+!docs/interior-validation/dining-from-kitchen.jpg
+!docs/interior-validation/hall-two-views.jpg
