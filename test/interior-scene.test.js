@@ -50,12 +50,35 @@ test('live panes mark the stencil with their own number and write no colour or d
   assert.equal(paneOf(scene, 'study').material, flat);
   setLive([]);
   assert.ok(openings.every(o => paneOf(scene, o.id).material === flat && stencilOf(o.id) === 0));
+  // Each id is numbered by its place in the list; an id the room does not know is passed over but keeps its number.
+  setLive(['nowhere', 'living', 'study']);
+  assert.deepEqual(['nowhere', 'living', 'study'].map(stencilOf), [0, 2, 3]);
+  assert.equal(paneOf(scene, 'living').material.stencilRef, 2);
   dispose();
 });
-test('panes are drawn after everything else in the room', () => {
+test('the casement leaf is one column of three panes: two horizontal bars and no vertical one', () => {
+  const {scene, dispose} = build(), leaf = scene.getObjectByName('casement'), living = openings[0], [lx, ly] = living.half;
+  leaf.updateMatrixWorld(true);
+  const p = leaf.geometry.getAttribute('position'), v = new THREE.Vector3(), x0 = living.centre[0] - lx, x1 = x0 + 2 * lx / 3, FRAME = .07, BAR = .03;
+  const bar = y => [-1, 1].some(k => Math.abs(Math.abs(y - living.centre[2] - k * ly / 3) - BAR / 2) < 1e-4);
+  let inner = 0, crossing = 0;
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).applyMatrix4(leaf.matrixWorld);
+    if (v.x <= x0 + FRAME + 1e-4 || v.x >= x1 - FRAME - 1e-4 || Math.abs(v.y - living.centre[2]) >= ly - FRAME - 1e-4) continue;
+    inner++; if (bar(v.y)) crossing++;
+  }
+  assert.equal(crossing, inner, 'nothing but the two horizontal bars stands inside its frame');
+  for (const k of [-1, 1]) assert.ok([...Array(p.count).keys()].some(i => { v.fromBufferAttribute(p, i).applyMatrix4(leaf.matrixWorld); return Math.abs(v.y - living.centre[2] - k * ly / 3 - BAR / 2) < 1e-4; }), `bar at ${k}/3`);
+  dispose();
+});
+test('panes are drawn after everything else in the room but the casement leaf, which stands beyond them', () => {
   const {scene, dispose} = build(); let top = -Infinity, low = Infinity;
-  scene.traverse(o => { if (!o.isMesh) return; if (o.name.startsWith('pane-')) low = Math.min(low, o.renderOrder); else top = Math.max(top, o.renderOrder); });
+  scene.traverse(o => { if (!o.isMesh || o.name === 'casement') return; if (o.name.startsWith('pane-')) low = Math.min(low, o.renderOrder); else top = Math.max(top, o.renderOrder); });
   assert.ok(low > top, `${low} > ${top}`);
+  // The leaf comes after the panes and gives its pixels back to stencil 0, so no view through the glass is drawn over it.
+  const leaf = scene.getObjectByName('casement').material;
+  assert.ok(scene.getObjectByName('casement').renderOrder > low);
+  assert.deepEqual([leaf.stencilWrite, leaf.stencilFunc, leaf.stencilZPass, leaf.stencilRef, leaf.colorWrite, leaf.side], [true, THREE.AlwaysStencilFunc, THREE.ReplaceStencilOp, 0, true, THREE.DoubleSide]);
   dispose();
 });
 test('the flat panes still take the sky\'s horizon colour', () => {

@@ -197,12 +197,12 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       face((s, t) => at(o, -wide + 2 * wide * s, -hy + SILL_THICK * t, deep), 2 * wide, SILL_THICK, inward(o), dark));
     edge(-wide, -1); edge(wide, 1);
   }
-  // The casement leaf: the living window's low-a third, lying just outside its pane, as a frame about one pane of bars, built
+  // The casement leaf: the living window's low-a third, lying just outside its pane, as a frame about one column of three panes
+  // (two horizontal bars), built
   // about its hinge edge so that turning the mesh about the vertical there swings it.
   const living = openings.find(o => o.id === 'living'), [lx, ly] = living.half, third = [-lx, -lx / 3];
   frame(leaf, living, third, [-ly, ly], -LEAF_OUT);
   bars(leaf, living, third, [-ly, ly], -LEAF_OUT, {across: [], from: -lx + FRAME});
-  board(leaf, living, [(third[0] + third[1]) / 2 - BAR / 2, (third[0] + third[1]) / 2 + BAR / 2], [-ly + FRAME, ly - FRAME], -LEAF_OUT);
   // The hall's door leaf, 1 × 2.1 m and thick, shut in the doorway about its hinge edge at doorLeaf.a.
   const hinge = [I.doorLeaf.a, 0, 0], thick = I.doorLeaf.thick, leafWidth = I.door.width, leafHigh = I.doorHead, slab = [];
   const box = (x0, x1, d0, d1, z0, z1) => {
@@ -229,6 +229,11 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     m.geometry.translate(-p[0], -p[1], -p[2]); m.position.set(...p); return m;
   };
   const casementLeaf = hung('casement', leaf, [living.centre[0] - lx, living.centre[1] + living.outward[1] * LEAF_OUT, living.centre[2]]);
+  // The leaf stands beyond the glass, so it is drawn after the panes and takes its pixels back from the living pane's stencil
+  // number: the yard's view (whose sky ignores depth) is never drawn over it. Behind the flat glass it stays hidden, as before.
+  casementLeaf.material = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true, side: THREE.DoubleSide,
+    stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0});
+  casementLeaf.renderOrder = 2;
   const doorLeaf = hung('door-leaf', slab, hinge);
   // The way a leaf turns about the vertical (+1 or −1) to take its free edge, one metre out along three's x, toward `toward`.
   const turning = toward => Math.sign(new THREE.Vector3(0, 1, 0).cross(new THREE.Vector3(1, 0, 0)).dot(toward)) || 1;
@@ -248,10 +253,11 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   return {scene,
     // Display-space sky colours, 0–1, as the yard's setSky receives them; the flat glass shows the horizon.
     setSky({horizon}) { glass.color.setRGB(...horizon, THREE.SRGBColorSpace); },
-    // The ids whose panes mark the stencil this frame (number 1, 2, … in this order); every other pane is flat glass.
+    // The ids whose panes mark the stencil this frame, each numbered by its place in the list (1, 2, …; an id the room does
+    // not know is passed over); every other pane is flat glass.
     setLive(ids) {
       stencils.clear();
-      for (const id of ids) if (panes.has(id) && !stencils.has(id)) stencils.set(id, stencils.size + 1);
+      ids.forEach((id, k) => { if (panes.has(id) && !stencils.has(id)) stencils.set(id, k + 1); });
       for (const [id, m] of panes) m.material = stencils.has(id) ? marker(stencils.get(id)) : glass;
     },
     stencilOf: id => stencils.get(id) ?? 0,
