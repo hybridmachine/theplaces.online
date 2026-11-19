@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {ceilingHeight} from '../shared/interior.js';
+import {ceilingHeight, floorArea, wallSegments} from '../shared/interior.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D, cabinFrame, openingCentre} from '../shared/lakeside-dressing.js';
 import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenRect, screenShare, liveOpenings, inSight} from '../shared/window-views.js';
@@ -211,7 +211,54 @@ test('liveOpenings leaves out a pane behind a wall even when it would fill the s
 
 test('the outer wall a pane sits in never hides it', () => {
   for (const id of ['living', 'study', 'dining', 'door']) {
-    const o = by(id), s = o.outward[1] < 0 ? 1 : -1, p = [o.centre[0] + (id === 'dining' ? -1.2 : 1.2), o.centre[1] + s * .3 + (id === 'dining' ? -.15 : .15)];
+    const o = by(id), side = o.across.map(x => x * 1.2), p = [0, 1].map(i => o.centre[i] - o.outward[i] * .5 + side[i] * (id === 'dining' ? -1 : 1));
+    assert.ok(floorArea(I, 0, p), `${id} eye is standable`);
     assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), true, id);
   }
+});
+
+// A reference sight test: n targets across +-k of the pane's width, over the given wall runs (outer boundary excluded by the caller).
+const solidRuns = (extra = []) => [...wallSegments(I, 0).filter(r => r.solid && ![r.from, r.to].every(q => q[0] === 0 || q[0] === 18) && !(r.from[1] === r.to[1] && (r.from[1] === 0 || r.from[1] === 12))), ...extra];
+const stairRuns = [{from: [I.stair.a[0], I.stair.d[0]], to: [I.stair.a[0], I.stair.d[1]]}, {from: [I.stair.a[0], I.stair.d[1]], to: [I.stair.a[1], I.stair.d[1]]}];
+const crossing = (p, q, {from, to}) => {
+  const [rx, ry, sx, sy] = [q[0] - p[0], q[1] - p[1], to[0] - from[0], to[1] - from[1]], den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return false;
+  const t = ((from[0] - p[0]) * sy - (from[1] - p[1]) * sx) / den, u = ((from[0] - p[0]) * ry - (from[1] - p[1]) * rx) / den;
+  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9;
+};
+const reference = (o, p, n, k, runs) => Array.from({length: n}, (_, i) => (i / (n - 1) * 2 - 1) * k).some(s => {
+  const x = o.centre[0] + s * o.half[0], y = o.centre[1], len = Math.hypot(x - p[0], y - p[1]), f = 1 - .05 / len;
+  return !runs.some(r => crossing(p, [p[0] + (x - p[0]) * f, p[1] + (y - p[1]) * f], r));
+});
+
+test('a pane partly in sight is never judged hidden: no false negatives against a 41-target reference (across +-0.98, the rule extent) over standable ground-floor eyes', () => {
+  const runs = solidRuns(stairRuns);
+  for (const id of ['living', 'study', 'dining', 'door']) for (let a = .3; a < 18; a += .2) for (let d = .3; d < 12; d += .2) {
+    if (!floorArea(I, 0, [a, d]) || by(id).room && Math.hypot(a - by(id).centre[0], d - by(id).centre[1]) < .3) continue;
+    if (reference(by(id), [a, d], 41, .98, runs)) assert.equal(sight(id, 0, [a, d]), true, `${id} from ${a.toFixed(1)}, ${d.toFixed(1)}`);
+  }
+});
+
+test('an eye whose only clear line is to a pane\'s edge still sees the pane', () => {
+  const o = by('living'), runs = solidRuns(stairRuns);
+  const p = [2.8, 10.8];   // in the kitchen's far corner, only lines to the living window's high-a edge get past the d = 7 wall's solid run
+  assert.ok(floorArea(I, 0, p));
+  assert.equal(reference({...o, half: [0, 0]}, p, 2, 0, runs), false, 'the centre is hidden');
+  assert.equal(reference(o, p, 41, .98, runs), true, 'an edge line is clear');
+  assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), true);
+});
+
+test('the stair\'s shut-off box hides a ground-floor pane that no listed wall hides', () => {
+  const o = by('door'), p = [10.5, 6.3];
+  assert.ok(floorArea(I, 0, p));
+  assert.equal(reference(o, p, 41, .98, solidRuns()), true, 'without the box some line is clear');
+  assert.equal(reference(o, p, 41, .98, solidRuns(stairRuns)), false, 'with it none is');
+  assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), false);
+});
+
+test('a roof pane on the visitor\'s own floor is hidden by an interior wall, and in sight from its own room', () => {
+  const eye = (p) => inSight(by('sky-room'), I, at(1, p), eyeOf(1, p));
+  assert.equal(eye([3.5, 3]), false, 'from bedroom 2 the a/d = 7 wall is between');
+  assert.equal(eye([3.5, 9.5]), true, 'from the sky room itself');
+  assert.equal(inSight(by('bedroom-3'), I, at(1, [13, 9]), eyeOf(1, [13, 9])), false, 'bedroom 3 pane from the upstairs bath');
 });

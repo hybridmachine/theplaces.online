@@ -98,7 +98,7 @@ export function screenShare(o, view) {
 // The wall runs of a storey that can hide a pane: its solid runs, less the outer boundary (the pane sits in one of those), plus the
 // stair's shut-off box on the ground floor (its chimney-side and top edges), which wallSegments does not list. The door leaf is no wall.
 function hidingRuns(I, floor) {
-  const [w, h] = I.size, outer = ({from: [a, d], to: [b, e]}) => (a === b && (a === 0 || a === w)) || (d === e && (d === 0 || d === h));
+  const [w, h] = I.size, is = (x, y) => Math.abs(x - y) < 1e-6, outer = ({from: [a, d], to: [b, e]}) => (is(a, b) && (is(a, 0) || is(a, w))) || (is(d, e) && (is(d, 0) || is(d, h)));
   const runs = wallSegments(I, floor).filter(r => r.solid && !outer(r));
   if (floor === 0) runs.push({from: [I.stair.a[0], I.stair.d[0]], to: [I.stair.a[0], I.stair.d[1]]}, {from: [I.stair.a[0], I.stair.d[1]], to: [I.stair.a[1], I.stair.d[1]]});
   return runs;
@@ -118,7 +118,9 @@ function crosses(p, q, {from, to}) {
 export function inSight(o, interior, state, eye) {
   if (o.floor !== state.floor) return true;
   const runs = hidingRuns(interior, o.floor), roof = o.kind === 'roof';
-  const spread = roof ? [[0, 0], [.8, 0], [-.8, 0], [0, .8], [0, -.8]] : [[0, 0], [.4, 0], [-.4, 0], [.8, 0], [-.8, 0]];
+  // 13 targets evenly across +-0.98 of the width; a roof pane is a 5 x 3 grid, five across and three up its slope (plan part of `up`).
+  const across = (n, k = .98) => Array.from({length: n}, (_, i) => (i / (n - 1) * 2 - 1) * k);
+  const spread = roof ? across(5).flatMap(s => [-.98, 0, .98].map(t => [s, t])) : across(13).map(s => [s, 0]);
   return spread.some(([s, t]) => {
     const x = o.centre[0] + s * o.half[0] * o.across[0] + t * o.half[1] * o.up[0], y = o.centre[1] + s * o.half[0] * o.across[1] + t * o.half[1] * o.up[1];
     const len = Math.hypot(x - eye[0], y - eye[1]), k = len > .05 ? 1 - .05 / len : 0, end = [eye[0] + (x - eye[0]) * k, eye[1] + (y - eye[1]) * k];
