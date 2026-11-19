@@ -1,6 +1,6 @@
 # Cabin interior, part 2: live windows and the open door — design
 
-Status: proposed, November 17, 2026. Awaiting approval. Nothing is built.
+Status: built behind `?interior=1`, awaiting owner review.
 
 This is part 2 of `2026-11-17-cabin-interior-design.md` (the parent). The parent's intent, goals, non-goals and anti-goals all still hold; this document only settles what the parent left open for this part, and records one change to it.
 
@@ -124,3 +124,13 @@ The owner chose that the yard is drawn into the frame itself, not onto a texture
 - How camera-placed yard things are re-aimed per opening without running the whole of `life.update` again for each.
 - Exact frame, bar and leaf dimensions and colours.
 - Whether a room-to-opening sight table is worth having.
+
+## As built
+
+Where the build departs from the design above:
+
+- **The door's anchor is lifted.** The doorway's carried eye keeps the door panel's place along and across the wall, but its height is set so the hall floor, carried out, clears the ground within 0.6 m outside the door (across the door's width) by a couple of centimetres. That puts the anchor about 0.3 m above the panel's centre; at the panel's own height the ground just outside rose through the doorway's floor and was cut away to show sky.
+- **A live pane must also be in sight.** Being on screen is not enough: on the visitor's own floor no solid interior wall (or the stair's shut-off box) may stand between the eye and every one of the pane's sight targets, in plan; a pane on the other floor counts only from the hall or landing, and only where a 3D line from the eye to one of its targets crosses both the ground floor's ceiling and the upper floor's level inside the stairwell. The walls of the far floor are not judged.
+- **A pane partly behind the eye is clipped, not counted as full screen.** Its rectangle on screen is taken from what lies at least 0.05 m in front of the eye, so standing beside a pane no longer makes it the largest on screen.
+- **Speed is measured as forced-frame cost.** Headless frame intervals are locked to the display and cannot tell the yard from a room, so the check times whole frames forced to finish (readPixels), the median of 20 per place, over six alternating rounds of yard and living room on one page, the first discarded; the ratio is of the medians of the rounds.
+- **The stencil is asked for only with the interior on.** Without `?interior=1` the canvas is created without a stencil and the painterly pass builds the plain depth target it always had. With it, the pass's scene target carries a depth-stencil, except on browsers exposing `WEBGL_multisampled_render_to_texture` (where three attaches the multisampled depth-stencil so the stencil may not survive from the rooms' draw to the views'): there the views are treated as unavailable, the panes stay flat and a single warning is logged.

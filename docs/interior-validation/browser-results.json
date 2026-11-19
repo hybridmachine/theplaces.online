@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.08
+            1.176180000066757
           ],
           "yaw": 0,
           "pitch": 0,
@@ -30,7 +30,7 @@
           "cameraY": 1.6,
           "opacity": "1"
         },
-        "darkestOpacity": 0.000333333,
+        "darkestOpacity": 0.109333,
         "samples": 71,
         "yardMask": 1,
         "hallMask": 0
@@ -59,7 +59,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479999999999997
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -80,7 +80,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479999999999997
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -94,7 +94,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479999999999997
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -108,11 +108,11 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479999999999997
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1795062120299
+          "savedAt": 1795065070137
         }
       }
     },
@@ -186,19 +186,19 @@
         "stuck": {
           "place": "yard",
           "position": [
-            17.786916342527633,
-            5.8865017827499395
+            17.795160351813195,
+            5.8633604176459535
           ],
           "yaw": 1.2217304763960306,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.387609985392238,
+          "cameraY": 3.382732965548279,
           "opacity": "1",
           "door": 0,
           "insideFailed": true
         },
         "warnings": [
-          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:218:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:167:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:263:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:275:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:218:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:173:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:281:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:293:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
         ],
         "pageErrors": []
       }
@@ -230,11 +230,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52834,
+              "n": 52858,
               "of": 53760
             },
             "varied": {
-              "n": 53464,
+              "n": 53326,
               "of": 53760
             },
             "mean": [
@@ -265,11 +265,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 92939,
+              "n": 92938,
               "of": 97848
             },
             "varied": {
-              "n": 97528,
+              "n": 96946,
               "of": 97848
             },
             "mean": [
@@ -300,11 +300,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52675,
+              "n": 52646,
               "of": 53760
             },
             "varied": {
-              "n": 53718,
+              "n": 53744,
               "of": 53760
             },
             "mean": [
@@ -335,17 +335,17 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46017,
+              "n": 46018,
               "of": 46728
             },
             "varied": {
-              "n": 46704,
+              "n": 46702,
               "of": 46728
             },
             "mean": [
               98,
               102,
-              71
+              72
             ],
             "room": "second bedroom"
           },
@@ -370,17 +370,17 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46006,
+              "n": 45998,
               "of": 46728
             },
             "varied": {
-              "n": 46711,
+              "n": 46703,
               "of": 46728
             },
             "mean": [
-              144,
-              158,
-              159
+              145,
+              160,
+              160
             ],
             "room": "third bedroom"
           },
@@ -405,7 +405,7 @@
             ],
             "live": true,
             "unlike": {
-              "n": 237967,
+              "n": 237966,
               "of": 244860
             },
             "varied": {
@@ -443,7 +443,7 @@
             "of": 94392
           },
           "varied": {
-            "n": 93563,
+            "n": 93564,
             "of": 94392
           },
           "mean": [
@@ -476,11 +476,11 @@
           619
         ],
         "parallaxDiff": {
-          "n": 242,
+          "n": 241,
           "of": 288
         },
         "parallaxControl": {
-          "n": 85,
+          "n": 81,
           "of": 288
         }
       }
@@ -543,11 +543,11 @@
         ],
         "unlike": [
           {
-            "n": 49659,
+            "n": 49646,
             "of": 87117
           },
           {
-            "n": 24882,
+            "n": 24884,
             "of": 25090
           }
         ],
@@ -569,7 +569,7 @@
       "pass": true,
       "detail": {
         "pane": {
-          "n": 2606,
+          "n": 2611,
           "of": 70144
         },
         "streakMin": 35,
@@ -616,7 +616,7 @@
           653
         ],
         "caseDiff": {
-          "n": 37004,
+          "n": 35832,
           "of": 109440
         }
       }
@@ -643,7 +643,7 @@
             "of": 53760
           },
           "varied": {
-            "n": 53511,
+            "n": 53308,
             "of": 53760
           },
           "mean": [
@@ -680,56 +680,48 @@
       "name": "Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose (median of rounds, yard and room alternating)",
       "pass": true,
       "detail": {
-        "yardMs": 29.1,
-        "roomMs": 30.5,
-        "ratio": 1.048,
+        "yardMs": 26.1,
+        "roomMs": 27.6,
+        "ratio": 1.057,
         "limit": 1.1,
         "roundRatios": [
-          0.997,
-          1.066,
-          0.984,
-          0.996,
-          1.055
+          1.054,
+          1.011,
+          1.104,
+          1.015,
+          1.118
         ],
         "ratioSpread": [
-          0.984,
-          1.066
+          1.011,
+          1.118
         ],
         "rounds": [
           {
-            "yardMs": 29.6,
-            "roomMs": 30.6,
+            "yardMs": 27.9,
+            "roomMs": 27.5,
             "yardTier": "full",
             "roomLive": [
               "living"
             ]
           },
           {
-            "yardMs": 29.1,
-            "roomMs": 29,
+            "yardMs": 26.1,
+            "roomMs": 27.5,
             "yardTier": "full",
             "roomLive": [
               "living"
             ]
           },
           {
-            "yardMs": 30.3,
-            "roomMs": 32.3,
+            "yardMs": 27.3,
+            "roomMs": 27.6,
             "yardTier": "full",
             "roomLive": [
               "living"
             ]
           },
           {
-            "yardMs": 31.4,
-            "roomMs": 30.9,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ]
-          },
-          {
-            "yardMs": 27.8,
+            "yardMs": 25.1,
             "roomMs": 27.7,
             "yardTier": "full",
             "roomLive": [
@@ -737,8 +729,16 @@
             ]
           },
           {
-            "yardMs": 28.9,
-            "roomMs": 30.5,
+            "yardMs": 27.5,
+            "roomMs": 27.9,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 24.6,
+            "roomMs": 27.5,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -746,8 +746,8 @@
           }
         ],
         "discardedFirstRound": true,
-        "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.render's indoor branch reproduced (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
-        "hallDoorOpenMs": 34.7,
+        "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
+        "hallDoorOpenMs": 29.9,
         "hallLive": [
           "door",
           "living"
