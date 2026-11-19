@@ -14,7 +14,7 @@ import {noise} from '../scene/noise.js';
 // variation on a pale ground rather than camouflage; boards have none and stay darker than the walls.
 const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
-const ROOF_REVEAL = .15, RAIL = .9, RAIL_THICK = .04, TREADS = 15;
+const RAIL = .9, RAIL_THICK = .04, TREADS = 15;
 const SKY = 0xf4ead8, GROUND = 0xd9cdb8, LIGHT = 3.1, FIRST_SKY = [.83, .83, .75];
 const tint = (base, seed, depth = .08) => p => {
   const k = 1 - depth + 2 * depth * noise((p[0] + p[2] * .6) * .7, (p[1] - p[2] * .4) * .7, seed);
@@ -130,9 +130,9 @@ export function buildInterior(THREE, {interior: I, art}) {
     holed([0, SA], [d0, d1], roofHoles, (a0, a1, e0, e1) => ceilings.push(face((s, t) => { const d = e0 + (e1 - e0) * t; return [a0 + (a1 - a0) * s, d, ceiling(1, d)]; },
       a1 - a0, Math.hypot(e1 - e0, ceiling(1, e1) - ceiling(1, e0)), [0, 0, -1], plaster)));
   for (const h of roofHoles) {
-    const up = (a, d, t) => [a, d, ceiling(1, d) + ROOF_REVEAL * t], da = h.a1 - h.a0, dd = h.d1 - h.d0;
-    ceilings.push(face((s, t) => up(h.a0, h.d0 + dd * s, t), dd, ROOF_REVEAL, [1, 0, 0], plaster), face((s, t) => up(h.a1, h.d0 + dd * s, t), dd, ROOF_REVEAL, [-1, 0, 0], plaster),
-      face((s, t) => up(h.a0 + da * s, h.d0, t), da, ROOF_REVEAL, [0, 1, 0], plaster), face((s, t) => up(h.a0 + da * s, h.d1, t), da, ROOF_REVEAL, [0, -1, 0], plaster));
+    const up = (a, d, t) => [a, d, ceiling(1, d) + I.roofReveal * t], da = h.a1 - h.a0, dd = h.d1 - h.d0;
+    ceilings.push(face((s, t) => up(h.a0, h.d0 + dd * s, t), dd, I.roofReveal, [1, 0, 0], plaster), face((s, t) => up(h.a1, h.d0 + dd * s, t), dd, I.roofReveal, [-1, 0, 0], plaster),
+      face((s, t) => up(h.a0 + da * s, h.d0, t), da, I.roofReveal, [0, 1, 0], plaster), face((s, t) => up(h.a0 + da * s, h.d1, t), da, I.roofReveal, [0, -1, 0], plaster));
     panes.push(face((s, t) => up(h.a0 + da * s, h.d0 + dd * t, 1), da, dd, [0, 0, -1]));
   }
 

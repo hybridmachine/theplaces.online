@@ -9,7 +9,7 @@ const roofWindow = (id, room, a, width, d) => ({id, room, kind: 'roof', a, width
 
 export const LAKESIDE_INTERIOR = deep({
   version: 1, size: [18, 12], wall: .15, eyeClear: .25,
-  floorRise: 3.0, groundCeiling: 2.7, eaveCeiling: 1.9, ridgeCeiling: 3.6, ridgeAt: 6, doorHead: 2.1,
+  floorRise: 3.0, groundCeiling: 2.7, eaveCeiling: 1.9, ridgeCeiling: 3.6, ridgeAt: 6, doorHead: 2.1, roofReveal: .15,
   rooms: [
     room('living', 'living room', 0, [0, 7], [0, 7]),
     room('hall', 'entry hall', 0, [7, 11], [0, 7]),
