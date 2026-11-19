@@ -100,16 +100,20 @@ function terrainMaterial(THREE, art) {
 
 // The lake: the stroke texture laid on arcs round the viewer (so its strokes always lie across the view) over a slower
 // world-fixed layer, carried by the sky's colours: the body of the water in the horizon's light, the sky in it at grazing angles.
+// Clipped like the built-in materials by renderer.clippingPlanes (three's clipping chunks); with none set they compile away.
 const LAKE_VERTEX = `varying vec3 vWorld;
 #include <fog_pars_vertex>
+#include <clipping_planes_pars_vertex>
 void main() {
   vec4 world = modelMatrix * vec4( position, 1. ); vWorld = world.xyz;
   vec4 mvPosition = viewMatrix * world; gl_Position = projectionMatrix * mvPosition;
+  #include <clipping_planes_vertex>
   #include <fog_vertex>
 }`;
 const LAKE_FRAGMENT = `uniform sampler2D strokes; uniform vec3 zenith, horizon, dayHorizon; uniform float metres, rippleSeed; uniform vec4 ripple; varying vec3 vWorld;
 #include <common>
 #include <fog_pars_fragment>
+#include <clipping_planes_pars_fragment>
 // The rings a rising fish leaves, ported from lakeRipple in public/ripple-shader.js with the same numbers. p is the offset from
 // the ring's centre in its radii (the yard's x, y of this fragment is (vWorld.x, -vWorld.z)); the result is (offset xy, brightening z).
 // ripple = (centre x, centre y, radius, age); an age of 0 or less is no ripple.
@@ -134,6 +138,7 @@ vec3 lakeRipple( vec2 p ) {
   return vec3( direction * slope * .85, edge * .027 - slope * .012 ) * bounded;
 }
 void main() {
+  #include <clipping_planes_fragment>
   vec3 rings = lakeRipple( ( vec2( vWorld.x, -vWorld.z ) - ripple.xy ) / max( ripple.z, .001 ) );
   vec3 toEye = cameraPosition - vWorld; float dist = length( toEye ); vec3 view = toEye / dist;
   float fresnel = .1 + .45 * pow( 1. - clamp( view.y, 0., 1. ), 5. );
@@ -165,7 +170,7 @@ function lake(THREE, art) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
   g.setIndex([0, 1, 2, 0, 2, 3]);
   const linear = c => new THREE.Vector3(...new THREE.Color().setRGB(...c, THREE.SRGBColorSpace).toArray());
-  const material = new THREE.ShaderMaterial({vertexShader: LAKE_VERTEX, fragmentShader: LAKE_FRAGMENT, fog: true,
+  const material = new THREE.ShaderMaterial({vertexShader: LAKE_VERTEX, fragmentShader: LAKE_FRAGMENT, fog: true, clipping: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {zenith: {value: linear(DAY_HORIZON)}, horizon: {value: linear(DAY_HORIZON)},
       dayHorizon: {value: linear(DAY_HORIZON)}, metres: {value: SPACE_ART.surfaces.water.metres}, strokes: {value: null},
       ripple: {value: new THREE.Vector4(0, 0, 1, 0)}, rippleSeed: {value: 0}}])});

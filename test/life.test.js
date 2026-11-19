@@ -401,3 +401,67 @@ test('the path lights follow the sun: lit at night, dark by day, dark without a 
   assert.equal(lights.update({}), false); assert.equal(levels.at(-1), 0);
   lights.update({calendar: {elevation: -.5, hour: 1}}); lights.dispose(); assert.equal(levels.at(-1), 0);
 });
+
+test('aiming turns the smoke and places the far birds for another camera without advancing them', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), epoch = 1_800_000_000_000, now = epoch + 60_000;
+  const cottage = {...createCottageState(epoch, epoch), hearth: {on: true, since: epoch, lastBurn: null}};
+  const camera = new THREE.PerspectiveCamera(); camera.position.set(1, 1.6, -2); camera.lookAt(-20, 3, 20);
+  const other = new THREE.PerspectiveCamera(); other.position.set(-30, 2.2, 14); other.lookAt(0, 1, 0);
+  const frame = {snapshot: {world: {epoch, cottage}}, epoch, now, study: null, motion: true, motionSeconds: 5, calendar: DAY, camera, fixture: null};
+  const smoke = PRESENTERS.smoke(THREE, {scene, layout}), birds = createFarBirds(THREE, {scene, layout, yard: {}});
+  const puffs = scene.getObjectByName('hearth-smoke').children, flock = scene.getObjectByName('far-birds').children;
+  smoke.update(frame); birds.update(frame);
+  const shown = puffs.filter(m => m.visible); assert.ok(shown.length > 0);
+  const puffState = () => JSON.stringify(puffs.map(m => [m.visible, m.position.toArray(), m.scale.toArray(), ...['opacity', 'seed', 'age'].map(k => m.material.uniforms[k].value)]));
+  const strokes = () => flock.map(m => [...m.geometry.attributes.position.array]), heading = (m, eye) => m.position.clone().sub(eye.position).normalize();
+  const puffsBefore = puffState(), strokesBefore = strokes(), headings = flock.map(m => heading(m, camera));
+  smoke.aim(other); birds.aim(other);
+  assert.equal(puffState(), puffsBefore);
+  for (const m of shown) assert.deepEqual(m.quaternion.toArray(), other.quaternion.toArray());
+  assert.deepEqual(strokes(), strokesBefore);
+  flock.forEach((m, i) => {
+    assert.ok(Math.abs(m.position.distanceTo(other.position) - 900) < 1e-6);
+    assert.ok(heading(m, other).distanceTo(headings[i]) < 1e-9, 'the same bearing, from the other eye');
+    assert.deepEqual(m.quaternion.toArray(), other.quaternion.toArray());
+  });
+  // Aimed back, all is as the update left it.
+  smoke.aim(camera); birds.aim(camera);
+  flock.forEach((m, i) => assert.ok(heading(m, camera).distanceTo(headings[i]) < 1e-9 && Math.abs(m.position.distanceTo(camera.position) - 900) < 1e-6));
+  // Hidden, aiming shows nothing.
+  smoke.update({...frame, motion: false}); birds.update({...frame, motion: false});
+  smoke.aim(other); birds.aim(other);
+  assert.equal(puffs.filter(m => m.visible).length, 0); assert.equal(scene.getObjectByName('far-birds').visible, false);
+  smoke.dispose(); birds.dispose();
+});
+
+test('a presenter whose aim throws is given up and the rest carry on', () => quiet(warnings => {
+  const log = {}, aimed = [], camera = {};
+  const life = createLife({}, {}, {
+    a: () => ({update() { log.a = (log.a ?? 0) + 1; return true; }, aim() { throw new Error('boom'); }, dispose() { log.gone = (log.gone ?? 0) + 1; }}),
+    b: () => ({update() { log.b = (log.b ?? 0) + 1; return true; }, aim(c) { aimed.push(c); }, dispose() {}}),
+    c: stub(log, 'c'),
+  });
+  life.update({}); life.aim(camera);
+  assert.equal(life.status.a, 'failed'); assert.equal(log.gone, 1); assert.deepEqual(aimed, [camera]); assert.equal(warnings.length, 1);
+  life.update({}); life.aim(camera);
+  assert.equal(log.a, 1); assert.equal(log.b, 2); assert.equal(log.c.runs, 2); assert.equal(aimed.length, 2);
+  assert.deepEqual(life.status, {a: 'failed', b: 'active', c: 'active'});
+}));
+
+test('rain falls round rainAt when it is given', () => {
+  const scene = new THREE.Scene(), layout = lifeLayout(), rain = PRESENTERS.rain(THREE, {scene, layout}), lines = scene.getObjectByName('rain');
+  const camera = new THREE.PerspectiveCamera(); camera.position.set(200, 1.6, 200);
+  const rainAt = new THREE.Vector3(-25, 1.6, 25), R = RAIN.radius;
+  const make = extra => lifeFrame({snapshot: {world: {epoch: 0}}, now: 0, motion: true, motionSeconds: 5, realSeconds: 5, camera,
+    conditions: {calendar: {}, weather: {rain: 1, wind: 0}}, ...extra});
+  const within = at => {
+    const p = lines.geometry.attributes.position.array, n = lines.geometry.drawRange.count;
+    for (let k = 0; k < n; k++) if (Math.abs(p[k * 3] - at.x) > R || Math.abs(p[k * 3 + 2] - at.z) > R) return false;
+    return n > 0;
+  };
+  assert.equal(make({}).rainAt, null);
+  assert.equal(rain.update(make({rainAt})), true);
+  assert.ok(within(rainAt), 'round rainAt'); assert.ok(!within(camera.position), 'not round the camera');
+  rain.update(make({})); assert.ok(within(camera.position), 'round the camera without it');
+  rain.dispose();
+});

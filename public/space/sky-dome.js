@@ -206,6 +206,8 @@ export class SkyDome {
     }
     return {zenith, horizon};
   }
+  // Moves the dome to `position` (a three Vector3), as for another eye drawing the yard this frame; nothing is recomputed.
+  centreOn(position) { this.object3d.position.copy(position); }
   dispose() {
     if (this.disposed) return;
     this.disposed = true;

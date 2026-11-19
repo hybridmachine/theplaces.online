@@ -19,7 +19,10 @@ export function buildScene(THREE, {space, dressing, art}) {
   group.add(...Object.values(parts));
   // What setSky last received, for the things that take the lake's colours (the puddle).
   const sky = {zenith: [.83, .83, .75], horizon: [.83, .83, .75]};
+  // What setCottage last received, so a view of the yard from indoors can follow the casement.
+  let cottage = {main: 0, second: 0, open: 0};
   return {group, parts, sky,
+    get cottage() { return cottage; },
     // Display-space sky colours, 0–1, as the sky dome draws them this frame.
     setSky({zenith, horizon}) { sky.zenith = [...zenith]; sky.horizon = [...horizon]; ground.setSky({zenith, horizon}); },
     // How wet the path and the shore stones are, 0–1 each (ground.js).
@@ -27,7 +30,9 @@ export function buildScene(THREE, {space, dressing, art}) {
     // The ring a rising fish leaves on the lake, {center: [x, y], radius, age, variation}, or null (ground.js).
     setRipple(r) { ground.setRipple(r); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
-    setCottage(pose) { cabin.setCottage(pose); },
+    setCottage(pose) { const {main = 0, second = 0, open = 0} = pose ?? {}; cottage = {main, second, open}; cabin.setCottage(pose); },
+    // Whether the cabin's outside (walls, roof, chimney, panels, door, doorway and casement) is drawn; smoke and path lights are not its.
+    setCabinShown(shown) { parts.cabin.visible = !!shown; },
     // How far the cabin's front door stands open, 0 shut to 1 open (cabin.js).
     setDoor(open) { cabin.setDoor(open); },
     // How brightly the path lights burn, 0–1 (lights.js).

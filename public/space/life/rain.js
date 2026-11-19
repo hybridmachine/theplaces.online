@@ -3,7 +3,7 @@ import {shelterOf} from '../../../shared/lakeside-life.js';
 // Rain around the visitor: thin slanted streaks like the 2D painting's, falling in columns fixed in the yard modulo a square tile
 // of side 2 x radius that is always centred on the walker, so a column stays put as they walk until it leaves the square and
 // re-enters on the far side. They lean south with the wind. A streak is not drawn where the cabin's roof or the oak's crown would
-// keep it off. three.js is handed in, so this runs in Node.
+// keep it off. It falls round the frame's rainAt when one is given, else round the camera. three.js is handed in, so this runs in Node.
 
 export const RAIN = {count: 2400, radius: 9, height: 7, speed: 9, length: .45, slant: .35};
 const TINT = [223 / 255, 230 / 255, 224 / 255], SOUTH = [0, -1], SIDE = 2 * RAIN.radius;
@@ -38,7 +38,7 @@ export function createRain(THREE, ctx) {
   lines.name = 'rain'; lines.renderOrder = 10; lines.frustumCulled = false; lines.visible = false; scene.add(lines);
   return {
     update(frame) {
-      const {rain = 0, wind = 0} = frame.weather ?? {}, at = frame.camera?.position;
+      const {rain = 0, wind = 0} = frame.weather ?? {}, at = frame.rainAt ?? frame.camera?.position;
       if (!(rain > .05) || !at) { lines.visible = false; geometry.setDrawRange(0, 0); return false; }
       const ex = at.x, ey = -at.z, ez = at.y, R = RAIN.radius, H = RAIN.height, top = ez + H * .4, fall = RAIN.speed * (frame.motionSeconds ?? 0);
       const count = Math.round(RAIN.count * Math.min(rain, 1)), slant = RAIN.slant * Math.min(Math.max(wind, 0), 1), tail = slant * RAIN.length;

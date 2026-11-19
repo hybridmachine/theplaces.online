@@ -14,15 +14,19 @@ const GLOW = 1.7, HALO = {radius: .14, opacity: .6}, POOL = {opacity: .5, lift: 
 const clamp01 = t => Math.max(0, Math.min(1, t));
 
 // The halo's light: added over the yard, brightest where the ball is seen face on (its middle) and falling off continuously
-// to nothing at its rim, from whichever side it is seen, so the glow has no edge.
+// to nothing at its rim, from whichever side it is seen, so the glow has no edge. Clipped by renderer.clippingPlanes.
 const HALO_VERTEX = `varying vec3 vNormal, vView;
+#include <clipping_planes_pars_vertex>
 void main() {
   vec4 mvPosition = modelViewMatrix * vec4( position, 1. );
   vNormal = normalMatrix * normal; vView = -mvPosition.xyz;
   gl_Position = projectionMatrix * mvPosition;
+  #include <clipping_planes_vertex>
 }`;
 const HALO_FRAGMENT = `uniform vec3 glow; uniform float opacity; varying vec3 vNormal, vView;
+#include <clipping_planes_pars_fragment>
 void main() {
+  #include <clipping_planes_fragment>
   // the cosine between the surface and the eye: 1 at the ball's middle, 0 on its silhouette
   float facing = clamp( dot( normalize( vNormal ), normalize( vView ) ), 0., 1. );
   gl_FragColor = vec4( glow, opacity * facing * facing * facing );
@@ -31,7 +35,7 @@ void main() {
 }`;
 function haloMaterial(THREE) {
   return new THREE.ShaderMaterial({uniforms: {glow: {value: new THREE.Color(WARM)}, opacity: {value: 0}}, vertexShader: HALO_VERTEX, fragmentShader: HALO_FRAGMENT,
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false});
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, clipping: true});
 }
 
 export function buildPathLights(THREE, {space, dressing, art}) {
