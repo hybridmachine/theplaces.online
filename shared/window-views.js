@@ -25,7 +25,7 @@ export function viewOpenings(I, space, dressing) {
         [w.width / 2, w.height / 2], openingCentre(space, dressing, WALL_ANCHOR[w.id]));
     }
     const dMid = (w.d[0] + w.d[1]) / 2, g = (ceilingHeight(I, 1, dMid + .01) - ceilingHeight(I, 1, dMid - .01)) / .02;   // slope dz/dd
-    const front = w.id !== 'sky-room', along = w.id === 'bedroom-3' ? f.L : -f.L, b = (front ? 1 : -1) * f.front * f.W;
+    const front = w.id !== 'sky-room', along = w.id === 'bedroom-3' ? f.L / 2 : -f.L / 2, b = (front ? 1 : -1) * f.front * f.W / 2;
     return make(w.id, 'roof', 1, w.room, [w.a, dMid, I.floorRise + ceilingHeight(I, 1, dMid) + I.roofReveal], [1, 0, 0],
       norm([0, Math.sign(g), Math.abs(g)]), norm([0, -g, 1]), [w.width / 2, (w.d[1] - w.d[0]) / 2 * Math.hypot(1, g)],
       f.at(along, b, f.roofZ(along, b) + ROOF_ANCHOR));

@@ -72,3 +72,10 @@ test('roof panes follow the interior slope and sit above the ceiling', () => {
     assert.ok(Math.abs(dot(o.up, o.outward)) < 1e-12 && Math.abs(dot(o.up, o.across)) < 1e-12);
   }
 });
+
+test('roof panes are anchored mid-slope on the roof, over their own half of the cabin', () => {
+  for (const [id, along, side] of [['bedroom-2', -f.L / 2, 1], ['bedroom-3', f.L / 2, 1], ['sky-room', -f.L / 2, -1]]) {
+    const b = side * f.front * f.W / 2;
+    near(by(id).anchor, f.at(along, b, f.roofZ(along, b) + .05));
+  }
+});
