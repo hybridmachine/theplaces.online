@@ -197,7 +197,7 @@ test('with the door shut the doorway is not drawn through; opening it makes it l
 });
 
 test('no more openings are live than the tier\'s cap and the budget allow', async () => {
-  const hall = {place: 'cabin', floor: 0, position: [9, 6], yaw: Math.PI, pitch: 0};
+  const hall = {place: 'cabin', floor: 0, position: [9, 6], yaw: Math.PI, pitch: .4};   // looking a little up the stairwell: with the a = 7 wall in the way, level there are only two panes in sight
   const full = await rig({state: hall}); full.view.door = 1; full.frame();
   assert.equal(full.view.liveViews.length, 3); assert.equal(full.yardDraws().length, 3);
   assert.equal(full.view.pass.canvas.uniforms.viewCount.value, 3);

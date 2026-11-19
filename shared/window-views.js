@@ -1,6 +1,6 @@
 // Where each of the cabin's openings looks out from, and how a point in the interior frame is carried into the yard. Pure: no three.js.
 // The carry is a turn about the vertical plus a shift, never a tilt or a scale: the pane's centre goes to its anchor in the yard.
-import {ceilingHeight, roomAt} from './interior.js';
+import {ceilingHeight, roomAt, wallSegments} from './interior.js';
 import {cabinFrame, openingCentre} from './lakeside-dressing.js';
 import {terrainHeight} from './space.js';
 
@@ -95,12 +95,43 @@ export function screenShare(o, view) {
   return r ? (r[2] - r[0]) * (r[3] - r[1]) / 4 : 0;
 }
 
+// The wall runs of a storey that can hide a pane: its solid runs, less the outer boundary (the pane sits in one of those), plus the
+// stair's shut-off box on the ground floor (its chimney-side and top edges), which wallSegments does not list. The door leaf is no wall.
+function hidingRuns(I, floor) {
+  const [w, h] = I.size, outer = ({from: [a, d], to: [b, e]}) => (a === b && (a === 0 || a === w)) || (d === e && (d === 0 || d === h));
+  const runs = wallSegments(I, floor).filter(r => r.solid && !outer(r));
+  if (floor === 0) runs.push({from: [I.stair.a[0], I.stair.d[0]], to: [I.stair.a[0], I.stair.d[1]]}, {from: [I.stair.a[0], I.stair.d[1]], to: [I.stair.a[1], I.stair.d[1]]});
+  return runs;
+}
+
+// Whether a sight line (p to q, plan) crosses a run strictly inside both; parallel lines never cross.
+function crosses(p, q, {from, to}) {
+  const [rx, ry, sx, sy] = [q[0] - p[0], q[1] - p[1], to[0] - from[0], to[1] - from[1]], den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return false;
+  const [ex, ey] = [from[0] - p[0], from[1] - p[1]], t = (ex * sy - ey * sx) / den, u = (ex * ry - ey * rx) / den;
+  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9;
+}
+
+// Whether the eye can see the pane past the interior walls: at least one of five plan sight lines, from the eye to the pane (its
+// centre and four points spread along its width, or for a roof pane along its width and its slope), crosses no solid wall run of the
+// pane's floor. Each line stops 0.05 m short of the pane. Another floor's pane (seen up or down the stairwell) is not judged.
+export function inSight(o, interior, state, eye) {
+  if (o.floor !== state.floor) return true;
+  const runs = hidingRuns(interior, o.floor), roof = o.kind === 'roof';
+  const spread = roof ? [[0, 0], [.8, 0], [-.8, 0], [0, .8], [0, -.8]] : [[0, 0], [.4, 0], [-.4, 0], [.8, 0], [-.8, 0]];
+  return spread.some(([s, t]) => {
+    const x = o.centre[0] + s * o.half[0] * o.across[0] + t * o.half[1] * o.up[0], y = o.centre[1] + s * o.half[0] * o.across[1] + t * o.half[1] * o.up[1];
+    const len = Math.hypot(x - eye[0], y - eye[1]), k = len > .05 ? 1 - .05 / len : 0, end = [eye[0] + (x - eye[0]) * k, eye[1] + (y - eye[1]) * k];
+    return !runs.some(r => crosses([eye[0], eye[1]], end, r));
+  });
+}
+
 // Ids of the openings worth drawing live this frame, largest on screen first, at most `limit`. The stairwell joins the floors, so
 // from the hall or landing the other floor's openings count too; the door only while it stands open.
 export function liveOpenings(openings, interior, state, view, {limit = 0, doorOpen = 0}) {
   const room = roomAt(interior, state.floor, state.position), joined = room && (room.id === 'hall' || room.id === 'landing');
   return openings
-    .filter(o => (o.id !== 'door' || doorOpen > 0) && (o.floor === state.floor || joined))
+    .filter(o => (o.id !== 'door' || doorOpen > 0) && (o.floor === state.floor || joined) && inSight(o, interior, state, view.eye))
     .map(o => [o.id, screenShare(o, view)])
     .filter(([, s]) => s > MIN_SHARE)
     .sort((p, q) => q[1] - p[1])

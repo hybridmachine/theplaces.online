@@ -4,7 +4,7 @@ import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight} from '../shared/interior.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D, cabinFrame, openingCentre} from '../shared/lakeside-dressing.js';
-import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenRect, screenShare, liveOpenings} from '../shared/window-views.js';
+import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenRect, screenShare, liveOpenings, inSight} from '../shared/window-views.js';
 import {terrainHeight} from '../shared/space.js';
 
 const O = viewOpenings(I, S, D), by = id => O.find(o => o.id === id), f = cabinFrame(S, D);
@@ -166,7 +166,7 @@ test('upstairs windows are not live from a ground floor room, but are from the h
 });
 
 test('the limit keeps the largest on screen', () => {
-  const p = [9, 1], st = at(0, p), v = V(eyeOf(0, p), Math.PI, 0, 2.2, 2);
+  const p = [8, 3], st = at(0, p), v = V(eyeOf(0, p), Math.PI, .3, 2.2, 2);   // from the hall, through the wide living opening and up the stairwell
   const all = live(st, v, {doorOpen: 1});
   assert.ok(all.length >= 3, `${all}`);
   const share = Object.fromEntries(all.map(id => [id, screenShare(by(id), v)]));
@@ -177,4 +177,41 @@ test('the limit keeps the largest on screen', () => {
 test('the caps are three on full and two on light and plain', () => {
   assert.deepEqual({...LIVE_CAP}, {full: 3, light: 2, plain: 2});
   assert.ok(Object.isFrozen(LIVE_CAP));
+});
+
+// inSight: a coarse plan-view sight test from the eye to the pane over the storey's solid wall runs.
+const sight = (id, floor, p) => inSight(by(id), I, at(floor, p), eyeOf(floor, p));
+
+test('from the hall the living room window is in sight through the wide opening, but not from behind the wall beside it', () => {
+  assert.equal(sight('living', 0, [8, 3]), true);
+  assert.equal(sight('living', 0, [7.5, 6.8]), false);
+});
+
+test('a pane in the visitor\'s own room is always in sight', () => {
+  const eyes = {living: [4.2, 2.2], study: [13.8, 2.2], dining: [10, 9.8], 'bedroom-2': [3.5, 2.7], 'bedroom-3': [14.5, 2.7], 'sky-room': [3.5, 9.5], door: [9, 2]};
+  for (const o of O) assert.equal(inSight(o, I, at(o.floor, eyes[o.id]), eyeOf(o.floor, eyes[o.id])), true, o.id);
+});
+
+test('the study window is not in sight from the living room', () => assert.equal(sight('study', 0, [3, 3]), false));
+
+test('the dining window is in sight from the kitchen through the open plan', () => assert.equal(sight('dining', 0, [3.2, 10]), true));
+
+test('the front door is in sight from the dining room through the hall', () => assert.equal(sight('door', 0, [9, 9]), true));
+
+test('an opening on the other floor is not judged by this floor\'s walls', () => assert.equal(sight('bedroom-2', 0, [9, 3]), true));
+
+test('liveOpenings leaves out a pane behind a wall even when it would fill the screen', () => {
+  // The hall facing the front wall near the stair foot: the living window is on screen but the a = 7 wall's solid run d 0-2 is between.
+  const p = [8, 1], st = at(0, p), v = V(eyeOf(0, p), Math.PI, 0, 2.2, 2);
+  assert.ok(screenShare(by('living'), v) > .0005, 'it would count on screen alone');
+  assert.ok(!live(st, v, {doorOpen: 1}).includes('living'));
+  const h = [8, 3];   // two metres on, the wide opening is clear
+  assert.ok(live(at(0, h), V(eyeOf(0, h), Math.PI, 0, 2.2, 2), {doorOpen: 1}).includes('living'));
+});
+
+test('the outer wall a pane sits in never hides it', () => {
+  for (const id of ['living', 'study', 'dining', 'door']) {
+    const o = by(id), s = o.outward[1] < 0 ? 1 : -1, p = [o.centre[0] + (id === 'dining' ? -1.2 : 1.2), o.centre[1] + s * .3 + (id === 'dining' ? -.15 : .15)];
+    assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), true, id);
+  }
 });
