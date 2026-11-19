@@ -632,14 +632,26 @@ try{
   check('On &tier=plain the living window is live and not flat',plainTier==='plain'&&plainPane.live,{plainTier,plainPane});
   const plainQuiet=!lowTier.consoleErrors.length&&!lowTier.own.length;await lowTier.context().close();
 
-  // 49. The yard from outdoors at the arrival pose is unchanged by ?interior=1: the same frame with and without it.
-  const yardFrames=[];
-  for(const query of ['?check','?check&interior=1','?check']){const y=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});await y.goto(`${base}/${query}`);await ready(y);await studyLight(y,'day');
-    await y.evaluate(async()=>{const {LAKESIDE_SPACE}=await import('/shared/lakeside-space.js');window.__space.state=structuredClone(LAKESIDE_SPACE.arrival);});await y.waitForTimeout(1500);
-    const pts=[];for(let j=0;j<9;j++)for(let i=0;i<16;i++)pts.push([(i+.5)*viewport.width/16,(j+.5)*viewport.height/9]);
-    yardFrames.push({quiet:!y.consoleErrors.length&&!y.own.length,...await drawAndRead(y,pts)});await y.context().close();}
-  const yardDiff=yardFrames[0].pixels.filter((p,i)=>differ(p,yardFrames[1].pixels[i])).length,yardControl=yardFrames[0].pixels.filter((p,i)=>differ(p,yardFrames[2].pixels[i])).length;
-  check('The yard from outdoors at the arrival pose is the same with and without ?interior=1 (no more points differ than between two loads without it, which themselves differ in about a third of the points: 25% and 8 points of slack)',yardDiff<=Math.ceil(yardControl*1.25)+8&&yardFrames.every(f=>f.quiet),{pointsDiffering:yardDiff,twoLoadsWithoutIt:yardControl,of:yardFrames[0].pixels.length});
+  // 49. The yard from outdoors at the arrival pose is unchanged by ?interior=1. What moved between two loads was the view's frozen motion
+  // clock: under reduced motion it freezes at the seconds-since-epoch of the first frame, which differs per load and moves the wind, the
+  // clouds and the water. Each load pins it (frozenMotion) to the same value, under the day study, so two loads of one configuration
+  // draw the same picture. Two loads without the flag are the control; the flagged load must differ from the first of them in at most
+  // 2% of a dense grid over the whole frame and of a dense grid over a crop tight on the cabin's door and front windows, and so must
+  // the control pair (a noisy control fails the check rather than hiding a change).
+  const STILL=.02,gridPoints=(x0,y0,x1,y1,nx,ny)=>{const q=[];for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)q.push([x0+(i+.5)*(x1-x0)/nx,y0+(j+.5)*(y1-y0)/ny]);return q;};
+  const wholeFrame=gridPoints(0,0,viewport.width,viewport.height,96,54);let cabinCrop=null,cabinBox=null;const yardFrames=[];
+  for(const query of ['?check','?check','?check&interior=1']){const y=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});await y.goto(`${base}/${query}`);await ready(y);await studyLight(y,'day');
+    await y.evaluate(async()=>{const {LAKESIDE_SPACE}=await import('/shared/lakeside-space.js'),s=window.__space;s.state=structuredClone(LAKESIDE_SPACE.arrival);s.frozenMotion=1234;});await y.waitForTimeout(2000);
+    if(!cabinCrop){const at=await project(y,['door','window-front-left','window-front-right'].map(n=>openingCentre(S,D,n))),xs=at.map(q=>q[0]),ys=at.map(q=>q[1]),m=40;
+      cabinBox=[Math.max(0,Math.min(...xs)-m),Math.max(0,Math.min(...ys)-m),Math.min(viewport.width,Math.max(...xs)+m),Math.min(viewport.height,Math.max(...ys)+m)].map(Math.round);cabinCrop=gridPoints(...cabinBox,64,32);}
+    const frame=await drawAndRead(y,[...wholeFrame,...cabinCrop]);
+    yardFrames.push({quiet:!y.consoleErrors.length&&!y.own.length,whole:frame.pixels.slice(0,wholeFrame.length),cabin:frame.pixels.slice(wholeFrame.length)});await y.context().close();}
+  const share=(f,g,part)=>f[part].filter((p,i)=>differ(p,g[part][i])).length/f[part].length,fig=n=>+n.toFixed(4);
+  const yardShares={controlWhole:fig(share(yardFrames[0],yardFrames[1],'whole')),controlCabin:fig(share(yardFrames[0],yardFrames[1],'cabin')),
+    flaggedWhole:fig(share(yardFrames[0],yardFrames[2],'whole')),flaggedCabin:fig(share(yardFrames[0],yardFrames[2],'cabin'))};
+  check('The yard from outdoors at the arrival pose is the same with and without ?interior=1: with the world held still, two loads without it differ in at most 2% of the points, and the flagged load differs from one in at most 2%, over the whole frame and over the cabin\'s door and windows',
+    cabinBox[2]-cabinBox[0]>40&&cabinBox[3]-cabinBox[1]>40&&Object.values(yardShares).every(v=>v<=STILL)&&yardFrames.every(f=>f.quiet),
+    {...yardShares,limit:STILL,wholePoints:wholeFrame.length,cabinPoints:cabinCrop.length,cabinBox,pinned:'frozenMotion = 1234, reduced motion, day study, arrival pose'});
 
   // 50. Speed, on &tier=full: the synchronous time of one whole frame forced to finish with readPixels (as check 30 measures it), the
   // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (indoorRead's draw:
