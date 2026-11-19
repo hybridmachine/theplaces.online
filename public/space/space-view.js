@@ -8,6 +8,7 @@ import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
+import {viewOpenings} from '../../shared/window-views.js';
 import {doorWanted} from '../../shared/threshold.js';
 import {WALK, eyePosition, glide, glideClear, indoorEye, stepIndoors, stepWalker} from '../../shared/walker.js';
 import {SCENES, viewConditions} from '../../shared/world.js';
@@ -154,7 +155,7 @@ export class SpaceView {
   // remembered indoors is then set down at the arrival pose.
   buildInside() {
     if (this.inside || this.insideFailed || !this.interior) return;
-    try { this.inside = buildInterior(THREE, {interior: this.interior, art: this.art}); }
+    try { this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: viewOpenings(this.interior, this.space, this.dressing)}); }
     catch (error) {
       this.insideFailed = true; console.warn("The cabin's interior could not be built; its door stays shut.", error);
       if (this.state.place === 'cabin') this.state = pose(this.space.arrival);
