@@ -116,15 +116,21 @@ test('the sky and the life follow each view\'s camera and end on the visitor\'s'
   assert.deepEqual(quiet.renderer.log, []); assert.deepEqual(quiet.yard.calls, []);
 });
 
-test('the screen rectangle of a pane partly behind the eye is the whole screen', () => {
+test('a view\'s screen rectangle holds only the part of its pane in front of the eye', () => {
   const rig = recorder(), views = make(rig), o = byId('living');
-  // Facing the living room window from 3 m: a rectangle well inside the screen, round the pane's centre.
+  // Facing the living room window from 3 m: a rectangle well inside the screen, exactly round its corners as three projects them.
   const main = visitor([4.2, 3, 1.6], Math.PI), [ahead] = views.prepare(main, ['living'], () => 1), [u0, v0, u1, v1] = ahead.rect;
   assert.ok(0 < u0 && u0 < u1 && u1 < 1 && 0 < v0 && v0 < v1 && v1 < 1, String(ahead.rect));
-  const c = v3(o.centre).project(main), u = (c.x + 1) / 2, v = (c.y + 1) / 2;
-  assert.ok(u0 < u && u < u1 && v0 < v && v < v1);
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([s, t]) => v3(o.centre.map((c, i) => c + s * o.half[0] * o.across[i] + t * o.half[1] * o.up[i])).project(main));
+  close(u0, Math.min(...corners.map(c => (c.x + 1) / 2))); close(u1, Math.max(...corners.map(c => (c.x + 1) / 2)));
+  close(v0, Math.min(...corners.map(c => (c.y + 1) / 2))); close(v1, Math.max(...corners.map(c => (c.y + 1) / 2)));
   assert.deepEqual(views.prepared, [ahead]);
-  // Standing at the glass looking along the wall, the pane's chimney-end corners are behind the eye.
-  const [beside] = views.prepare(visitor([4.7, .3, 1.55], Math.PI / 2), ['living'], () => 1);
-  assert.deepEqual(beside.rect, [0, 0, 1, 1]);
+  // Close by the glass looking along the wall, the chimney-end corners are behind the eye: the rectangle is the visible part only,
+  // on the wall's side of the screen, not the whole screen.
+  const [beside] = views.prepare(visitor([4, .5, 1.55], Math.PI / 2), ['living'], () => 1), [b0, c0, b1, c1] = beside.rect;
+  assert.ok((b1 - b0) * (c1 - c0) < .5, String(beside.rect));
+  assert.ok(b0 > .5 && b1 <= 1, 'toward high a, on the wall\'s side');
+  // Wholly off screen (behind the visitor): an empty rectangle that holds no pixel.
+  const [behind] = views.prepare(visitor([4.2, 3, 1.6], 0), ['living'], () => 1);
+  assert.deepEqual(behind.rect, [0, 0, 0, 0]);
 });

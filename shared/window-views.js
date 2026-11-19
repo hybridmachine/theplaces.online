@@ -2,10 +2,14 @@
 // The carry is a turn about the vertical plus a shift, never a tilt or a scale: the pane's centre goes to its anchor in the yard.
 import {ceilingHeight, roomAt} from './interior.js';
 import {cabinFrame, openingCentre} from './lakeside-dressing.js';
+import {terrainHeight} from './space.js';
 
 const norm = ([x, y, z]) => { const n = Math.hypot(x, y, z); return [x / n, y / n, z / n]; };
 const WALL_ANCHOR = {living: 'window-front-left', study: 'window-front-right', dining: 'window-back', door: 'door'};
 const ROOF_ANCHOR = .05;   // metres the roof panes' anchors stand above the slates
+// The doorway's floor is carried this far above the highest ground just outside it (within DOOR_REACH of the wall, across the
+// door's width), so no ground nearer than the doorway's plane is cut away there to show the sky beneath it.
+const DOOR_CLEAR = .02, DOOR_REACH = .6;
 
 // Rotate [a, d, z] about the vertical by `turn`, counter-clockwise seen from above (z is kept).
 const turned = (o, [a, d, z]) => [a * Math.cos(o.turn) - d * Math.sin(o.turn), a * Math.sin(o.turn) + d * Math.cos(o.turn), z];
@@ -30,8 +34,16 @@ export function viewOpenings(I, space, dressing) {
       norm([0, Math.sign(g), Math.abs(g)]), norm([0, -g, 1]), [w.width / 2, (w.d[1] - w.d[0]) / 2 * Math.hypot(1, g)],
       f.at(along, b, f.roofZ(along, b) + ROOF_ANCHOR));
   });
+  // The door: along and across the wall at its panel's middle, but at the height that sets the doorway's floor just above the
+  // ground outside it (that ground rises a little above the cabin's threshold).
+  const panel = openingCentre(space, dressing, 'door'), out = turned({turn}, [0, -1, 0]), side = turned({turn}, [1, 0, 0]);
+  let ground = -Infinity;
+  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 3; j++) {
+    const s = (i / 4 - .5) * I.door.width, t = j / 3 * DOOR_REACH;
+    ground = Math.max(ground, terrainHeight(space, panel[0] + s * side[0] + t * out[0], panel[1] + s * side[1] + t * out[1]));
+  }
   const door = make('door', 'door', 0, 'hall', [I.door.a, -I.wall / 2, I.doorHead / 2], [1, 0, 0], [0, 0, 1], [0, -1, 0],
-    [I.door.width / 2, I.doorHead / 2], openingCentre(space, dressing, 'door'));
+    [I.door.width / 2, I.doorHead / 2], [panel[0], panel[1], ground + DOOR_CLEAR + I.doorHead / 2]);
   const order = ['living', 'study', 'dining', 'bedroom-2', 'bedroom-3', 'sky-room'];
   return Object.freeze([...order.map(id => list.find(o => o.id === id)), door]);
 }
@@ -47,10 +59,11 @@ export const cutPlane = o => ({point: [...o.anchor], normal: carryDirection(o, o
 export const LIVE_CAP = Object.freeze({full: 3, light: 2, plain: 2});
 const MIN_SHARE = .0005, NEAR = .05;   // NEAR: metres in front of the eye at which a pane is cut before it is projected
 
-// The share (0–1) of the screen the pane's four corners cover, as the camera of SpaceView sees it: yaw clockwise from +d seen from
-// above, pitch up, `fov` vertical. 0 from the pane's outward side or when none of it is in front of the eye; a pane the eye is partly past is cut to a plane 0.05 m ahead.
-export function screenShare(o, {eye, yaw, pitch, fov, aspect}) {
-  if ((eye[0] - o.centre[0]) * o.outward[0] + (eye[1] - o.centre[1]) * o.outward[1] + (eye[2] - o.centre[2]) * o.outward[2] >= 0) return 0;
+// The pane's bounding rectangle on screen, [x0, y0, x1, y1] in normalised device coordinates (−1 to 1, y up), as the camera of
+// SpaceView sees it: yaw clockwise from +d seen from above, pitch up, `fov` vertical. The pane is first cut to the plane 0.05 m in
+// front of the eye, so a pane the eye is partly past keeps only its visible part; the rectangle is clipped to the screen. Null
+// when nothing of the pane is on screen.
+export function screenRect(o, {eye, yaw, pitch, fov, aspect}) {
   const [sy, cy, sp, cp] = [Math.sin(yaw), Math.cos(yaw), Math.sin(pitch), Math.cos(pitch)];
   const fwd = [sy * cp, cy * cp, sp], right = [cy, -sy, 0], up = [-sy * sp, -cy * sp, cp], k = Math.tan(fov / 2);
   const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
@@ -64,14 +77,22 @@ export function screenShare(o, {eye, yaw, pitch, fov, aspect}) {
     if (pin) kept.push(p);
     if (pin !== qin) { const u = (NEAR - p[2]) / (q[2] - p[2]); kept.push([p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u, NEAR]); }
   });
-  if (!kept.length) return 0;
+  if (!kept.length) return null;
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const [x, y, depth] of kept) {
     const px = x / (depth * k * aspect), py = y / (depth * k);
     x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
   }
-  const w = Math.min(x1, 1) - Math.max(x0, -1), h = Math.min(y1, 1) - Math.max(y0, -1);
-  return w > 0 && h > 0 ? w * h / 4 : 0;
+  const r = [Math.max(x0, -1), Math.max(y0, -1), Math.min(x1, 1), Math.min(y1, 1)];
+  return r[2] > r[0] && r[3] > r[1] ? r : null;
+}
+
+// The share (0–1) of the screen the pane covers (its screenRect's area), 0 from the pane's outward side or off screen.
+export function screenShare(o, view) {
+  const {eye} = view;
+  if ((eye[0] - o.centre[0]) * o.outward[0] + (eye[1] - o.centre[1]) * o.outward[1] + (eye[2] - o.centre[2]) * o.outward[2] >= 0) return 0;
+  const r = screenRect(o, view);
+  return r ? (r[2] - r[0]) * (r[3] - r[1]) / 4 : 0;
 }
 
 // Ids of the openings worth drawing live this frame, largest on screen first, at most `limit`. The stairwell joins the floors, so

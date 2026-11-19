@@ -50,7 +50,7 @@ test('live panes mark the stencil with their own number and write no colour or d
   assert.equal(paneOf(scene, 'study').material, flat);
   setLive([]);
   assert.ok(openings.every(o => paneOf(scene, o.id).material === flat && stencilOf(o.id) === 0));
-  // Each id is numbered by its place in the list; an id the room does not know is passed over but keeps its number.
+  // Each id is numbered by its place in the list; an id the room does not know gets no number, and the others keep their places' numbers.
   setLive(['nowhere', 'living', 'study']);
   assert.deepEqual(['nowhere', 'living', 'study'].map(stencilOf), [0, 2, 3]);
   assert.equal(paneOf(scene, 'living').material.stencilRef, 2);

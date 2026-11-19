@@ -4,7 +4,8 @@ import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight} from '../shared/interior.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D, cabinFrame, openingCentre} from '../shared/lakeside-dressing.js';
-import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenShare, liveOpenings} from '../shared/window-views.js';
+import {viewOpenings, carry, carryDirection, cutPlane, LIVE_CAP, screenRect, screenShare, liveOpenings} from '../shared/window-views.js';
+import {terrainHeight} from '../shared/space.js';
 
 const O = viewOpenings(I, S, D), by = id => O.find(o => o.id === id), f = cabinFrame(S, D);
 const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2], sub = (p, q) => p.map((x, i) => x - q[i]), len = p => Math.hypot(...p);
@@ -22,7 +23,21 @@ test('there are seven openings, each on its own room and floor', () => {
 test('an eye at a pane\'s centre is at its anchor', () => {
   for (const o of O) near(carry(o, o.centre), o.anchor);
   near(by('living').anchor, openingCentre(S, D, 'window-front-left'));
-  near(by('door').anchor, openingCentre(S, D, 'door'));
+  // The door keeps its panel's place along and across the wall; its height is set by the ground outside (below).
+  near(by('door').anchor.slice(0, 2), openingCentre(S, D, 'door').slice(0, 2));
+});
+
+test('the open doorway\'s floor lies just above the ground outside it, so no ground is cut away there', () => {
+  const door = by('door');
+  let highest = -Infinity, lowest = Infinity;
+  for (let i = 0; i <= 8; i++) for (let j = 0; j <= 6; j++) {
+    const s = (i / 8 - .5) * I.door.width, t = j / 6 * .6, p = carry(door, [door.centre[0] + s, -I.wall / 2 - t, 0]);
+    const above = p[2] - terrainHeight(S, p[0], p[1]);
+    assert.ok(above > 0, `floor below the ground at ${s}, ${t}: ${above}`);
+    highest = Math.max(highest, above); lowest = Math.min(lowest, above);
+  }
+  assert.ok(highest <= .35, `at most about 0.35 m above it: ${highest}`);
+  assert.ok(lowest < .05, `and close to it somewhere: ${lowest}`);
 });
 
 test('a metre indoors is a metre outdoors, and up stays up', () => {
@@ -103,6 +118,28 @@ test('a pane beside the visitor that does not reach the screen has no share', ()
   const living = by('living'), p = [living.centre[0], 3], v = V(eyeOf(0, p), 3 * Math.PI / 2);   // facing the fireplace wall, level with the window
   assert.equal(screenShare(living, v), 0);
   assert.ok(!live(at(0, p), v).includes('living'));
+});
+
+test('a pane\'s screen rectangle keeps only what is in front of the eye, and is null off screen', () => {
+  const living = by('living');
+  // Facing it from across the room: the rectangle holds all four corners, well inside the screen, and its area is the share.
+  const across = V(eyeOf(0, [4.2, 3]), Math.PI), r = screenRect(living, across);
+  assert.ok(r && r[0] > -1 && r[2] < 1 && r[1] > -1 && r[3] < 1, String(r));
+  assert.ok(Math.abs((r[2] - r[0]) * (r[3] - r[1]) / 4 - screenShare(living, across)) < 1e-12);
+  // Standing at the glass, looking along the wall toward high a: the chimney-end corners are behind the eye, the rest in view.
+  const along = V([4, .5, 1.55], Math.PI / 2), part = screenRect(living, along);
+  assert.ok(part, 'some of it is on screen');
+  assert.ok((part[2] - part[0]) * (part[3] - part[1]) < 4 - 1e-6, `smaller than the screen: ${part}`);
+  // It holds the visible corners (high a), as projected through the same camera.
+  const [sy, cy] = [Math.sin(Math.PI / 2), Math.cos(Math.PI / 2)], k = Math.tan(along.fov / 2);
+  for (const t of [-1, 1]) {
+    const c = [living.centre[0] + living.half[0], living.centre[1], living.centre[2] + t * living.half[1]].map((v, i) => v - along.eye[i]);
+    const x = c[0] * cy - c[1] * sy, depth = c[0] * sy + c[1] * cy, y = c[2], px = x / (depth * k * along.aspect), py = y / (depth * k);
+    if (Math.abs(px) <= 1 && Math.abs(py) <= 1) assert.ok(px >= part[0] - 1e-9 && px <= part[2] + 1e-9 && py >= part[1] - 1e-9 && py <= part[3] + 1e-9, `${px}, ${py} in ${part}`);
+  }
+  // Wholly beside or behind the eye: nothing.
+  assert.equal(screenRect(living, V(eyeOf(0, [4.2, 3]), 0)), null);
+  assert.equal(screenRect(living, V(eyeOf(0, [living.centre[0], 3]), 3 * Math.PI / 2)), null);
 });
 
 test('standing right against a pane and looking through it, it nearly fills the screen', () => {

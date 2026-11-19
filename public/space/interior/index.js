@@ -198,8 +198,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     edge(-wide, -1); edge(wide, 1);
   }
   // The casement leaf: the living window's low-a third, lying just outside its pane, as a frame about one column of three panes
-  // (two horizontal bars), built
-  // about its hinge edge so that turning the mesh about the vertical there swings it.
+  // (two horizontal bars), built about its hinge edge so that turning the mesh about the vertical there swings it.
   const living = openings.find(o => o.id === 'living'), [lx, ly] = living.half, third = [-lx, -lx / 3];
   frame(leaf, living, third, [-ly, ly], -LEAF_OUT);
   bars(leaf, living, third, [-ly, ly], -LEAF_OUT, {across: [], from: -lx + FRAME});

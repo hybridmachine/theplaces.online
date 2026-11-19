@@ -9,31 +9,26 @@
 // function or operations, and the locked EQUAL test with KEEP operations stands for the whole draw.
 // three.js is handed in, so this runs in Node.
 import {toThree} from './geometry.js';
-import {carry, cutPlane} from '../../shared/window-views.js';
+import {carry, cutPlane, screenRect} from '../../shared/window-views.js';
 
-const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 const fromThree = v => [v.x, -v.z, v.y];   // three (x, y, z) back to the interior's [a, d, z]
 
 // createWindowViews(THREE, {openings, yardScene, yard, life, sky}) → {prepare(camera, ids, stencilOf) → View[], draw(renderer),
-// prepared, dispose()}. A View is {id, ref, camera, plane, rect: [u0, v0, u1, v1] on screen 0–1, eye: camera.matrixWorld}.
+// prepared, dispose()}. A View is {id, ref, camera, plane, rect: [u0, v0, u1, v1] on screen 0–1, eye: camera.matrixWorld}. draw
+// passes on a throw; whoever wraps it (SpaceView) reports a failed draw to the pass by returning false.
 // Throws if the yard, life or sky cannot be re-aimed (the views cannot be set up).
 export function createWindowViews(THREE, {openings, yardScene, yard, life, sky}) {
   for (const [name, part, method] of [['yard', yard, 'setCabinShown'], ['life', life, 'aim'], ['sky', sky, 'centreOn']])
     if (typeof part?.[method] !== 'function') throw new Error(`The windows' views need the ${name}'s ${method}`);
   const byId = new Map(openings.map(o => [o.id, o])), cameras = [], planes = [];
-  const corner = new THREE.Vector3(), normal = new THREE.Vector3(), point = new THREE.Vector3();
+  const normal = new THREE.Vector3(), point = new THREE.Vector3();
   let prepared = [], main = null;
-  // The pane's bounding rectangle on the visitor's screen, 0–1 from the bottom left; the whole screen if a corner is behind the eye.
+  // The pane's bounding rectangle on the visitor's screen, 0–1 from the bottom left, of only the part in front of the eye (the
+  // pane cut 0.05 m ahead, as liveOpenings sees it); empty ([0, 0, 0, 0]) when none of it is on screen. The camera is SpaceView's:
+  // rotation (pitch, −yaw, 0) in YXZ order.
   const rectOf = (o, camera) => {
-    let u0 = Infinity, v0 = Infinity, u1 = -Infinity, v1 = -Infinity;
-    for (const [s, t] of CORNERS) {
-      corner.set(...toThree(o.centre.map((c, i) => c + s * o.half[0] * o.across[i] + t * o.half[1] * o.up[i]))).applyMatrix4(camera.matrixWorldInverse);
-      if (corner.z >= 0) return [0, 0, 1, 1];
-      corner.applyMatrix4(camera.projectionMatrix);
-      u0 = Math.min(u0, corner.x); u1 = Math.max(u1, corner.x); v0 = Math.min(v0, corner.y); v1 = Math.max(v1, corner.y);
-    }
-    const unit = x => Math.min(1, Math.max(0, (x + 1) / 2));
-    return [unit(u0), unit(v0), unit(u1), unit(v1)];
+    const r = screenRect(o, {eye: fromThree(camera.position), yaw: -camera.rotation.y, pitch: camera.rotation.x, fov: camera.fov * Math.PI / 180, aspect: camera.aspect});
+    return r ? r.map(x => (x + 1) / 2) : [0, 0, 0, 0];
   };
   return {
     get prepared() { return prepared; },

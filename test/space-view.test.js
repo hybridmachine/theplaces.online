@@ -95,6 +95,14 @@ test('the painterly pass draws the views after the scene and before the filter, 
   assert.equal(u.viewCount.value, 2); assert.deepEqual(u.viewRect.value[0].toArray(), [.1, .2, .3, .4]);
   assert.ok(u.viewEye.value[1].equals(eyes[1]));
   assert.match(pass.canvas.fragmentShader, /uniform int viewCount;uniform vec4 viewRect\[3\];uniform mat4 viewEye\[3\];/);
+  // Where rectangles overlap, the tighter one is found first: the uniforms are filled smallest first.
+  const wide = {rect: [0, 0, 1, 1], eye: eyes[0]}, mid = {rect: [.2, .2, .7, .8], eye: eyes[1]}, tight = {rect: [.4, .4, .5, .5], eye: new THREE.Matrix4()};
+  pass.render(scene, camera, {views: {prepared: [wide, mid, tight], draw() {}}});
+  assert.deepEqual(u.viewRect.value.map(r => r.toArray()), [tight.rect, mid.rect, wide.rect]);
+  assert.ok(u.viewEye.value[2].equals(eyes[0]) && u.viewEye.value[1].equals(eyes[1]));
+  // A draw that reports failure drew nothing: the filter is told of no views.
+  pass.render(scene, camera, {views: {prepared: [wide], draw: () => false}});
+  assert.equal(u.viewCount.value, 0);
   // Without views the filter is told of none, and the pass is as before.
   order.length = 0; pass.render(scene, camera);
   assert.equal(u.viewCount.value, 0); assert.ok(!order.some(e => e[0] === 'views'));
@@ -122,11 +130,11 @@ const rig = async ({tier = 'full', stencil = true, state = {place: 'cabin', floo
   const {LAKESIDE_DRESSING: D} = await import('../shared/lakeside-dressing.js'), {SCENES} = await import('../shared/world.js');
   const {createViewBudget} = await import('../public/space/view-budget.js');
   const stubArt = () => ({surfaces: {hills: new THREE.Texture()}});   // the rooms paint with the hills' brushwork alone
-  const log = [], stencilState = {locked: false, test: false, func: null};
+  const log = [], failing = {yard: false}, stencilState = {locked: false, test: false, func: null};
   const renderer = {log, clippingPlanes: [], autoClear: true,
     getContext: () => ({isContextLost: () => false, getContextAttributes: () => ({stencil})}),
     setRenderTarget(target) { log.push(['target', target]); },
-    render(scene, camera) { log.push(['render', scene, camera, {...stencilState}]); },
+    render(scene, camera) { log.push(['render', scene, camera, {...stencilState}]); if (failing.yard && scene === view.scene) throw new Error('lost'); },
     state: {buffers: {stencil: {setTest(on) { if (!stencilState.locked) stencilState.test = on; log.push(['setTest', on]); }, setMask() {},
       setFunc(f, ref) { stencilState.func = ref; log.push(['setFunc', f, ref]); }, setOp() {}, setLocked(lock) { stencilState.locked = lock; }}}}};
   const view = Object.create(SpaceView.prototype), camera = new THREE.PerspectiveCamera(verticalFov(16 / 9), 16 / 9, .1, 4000);
@@ -145,7 +153,7 @@ const rig = async ({tier = 'full', stencil = true, state = {place: 'cabin', floo
   const frame = (n = 1) => { for (let i = 0; i < n; i++) view.render({world: {epoch: 0}}, 1_000_000 + i * 16); };
   // The yard scene's draws, and the options the pass was last given.
   const yardDraws = () => log.filter(e => e[0] === 'render' && e[1] === view.scene);
-  return {THREE, view, log, renderer, frame, yardDraws, meter, D};
+  return {THREE, view, log, renderer, frame, yardDraws, meter, D, failing};
 };
 const quietWarnings = t => { const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args)); return warnings; };
 
@@ -230,4 +238,30 @@ test('rain is centred on the cabin while the visitor is indoors', async () => {
   frame();
   const at = view.life.frames.at(-1).rainAt, want = new THREE.Vector3(...toThree(eyePosition(S, {position: S.cabin.center})));
   assert.ok(at?.isVector3 && at.distanceTo(want) < 1e-9, String(at?.toArray()));
+});
+
+test('a view draw that throws gives the views up for good, with one warning and no error, and the panes go flat', async t => {
+  const warnings = quietWarnings(t), {view, frame, failing, yardDraws} = await rig();
+  frame(); assert.deepEqual(view.liveViews, ['living']); assert.equal(warnings.length, 0);
+  failing.yard = true;
+  assert.doesNotThrow(() => frame());
+  assert.equal(warnings.length, 1); assert.match(String(warnings[0][0]), /windows could not be opened/); assert.equal(view.viewsFailed, true);
+  assert.equal(view.pass.canvas.uniforms.viewCount.value, 0, 'the filter is told of no views that frame');
+  const before = yardDraws().length;
+  assert.doesNotThrow(() => frame(2));
+  assert.equal(warnings.length, 1); assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, before);
+  assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0) && view.inside.stencilOf('door') === 0);
+  // On plain, the same.
+  const plain = await rig({tier: 'plain'}); plain.failing.yard = true;
+  assert.doesNotThrow(() => plain.frame(2));
+  assert.equal(warnings.length, 2); assert.deepEqual(plain.view.liveViews, []);
+});
+
+test('a view prepare that throws gives the views up, with one warning, and leaves the panes flat that frame', async t => {
+  const warnings = quietWarnings(t), {view, frame, yardDraws} = await rig();
+  view.windowViews(); view.views.prepare = () => { throw new Error('bad'); };
+  assert.doesNotThrow(() => frame(3));
+  assert.equal(warnings.length, 1); assert.equal(view.viewsFailed, true);
+  assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
+  assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0));
 });

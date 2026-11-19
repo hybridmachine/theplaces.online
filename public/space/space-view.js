@@ -178,8 +178,10 @@ export class SpaceView {
     try {
       if (!this.renderer.getContext().getContextAttributes()?.stencil) throw new Error('The drawing buffer has no stencil.');
       const views = this.views = createWindowViews(THREE, {openings: this.openings, yardScene: this.scene, yard: this.yard, life: this.life, sky: this.sky});
-      // What the frame draws through: a draw that throws gives the views up rather than the frame.
-      this.viewDraw = {get prepared() { return views.prepared; }, draw: renderer => { try { views.draw(renderer); } catch (error) { if (this.views === views) this.dropViews(error); } }};
+      // What the frame draws through: a draw that throws gives the views up rather than the frame, and reports false so the pass
+      // is told of no views this frame.
+      this.viewDraw = {get prepared() { return views.prepared; },
+        draw: renderer => { try { views.draw(renderer); return true; } catch (error) { if (this.views === views) this.dropViews(error); return false; } }};
     } catch (error) { this.dropViews(error); }
     return this.views;
   }

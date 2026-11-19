@@ -105,7 +105,10 @@ void main(){
   float d=texture(depth,vUv).r,land=d<${SKY_DEPTH}?1.:0.;
   // Where this pixel lies in the world: its distance, and whether it is the lake (the only surface at the water's level). Indoors
   // there is no lake (the downstairs floor lies at its height), and waterMask is 0; but a pixel within a view through a pane
-  // (the first whose rectangle holds it) is placed by that view's eye and tested for water as outdoors.
+  // (the first whose rectangle holds it) is placed by that view's eye and tested for water as outdoors. The rectangle also holds
+  // some of the room round the pane (frame, sill, wall); placed by the view's eye those land where the room would stand in the
+  // yard, a carried turn and shift of it, with the ground floor at least 1.5 m above the lake and the upper floor higher, so none is
+  // taken for water and the room keeps its marks.
   vec4 view=unproject*vec4(vUv*2.-1.,d*2.-1.,1.);view/=view.w;
   float z=length(view.xyz),near=1.-smoothstep(reach.x,reach.y,z);
   mat4 seen=eye;float through=0.;
@@ -237,8 +240,10 @@ export class PainterlyPass {
     camera.updateMatrixWorld();
     u.unproject.value.copy(camera.projectionMatrixInverse); u.eye.value.copy(camera.matrixWorld);
     renderer.setRenderTarget(this.sceneTarget); renderer.render(scene, camera);
-    const list = views ? views.prepared.slice(0, VIEWS) : [];
-    if (views) views.draw(renderer);
+    // A draw that reports failure (false) drew no view this frame: the filter is told of none. Where rectangles overlap the
+    // filter takes the first that holds a pixel, so they are given smallest first and the tighter one wins.
+    const drawn = views ? views.draw(renderer) !== false : false, area = r => (r[2] - r[0]) * (r[3] - r[1]);
+    const list = drawn ? [...views.prepared].sort((a, b) => area(a.rect) - area(b.rect)).slice(0, VIEWS) : [];
     u.viewCount.value = list.length;
     list.forEach((v, k) => { u.viewRect.value[k].set(...v.rect); u.viewEye.value[k].copy(v.eye); });
     this.draw(this.prepare, this.prepared); this.draw(this.tensor, this.structure); this.draw(this.kuwahara, this.painted);
