@@ -1076,12 +1076,13 @@ try{
   check('At night with the living lamp lit by fixture the table lamp\'s shade is warmer (red over blue) and brighter than with the lamp out',
     shadeLit.seen&&shadeOut.seen&&warmth(shadeLit.rgb[0])>warmth(shadeOut.rgb[0])&&lum(shadeLit.rgb[0])>lum(shadeOut.rgb[0]),
     {lit:shadeLit.rgb[0],out:shadeOut.rgb[0],warmthLit:r3(warmth(shadeLit.rgb[0])),warmthOut:r3(warmth(shadeOut.rgb[0])),lumLit:r3(lum(shadeLit.rgb[0])),lumOut:r3(lum(shadeOut.rgb[0])),shadeAt:shadeAt.map(r3),screen:shadeLit.at});
-  // The captures, by day: from the hearth back at the sofa and casement, the window seat with the casement open, the bookshelf, the hall from
-  // the front door, the stair's foot, the hooks and bench behind the open door; then the hall at night under its low lamp.
+  // The captures, by day: from the hearth back at the sofa and casement, the window seat with the casement open, the bookshelf, the hall as a
+  // visitor meets it a step in from the front door (past the open leaf: the runner, the stair with its rail, the mirror, the living room through
+  // its opening), the stair's foot, the hooks and bench in the pocket behind the open door; then the hall at night under its low lamp.
   const spots=I.spots,hooks=I.furniture.find(e=>e.id==='hooks'),bench=I.furniture.find(e=>e.id==='boot-bench'),rail=I.stairRail,seat=I.furniture.find(e=>e.id==='window-seat');
   await studyLight(fur,'day');
   const dayShots=[['hearth-back',aim(0,spots.hearth,[sofa.at[0]-.55,sofa.at[1]/2,.8])],['bookshelf',aim(0,spots.bookshelf,[spots.bookshelf[0],livingRoom.d[1],1])],
-    ['hall-day',aim(0,[I.door.a,.45],[I.door.a-.6,livingRoom.d[1]-1,1.1])],['stair-foot',aim(0,[rail.newel[0]-.9,rail.newel[1]+1.3],[rail.newel[0]+.2,rail.newel[1]+.7,.9])],
+    ['hall-day',aim(0,[I.door.a,1],[I.door.a-.25,livingRoom.d[1]-.5,.9])],['stair-foot',aim(0,[rail.newel[0]-.9,rail.newel[1]+1.3],[rail.newel[0]+.2,rail.newel[1]+.7,.9])],
     ['hooks-bench',aim(0,[bench.at[0]+1.3,bench.at[1]+1.6],[hooks.line,(hooks.along[0]+hooks.along[1])/2,1])]];
   for(const [name,pose] of dayShots){await stand(fur,pose,1000);await furnishShot(fur,name);}
   await stand(fur,aim(0,[spots.casement[0],spots.casement[1]+1.1],[seat.at[0],seat.at[1],.6]),600);await setFixture(fur,{cottagePose:{main:0,second:0,open:1}});await fur.waitForTimeout(1200);await furnishShot(fur,'window-seat-open');await setFixture(fur,null);

@@ -21,8 +21,10 @@ const BROKEN = .012;
 const CUSHION_CUTS = 3;
 // A roll's rings stand at most this far apart along it (metres), so its light, weighed at its vertices, follows it.
 const ROLL_RING = .4;
-// A drape's cells are about this size (metres), and never more than DRAPE_CUTS a side.
+// A drape's cells are about this size (metres; a drape may ask for finer), and never more than DRAPE_CUTS a side.
 const DRAPE_CELL = .13, DRAPE_CUTS = 12;
+// How much of its tint a drape keeps at most in a fold's trough (1 − FOLD_SHADE), where it hangs free.
+const FOLD_SHADE = .3;
 // A box's faces, each by its four corners (corner k is [x, y, z] = [k & 1, k >> 1 & 1, k >> 2 & 1] of the box) at (s, t) = (0, 0),
 // (1, 0), (0, 1), (1, 1), and its outward normal in the piece's frame. The front faces −y, the way the piece faces.
 const FACES = {under: [[0, 1, 2, 3], [0, 0, -1]], top: [[4, 5, 6, 7], [0, 0, 1]], front: [[0, 1, 4, 5], [0, -1, 0]], back: [[2, 3, 6, 7], [0, 1, 0]],
@@ -93,8 +95,9 @@ export function createKit(THREE, {face, lit, tint}) {
 
   // A cushion over the box [x0, x1] × [y0, y1] × [z0, z1]: every side cut CUSHION_CUTS × CUSHION_CUTS, its sides bulging out and its top up, the top
   // sagging toward a dent at a seeded place. Its edges stay where the box's are, so its faces close; its bottom lies flat on its seat.
-// Sides named in `skip` (as box's) are not drawn: those nothing will see.
-  const cushion = (at, [x0, x1], [y0, y1], [z0, z1], colour, {seed, tile = TILE * .6, bulge = .5, sag = .3, skip = []} = {}) => {
+  // Sides named in `skip` (as box's) are not drawn: those nothing will see. Given `taper` (0 to 1), a loose cushion's: its thickness
+  // falls toward its edges by that much, to a seam round its middle, so it reads stuffed rather than boxed; `cuts` overrides CUSHION_CUTS.
+  const cushion = (at, [x0, x1], [y0, y1], [z0, z1], colour, {seed, tile = TILE * .6, bulge = .5, sag = .3, skip = [], taper = 0, cuts = CUSHION_CUTS} = {}) => {
     const random = stream(seed ?? seedOf(...at(x0, y0, z0)), 5), hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2;
     const cx = x0 + hx, cy = y0 + hy, cz = z0 + hz, rise = bulge * hz, out = .5 * bulge * hz;
     const dent = [(random() - .5) * 1.1, (random() - .5) * 1.1], deep = sag * hz * (.7 + .6 * random());
@@ -104,6 +107,7 @@ export function createKit(THREE, {face, lit, tint}) {
       let x = cx + u * hx, y = cy + v * hy, z = cz + w * hz;
       if (n[2] > 0) z += pinch(u, v) * (rise - deep * Math.exp(-((u - dent[0]) ** 2 + (v - dent[1]) ** 2) / .35));
       if (n[0]) x += n[0] * out * pinch(v, w); if (n[1]) y += n[1] * out * pinch(u, w);
+      if (taper) z = cz + (z - cz) * (1 - taper * (1 - pinch(u, v)));
       return [x, y, z];
     };
     const sides = {
@@ -112,7 +116,7 @@ export function createKit(THREE, {face, lit, tint}) {
       left: [(s, t) => [-1, 2 * s - 1, 2 * t - 1], 2 * hy, 2 * hz], right: [(s, t) => [1, 2 * s - 1, 2 * t - 1], 2 * hy, 2 * hz]};
     return Object.entries(sides).filter(([name]) => !skip.includes(name)).map(([name, [unit, across, up]]) => {
       const n = FACES[name][1];
-      return face((s, t) => at(...shape(...unit(s, t), n)), across, up, direction(at, n), colour, {tile, cols: CUSHION_CUTS, rows: CUSHION_CUTS});
+      return face((s, t) => at(...shape(...unit(s, t), n)), across, up, direction(at, n), colour, {tile, cols: cuts, rows: cuts});
     });
   };
 
@@ -261,9 +265,10 @@ export function createKit(THREE, {face, lit, tint}) {
   // and `down` metres along s and t, folded: pushed out along its front by up to `folds` metres in seeded waves across s, as much as
   // `free(s, t)` (0 where it rests on something, 1 where it hangs; by default t). Double-sided: its back is drawn too, a few
   // millimetres behind, facing the other way, and takes its front's light (a cloth's two sides, millimetres apart, are lit alike;
-  // weighing the back again doubled the drape's cost to build). Returns [front, back].
-  const drape = (at, pointOf, across, down, colour, {seed, folds = .03, free = (s, t) => t, tile = TILE * .6} = {}) => {
-    const random = stream(seed ?? seedOf(...at(0, 0, 0)), 13), cols = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(across / DRAPE_CELL))), rows = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(down / DRAPE_CELL)));
+  // weighing the back again doubled the drape's cost to build). The folds' troughs are darkened in the tint, by up to FOLD_SHADE where the
+// cloth hangs free: the coarse weighing rounds a normal to WEIGH_TURN, finer than which a fold's own turn would not show. Returns [front, back].
+  const drape = (at, pointOf, across, down, colour, {seed, folds = .03, free = (s, t) => t, tile = TILE * .6, cell = DRAPE_CELL} = {}) => {
+    const random = stream(seed ?? seedOf(...at(0, 0, 0)), 13), cols = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(across / cell))), rows = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(down / cell)));
     const waves = [0, 1, 2].map(k => [2 + k * 1.7 + random() * 1.5, random() * 6.3, 1 / (k + 1.4)]), h = 1e-3;
     const front = (s, t) => V.norm(V.cross(V.sub(pointOf(Math.min(1, s + h), t), pointOf(Math.max(0, s - h), t)), V.sub(pointOf(s, Math.min(1, t + h)), pointOf(s, Math.max(0, t - h)))));
     const fold = (s, t) => folds * free(s, t) * waves.reduce((sum, [f, phase, w]) => sum + w * (.5 + .5 * Math.sin(2 * Math.PI * f * s + phase + 2.2 * t)), 0) / 1.4;
@@ -273,6 +278,14 @@ export function createKit(THREE, {face, lit, tint}) {
     const normals = pts.map((row, j) => row.map((_, i) => V.norm(V.cross(V.sub(at2(i + 1, j), at2(i - 1, j)), V.sub(at2(i, j + 1), at2(i, j - 1))))));
     const back = pts.map((row, j) => row.map((p, i) => V.add(p, normals[j][i], -.004)));
     const face = grid(at, pts, normals, colour, tile), behind = grid(at, back, normals.map(row => row.map(n => V.scale(n, -1))), colour, tile, false);
+    // (each vertex's tone: 1 on a fold's crest, less toward its trough as much as the cloth hangs free; grid's vertices run j by i)
+    if (folds > 0) for (const g of [face, behind]) {
+      const c = g.getAttribute('color');
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+        const s = i / cols, t = j / rows, f = free(s, t), tone = f > 0 ? 1 - FOLD_SHADE * f * (1 - fold(s, t) / (folds * f)) : 1, k = j * (cols + 1) + i;
+        c.setXYZ(k, c.getX(k) * tone, c.getY(k) * tone, c.getZ(k) * tone);
+      }
+    }
     for (const name of ['light', 'spill']) if (face.getAttribute(name)) behind.setAttribute(name, face.getAttribute(name).clone());
     return [face, behind];
   };

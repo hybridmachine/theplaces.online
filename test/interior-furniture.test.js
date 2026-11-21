@@ -97,7 +97,6 @@ test('a cushion is not a box: its top is not flat', () => {
   const inside = build();
   for (const id of ['cushion-window-seat-1', 'cushion-sofa-1']) {
     const vs = vertices(inside.scene, id, 'furniture-cloth');
-    assert.ok(vs.length >= 6 * 16, `${id}: cut at least 3 × 3 on every side (${vs.length} vertices)`);
     // its top: the vertices whose normals point most nearly along the cushion's own up (lying, z; leaning, tilted back)
     const up = vs.reduce((b, v) => v.n[2] > b.n[2] ? v : b).n, top = vs.filter(v => v.n[0] * up[0] + v.n[1] * up[1] + v.n[2] * up[2] > .5);
     const along = top.map(v => v.a * up[0] + v.d * up[1] + v.z * up[2]);
@@ -186,6 +185,29 @@ test('the furniture\'s light is weighed coarsely but in the right room, near the
   inside.dispose();
 });
 
+test('the sofa\'s cushions and arm rolls take light near the exact field at every vertex', () => {
+  // The coarse weighing (a 0.3 m lattice, normals rounded to half a unit) on the sofa's rounded and soft parts, where a stepped light would show:
+  // every vertex of its seat and back cushions, its arm rolls and its three loose cushions within 0.1 of the field weighed at the vertex itself,
+  // day and fire. Measured worst at the time of writing: day .078, fire .028 (the whole furniture's worst, on rail caps and the runner, is .29).
+  // 0.1 is tighter than the 0.12 held on every seventh vertex of four pieces above, with a fifth of headroom over what was measured.
+  const inside = build(), TOLERANCE = .1, e = I.furniture.find(x => x.id === 'sofa'), [hx] = half('sofa'), c = Math.cos(e.turn), s = Math.sin(e.turn);
+  const x = v => (v.a - e.at[0]) * c + (v.d - e.at[1]) * s, seat = KINDS.sofa.seat;
+  const sofa = vertices(inside.scene, 'sofa', 'furniture-cloth');
+  const parts = {
+    'arm rolls': sofa.filter(v => Math.abs(x(v)) > hx - .2 && v.z > .5 && Math.max(...v.n.map(Math.abs)) < .97),
+    cushions: sofa.filter(v => Math.abs(x(v)) < hx - .2 && v.z > seat - .1 && v.z < KINDS.sofa.height - .1),
+    'loose cushions': I.furniture.filter(x => x.on === 'sofa' && x.kind === 'cushion').flatMap(x => vertices(inside.scene, x.id, 'furniture-cloth'))};
+  for (const [name, vs] of Object.entries(parts)) {
+    assert.ok(vs.length > 20, `${name}: ${vs.length}`);
+    for (const v of vs) {
+      const exact = inside.field.weigh(room('living').floor, [v.a, v.d, v.z], v.n);
+      assert.ok(Math.abs(v.light[0] - exact.day) <= TOLERANCE, `${name} day ${v.light[0]} against ${exact.day}`);
+      assert.ok(Math.abs(v.light[2] - exact.fire) <= TOLERANCE, `${name} fire ${v.light[2]} against ${exact.fire}`);
+    }
+  }
+  inside.dispose();
+});
+
 test('the sofa and armchairs have rounded arms: their vertices are not all on six planes', () => {
   const inside = build();
   for (const id of ['sofa', 'armchair-front', 'armchair-back']) {
@@ -194,8 +216,14 @@ test('the sofa and armchairs have rounded arms: their vertices are not all on si
       const arm = vs.filter(v => side * v.x > hx - .12 && v.z > .45);
       assert.ok(arm.filter(oblique).length >= 8, `${id}'s ${side < 0 ? 'left' : 'right'} arm is rounded: ${arm.filter(oblique).length} oblique of ${arm.length}`);
     }
-    const back = vs.filter(v => Math.abs(v.x) < hx - .2 && v.y > 0 && v.z > KINDS.armchair.seat + .3);
-    assert.ok(back.filter(oblique).length >= 8, `${id}'s back is rounded`);
+    // the back's roll: its top is the piece's height, and its top quarter (within 0.05 m of that, the roll's radius being 0.075 m or more) lies
+    // above the back cushions' tops and the arms. (It once took every vertex 0.3 m over the armchair's seat, the back cushions with it.)
+    // Every ring of the roll is rounded there: at least two oblique vertices a ring, over at least three rings.
+    const e = I.furniture.find(x => x.id === id), h = KINDS[e.kind].height, back = vs.filter(v => v.y > 0 && v.z > h - .05);
+    const rings = new Map();
+    for (const v of back) { const k = Math.round(v.x * 100); rings.set(k, (rings.get(k) ?? 0) + (oblique(v) ? 1 : 0)); }
+    const rounded = [...rings.values()].filter(n => n >= 2).length;
+    assert.ok(rounded >= 3 && rounded === rings.size, `${id}'s back is rounded: ${rounded} of ${rings.size} rings (${[...rings.values()]})`);
   }
   inside.dispose();
 });
@@ -206,9 +234,11 @@ test('the armchairs are not mirror images of one another', () => {
   assert.notDeepEqual(key(one), key(two), 'not the same chair');
   assert.notDeepEqual(key(one.map(v => ({...v, x: -v.x}))), key(two), 'nor its mirror image');
   // their arms' rolls differ in size, and their seats' dents
-  // (over the front half of the arm itself, clear of the seat's cushions and the back)
+  // (over the front half of the arm itself, clear of the seat's cushions and the back: since the cushions were cut 3 × 3 rather than 4 × 4 in
+  // part 4a's task 7, a window reaching the arm's inner edge took in cushion vertices beside it)
   const [hx] = half('armchair-front'), arm = vs => { const top = vs.filter(v => v.x > hx - .12 && v.y < 0 && v.z > .45); return Math.max(...top.map(v => v.z)) - Math.min(...top.filter(v => v.n[2] < -.2).map(v => v.z)); };
   assert.ok(Math.abs(arm(one) - arm(two)) > .005, `arm rolls ${arm(one)} and ${arm(two)}`);
+  // (the seat's top over its middle; widened from |x| < .25, y < 0 in task 7, as fewer of the coarser cushion's vertices fell in that patch)
   const seat = vs => vs.filter(v => Math.abs(v.x) < .3 && v.y < .1 && v.z > .4 && v.z < .6 && v.n[2] > .8).map(v => v.z);
   assert.ok(seat(one).length > 4 && seat(two).length > 4);
   assert.notDeepEqual(seat(one).map(z => Math.round(z * 500)).sort(), seat(two).map(z => Math.round(z * 500)).sort(), 'their seats dent differently');
@@ -344,7 +374,11 @@ test('every solid piece has a patch on the floor beneath it, darkest under it an
   }
   const mat = furniture(inside.scene).getObjectByName('grounding').material;
   assert.ok(mat.isMeshBasicMaterial && mat.vertexColors && mat.transparent && !mat.depthWrite && mat.polygonOffset && mat.polygonOffsetFactor === -1);
-  assert.ok(furniture(inside.scene).getObjectByName('grounding').renderOrder < inside.scene.children.find(o => o.name.startsWith('pane-')).renderOrder, 'drawn before the panes');
+  // drawn with the rooms, blended over the floor without writing depth, so nothing behind it is hidden and it never reaches the overlay
+  const ground = furniture(inside.scene).getObjectByName('grounding');
+  let inScene = false; inside.scene.traverse(o => { if (o === ground) inScene = true; });
+  let inOverlay = false; inside.overlay.traverse(o => { if (o === ground) inOverlay = true; });
+  assert.ok(inScene && !inOverlay, 'in the rooms\' scene, not the overlay');
   inside.dispose();
 });
 

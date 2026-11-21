@@ -18,8 +18,10 @@ import {MANTEL} from './fireplace.js';
 // build naming each and why. Every irregularity comes from a seed of the entry's id.
 
 // Linear tints, lit; the flat light's (built unlit) is each divided by the flat light's irradiance on a floor, as the shell's boards are.
-const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], rugRed: [.95, .4, .3], ochre: [1.1, .85, .45], green: [.5, .62, .48], blue: [.5, .6, .75],
-  linen: [1.2, 1.12, .95], glass: [.82, .9, .98]};
+// (the reds and blues faded toward grey, as the painting's are: nothing saturated; `walnut` is the stair's joinery, darker than its treads;
+// `slate` the hall's runner, a worn grey-blue)
+const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], walnut: [.26, .17, .11], rugRed: [.86, .46, .36], ochre: [1.05, .84, .5], green: [.52, .62, .5],
+  blue: [.54, .6, .7], slate: [.6, .62, .64], linen: [1.2, 1.12, .95], glass: [.82, .9, .98]};
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -27,9 +29,14 @@ const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furnit
 // standing lamp's foot take a round patch of radius `disc`.
 export const GROUND = {reach: .22, dark: .42, inner: .05, lift: .003, disc: .2};
 const ROUND = ['newel', 'standing-lamp'];
-// A lamp's shade, linear: pale (times the room's light there, without the lamp's own) with the lamp out, and glowing warm, above 1 so
-// it blooms, with the living room's lamp lit; between them by that lamp's level.
-export const SHADE_PALE = [1.12, 1.08, 1.05], SHADE_WARM = [1.9, 1.25, .6];
+// A lamp's shade, linear: pale (times the room's light there, without the lamp's own) with the lamp out, and glowing warm with the living
+// room's lamp lit; between them by that lamp's level. Lit, it stays under 1 even at the shade's brightest band (SHADE_FORM), so its warmth
+// shows on the shade itself instead of clipping to a flat cream.
+export const SHADE_PALE = [1.12, 1.08, 1.05], SHADE_WARM = [.98, .62, .3];
+// The shade's form, painted into its vertex tint (the mesh takes one colour a frame): bands up the cone from its foot (t 0) to its top
+// (t 1), each with how much of the colour it keeps: a darker rim at the foot, brightest low where the bulb shines through, fading upward
+// to a darker top edge. And across it: the side away from the room's middle keeps `away` of it, so the cone reads round.
+const SHADE_FORM = {bands: [[0, .66], [.06, .92], [.3, 1], [.75, .86], [.93, .76], [1, .56]], away: .78};
 const SHADE_ROOM = 'living';
 const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
 const finite = v => Number.isFinite(v) ? v : 0;
@@ -37,6 +44,11 @@ const finite = v => Number.isFinite(v) ? v : 0;
 const STONE_TILE = SPACE_ART.surfaces.stone.metres * .2;
 // The stair's handrail's radius.
 const RAIL_RADIUS = .024;
+// The stair's joinery's brushwork scale, metres a tile: coarse against its thin parts, so each baluster and the rail take an even stain
+// rather than the treads' strokes, and read as a piece apart from the flight.
+const RAIL_TILE = 3;
+// The window seat's squab cushion's thickness, metres: part of the seat's height, so what is set on the seat sits on it.
+const WINDOW_SQUAB = .07;
 const idSeed = id => [...String(id)].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261) % 100000;
 // A piece's size: its entry's, or its kind's.
 const sizeOf = e => e.size || KINDS[e.kind].size;
@@ -51,8 +63,6 @@ const pegsOf = e => {
 // The upholstered kinds' builds: colour (times), seat and back cushions, the arms' and back's thickness; and each piece's own build from
 // its seed: its arms' and back's rolls a little fuller or leaner and its arms a little higher or lower (the throw reads its sofa's).
 const UPHOLSTERY = {sofa: {colour: 'green', times: 1, seats: 2, backs: 2, arm: .18, back: .2}, armchair: {colour: 'rugRed', times: .75, seats: 1, backs: 1, arm: .15, back: .18}};
-// How much of its half-shelf every other run of books on the bookshelf fills.
-const SHORT_RUN = .6;
 const upholsteryOf = e => {
   const u = UPHOLSTERY[e.kind], r = k => hash(k, 11, idSeed(e.id));
   return {...u, armR: u.arm / 2 * (.8 + .4 * r(21)), backR: u.back / 2 * (.85 + .15 * r(22)), armTop: .6 + .06 * (r(23) - .5)};
@@ -81,18 +91,18 @@ const table = ({colour, top = .035, leg = .022, inset = .06, shelf = null}) => (
 // along its top (both rolls a little different piece by piece), seat cushions on the frame and back cushions leaning on the back.
 const upholstered = (kit, e, pal) => {
   const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), {colour, times, seats, backs, back, armR, backR, armTop} = upholsteryOf(e);
-  const cover = pal[colour](0, .07, times), shade = pal[colour](1, .07, times * .85), feet = pal.darkOak(2, .06);
+  const cover = pal[colour](0, .07, times), dim = pal[colour](1, .07, times * .85), feet = pal.darkOak(2, .06);
   const inner = hx - 2 * armR, base = seat - .15, wood = [], cloth = [];   // the arms' inner faces; the frame's top, under the seat cushions
   for (const x of [-1, 1]) for (const y of [-1, 1]) wood.push(...kit.post(at, [x * (hx - .06), y * (hy - .06)], [0, .08], .022, feet));
-  cloth.push(...kit.box(at, [-inner, inner], [-hy + .02, hy - back], [.08, base], shade, {skip: ['top', 'back'], tuck: ['under'], seed: pal.seed}));
+  cloth.push(...kit.box(at, [-inner, inner], [-hy + .02, hy - back], [.08, base], dim, {skip: ['top', 'back'], tuck: ['under'], seed: pal.seed}));
   for (const side of [-1, 1]) {
     const cx = side * (hx - armR);
     cloth.push(...kit.box(at, side < 0 ? [-hx, -inner] : [inner, hx], [-hy + .02, hy], [.08, armTop], cover, {skip: ['top'], tuck: ['under'], broken: 0}),
-      ...kit.roll(at, [cx, -hy + .02, armTop], [cx, hy - .005, armTop], armR, cover, {ends: shade}));
+      ...kit.roll(at, [cx, -hy + .02, armTop], [cx, hy - .005, armTop], armR, cover, {ends: dim}));
   }
   const top = h - backR;
   cloth.push(...kit.box(at, [-inner, inner], [hy - back, hy], [.08, top], cover, {skip: ['top'], tuck: ['under'], broken: 0}),
-    ...kit.roll(at, [-hx + armR * .4, hy - back / 2, top], [hx - armR * .4, hy - back / 2, top], backR, cover, {ends: shade}));
+    ...kit.roll(at, [-hx + armR * .4, hy - back / 2, top], [hx - armR * .4, hy - back / 2, top], backR, cover, {ends: dim}));
   const w = 2 * inner / seats, bw = 2 * inner / backs;
   for (let k = 0; k < seats; k++) cloth.push(...kit.cushion(at, [-inner + k * w + .005, -inner + (k + 1) * w - .005], [-hy + .03, hy - back], [base, seat], cover, {seed: pal.seed * 7 + k, sag: .35, skip: ['under']}));
   for (let k = 0; k < backs; k++) {
@@ -102,8 +112,14 @@ const upholstered = (kit, e, pal) => {
   return {wood, cloth};
 };
 // A lamp's shade, an open cone from [radius, z] at its foot to [radius, z] at its top, drawn by the plain kit (its geometry is not weighed:
-// the shades' one colour is set a frame).
-const shade = (plain, at, foot, top, colour) => plain.turned(at, [0, 0], [foot, top], colour);
+// the shades' one colour is set a frame), its form painted in by SHADE_FORM: banded up the cone, darker on the side away from `middle`
+// (the [a, d] of its room's middle).
+const shade = (plain, at, [r0, z0], [r1, z1], colour, middle) => {
+  const {bands, away} = SHADE_FORM, [a, d] = at(0, 0, 0), toward = Math.atan2(middle[1] - d, middle[0] - a);
+  const side = p => { const facing = Math.cos(Math.atan2(p[1] - d, p[0] - a) - toward); return away + (1 - away) * (.5 + .5 * facing); };
+  return plain.turned(at, [0, 0], bands.map(([t]) => [r0 + (r1 - r0) * t, z0 + (z1 - z0) * t]), (p, k) => colour(p).map(c => c * bands[k][1] * side(p)), {segments: 14});
+};
+const middleOf = (I, id) => { const r = I.rooms.find(x => x.id === id); return [(r.a[0] + r.a[1]) / 2, (r.d[0] + r.d[1]) / 2]; };
 // The inside of an open turned piece (profile points from `from` on) darker than its outside.
 const lined = (colour, from) => (p, k) => k >= from ? colour(p).map(c => c * TUCK) : colour(p);
 
@@ -115,23 +131,24 @@ export function stairRail(kit, I, {treads, colour}) {
   const along = d => R.height + rise * (d - d0) / (d1 - d0), [na, nd] = R.newel, foot = along(nd), H = R.newelHeight;
   const at = kit.placed({at: [0, 0], room: roomAt(I, 0, R.newel)?.id}), wood = [];
   // the newel: a turned post with a block where the rail meets it, a neck and a cap
+  const tile = RAIL_TILE;
   wood.push(...kit.turned(at, [na, nd], [[0, 0], [.06, 0], [.06, 0], [.06, .12], [.048, .16], [.045, foot - .16], [.078, foot - .1], [.078, foot - .1], [.078, foot + .1],
-    [.078, foot + .1], [.05, foot + .13], [.045, H - .12], [.07, H - .08], [.07, H - .045], [.045, H - .015], [0, H]], colour, {segments: 10}));
+    [.078, foot + .1], [.05, foot + .13], [.045, H - .12], [.07, H - .08], [.07, H - .045], [.045, H - .015], [0, H]], colour, {segments: 10, tile}));
   // the rail, from inside the newel's block to the ceiling
   const end = Math.min(R.ends, d0 + (I.groundCeiling - RAIL_RADIUS - R.height) * (d1 - d0) / rise);
-  wood.push(...kit.roll(at, [a0, nd, foot], [a0, end, along(end)], RAIL_RADIUS, colour, {sides: 6}));
+  wood.push(...kit.roll(at, [a0, nd, foot], [a0, end, along(end)], RAIL_RADIUS, colour, {sides: 6, tile}));
   // a baluster on each tread whose middle is under the rail, from the tread up into the rail's middle
   for (let k = 0; k < treads; k++) {
     const d = d0 + (k + .5) * run, z0 = (k + 1) * rise / treads, top = along(d);
     if (d >= Math.min(R.ends, end)) break;
-    wood.push(...kit.turned(at, [a0, d], [[0, z0], [.02, z0], [.02, z0], [.02, z0 + .05], [.014, z0 + .08], [.013, top - .06], [.018, top - .035], [0, top]], colour, {segments: 6}));
+    wood.push(...kit.turned(at, [a0, d], [[0, z0], [.02, z0], [.02, z0], [.02, z0 + .05], [.014, z0 + .08], [.013, top - .06], [.018, top - .035], [0, top]], colour, {segments: 6, tile}));
   }
   return {wood};
 }
 
 export const RECIPES = {
   rug: rug('rugRed', 'rugRed', .16),
-  runner: rug('blue', 'blue', .09),
+  runner: rug('slate', 'slate', .09),
   doormat: rug('ochre', 'ochre', .06),
   'low-table': table({colour: 'darkOak', top: .04, leg: .025, inset: .07}),
   'side-table': table({colour: 'oak', leg: .02, inset: .05}),
@@ -149,19 +166,27 @@ export const RECIPES = {
       for (const [x0, x1] of [[-hx + T, -T / 2], [T / 2, hx - T]]) {
         carcass.push(...kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
         const room = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
-        // every other run stops short, leaving the end of its shelf bare (a shelf is seldom full; fewer books to build)
-        const end = (k + (x0 < 0 ? 0 : 1)) % 2 ? x0 + (x1 - x0) * SHORT_RUN : x1;
-        cloth.push(...kit.books(at, [x0, end], spines, z, {height: Math.min(.3, room * .8), seed: pal.seed * 10 + k * 2 + (x0 < 0 ? 0 : 1), colours: covers}));
+        cloth.push(...kit.books(at, [x0, x1], spines, z, {height: Math.min(.3, room * .8), seed: pal.seed * 10 + k * 2 + (x0 < 0 ? 0 : 1), colours: covers}));
       }
     });
     return {wood: carcass, cloth};
   },
-  // A boxed bench under the casement: a darker plinth set back, the body, and a seat board on top.
+  // A boxed bench under the casement: a darker plinth set back, the painted body with two fielded panels on its front (stiles and rails
+  // standing proud, their undersides in shadow), a seat board overhanging it, and a long squab cushion over the board, sagging where it is
+  // sat on. The loose cushions sit on the squab (WINDOW_SQUAB high).
   'window-seat'(kit, e, pal) {
-    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), paint = pal.linen(0, .06, .78), seat = pal.oak(1, .07);
-    return {wood: [...kit.box(at, [-hx + .02, hx - .02], [-hy + .05, hy], [0, .07], paint, {tuck: ['front', 'left', 'right', 'top'], skip: ['under', 'back'], broken: 0}),
-      ...kit.box(at, [-hx, hx], [-hy + .02, hy], [.07, h - .04], paint, {skip: ['under', 'back'], seed: pal.seed}),
-      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], seat, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1})]};
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height - WINDOW_SQUAB, at = kit.placed(e), paint = pal.linen(0, .06, .78), seat = pal.oak(1, .07);
+    const front = -hy + .04, proud = front - .02, frame = {tuck: ['under'], skip: ['back']}, base = .09, top = h - .035, mid = (base + top) / 2;
+    const wood = [...kit.box(at, [-hx + .02, hx - .02], [-hy + .08, hy], [0, base], paint, {tuck: ['front', 'left', 'right', 'top'], skip: ['under', 'back'], broken: 0}),
+      ...kit.box(at, [-hx + .015, hx - .015], [front, hy], [base, top], paint, {skip: ['under', 'back'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [top, h], seat, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1})];
+    // the panels' frame: a rail along the foot and the head, a stile at each end and one between
+    for (const [z0, z1] of [[base, base + .06], [top - .06, top]]) wood.push(...kit.board(at, [-hx + .015, hx - .015], [proud, front], [z0, z1], paint, frame));
+    for (const x of [-hx + .015, -.035, hx - .085]) wood.push(...kit.board(at, [x, x + .07], [proud, front], [base + .06, top - .06], paint, frame));
+    // (the panels themselves, the body's front between them, a shade darker, as a recess holds a little shadow)
+    wood.push(...[[-hx + .085, -.035], [.035, hx - .085]].flatMap(([x0, x1]) => kit.board(at, [x0, x1], [front - .002, front], [base + .06, top - .06], pal.linen(2, .05, .56), {skip: ['back', 'under', 'top', 'left', 'right']})));
+    const squab = kit.cushion(at, [-hx + .03, hx - .03], [-hy + .015, hy - .02], [h, h + WINDOW_SQUAB], pal.ochre(3, .06, .82), {seed: pal.seed + 2, bulge: .7, sag: .6, skip: ['under']});
+    return {wood, cloth: squab};
   },
   // A seat board, two ends and an open shelf beneath; its back, under the coats, darkened.
   'boot-bench'(kit, e, pal) {
@@ -206,17 +231,17 @@ export const RECIPES = {
   sofa: upholstered,
   armchair: upholstered,
   // A turned stem on a weighted foot, a fitting at its top and the shade over it.
-  'standing-lamp'(kit, e, pal, {plain}) {
+  'standing-lamp'(kit, e, pal, {plain, interior}) {
     const at = kit.placed(e), h = KINDS[e.kind].height, wood = pal.darkOak(0, .07), top = h - .25;
     return {wood: kit.turned(at, [0, 0], [[0, 0], [.13, 0], [.13, 0], [.135, .015], [.12, .035], [.05, .05], [.03, .08], [.02, .12], [.016, .14], [.016, top - .05],
       [.024, top - .04], [.024, top - .01], [.012, top], [0, top]], wood, {segments: 10}),
-      shades: shade(plain, at, [.165, h - .33], [.11, h - .02], pal.shade(1))};
+      shades: shade(plain, at, [.165, h - .33], [.11, h - .02], pal.shade(1), middleOf(interior, e.room))};
   },
   // A rounded pot of a base on its table, a short stem and the shade.
-  'table-lamp'(kit, e, pal, {plain}) {
+  'table-lamp'(kit, e, pal, {plain, interior}) {
     const at = kit.moved(kit.placed(e), [-.04, .05, 0]), h = KINDS[e.kind].height, pot = pal.blue(0, .08, .9);
     return {wood: kit.turned(at, [0, 0], [[0, 0], [.055, 0], [.055, 0], [.072, .03], [.078, .08], [.06, .14], [.026, .17], [.014, .19], [.014, .26], [0, .26]], pot, {segments: 10}),
-      shades: shade(plain, at, [.14, .22], [.09, h - .02], pal.shade(1))};
+      shades: shade(plain, at, [.14, .22], [.09, h - .02], pal.shade(1), middleOf(interior, e.room))};
   },
   // A woven basket, open, its inside darker, and four logs across it, their cut ends paler than their bark.
   'log-basket'(kit, e, pal) {
@@ -287,7 +312,7 @@ export const RECIPES = {
       : [hx + off, armTop - (l - inside - over)];
     const pointOf = (s, t) => { const [x, z] = path(t * length); return [x, y1 - (y1 - y0) * s, z]; };
     const free = (s, t) => { const l = t * length; return l < inside ? .5 * (1 - l / inside) : l < inside + over ? 0 : (l - inside - over) / hang; };
-    return {cloth: kit.drape(at, pointOf, y1 - y0, length, pal.blue(0, .1, .95), {seed: pal.seed, free, folds: .03})};
+    return {cloth: kit.drape(at, pointOf, y1 - y0, length, pal.ochre(0, .1, .78), {seed: pal.seed, free, folds: .05, cell: .07})};
   },
   // A pair of boots on the bench's lower shelf, toes out: a foot and a shaft each.
   boots(kit, e, pal) {
@@ -299,7 +324,7 @@ export const RECIPES = {
     }
     return {wood: out};
   },
-  newel: (kit, e, pal, {interior, treads}) => stairRail(kit, interior, {treads, colour: pal.darkOak(0, .06)}),
+  newel: (kit, e, pal, {interior, treads}) => stairRail(kit, interior, {treads, colour: pal.walnut(0, .05)}),
   // A cushion on its parent: lying flat on a window seat (or anything else), standing up against the back on a sofa or chair.
   cushion(kit, e, pal) {
     const kind = e.parent?.kind, n = e.count || 1, i = e.index || 0, at = kit.placed(e), jitter = k => (pal.random(k) - .5);
@@ -310,6 +335,12 @@ export const RECIPES = {
       const spread = kind === 'sofa' ? .58 : 0, x = (i - (n - 1) / 2) * spread + jitter(1) * .06, back = -.03;
       const upright = kit.moved(at, [x, back, 0], {turn: jitter(2) * .2, tilt: 1.15 + jitter(3) * .15});
       return {cloth: kit.cushion(upright, [-.22, .22], [0, .42], [0, .15], colour, {seed: pal.seed})};
+    }
+    // on the window seat: plump and square, askew; the first propped against the wall (the seat's +y side), the rest lying on the squab
+    if (kind === 'window-seat') {
+      const hy = halves(e.parent)[1], x = (i - (n - 1) / 2) * .7 + jitter(1) * .06;
+      const pose = i % 2 ? kit.moved(at, [x, jitter(2) * .05 - .16, 0], {turn: .3 + jitter(3) * .3, tilt: .1}) : kit.moved(at, [x, hy - .3, 0], {turn: jitter(3) * .2, tilt: .5});
+      return {cloth: kit.cushion(pose, [-.18, .18], [0, .32], [0, .14], colour, {seed: pal.seed, bulge: .8, sag: .4, taper: .6, cuts: 4})};
     }
     const x = (i - (n - 1) / 2) * .62 + jitter(1) * .05, flat = kit.moved(at, [x, jitter(2) * .04, 0], {turn: jitter(3) * .25});
     return {cloth: kit.cushion(flat, [-.26, .26], [-.19, .19], [0, .12], colour, {seed: pal.seed})};
@@ -438,7 +469,8 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   if (grounded.size) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(position, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(colour, 4)); g.setIndex(index);
-    // Not lit: black with an alpha, drawn over the floor and under the panes, never into the depth buffer.
+    // Not lit: black with an alpha, blended over the floor (lifted just off it, and pulled toward the eye by its polygon offset) in the rooms'
+    // own scene, never into the depth buffer, so it hides nothing drawn after it; nothing of it is in the overlay.
     ground = new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1}));
     ground.name = 'grounding'; ground.renderOrder = 0; object.add(ground);
   }

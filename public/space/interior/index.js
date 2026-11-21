@@ -36,7 +36,10 @@ const LIT_PLASTER = [.6, .54, .47], LIT_PLASTER_BASE = [.45, .405, .315], LIT_BO
 const INTO = .03;
 // The furniture's light is weighed once a cell of this lattice (metres) and a facing rounded to this, so its many small faces cost no more
 // to light than a few walls. The lattice is finer than the shell's own vertices (STEP, 0.4 m), between which a wall's or a floor's light is
-// only interpolated. At 0.12 m and 0.25 the furniture added about 88 ms to a first build in the browser, against the 60 ms it has.
+// only interpolated. At 0.12 m and 0.25 the furniture added about 88 ms to a first build in the browser, against the 60 ms it has. Rounding a
+// normal to 0.5 can turn it about 35° (the worst vertex is .29 off the exact field, on rail caps and the runner); a turn of 0.25 with this
+// lattice drew the sofa's cushions and arm rolls no differently in the captures and cost about 8 ms more, so 0.5 stands, and the sofa's soft
+// parts are pinned within 0.1 of the exact field (test/interior-furniture.test.js).
 const WEIGH_GRID = .3, WEIGH_TURN = .5;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
 const RAIL = .9, RAIL_THICK = .04, TREADS = 15;

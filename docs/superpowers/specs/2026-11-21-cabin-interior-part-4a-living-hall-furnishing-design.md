@@ -1,6 +1,6 @@
 # Cabin interior, part 4a: furnishing the living room and hall — design
 
-Status: proposed, November 21, 2026. Awaiting approval. Nothing is built.
+Status: built behind `?interior=1`, awaiting owner review (November 21, 2026). See As built at the end.
 
 This is the first slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). The parent's intent, goals, non-goals and anti-goals still hold, and its "Furnishing" section is the brief. Parts 1 to 3 are built and merged; part 3's "contract for part 4" (`2026-11-20-cabin-interior-part-3-light-design.md`, As built) is the starting point and is widened here in one place.
 
@@ -191,3 +191,102 @@ The captures above. Three questions decide what the other rooms inherit: does th
 - Whether the lamps carry halos.
 - The count and exact choice of dressing pieces, within the budget.
 - The wording of the description clauses.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open. The pieces are drawn by `public/space/interior/furniture.js` from the kit in `furniture-kit.js`; their kinds and footprints are in `shared/furniture.js`; their places are the blueprint's `furniture` in `shared/lakeside-interior.js`.
+
+### Placements
+
+- Every piece stands where the plan's table put it, with these differences, all settled when the blueprint was first laid out and kept since: the back armchair is at [2.3, 5.25], not [2.3, 5.4]; the newel is at [9.55, 1.42], not [9.5, 1.42], just outside the flight's foot corner; the runner is 0.91 m wide (a 8.25 to 9.15), a little narrower than the plan's metre. No piece moved in the tuning.
+- The hall's day and night captures now stand a step inside the front door ([9, 1], looking down the runner toward the dining opening) rather than in the doorway, where a third of the frame was the open door leaf. They show the hall as a visitor meets it: the runner, the stair with its rail, the mirror, and the living room through its opening. The hooks and bench are in their own capture, in the pocket behind the leaf.
+
+### Rule 8, as read
+
+- The 0.9 m walker's route (rule 8) is the usual flood run keeping 0.45 m off walls, the leaf and every solid piece, over **the hall and the living room only**: the ground floor is cut down to those two rooms and their openings (`furnishedWay`), so the route cannot go round through the kitchen or the dining room. Its targets are each hall opening's doorway point, the living-kitchen one and the stair foot. The pocket behind the door leaf and the way in among the fire group are held to the ordinary 0.25 m (rule 7).
+
+### Which pieces are sculpted
+
+- Sculpted (spun, rolled or draped, then weighed per vertex): the arm and back rolls of the sofa and armchairs; the newel, the handrail and the balusters; the lamps' bases and shades; the log basket and its logs; the jug and candlesticks; the umbrella stand, with its stick and umbrella; the three coats, the hat and the throw.
+- Everything else is kit, through `face`: boxes with broken edges, boards, posts, cushions, book runs, framed panels and mats.
+- The book runs are one geometry a run, weighed once (they draw what `face` would). The drapes (coats and throw) draw their back sheet a few millimetres behind the front and **give it the front's light** instead of weighing it again: a cloth's two sides are lit alike here, and weighing both doubled the drapes' build cost.
+
+### How grounding is drawn
+
+- One mesh (`grounding`), not lit: a patch a solid piece of black with a vertex alpha, the piece's turned footprint grown by 0.22 m (`GROUND.reach`), dark (alpha 0.42) over the footprint drawn in by 0.05 m and fading to nothing at its rim. The newel and the standing lamp take a round patch of radius 0.2 m. A patch lies 3 mm over the floor, or over the top of the rug the piece stands on, and stops at the walls' faces.
+- It is drawn in the rooms' own scene, blended (transparent, no depth write, pulled toward the eye by a polygon offset), so it hides nothing drawn after it. Nothing of it is in the overlay, and it adds no pass.
+- Tucked faces (undersides, the bookshelf's insides, the bench's back, the gap under the sofa) keep 0.45 of their tint (`TUCK`).
+
+### The look, as tuned by eye (part 4a's task 8)
+
+- **Lamp shades** have form painted into their vertex tint, since the shades' mesh takes one colour a frame: a darker rim at the foot, brightest just above it, fading to a darker top edge, and the side away from the room's middle a little darker. Lit, the warm colour is [0.98, 0.62, 0.30], under 1 even at the brightest band, so the warmth shows on the shade instead of clipping to flat cream. (It was [1.9, 1.25, 0.6], and read as a pasted-on shape.) The browser check reads the lit shade at about (232, 189, 136).
+- **The stair's joinery** (newel, rail, balusters) is a dark walnut stain ([0.26, 0.17, 0.11]) with the brushwork laid coarse (3 m a tile), so each thin part takes an even stain and reads apart from the treads.
+- **The palette is faded**: the reds and blues were moved toward grey, and the hall runner is a worn grey-blue (`slate`) instead of a saturated blue. The hearth rug no longer shows the red overshoot part 3 noted on bright brushwork.
+- **The window seat** has two fielded panels on its front (stiles and rails standing 2 cm proud, their undersides darkened, the panels a shade darker), a seat board overhanging by 4 cm, and a long squab cushion (0.07 m) that sags. Its two loose cushions are smaller and plumper, and taper to a seam at their edges: one is propped against the wall, the other lies askew. The seat and its cushions stay under the 0.8 m sill.
+- **The drapes'** fold troughs are darkened in the tint (up to 0.3 where the cloth hangs free). The coarse weighing rounds normals too coarsely for a fold's own turn to change its light. The throw is ochre now, not blue, and its cells are 7 cm.
+- **The bookshelf's runs are full again.** Part 4a's task 7 had stopped every other run at 0.6 of its half-shelf to save build time; that bought nothing measurable in the browser, so it was undone.
+
+### Light on furniture: the coarse weighing
+
+- Furniture is weighed once per cell of a 0.3 m lattice, with normals rounded to 0.5 (`WEIGH_GRID`, `WEIGH_TURN` in `public/space/interior/index.js`). Rounding to 0.5 can turn a normal by about 35°.
+- Over all the furniture's front-facing vertices, the mean error against the exact field is about 0.013 (day). The worst is 0.29, on a few rail-cap and runner vertices and on drape backs, which by design take their front's light.
+- Two tests pin the error:
+  - within 0.12, every seventh vertex of the sofa, bookshelf, boot bench and umbrella stand;
+  - within 0.1, every vertex of the sofa's cushions, its arm rolls and its three loose cushions, where a stepped light would show. Measured worst there: day 0.078, fire 0.028.
+- A turn of 0.25 with the same lattice drew the sofa's cushions and rolls no differently in the captures, and cost about 8 ms more in the browser. So 0.5 stands.
+
+### Check spots moved
+
+| Check | Was | Now | Why |
+|---|---|---|---|
+| 42, parallax | [3.2, 3] and [5.2, 3] | [3.2, 3] and [4.25, 3] | [5.2, 3] is inside the sofa |
+| 52–54, the dusk pose | [5.9, 3.5] | [6.2, 5.2], same target | the console stands there |
+| living-room.jpg | [6.4, 3.5] | [6.2, 5.2] | against the console |
+| 56, midnight, the way into the hall | [1.6, 3.5], edges at 0.3 and 0.9 m | [4.4, 1.0], edges at 0.3 and 0.6 m | see below |
+| furnish-hall-day.jpg, -night, fallback-hall | [9, 0.45] | [9, 1] | see Placements |
+
+- Floor samples at [4.2, 1], [4.2, 4.6], by the hearth and at [4.4, 5.9] did not move: none lies under a rug or a patch.
+- The speed spots [4.2, 3] and [3.8, 5.5] did not move, and stay standable.
+
+**Check 56, re-aimed.**
+- From part 3's hearth pose ([1.6, 3.5]), the sofa and its console now hide the foot of the hall–living opening, so its right edge stepped only 0.017.
+- From [4.4, 1.0], between the window seat and the side table, both lines of sight pass clear of the furniture. With the furniture hidden, the readings agree with those drawn, so it still reads the shell's own jambs.
+- Above about 0.8 m no jamb step shows from there (the hall's far wall lies beyond the opening), so the edges are read at 0.3 and 0.6 m.
+- The limits are unchanged. **The margin is thin**: the d = 5 jamb steps 0.027 at 0.3 m against the 0.02 limit.
+- Part 3's pose is still read, with the furniture hidden, and recorded: the shell's steps there are 0.034 to 0.069, as part 3 left them.
+
+### Measured
+
+The full browser script (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on an Apple M1, on mains power, 1440 × 810, tier full. 80 of 80 checks pass.
+
+- **Speed at [4.2, 3] facing the window:** 1.04 times a yard frame by day (yard 12.6 ms, room 13.1 ms) and 1.04 under the night study. Limit 1.1.
+- **Speed at [3.8, 5.5] at night with the lamp lit:** furnished 1.039, bare 1.065 on the same run, so −0.026. Limit +0.05.
+  - The bare figure is the noisier of the two; its first round read 1.195. In part 4a's task 7 runs the difference was +0.010 to +0.024.
+- **Draw calls:** +5 (47 against 42) at the living capture pose. Limit 6.
+- **Vertices:** 12,092 in 5 meshes (wood, cloth, stone, shades, grounding).
+- **First build:** the furniture adds **63.7 ms** to the interior's first build (median of three fresh loads each, furnished against `&bare=1`), against the **60 ms budget**.
+  - Check 73 records and reports this figure; it does not assert it.
+  - On this machine the figure moves with the machine's other load: 60.5 to 69 ms in part 4a's task 7, and 61 to 79 ms in this task's runs.
+  - Two interleaved runs of nine loads each, on a quiet machine, gave 61.0 ms both for this build and for the build before this task's tuning. So the tuning costs about nothing measurable. It adds about 170 distinct weighings (3,290 to about 3,460), mostly for the full book runs and the window seat's cushions.
+  - **Whether 60 ms is the right budget is the owner's to decide.**
+- Interior first build in all (check 64): 186 ms. First indoor draw: 100 ms.
+
+### Cut for speed
+
+- The coarse weighing (above).
+- Cushions cut 3 × 3 rather than 4 × 4; the window seat's loose cushions are cut 4 × 4 for their taper.
+- Drape cells of 0.13 m (the throw's 0.07 m).
+- Thicker books, so a run has fewer of them.
+- The drapes' back sheets take their front's light.
+- No dressing piece was cut.
+
+### Known weak points, as the final captures show them
+
+- **The throw** still reads as a flat panel down the sofa's outer arm, seen from the low view. Its folds are shallow against the brushwork.
+- **The coats** read as flat cut-outs on the wall more than hung cloth.
+- **The sofa's loose cushions**, seen square-on from the hearth, read as flat squares.
+- **The brushwork is strong on every piece.** On cloth it outweighs the tints' and the folds' shading, and the window seat's panels read only faintly. A finer `tile` was not tried further; plates are the owner's call (see Surfaces).
+- **Grounding is faint by day.** It reads under the sofa in the low view (the floor at its edge 0.74 of the open floor), but hardly elsewhere at standing height.
+- **The mirror** is a pale blue-grey panel: it reflects nothing, and reads as glass only by its frame.
+- **The shades** are lit by the living room's lamp dial alone. The standing lamp's shade glows as the table lamp's does, and neither lights the room (by design).
+- **Check 56's thin margin** (0.027 against 0.02). From part 3's hearth pose, the sofa hides the doorway's foot.
