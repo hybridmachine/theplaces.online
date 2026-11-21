@@ -182,6 +182,27 @@ test('indoors the description says what is lit in the room', () => {
   } finally { store.close(); }
 });
 
+test('a furnished room adds its fixed clause once, before what is lit', () => {
+  const store = new WorldStore(':memory:', epoch);
+  try {
+    const data = store.snapshot(epoch), text = options => sceneText(data, epoch, options).description;
+    const LIVING = 'A sofa and two armchairs are drawn up to the fire. ', HALL = 'Coats hang by the door and the stair climbs ahead. ';
+    const lit = {room: 'living room', lamp: true, fire: 'burning'}, living = text({room: 'living room', lit, furnished: true});
+    assert.ok(living.startsWith(`Inside the cabin, in the living room. ${LIVING}The lamp is lit, and the fire is burning. `));
+    assert.equal(living.split(LIVING).length, 2);
+    assert.ok(text({room: 'entry hall', lit: {room: 'entry hall', lamp: false, fire: null}, furnished: true}).startsWith(`Inside the cabin, in the entry hall. ${HALL}The lamp is out. `));
+    for (const options of [{room: 'living room', lit, furnished: false}, {room: 'living room', lit}, {room: 'kitchen', lit, furnished: true}, {furnished: true}])
+      assert.doesNotMatch(text(options), /sofa|armchairs|Coats hang/);
+    assert.equal(sceneText(data, epoch, {room: 'living room', furnished: true}).announcement, sceneText(data, epoch, {room: 'living room'}).announcement);
+    // the clause changes only with the room, so it does not make the describer speak or refresh on its own
+    const described = [], announced = [], scene = new SceneDescriber({describe: t => described.push(t), announce: t => announced.push(t)});
+    scene.update(data, epoch, {room: 'living room', lit, furnished: true});
+    assert.equal(scene.rendered(data, epoch, {room: 'living room', lit, furnished: true}), false);
+    assert.equal(scene.rendered(data, epoch, {room: 'living room', lit, furnished: false}), false);
+    assert.equal(announced.length, 1);
+  } finally { store.close(); }
+});
+
 test('the description is refreshed when a lamp or the fire changes', () => {
   const store = new WorldStore(':memory:', epoch);
   try {

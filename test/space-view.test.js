@@ -11,6 +11,7 @@ import {pathLightLevel} from '../shared/path-lights.js';
 import {viewConditions} from '../shared/world.js';
 import {WorldStore} from '../src/store.js';
 import {sceneText} from '../public/scene-description.js';
+import {stepIndoors} from '../shared/walker.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -166,6 +167,26 @@ test('an interior that fails to build is warned of once, keeps the door shut and
   assert.equal(warnings.length, 1);
   assert.doesNotThrow(() => SpaceView.prototype.buildInside.call(view));
   assert.equal(warnings.length, 1, 'a second call stays quiet'); assert.equal(view.inside, null);
+});
+
+// ── Walking by the furnished blueprint, or the bare one when the furniture did not build ──
+// Walks west along the sofa's line from the room's middle for long enough to reach whatever stops the visitor; returns where it stopped.
+const walkWest = view => {
+  let s = {place: 'cabin', floor: 0, position: [7, I.furniture.find(f => f.id === 'sofa').at[1]], yaw: 3 * Math.PI / 2, pitch: 0};
+  for (let i = 0; i < 400; i++) s = stepIndoors(view.walkPlan, s, {forward: 1}, 1 / 30);
+  return s.position[0];
+};
+test('a furnished view walks by the furnished blueprint, and one whose furniture did not build by the chimney breasts alone', async () => {
+  const furnished = await rig(), bare = await rig();
+  assert.equal(furnished.view.furnished, true); assert.equal(furnished.view.walkPlan, I);
+  const sofa = I.furniture.find(f => f.id === 'sofa'), breast = I.breasts[0];
+  assert.ok(walkWest(furnished.view) > sofa.at[0], 'stops at the sofa');
+  bare.view.inside.furnished = false;
+  assert.equal(bare.view.furnished, false);
+  assert.equal(bare.view.walkPlan.furniture.length, 0); assert.equal(bare.view.walkPlan, bare.view.walkPlan, 'made once');
+  assert.deepEqual(bare.view.walkPlan.obstacles, I.breasts); assert.equal(bare.view.interior, I, 'the place memory keeps the furnished blueprint');
+  const x = walkWest(bare.view);
+  assert.ok(x < sofa.at[0] && x >= breast.a[1] - 1e-6, `stops at the chimney breast, at ${x}`);
 });
 
 // ── The cabin's windows, drawn through SpaceView.render with a recording renderer ──
