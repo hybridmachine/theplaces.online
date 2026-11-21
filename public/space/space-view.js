@@ -263,11 +263,11 @@ export class SpaceView {
   // Each frame with the interior on: the rooms' dials from the shared world and the clock (or a check's fixture: `hearth`
   // {fire, embers} and `lamps`, a level 0–1 per room), the doorway warmed by the hall's lamp, and indoors the rooms and the fire
   // given them. Working the dials out is not to throw: if it does, once, it is warned of and given up, the rooms keeping their last light.
-  lightRooms({snapshot, now, study, calendar, weather, sky, motionSeconds, indoors}) {
+  lightRooms({snapshot, now, study, calendar, weather, sky, motionSeconds, indoors, fixture}) {
     if (this.dialsFailed) return;
     let dials;
     try {
-      const fixture = this.check ? this.fixture : null, I = this.interior;
+      const I = this.interior;
       const pose = cottagePose({fixture, study, snapshot, now, motion: this.motion});
       dials = interiorDials({interior: I, calendar, weather, sky, cottage: snapshot.world.cottage, pose, now, seconds: motionSeconds, motion: this.motion, study});
       if (fixture?.hearth) dials = {...dials, fire: clamp01(fixture.hearth.fire) * DIALS.fire, flame: clamp01(fixture.hearth.fire), embers: clamp01(fixture.hearth.embers)};
@@ -283,6 +283,15 @@ export class SpaceView {
     if (!indoors) return;
     this.inside.setLight(dials);
     this.inside.setFire({fire: dials.fire / DIALS.fire, embers: dials.embers, seconds: motionSeconds, motion: this.motion});
+  }
+  // A check's fixture as this frame uses it (null without ?check): one that sets the rooms' lamps and not the cottage's pose gives the
+  // yard's cottage windows the living room's and the study's levels too (its casement as the world has it), so a capture with those
+  // lamps out shows no window glow lying on the grass outside them.
+  checkFixture({snapshot, now, study}) {
+    const fixture = this.check ? this.fixture : null, I = this.interior;
+    if (!I || !Array.isArray(fixture?.lamps) || fixture.cottagePose) return fixture;
+    const level = id => clamp01(fixture.lamps[I.rooms.findIndex(r => r.id === id)]), open = cottagePose({fixture: null, study, snapshot, now, motion: this.motion})?.open ?? 0;
+    return {...fixture, cottagePose: {main: level('living'), second: level('study'), open}};
   }
   // The ids of the openings drawn live in the last frame.
   get liveViews() { return [...this.live]; }
@@ -381,13 +390,14 @@ export class SpaceView {
     const clouds = sampleCloudLayers({realSeconds, motionSeconds, weather: w, config: this.skyConfig});
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
     this.yard.setSky({zenith, horizon}); this.inside?.setSky({zenith, horizon});
-    if (this.interior) this.lightRooms({snapshot, now, study, calendar: c, weather: w, sky: {zenith, horizon}, motionSeconds, indoors});
-    this.yard.setGarden(this.check && Number.isInteger(this.fixture?.gardenDay) ? this.fixture.gardenDay : c.day);
+    const fixture = this.checkFixture({snapshot, now, study});
+    if (this.interior) this.lightRooms({snapshot, now, study, calendar: c, weather: w, sky: {zenith, horizon}, motionSeconds, indoors, fixture});
+    this.yard.setGarden(Number.isInteger(fixture?.gardenDay) ? fixture.gardenDay : c.day);
     this.applyLight(c, w, bodies, horizon);
     // Indoors the rain falls round the cabin's outside, centred over it at its eaves so the streaks stand above the roof windows
     // too: it is seen through every window and never in a room.
     const rainAt = indoors ? this.rainAt ??= new THREE.Vector3(...toThree([...this.space.cabin.center, cabinFrame(this.space, this.dressing).eave])) : null;
-    this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null, rainAt}));
+    this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture, rainAt}));
     // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same, and is drawn again
     // through each live pane into the same frame.
     const ids = this.live = indoors ? this.drawIndoors() : [];

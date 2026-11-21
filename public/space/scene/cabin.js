@@ -22,6 +22,9 @@ const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58
 // the hall's lamp is lit (setDoorway; only with the interior on).
 const DOOR_SWING = 1.45;
 export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.1, .042, .009];
+// With the interior on, the doorway's tone is shaded by height so the recess reads as a lit space and not a flat card: times
+// DOORWAY_LOW at its floor (warmest), falling to DOORWAY_HIGH at its head.
+const DOORWAY_LOW = [1.3, 1.15, .95], DOORWAY_HIGH = [.5, .47, .47];
 // The doorway is cut this far inside the door leaf all round, so the shut leaf covers it; it is lined with stone this deep (the
 // wall's thickness) and then dark back to a backing this far in, past the open leaf's free edge, over a floor this far above the ground.
 const HOLE_INSET = .03, REVEAL = .3, RECESS = 1.2, RECESS_FLOOR = .03;
@@ -169,6 +172,9 @@ export function buildCabin(THREE, {space, dressing, art}) {
   // The door is a leaf hinged on one edge over the dark recess cut into the wall, which the shut door covers; built about its
   // hinge as the casement is, it swings the other way, in.
   const doorway = panel('doorway', merged(recess), new THREE.MeshBasicMaterial({color: new THREE.Color(...DOORWAY)}));
+  // Its shading by height, carried in its vertex colours and used only once the interior sets its tone (setDoorway).
+  { const p = doorway.geometry.getAttribute('position'), c = doorway.geometry.getAttribute('color'), [z0, z1] = [doorGround, hole.head];
+    for (let i = 0; i < p.count; i++) { const t = clamp01((p.getY(i) - z0) / (z1 - z0)) ** .8; c.setXYZ(i, ...DOORWAY_LOW.map((v, k) => v + (DOORWAY_HIGH[k] - v) * t)); } }
   const frontDoor = (() => {
     const {g, at, side} = panelSheet(door.face, door.along, doorGround - .03, door.width, door.height + .03);
     const [h0, h1, free] = [at(0, 0), at(0, 1), at(1, .5)].map(p => new THREE.Vector3(...toThree(p)));
@@ -184,7 +190,11 @@ export function buildCabin(THREE, {space, dressing, art}) {
   setDoor(0);
   // How far the doorway's tone has warmed with the hall's lamp, 0 dark to 1 lit.
   // By the level squared, so the hall's night lamp burning low gives only a dim warm tone.
-  const setDoorway = level => { const k = clamp01(Number.isFinite(level) ? level : 0) ** 2; doorway.material.color.setRGB(...DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * k)); };
+  // The first call (only ever made with the interior on) turns its shading by height on.
+  const setDoorway = level => {
+    if (!doorway.material.vertexColors) { doorway.material.vertexColors = true; doorway.material.needsUpdate = true; }
+    const k = clamp01(Number.isFinite(level) ? level : 0) ** 2; doorway.material.color.setRGB(...DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * k));
+  };
   let leaf = null;
   for (const w of windows) {
     const name = `window-${w.id}`, z0 = doorGround + w.sill, material = lit[w.id] ?? panelMaterials.window;

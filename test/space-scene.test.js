@@ -522,3 +522,18 @@ test('the doorway\'s tone runs from dark to warm', async () => {
   scene.setDoorway(3); assert.ok(near(tone(), WARM_DOORWAY));
   scene.dispose();
 });
+
+test('with the interior on the doorway reads as a lit space: darker toward its head, warmest low down; without it, one flat tone', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), doorway = scene.parts.cabin.getObjectByName('doorway');
+  assert.equal(doorway.material.vertexColors, false, 'flat until the interior sets its tone, so the yard without it is unchanged');
+  const version = doorway.material.version;
+  scene.setDoorway(.35); scene.setDoorway(1);
+  assert.equal(doorway.material.vertexColors, true); assert.equal(doorway.material.version, version + 1, 'the program changes once');
+  const p = doorway.geometry.getAttribute('position'), c = doorway.geometry.getAttribute('color');
+  let lo = Infinity, hi = -Infinity; for (let i = 0; i < p.count; i++) { lo = Math.min(lo, p.getY(i)); hi = Math.max(hi, p.getY(i)); }
+  const at = band => { let t = [0, 0, 0], n = 0; for (let i = 0; i < p.count; i++) if (Math.abs((p.getY(i) - lo) / (hi - lo) - band) < .2) { t = t.map((v, k) => v + c.getComponent(i, k)); n++; } return t.map(v => v / n); };
+  const low = at(0), high = at(1);
+  assert.ok(low.every((v, k) => v > 1.5 * high[k]), `low ${low} against high ${high}`);
+  assert.ok(low[0] / low[2] > high[0] / high[2], 'and warmest low down');
+  scene.dispose();
+});

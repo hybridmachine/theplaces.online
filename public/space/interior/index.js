@@ -24,8 +24,9 @@ import {buildFittings} from './fittings.js';
 // fallback), three's Lambert divides the hemisphere light by π and plaster also glows a pale base of its own, so its strokes are
 // a gentle variation on a pale ground rather than camouflage; boards have none and stay darker than the walls. Lit, plaster keeps
 // its pale base (light.js adds it under the light), and each tint is the unlit one times the flat light's irradiance on that
-// surface (about .78 on a wall, .89 on a floor), so a surface in full light (a dial sum of 1: beside the glass at noon, or a wall
-// by a lit lamp) looks as it did unlit and the rest of the room falls away from it; nothing in full light passes 1 and clips.
+// surface (about .78 on a wall, .89 on a floor), so a surface under a dial sum of 1 looks as it did unlit and the rest of the room
+// falls away from it. The sum passes 1 in the brightest places (about 1.28 beside the glass at noon), and some of the brightest
+// brushwork there clips; the lit tints were calmed so that little does.
 const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
 // Lit plaster's brushwork is calmer than unlit: less of its tint and more of its pale ground, so it reads as cream and its strokes
 // leave room under the light by the window before they clip.
@@ -97,8 +98,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     return g;
   };
   // A sheet over (s, t), sized by the lengths it spans along each, carrying its light.
-  const face = (f, across, up, outward, colour, {place, floorOf = storey, tile = BRUSH_TILE} = {}) => {
-    const g = sheet(THREE, f, {ns: steps(across), nt: steps(up), tile, outward, colour});
+  const face = (f, across, up, outward, colour, {place, floorOf = storey, tile = BRUSH_TILE, rows = steps(up)} = {}) => {
+    const g = sheet(THREE, f, {ns: steps(across), nt: rows, tile, outward, colour});
     if (!place) { const mid = f(.5, .5), u = V.norm(outward); place = into(roomAt(I, floorOf(mid[2]), [mid[0] + u[0] * .05, mid[1] + u[1] * .05])); }
     return weighed(g, place, floorOf);
   };
@@ -220,7 +221,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     const d0 = sd0 + k * run, d1 = d0 + run, z0 = k * lift, z1 = z0 + lift;
     stair.push(face((s, t) => [sa0 + width * s, d0, z0 + lift * t], width, lift, [0, -1, 0], boards, {floorOf: nearer}),
       face((s, t) => [sa0 + width * s, d0 + run * t, z1], width, run, [0, 0, 1], boards, {floorOf: nearer}));
-    walls.push(face((s, t) => [sa0, d0 + run * s, z1 * t], run, z1, [-1, 0, 0], plaster));   // its plastered side, with the walls
+    // its plastered side, with the walls: a row a tread high, so the rows run level from tread to tread, weighed as the treads are
+    walls.push(face((s, t) => [sa0, d0 + run * s, z1 * t], run, z1, [-1, 0, 0], plaster, {floorOf: nearer, rows: k + 1}));
   }
   walls.push(face((s, t) => [sa0 + width * s, sd1, I.groundCeiling * t], width, I.groundCeiling, [0, 1, 0], plaster));
   const rail = (pt, length, outward) => stair.push(face((s, t) => pt(s, rise + RAIL * t), length, RAIL, outward, dark, {floorOf: nearer}));

@@ -149,6 +149,11 @@ test('an obstacle that shuts a room off, or sits across two rooms, is invalid', 
   assert.equal(variant(c => { c.obstacles.push({floor: 1, a: [6.2, 7], d: [3, 4]}); }), false, 'shuts the landing off bedroom-2');
   assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [1.5, 2.5], d: [5, 6]}); }), true, 'a free-standing one is fine');
 });
-test('no fitting sits inside an obstacle', () => {
-  assert.equal(variant(c => { fit(c, 'living').at.splice(0, 2, .3, 3.5); }), false);
+test('no wall fitting sits inside an obstacle; a hanging one may hang over one', () => {
+  // a wall lamp on the living room's gable wall: clear of the chimney breast it is fine, on it it is not
+  assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 1.5, 1.8]}); }), true);
+  assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
+  assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
+  // a table under the dining room's lamp leaves the blueprint valid
+  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [8.4, 9.6], d: [8.9, 10.1]}); }), true);
 });

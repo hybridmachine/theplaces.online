@@ -258,3 +258,19 @@ test('if the lit materials cannot be made the rooms stay evenly lit, with one wa
   assert.equal(out.setLight(night()), undefined);
   out.dispose();
 });
+test("the stair's plastered side has its vertex rows level from tread to tread, and is weighed by the nearer storey", () => {
+  const {scene, field, dispose} = build(), g = scene.getObjectByName('walls').geometry, lift = I.floorRise / 15, [d0, d1] = I.stair.d;
+  let n = 0;
+  for (let i = 0; i < g.getAttribute('position').count; i++) {
+    const [p, nrm] = vertex(g, i);
+    if (Math.abs(p[0] - I.stair.a[0]) > 1e-6 || nrm[0] > -.9 || p[1] < d0 - 1e-6 || p[1] > d1 + 1e-6 || p[2] > I.groundCeiling + 1e-6) continue;
+    if (p[1] > d1 - 1e-6 && p[2] > I.floorRise - 1e-6) continue;
+    n++;
+    const k = p[2] / lift;
+    assert.ok(Math.abs(k - Math.round(k)) < 1e-6, `a row at ${p[2].toFixed(4)}, not on a tread's height`);
+    const want = field.weigh(p[2] >= I.floorRise / 2 ? 1 : 0, [p[0] - I.wall / 2 - .03, p[1], p[2]], nrm), got = weightsOf(g, i);
+    assert.equal(got.room, want.room, `${p}`);
+  }
+  assert.ok(n > 60, `${n}`);
+  dispose();
+});

@@ -51,7 +51,7 @@ function obstaclesFit(I) {
   });
 }
 
-// One lamp per room, inside it and clear of the obstacles; a hanging one hangs 2 m up and 0.3 m below the ceiling and not under a roof
+// One lamp per room, inside it; a wall one clear of the obstacles; a hanging one hangs 2 m up and 0.3 m below the ceiling and not under a roof
 // window, a wall one is within 0.3 m of a wall line of its room and between 1.4 and 1.9 m above its floor.
 function fittingsFit(I, byId) {
   if (!Array.isArray(I.fittings) || I.fittings.length !== I.rooms.length || new Set(I.fittings.map(f => f.room)).size !== I.rooms.length) return false;
@@ -59,7 +59,8 @@ function fittingsFit(I, byId) {
     const r = byId.get(f.room);
     if (!r || !Array.isArray(f.at) || f.at.length !== 3 || !inside(r, f.at)) return false;
     const [a, d, z] = f.at, up = z - r.floor * I.floorRise;
-    if (I.obstacles.some(o => o.floor === r.floor && a >= o.a[0] && a <= o.a[1] && d >= o.d[0] && d <= o.d[1])) return false;
+    // (a hanging lamp hangs above head height, so it may hang over an obstacle such as a table; a wall one may not stand in one)
+    if (f.kind !== 'hanging' && I.obstacles.some(o => o.floor === r.floor && a >= o.a[0] && a <= o.a[1] && d >= o.d[0] && d <= o.d[1])) return false;
     if (f.kind === 'hanging') return up >= 2 - EPS && ceilingHeight(I, r.floor, d) - up >= .3 - EPS
       && !I.windows.some(w => w.kind === 'roof' && byId.get(w.room).floor === r.floor && Math.abs(a - w.a) <= w.width / 2 && d >= w.d[0] && d <= w.d[1]);
     return f.kind === 'wall' && up >= 1.4 - EPS && up <= 1.9 + EPS

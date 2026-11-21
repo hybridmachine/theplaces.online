@@ -437,6 +437,18 @@ test('a check fixture can set the hearth and the lamps', async () => {
   assert.deepEqual(view.lit, {room: 'living room', lamp: true, fire: 'cold'});
 });
 
+test('a check fixture that sets the lamps sets the yard\'s cottage windows to the living room\'s and the study\'s levels', async () => {
+  const {view, frame} = await rig(), at = id => I.rooms.findIndex(r => r.id === id), lamps = I.rooms.map((r, i) => i === at('living') ? .4 : 0);
+  view.check = true; view.fixture = {lamps}; frame(1, {study: 'night'});
+  const given = view.life.frames.at(-1).fixture;
+  assert.deepEqual(given.cottagePose, {main: .4, second: 0, open: 0}, 'the night study\'s second room is lit, but the fixture has it out');
+  assert.equal(given.lamps, lamps);
+  // a fixture's own cottage pose is kept; without lamps none is made; without ?check none is given
+  view.fixture = {lamps, cottagePose: {main: 1, second: 1, open: 1}}; frame(1, {study: 'night'}); assert.deepEqual(view.life.frames.at(-1).fixture.cottagePose, {main: 1, second: 1, open: 1});
+  view.fixture = {hearth: {fire: 1, embers: 1}}; frame(1, {study: 'night'}); assert.equal(view.life.frames.at(-1).fixture.cottagePose, undefined);
+  view.check = false; view.fixture = {lamps}; frame(1, {study: 'night'}); assert.equal(view.life.frames.at(-1).fixture, null);
+});
+
 test('under reduced motion the fire\'s dial does not change from frame to frame', async () => {
   const moving = await rig(), seenMoving = watchRooms(moving.view);
   moving.frame(6, {study: 'night'});
