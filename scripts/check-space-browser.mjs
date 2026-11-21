@@ -1,5 +1,9 @@
 import {createRequire} from 'node:module';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D,cabinFrame,cabinFront,doorPosition,openingCentre,oakPlan} from '../shared/lakeside-dressing.js';
 import {lifeLayout,birdPlace} from '../shared/lakeside-life.js';
@@ -10,9 +14,11 @@ import {coincidenceFixture} from '../shared/coincidences.js';
 import {doorOutward} from '../shared/threshold.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {viewOpenings,screenRect} from '../shared/window-views.js';
+import {roomLamps} from '../shared/interior-light.js';
+import {calendar,weather} from '../shared/world.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const directory=process.env.SPACE_VALIDATION_DIR||'docs/space-validation';await mkdir(directory,{recursive:true});
-const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null;
+const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null,noonChild=null,noonDir=null;
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4190';
 // Headless Chromium's default SwiftShader draws this scene at under 10 fps, below the walker's 0.1 s step cap, so the
 // walking checks would measure the software rasteriser. ANGLE uses the machine's GPU where one is available.
@@ -655,7 +661,6 @@ try{
   // 50. Speed, on &tier=full: the synchronous time of one whole frame forced to finish with readPixels (as check 30 measures it), the
   // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (SpaceView's
   // own indoor draw, drawIndoors, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
-  const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&interior=1&tier=full`);await ready(speed);await studyLight(speed,'day');
   const median=a=>[...a].sort((p,q)=>p-q)[a.length>>1];
   const timeFrames=(page,indoors)=>page.evaluate(indoors=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
     const draw=()=>{if(indoors)s.drawIndoors();
@@ -663,27 +668,225 @@ try{
       g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
     draw();draw();const times=[];for(let k=0;k<20;k++){const t0=performance.now();draw();times.push(performance.now()-t0);}return {times,live:[...s.live],tier:s.tier,passMode:s.passMode};},indoors);
   // Six rounds of yard then room on the one warmed page (each switch given time to settle), the first round discarded: each place's
-  // figure is the median of its rounds' medians, so a slow patch of the machine falls on both places alike.
-  const roomSpot=rainPose,rounds=[];
-  await speed.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
-  await setPose(speed,atDoor(.6));await speed.waitForTimeout(1500);await hold(speed,['KeyW'],900);await speed.waitForTimeout(900);
-  for(let k=0;k<6;k++){
-    await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await speed.waitForTimeout(700);const y=await timeFrames(speed,false);
-    await moveTo(speed,roomSpot);await speed.waitForTimeout(400);const r=await timeFrames(speed,true);
-    rounds.push({yardMs:+median(y.times).toFixed(2),roomMs:+median(r.times).toFixed(2),yardTier:y.tier,roomLive:r.live});}
-  const kept=rounds.slice(1),yardMs=+median(kept.map(r=>r.yardMs)).toFixed(2),roomMs=+median(kept.map(r=>r.roomMs)).toFixed(2),costRatio=+(roomMs/yardMs).toFixed(3);
-  const roundRatios=kept.map(r=>+(r.roomMs/r.yardMs).toFixed(3));
-  await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+median(hallTime.times).toFixed(2);
-  const speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  // figure is the median of its rounds' medians, so a slow patch of the machine falls on both places alike. The whole measurement is one
+  // function of the study the page is under, so the day figure (check 50) and the night figure (check 63) are the same method.
+  const roomSpot=rainPose,speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  const measureSpeed=async study=>{
+    const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&interior=1&tier=full`);await ready(speed);await studyLight(speed,study);
+    const rounds=[];
+    await speed.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
+    await setPose(speed,atDoor(.6));await speed.waitForTimeout(1500);await hold(speed,['KeyW'],900);await speed.waitForTimeout(900);
+    for(let k=0;k<6;k++){
+      await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await speed.waitForTimeout(700);const y=await timeFrames(speed,false);
+      await moveTo(speed,roomSpot);await speed.waitForTimeout(400);const r=await timeFrames(speed,true);
+      rounds.push({yardMs:+median(y.times).toFixed(2),roomMs:+median(r.times).toFixed(2),yardTier:y.tier,roomLive:r.live,roomLit:await speed.evaluate(()=>window.__space.lit)});}
+    const kept=rounds.slice(1),yardMs=+median(kept.map(r=>r.yardMs)).toFixed(2),roomMs=+median(kept.map(r=>r.roomMs)).toFixed(2),costRatio=+(roomMs/yardMs).toFixed(3);
+    const roundRatios=kept.map(r=>+(r.roomMs/r.yardMs).toFixed(3));
+    await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+median(hallTime.times).toFixed(2);
+    const quiet=!speed.consoleErrors.length&&!speed.own.length;await speed.context().close();
+    return {study,rounds,kept,yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,quiet};};
+  const daySpeed=await measureSpeed('day'),{yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,rounds,kept}=daySpeed;
   check('Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose (median of rounds, yard and room alternating)',
     kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open'});
   console.log(`  speed (full): yard ${yardMs} ms, living room ${roomMs} ms (${costRatio}x), hall with the door open ${hallMs} ms (${hallTime.live.length} live)`);
-  const speedQuiet=!speed.consoleErrors.length&&!speed.own.length;await speed.context().close();
+  const speedQuiet=daySpeed.quiet;
 
   // 51. No page or console errors in any of these visitors.
   check('No page or console errors in the windows\' visitors',!win.consoleErrors.length&&!win.own.length&&plainQuiet&&speedQuiet,{windows:{consoleErrors:win.consoleErrors,pageErrors:win.own},plainQuiet,speedQuiet});
   await win.context().close();
+
+  // ── The cabin's light (checks 52–65). The rooms take daylight through their windows by day and their lamps' and fire's light after dusk,
+  // painted into the surfaces (no light sources). Every pose and patch is computed from the blueprint (shared/lakeside-interior.js) and
+  // the openings (viewOpenings), then projected through the camera as it stands; nothing is typed in screen pixels.
+  const fixtureLamps=(levels={})=>I.rooms.map(r=>levels[r.id]??0);
+  const livingRoom=I.rooms.find(r=>r.id==='living'),fp=I.fireplace,lampOf=id=>I.fittings.find(f=>f.room===id).at,hallLamp=lampOf('hall'),livingLamp=lampOf('living');
+  // A pose standing at [a, d] on `floor` looking at [a, d, z] (interior frame), `tilt` radians above that aim.
+  const aim=(floor,spot,target,tilt=0)=>{const e=eyeAt(floor,spot),r=target.map((c,i)=>c-e[i]);return {place:'cabin',floor,position:[...spot],yaw:Math.atan2(r[0],r[1]),pitch:Math.atan2(r[2],Math.hypot(r[0],r[1]))+tilt};};
+  const crop=(p,half)=>[p[0]-half,p[1]-half,p[0]+half,p[1]+half].map(Math.round);
+  const rectOf=(points,inset=0)=>{const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),dx=(x1-x0)*inset,dy=(y1-y0)*inset;return [x0+dx,y0+dy,x1-dx,y1-dy].map(Math.round);};
+  const inFrame=(b,m=0)=>b[0]>=m&&b[1]>=m&&b[2]<=viewport.width-m&&b[3]<=viewport.height-m&&b[2]>b[0]&&b[3]>b[1];
+  const warmth=rgb=>rgb[0]/Math.max(rgb[2],1),lum=rgb=>luminance(rgb),r3=v=>+v.toFixed(3),rgbOf=a=>meanRgb(a).map(Math.round);
+  // Draws one indoor frame and reads one pixel at each CSS-pixel point (the grid for a frame's mean and for comparing two frames).
+  const indoorPixels=(page,points)=>page.evaluate(points=>{const s=window.__space,g=s.renderer.getContext(),W=g.drawingBufferWidth,H=g.drawingBufferHeight,k=W/innerWidth;s.drawIndoors();
+    return points.map(([x,y])=>{const b=new Uint8Array(4);g.readPixels(Math.min(W-1,Math.round(x*k)),Math.min(H-1,Math.max(0,Math.round(H-1-y*k))),1,1,g.RGBA,g.UNSIGNED_BYTE,b);return [...b];});},points);
+  const framePoints=gridPoints(0,0,viewport.width,viewport.height,64,36),frameMean=async page=>{const px=await indoorPixels(page,framePoints),rgb=[0,1,2].map(c=>px.reduce((t,p)=>t+p[c],0)/px.length);return {rgb:rgb.map(Math.round),lum:lum(rgb)};};
+  // Patches of the interior's world points [a, d, z]: where they land on screen, and their mean colour in one indoor draw.
+  const patches=async(page,points,half=9,extra={})=>{const at=await project(page,points),boxes=at.map(p=>crop(p,half)),read=await indoorRead(page,boxes,extra);
+    return {at:at.map(p=>p.map(Math.round)),boxes,seen:boxes.every(b=>inFrame(b)),rgb:read.on.map(rgbOf),off:read.off?.map(rgbOf),pixels:read.on};};
+  const stand=async(page,pose,ms=900)=>{await setPose(page,pose);await page.waitForTimeout(ms);};
+  // Into the cabin through its door (the whole cabin is built on the way), then holding still.
+  const walkIn=async page=>{await setPose(page,atDoor(.6));await page.waitForTimeout(1500);await hold(page,['KeyW'],900);await page.waitForTimeout(900);};
+  const lightShot=(page,name)=>page.screenshot(shotJpeg(`${interiorDirectory}/light-${name}.jpg`));
+  const litState=page=>page.evaluate(()=>({lit:window.__space.lit,insideLit:window.__space.inside.lit,room:window.__space.room}));
+  // The poses. Living room: standing at its back looking at the window wall, tilted so a floor patch by the window and one at the room's far end are both in view.
+  const win0=I.windows.find(w=>w.id==='living'),nearFloor=[win0.a,1,0],farFloor=[win0.a,livingRoom.d[1]-2.4,0];
+  const livingPose=aim(0,[win0.a,livingRoom.d[1]-.2],[win0.a,(nearFloor[1]+farFloor[1])/2,0]);
+  // Facing the lamp and the gable wall from the room's hall side; the wall patch is plaster beside the chimney breast.
+  const duskPose=aim(0,[livingRoom.a[1]-1.1,fp.d],[livingLamp[0],fp.d,livingLamp[2]],-.22),gablePlaster=[.08,fp.d-fp.breast.width/2-1.2,1.5];
+  const duskRead=async page=>{await stand(page,duskPose);const p=await patches(page,[livingLamp,gablePlaster],6),g=await patches(page,[livingLamp,[livingLamp[0],livingLamp[1]-.13,livingLamp[2]],[livingLamp[0],livingLamp[1]+.13,livingLamp[2]]],2);
+    return {glass:p.rgb[0],core:g.rgb[0],glow:[0,1,2].map(c=>Math.round((g.rgb[1][c]+g.rgb[2][c])/2)),wall:p.rgb[1],seen:p.seen&&g.seen,at:p.at};};
+
+  // The server's clock, moved, for a true clear noon: no study gives one (the day study is 15:30), so a second server is started on a
+  // fresh database with its Date.now moved forward to the next clear noon (the whole app, caption included, then shows that moment; the
+  // client takes its time from the server). The first start only creates the database, whose epoch fixes the world's hours.
+  noonDir=await mkdtemp(join(tmpdir(),'a-view-noon-'));
+  const noonPort=Number(process.env.NOON_PORT||4191),serverFile=fileURLToPath(new URL('../src/server.js',import.meta.url));
+  const bootServer=shift=>spawn(process.execPath,[...(shift?['--import',`${noonDir}/shift.mjs`]:[]),serverFile],{env:{...process.env,PORT:String(noonPort),A_VIEW_DB:`${noonDir}/world.sqlite`,CLOCK_SHIFT_MS:String(shift)},stdio:'ignore'});
+  const serverUp=async()=>{for(let k=0;k<100;k++){try{const r=await fetch(`http://127.0.0.1:${noonPort}/api/world`);if(r.ok)return r.json();}catch{}await wait(150);}throw new Error('The noon server did not start.');};
+  const stopServer=child=>new Promise(done=>{if(child.exitCode!==null)return done();child.once('exit',done);child.kill();});
+  await writeFile(`${noonDir}/shift.mjs`,'const real=Date.now.bind(Date),shift=Number(process.env.CLOCK_SHIFT_MS)||0;Date.now=()=>real()+shift;\n');
+  const noonServer=async()=>{
+    const first=bootServer(0),epoch=(await serverUp()).world.epoch;await stopServer(first);
+    // The first moment after the page could be ready (30 s on) when the world's hour is within 20 minutes of 12:00 and the sky clear for a minute either side.
+    const from=Date.now()+30_000,clear=t=>weather(epoch,t).cloud<.15;let at=null;
+    for(let t=from;t<from+60*86_400_000&&at===null;t+=5000)if(Math.abs(calendar(epoch,t).hour-12)<.33&&[-60_000,0,60_000].every(d=>clear(t+d)))at=t;
+    if(at===null)throw new Error('No clear noon within 60 days.');
+    noonChild=bootServer(at-(Date.now()+8000));await serverUp();return {epoch,shiftedBy:at-(Date.now()+8000),worldHourAimed:+calendar(epoch,at).hour.toFixed(3)};};
+
+  // 52 (and the noon readings that checks 53 and 54 compare with). On the noon server a visitor stands in the living room at the poses the studies use.
+  const noonRun=await noonServer(),noonBase=`http://127.0.0.1:${noonPort}`;
+  const noonPage=await visitor();await noonPage.goto(`${noonBase}/?check&interior=1&tier=full`);await ready(noonPage);await walkIn(noonPage);
+  await stand(noonPage,livingPose,1200);
+  const noonClock=await noonPage.evaluate(()=>({time:document.querySelector('#world-time').textContent,weather:document.querySelector('#weather').textContent,study:window.__space.fixture}));
+  const noonFloor=await patches(noonPage,[nearFloor,farFloor]),noonMean=await frameMean(noonPage),noonState=await litState(noonPage);await lightShot(noonPage,'living-noon');
+  const noonDusk=await duskRead(noonPage);
+  const noonQuiet=!noonPage.consoleErrors.length&&!noonPage.own.length;await noonPage.context().close();await stopServer(noonChild);await rm(noonDir,{recursive:true,force:true});
+  const noonHour=(([h,m])=>h+m/60)(noonClock.time.split(':').map(Number));
+  // 52. The living room at clear noon, from inside: the floor by the window is brighter than the floor across the room.
+  const NEAR_OVER_FAR=1.25,noonRatio=lum(noonFloor.rgb[0])/lum(noonFloor.rgb[1]);
+  check(`The living room at a clear noon (the world's clock really at noon): the floor by the window is at least ${NEAR_OVER_FAR} times as bright as the floor across the room`,
+    Math.abs(noonHour-12)<.5&&/Clear/.test(noonClock.weather)&&noonFloor.seen&&noonRatio>=NEAR_OVER_FAR&&noonState.insideLit===true,
+    {ratio:r3(noonRatio),limit:NEAR_OVER_FAR,near:noonFloor.rgb[0],far:noonFloor.rgb[1],nearAt:nearFloor,farAt:farFloor,screen:noonFloor.at,clock:noonClock,server:noonRun,note:'the on-screen clock and the drawn scene are the same moment: the server\'s Date.now is moved, no study is used'});
+
+  // The rest on the main server, in the cabin, under the studies.
+  const lite=await visitor();await lite.goto(`${base}/?check&interior=1&tier=full`);await ready(lite);await studyLight(lite,'day');await walkIn(lite);
+  // 53. Under the overcast (rain) study the same frame is darker than at noon.
+  await studyLight(lite,'rain');await stand(lite,livingPose,1200);const overMean=await frameMean(lite);await lightShot(lite,'living-overcast');
+  const OVERCAST_UNDER=.9;
+  check(`The same pose under the overcast study is darker than at noon (mean luminance at most ${OVERCAST_UNDER} of noon's)`,overMean.lum<=noonMean.lum*OVERCAST_UNDER,
+    {noon:r3(noonMean.lum),overcast:r3(overMean.lum),ratio:r3(overMean.lum/noonMean.lum),limit:OVERCAST_UNDER,noonRgb:noonMean.rgb,overcastRgb:overMean.rgb});
+
+  // 54. Dusk study: the living room's lamp glass is warm, the gable plaster warmer than at noon.
+  await studyLight(lite,'dusk');const dusk=await duskRead(lite);await lightShot(lite,'living-dusk');const duskState=await litState(lite);
+  const GLASS_WARM=1.3,WALL_WARMER=1.05,wallRatio=warmth(dusk.wall)/warmth(noonDusk.wall);
+  check(`At dusk the living room's lamp glow (the ring just outside its glass, inside the halo) is warm (red over blue at least ${GLASS_WARM}) and the gable's plaster is at least ${WALL_WARMER} times warmer than at noon (red over blue)`,
+    dusk.seen&&noonDusk.seen&&warmth(dusk.glow)>=GLASS_WARM&&wallRatio>=WALL_WARMER&&duskState.lit?.lamp===true,
+    {glow:dusk.glow,glowWarmth:r3(warmth(dusk.glow)),limitGlow:GLASS_WARM,glassPatch:dusk.glass,glassCore:dusk.core,glassCoreWarmth:r3(warmth(dusk.core)),noonGlassPatch:noonDusk.glass,glassNote:'the lit glass itself clips to white at this distance, so its colour is read in its glow',wallDusk:dusk.wall,wallNoon:noonDusk.wall,wallWarmthDusk:r3(warmth(dusk.wall)),wallWarmthNoon:r3(warmth(noonDusk.wall)),ratio:r3(wallRatio),limitWall:WALL_WARMER,screen:dusk.at,lit:duskState.lit});
+
+  // 55. Night study with the fire: flames in the mouth's crop (the crop differs from the same frame with the fire out and is brighter), the hearth slab warmer than the far floor.
+  await studyLight(lite,'night');
+  const nightPose=aim(0,[livingRoom.a[1]-.4,fp.d],[1.5,fp.d+1,.55]),mouthCorners=[[fp.breast.depth,fp.d-fp.mouth.width/2,.15],[fp.breast.depth,fp.d+fp.mouth.width/2,.15],[fp.breast.depth,fp.d-fp.mouth.width/2,fp.mouth.height],[fp.breast.depth,fp.d+fp.mouth.width/2,fp.mouth.height]];
+  const slab=[fp.breast.depth+fp.slab/2,fp.d,.05],hearthFar=[livingLamp[0]+.6,fp.d+2.4,0];
+  await stand(lite,nightPose,1200);const mouthBox=rectOf(await project(lite,mouthCorners),.12);
+  const fireLit=await indoorRead(lite,[mouthBox]),floorRead=await patches(lite,[slab,hearthFar]);await lightShot(lite,'living-night');const nightState=await litState(lite);
+  await setFixture(lite,{hearth:{fire:0,embers:0}});await lite.waitForTimeout(500);const fireOut=await indoorRead(lite,[mouthBox]);await setFixture(lite,null);
+  const flames=changed(fireLit.on[0],fireOut.on[0]),FLAMES=.25,MOUTH_BRIGHTER=1.3,mouthRatio=lum(meanRgb(fireLit.on[0]))/lum(meanRgb(fireOut.on[0])),SLAB_WARMER=1.05,slabRatio=warmth(floorRead.rgb[0])/warmth(floorRead.rgb[1]);
+  check(`Night study with the fire: the mouth's crop differs from the same frame with the fire out over at least ${FLAMES} of it and is at least ${MOUTH_BRIGHTER} times as bright, and the hearth slab is at least ${SLAB_WARMER} times warmer than the floor further from the fire`,
+    inFrame(mouthBox)&&floorRead.seen&&flames.n>=flames.of*FLAMES&&mouthRatio>=MOUTH_BRIGHTER&&slabRatio>=SLAB_WARMER&&nightState.lit?.fire==='burning'&&nightState.lit?.lamp===true,
+    {mouthBox,flames,flameShare:r3(flames.n/flames.of),limitFlames:FLAMES,mouthLit:rgbOf(fireLit.on[0]),mouthOut:rgbOf(fireOut.on[0]),mouthRatio:r3(mouthRatio),limitMouth:MOUTH_BRIGHTER,
+      slab:floorRead.rgb[0],floor:floorRead.rgb[1],slabWarmth:r3(warmth(floorRead.rgb[0])),floorWarmth:r3(warmth(floorRead.rgb[1])),ratio:r3(slabRatio),limitSlab:SLAB_WARMER,slabAt:slab,floorAt:hearthFar,lit:nightState.lit});
+
+  // 56. Night, every lamp and the fire forced out: the frame is dim, and the hall–living opening differs from the wall beside it (the way on can be seen).
+  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7];
+  const outPose=aim(0,[1.6,(o0+o1)/2],[hallOpening.at,(o0+o1)/2,1.2]);
+  await stand(lite,outPose,1200);const litFrame=await frameMean(lite);
+  await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);
+  const rectAt=async(a,span)=>rectOf(await project(lite,[[a,span[0],opZ[0]],[a,span[1],opZ[0]],[a,span[0],opZ[1]],[a,span[1],opZ[1]]]),.1);
+  const wayBox=await rectAt(hallOpening.at,[o0,o1]),wallBox2=await rectAt(hallOpening.at,wallSpan),outFrame=await frameMean(lite),outCrops=await indoorRead(lite,[wayBox,wallBox2]);await lightShot(lite,'living-out');
+  const DIM=.25,WAY_MARGIN=.03,wayLum=lum(meanRgb(outCrops.on[0])),wallLum=lum(meanRgb(outCrops.on[1])),wayDiff=Math.abs(wayLum-wallLum);
+  check(`Night with every lamp and the fire out: the frame is dim (mean luminance under ${DIM} and at most half the lit frame's) and the hall–living opening differs from the wall beside it by at least ${WAY_MARGIN} in luminance`,
+    outFrame.lum<DIM&&outFrame.lum<=litFrame.lum/2&&inFrame(wayBox)&&inFrame(wallBox2)&&wayDiff>=WAY_MARGIN,
+    {frameOut:r3(outFrame.lum),frameLit:r3(litFrame.lum),limitDim:DIM,wayBox,wallBox:wallBox2,way:rgbOf(outCrops.on[0]),wall:rgbOf(outCrops.on[1]),wayLum:r3(wayLum),wallLum:r3(wallLum),difference:r3(wayDiff),limitWay:WAY_MARGIN,
+      changedPixels:changed(outCrops.on[0].slice(0,outCrops.on[1].length),outCrops.on[1].slice(0,outCrops.on[0].length))});
+
+  // 57. The hall and stair at night, asleep (every lamp out but the two night lamps, as the shared rules set them for a sleeping house): the wall lamp's glass glows.
+  const asleep=roomLamps(I,{dark:1,pose:{main:0,second:0},lights:{main:{on:false,at:-Infinity},second:{on:false,at:-Infinity}},now:0,settled:true});
+  await setFixture(lite,{lamps:asleep,hearth:{fire:0,embers:0}});
+  const hallPose=aim(0,[8.2,5.2],[hallLamp[0],hallLamp[1],hallLamp[2]],-.05);await stand(lite,hallPose,1200);
+  const glass=await patches(lite,[hallLamp],5),around=await patches(lite,[[hallLamp[0],hallLamp[1],hallLamp[2]+.55],[hallLamp[0]-.6,hallLamp[1],hallLamp[2]]],9);await lightShot(lite,'hall-night');const hallState=await litState(lite);
+  const GLOW=2,glowOver=lum(glass.rgb[0])/Math.max(lum(around.rgb[0]),lum(around.rgb[1]));
+  check(`The hall and stair at night, asleep: the wall lamp's glass is at least ${GLOW} times as bright as the wall around it, and warm`,
+    glass.seen&&around.seen&&glowOver>=GLOW&&warmth(glass.rgb[0])>=1.2&&hallState.lit?.lamp===true&&hallState.room==='entry hall',
+    {glass:glass.rgb[0],above:around.rgb[0],beside:around.rgb[1],glowOver:r3(glowOver),limit:GLOW,glassWarmth:r3(warmth(glass.rgb[0])),levels:asleep.map(r3),at:glass.at,lit:hallState.lit});
+
+  // 58. The master bedroom by day, then lit by fixture: brighter and warmer.
+  await setFixture(lite,null);await studyLight(lite,'day');
+  const master=I.rooms.find(r=>r.id==='master'),masterPose=aim(0,[master.a[1]-.7,master.d[1]-.7],[(master.a[0]+master.a[1])/2,(master.d[0]+master.d[1])/2,1.2]);
+  await stand(lite,masterPose,1200);const masterDay=await frameMean(lite);await lightShot(lite,'master-day');
+  await setFixture(lite,{lamps:fixtureLamps({master:1}),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const masterLit=await frameMean(lite);const masterState=await litState(lite);await lightShot(lite,'master-lit');
+  const MASTER_BRIGHTER=1.2,MASTER_WARMER=1.05,masterRatio=masterLit.lum/masterDay.lum,masterWarm=warmth(masterLit.rgb)/warmth(masterDay.rgb);
+  check(`The master bedroom lit by fixture is at least ${MASTER_BRIGHTER} times as bright and ${MASTER_WARMER} times as warm as by day`,
+    masterRatio>=MASTER_BRIGHTER&&masterWarm>=MASTER_WARMER&&masterState.room==='master bedroom'&&masterState.lit?.lamp===true,
+    {day:masterDay.rgb,lit:masterLit.rgb,dayLum:r3(masterDay.lum),litLum:r3(masterLit.lum),brighter:r3(masterRatio),limitBrighter:MASTER_BRIGHTER,warmer:r3(masterWarm),limitWarmer:MASTER_WARMER,lit_:masterState.lit});
+
+  // 59. The kitchen lit by fixture with the dining room out, from the dining room: the dining side of the shared wall takes none of the kitchen's lamp.
+  await studyLight(lite,'night');
+  const kitchen=I.rooms.find(r=>r.id==='kitchen'),shared=I.openings.find(o=>o.id==='kitchen-dining'),wallA=shared.at+I.wall/2,[s0,s1]=shared.span,diningRoom=I.rooms.find(r=>r.id==='dining');
+  const stripSpan=[s1+.05,diningRoom.d[1]-.05],kitchenFar=[kitchen.a[0]+1,(s0+s1)/2,1.3];
+  const dinePose=aim(0,[diningRoom.a[1]-.5,(s0+s1)/2-.6],[(wallA+kitchenFar[0])/2,(stripSpan[0]+stripSpan[1])/2+.4,1.2]);
+  const sample=async()=>{const strip=rectOf(await project(lite,[[wallA,stripSpan[0],.3],[wallA,stripSpan[1],.3],[wallA,stripSpan[0],1.9],[wallA,stripSpan[1],1.9]]),.1),
+    floorNear=[wallA+.4,(s0+s1)/2,0],p=await patches(lite,[floorNear,kitchenFar],9),read=await indoorRead(lite,[strip]);
+    return {strip,stripRgb:rgbOf(read.on[0]),floor:p.rgb[0],kitchenFar:p.rgb[1],seen:inFrame(strip)&&p.seen};};
+  await stand(lite,dinePose,1000);
+  await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const bothOut=await sample();
+  await setFixture(lite,{lamps:fixtureLamps({kitchen:1}),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const kitchenOn=await sample();await lightShot(lite,'kitchen-dining');
+  const KITCHEN_SEEN=1.5,LEAK=1.05,leak=[lum(kitchenOn.stripRgb)/lum(bothOut.stripRgb),lum(kitchenOn.floor)/lum(bothOut.floor)],kitchenGain=lum(kitchenOn.kitchenFar)/lum(bothOut.kitchenFar);
+  check(`From the dining room, with the kitchen's lamp lit and the dining room's out, the dining side of the shared wall and the floor beside it are no brighter than with the kitchen out too (at most ${LEAK} times), while the kitchen seen through the opening is at least ${KITCHEN_SEEN} times as bright`,
+    bothOut.seen&&kitchenOn.seen&&leak.every(v=>v<=LEAK)&&kitchenGain>=KITCHEN_SEEN,
+    {wallStrip:{out:bothOut.stripRgb,kitchenLit:kitchenOn.stripRgb,ratio:r3(leak[0])},diningFloor:{out:bothOut.floor,kitchenLit:kitchenOn.floor,ratio:r3(leak[1])},kitchenSeen:{out:bothOut.kitchenFar,lit:kitchenOn.kitchenFar,ratio:r3(kitchenGain)},limitLeak:LEAK,limitKitchen:KITCHEN_SEEN,strip:kitchenOn.strip,pose:dinePose});
+  await setFixture(lite,null);
+
+  // 60. The doorway from the yard at night, the door open: its crop is warmer than by day.
+  const doorCentre=openingCentre(S,D,'door'),doorLook={...atDoor(1.45),...lookFrom(atDoor(1.45).position,doorCentre)};await setPose(lite,doorLook);await lite.waitForTimeout(2500);
+  const doorCrop=async()=>{const [c,t,b]=await project(lite,[doorCentre,[doorCentre[0],doorCentre[1],doorCentre[2]+.8],[doorCentre[0],doorCentre[1],doorCentre[2]-.8]]),ppm=Math.abs(b[1]-t[1])/1.6,box=[c[0]-.2*ppm,c[1]-.45*ppm,c[0]+.2*ppm,c[1]+.45*ppm].map(Math.round);
+    const px=(await drawAndRead(lite,gridPoints(...box,8,16))).pixels;return {box,rgb:[0,1,2].map(i=>Math.round(px.reduce((t,p)=>t+p[i],0)/px.length)),open:await doorAngle(lite)};};
+  await studyLight(lite,'day');await lite.waitForTimeout(1500);const doorDay=await doorCrop();
+  await studyLight(lite,'night');await lite.waitForTimeout(1500);const doorNight=await doorCrop();await lightShot(lite,'doorway-night');
+  const DOOR_WARMER=1.1,doorWarm=warmth(doorNight.rgb)/warmth(doorDay.rgb);
+  check(`The doorway seen from the yard with the door open is at least ${DOOR_WARMER} times warmer at night than by day (red over blue)`,
+    doorDay.open>1&&doorNight.open>1&&inFrame(doorNight.box)&&doorWarm>=DOOR_WARMER,
+    {day:doorDay.rgb,night:doorNight.rgb,dayWarmth:r3(warmth(doorDay.rgb)),nightWarmth:r3(warmth(doorNight.rgb)),ratio:r3(doorWarm),limit:DOOR_WARMER,box:doorNight.box,leafAngle:{day:r3(doorDay.open),night:r3(doorNight.open)}});
+
+  // 61. The same moment is the same light. Three loads with the world held still (the motion clock pinned as in check 49, reduced motion) at the night study, in the
+  // living room: A and B, and A and C, differ in at most 2% of a dense grid over the whole indoor frame. The control: the same pose with every lamp and the fire out
+  // differs from A in far more, so a blind or noisy comparison fails rather than passes.
+  const momentGrid=gridPoints(0,0,viewport.width,viewport.height,96,54),momentFrames=[];let momentQuiet=true;
+  for(const label of ['A','B','C']){const m=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});await m.goto(`${base}/?check&interior=1&tier=full`);await ready(m);await studyLight(m,'night');
+    await m.evaluate(()=>{window.__space.frozenMotion=1234;});await walkIn(m);await stand(m,nightPose,1500);momentFrames.push(await indoorPixels(m,momentGrid));
+    if(label==='A'){await setFixture(m,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await m.waitForTimeout(600);momentFrames.push(await indoorPixels(m,momentGrid));}
+    momentQuiet=momentQuiet&&!m.consoleErrors.length&&!m.own.length;await m.context().close();}
+  const momentShare=(f,g)=>f.filter((p,i)=>differ(p,g[i])).length/f.length,[momentA,momentOut,momentB,momentC]=momentFrames,
+    moment={AB:fig(momentShare(momentA,momentB)),AC:fig(momentShare(momentA,momentC)),control:fig(momentShare(momentA,momentOut))},CONTROL_MIN=.2;
+  check('The same moment draws the same light: with the world held still, two other loads draw the interior frame within 2% of the first over a dense grid, and the same pose with the lamps and fire out differs by far more',
+    moment.AB<=STILL&&moment.AC<=STILL&&moment.control>=CONTROL_MIN&&momentQuiet,{...moment,limit:STILL,controlLeast:CONTROL_MIN,points:momentGrid.length,pinned:'frozenMotion = 1234, reduced motion, night study, living room at the fire'});
+
+  // 62. The lit materials are in use and the interior scene holds no light source.
+  const sources=await lite.evaluate(()=>{const s=window.__space,found=[];s.inside.scene.traverse(o=>{if(o.isLight)found.push(o.type);});let meshes=0;s.inside.scene.traverse(o=>{if(o.isMesh)meshes++;});return {lit:s.inside.lit,lights:found,meshes};});
+  check('The interior uses its lit materials (inside.lit) and its scene holds no light source of any kind',sources.lit===true&&sources.lights.length===0&&sources.meshes>0,sources);
+  const liteQuiet=!lite.consoleErrors.length&&!lite.own.length;await lite.context().close();
+
+  // 63. Speed under the night study (yard and living room both under it, the lamp and the fire lit): check 50's measurement, the same function.
+  const nightSpeed=await measureSpeed('night'),nightLit=nightSpeed.kept.every(r=>r.roomLit?.lamp===true&&r.roomLit?.fire==='burning');
+  check('Speed on &tier=full under the night study (the living room\'s lamp and fire lit): a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose, measured as check 50 measures it',
+    nightSpeed.kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&nightLit&&nightSpeed.costRatio<=1.1,
+    {yardMs:nightSpeed.yardMs,roomMs:nightSpeed.roomMs,ratio:nightSpeed.costRatio,limit:1.1,roundRatios:nightSpeed.roundRatios,ratioSpread:[Math.min(...nightSpeed.roundRatios),Math.max(...nightSpeed.roundRatios)],rounds:nightSpeed.rounds,discardedFirstRound:true,
+      method:speedMethod,litInTheRoom:nightLit,dayRatio:costRatio,hallDoorOpenMs:nightSpeed.hallMs,hallLive:nightSpeed.hallTime.live});
+  console.log(`  speed (full, night): yard ${nightSpeed.yardMs} ms, living room ${nightSpeed.roomMs} ms (${nightSpeed.costRatio}x)`);
+
+  // 64. The interior's build time: the first buildInside, in milliseconds, and the first indoor draw (where the lit programs are compiled). Recorded, not asserted.
+  const built=await visitor();await built.goto(`${base}/?check&interior=1&tier=full`);await ready(built);
+  await built.evaluate(()=>{const s=window.__space,build=s.buildInside.bind(s),draw=s.drawIndoors.bind(s);
+    s.buildInside=()=>{if(s.inside||s.insideFailed||s.__buildMs!==undefined)return build();const t=performance.now();build();s.__buildMs=performance.now()-t;};
+    s.drawIndoors=o=>{if(s.__firstDrawMs!==undefined)return draw(o);const t=performance.now();const r=draw(o);s.__firstDrawMs=performance.now()-t;return r;};});
+  await walkIn(built);const buildTimes=await built.evaluate(()=>({buildMs:window.__space.__buildMs,firstIndoorDrawMs:window.__space.__firstDrawMs,lit:window.__space.inside.lit}));
+  check('The interior\'s build time (the first buildInside) and its first indoor draw, in milliseconds (recorded, not asserted)',Number.isFinite(buildTimes.buildMs)&&buildTimes.buildMs>0&&buildTimes.lit===true,
+    {buildMs:+buildTimes.buildMs?.toFixed(1),firstIndoorDrawMs:+buildTimes.firstIndoorDrawMs?.toFixed(1),note:'headless Chrome on the machine\'s GPU through ANGLE; one load, the page\'s first build after a cold start'});
+  console.log(`  interior build: ${buildTimes.buildMs?.toFixed(1)} ms, first indoor draw ${buildTimes.firstIndoorDrawMs?.toFixed(1)} ms`);
+  const builtQuiet=!built.consoleErrors.length&&!built.own.length;await built.context().close();
+
+  // 65. No page or console errors in any of the light's visitors.
+  check('No page or console errors in the light\'s visitors',noonQuiet&&liteQuiet&&momentQuiet&&builtQuiet&&nightSpeed.quiet,{noonQuiet,liteQuiet,momentQuiet,builtQuiet,nightSpeedQuiet:nightSpeed.quiet,lite:{consoleErrors:lite.consoleErrors,pageErrors:lite.own}});
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
-}finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
+}finally{await browser.close();if(noonChild&&noonChild.exitCode===null)noonChild.kill();if(noonDir)await rm(noonDir,{recursive:true,force:true});await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
   if(interiorFrom!==null)await writeFile(`${interiorDirectory}/browser-results.json`,JSON.stringify({results:results.slice(interiorFrom),errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;
