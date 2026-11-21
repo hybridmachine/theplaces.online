@@ -4,6 +4,7 @@ import {mergeGeometries, sheet, V} from '../geometry.js';
 import {noise} from '../scene/noise.js';
 import {CASEMENT} from '../../../shared/lakeside-dressing.js';
 import {createInteriorLight} from './light.js';
+import {buildFireplace} from './fireplace.js';
 
 // The cabin's interior as a plain shell, its own scene: plastered walls with their openings, board floors, plaster ceilings
 // (flat downstairs, following the roof's two slopes upstairs), the stair in its shut-off box, and flat glass in every window
@@ -88,8 +89,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     return g;
   };
   // A sheet over (s, t), sized by the lengths it spans along each, carrying its light.
-  const face = (f, across, up, outward, colour, {place, floorOf = storey} = {}) => {
-    const g = sheet(THREE, f, {ns: steps(across), nt: steps(up), tile: BRUSH_TILE, outward, colour});
+  const face = (f, across, up, outward, colour, {place, floorOf = storey, tile = BRUSH_TILE} = {}) => {
+    const g = sheet(THREE, f, {ns: steps(across), nt: steps(up), tile, outward, colour});
     if (!place) { const mid = f(.5, .5), u = V.norm(outward); place = into(roomAt(I, floorOf(mid[2]), [mid[0] + u[0] * .05, mid[1] + u[1] * .05])); }
     return weighed(g, place, floorOf);
   };
@@ -312,6 +313,9 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: n}));
     return markers.get(n);
   };
+  // The fireplace and the breast above it, built from this file's faces and tints so that they are weighed and tinted as the shell is.
+  const fireplace = buildFireplace(THREE, {interior: I, art, light, face, tint, tints: {plaster, boards}, materials: {surface, plastered}});
+  scene.add(fireplace.object);
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
   if (light) light.set(interiorDials({interior: I, ...DAYTIME})); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   const clamp01 = x => Math.min(1, Math.max(0, x));
@@ -330,10 +334,13 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     stencilOf: id => stencils.get(id) ?? 0,
     // How far the living room window's leaf stands open and the hall's door leaf, 0–1.
     setCasement(open) { casementLeaf.rotation.y = casementTurn * clamp01(open) * CASEMENT.maxAngle; },
+    // The fire's dials for a frame: {fire, embers, seconds, motion} (see fireplace.js); cheap enough for every frame indoors.
+    setFire: fireplace.setFire,
     setDoor(open) { doorLeaf.rotation.y = doorTurn * clamp01(open) * DOOR_SWING; },
     dispose() {
       const materials = new Set(markers.values());
       scene.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
       for (const m of materials) m.dispose();
+      fireplace.dispose();
     }};
 }

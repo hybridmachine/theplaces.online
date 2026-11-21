@@ -33,7 +33,8 @@ void main() {
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
-function haloMaterial(THREE) {
+// Also the interior's fire-glow (public/space/interior/fireplace.js).
+export function haloMaterial(THREE) {
   return new THREE.ShaderMaterial({uniforms: {glow: {value: new THREE.Color(WARM)}, opacity: {value: 0}}, vertexShader: HALO_VERTEX, fragmentShader: HALO_FRAGMENT,
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, clipping: true});
 }
