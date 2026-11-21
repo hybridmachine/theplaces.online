@@ -25,9 +25,12 @@ test('a wall beside a window is brighter by day than the far wall of the same ro
 });
 
 test('a point takes no daylight from a window behind a wall', () => {
-  const m = day(centre('master')), borrowed = LIGHT.day.floor;
-  assert.ok(Math.abs(m - borrowed) < 1e-9, `${m}`);
-  assert.ok(m < day(centre('dining')));
+  // The master bedroom shares its wall at a = 11 with the dining room and its window: without that window nothing in the master
+  // bedroom changes (its light comes the long way round, through the passage and the hall, from the study's window).
+  const noDining = createLightField(I, O.filter(o => o.id !== 'dining')), half = I.wall / 2 + .02;
+  for (const [p, n] of [[centre('master'), UP], [[11 + half, 8, 1.2], [1, 0, 0]], [[11 + half, 11, 1.2], [1, 0, 0]], [[12, 11.5, 0], UP]])
+    assert.equal(day(p, n), day(p, n, 0, noDining), `${p}`);
+  assert.ok(day(centre('master')) < day(centre('dining')));
 });
 
 test('a windowless room is dimmer than its neighbour but not dark', () => {
@@ -39,21 +42,50 @@ test('a point that sees no pane borrows a share of its neighbour\'s daylight thr
   // A pane high in the kitchen's wall, out of the laundry's sight (the laundry opens to the kitchen only by a gap further along the wall).
   const high = {id: 'test', kind: 'wall', floor: 0, room: 'kitchen', centre: [3, 7.2, 2.6], across: [1, 0, 0], up: [0, 0, 1], outward: [0, 1, 0], half: [.3, .3]};
   const lit = createLightField(I, [...O, high]), p = [.3, 9.4, 0];
-  assert.equal(day(p), LIGHT.day.floor);
   const w = day(p, UP, 0, lit);
+  assert.ok(w > day(p), `${w} against ${day(p)} without the high pane`);
   // less than the borrowed share of the kitchen's own daylight just inside the opening (the laundry-kitchen opening at a = 2.5, d 7.8–8.8)
   const there = Math.max(...[UP, [1, 0, 0]].map(n => lit.weigh(0, [2.52, 8.3, 1.5], n).day));
   assert.ok(w > LIGHT.day.floor && w < LIGHT.day.borrow * there, `${w} against ${there}`);
 });
 
-test('a windowless room borrows visibly through an opening onto a room with a window, most by the opening; one without such an opening does not', () => {
-  // The box room opens onto the third bedroom (a roof window); the linen cupboard only onto the upstairs bathroom (none).
+test('a windowless room borrows visibly through an opening onto a room with a window, most by the opening; one further off takes less', () => {
+  // The box room opens onto the third bedroom (a roof window); the linen cupboard only onto the upstairs bathroom (none), which
+  // borrows in its turn: the cupboard takes less than the bathroom.
   const box = day(centre('box-room'), UP, 1), linen = day(centre('linen'), UP, 1);
-  assert.equal(linen, LIGHT.day.floor);
+  assert.ok(linen < day(centre('bath-upper'), UP, 1), `${linen}`);
   assert.ok(box > 1.5 * LIGHT.day.floor, `${box}`);
   assert.ok(day([16.5, 7.3, 3], UP, 1) > day([16.5, 9.3, 3], UP, 1), 'brighter by the opening');
   // and the far wall, facing the opening, still takes it
   assert.ok(day([16.5, 9.5 - I.wall / 2 - .02, 4.5], [0, -1, 0], 1) > 1.5 * LIGHT.day.floor, 'and the far wall facing the opening takes it');
+});
+
+// The rooms two or more rooms from any pane, each with a floor point just inside the doorway its light comes through and one at the
+// far wall from it, and the room it borrows through.
+const FAR_OFF = {passage: [0, [11.3, 6.2], [13.7, 4.4], 'hall'], 'bath-ground': [0, [14.3, 5.5], [17.7, 5.5], 'passage'], laundry: [0, [2.2, 8.3], [.3, 8.3], 'kitchen'],
+  pantry: [0, [2.2, 10.7], [.3, 10.7], 'kitchen'], master: [0, [12.5, 7.3], [12.5, 11.7], 'passage'], 'bath-upper': [1, [11.3, 9.5], [14.7, 9.5], 'nook'], linen: [1, [15.3, 10.7], [17.7, 10.7], 'bath-upper']};
+const floorMean = id => { const r = I.rooms.find(q => q.id === id); let t = 0, n = 0;
+  for (let a = r.a[0] + .2; a < r.a[1] - .1; a += .25) for (let d = r.d[0] + .2; d < r.d[1] - .1; d += .25) { t += day([a, d, r.floor * I.floorRise], UP, r.floor); n++; } return t / n; };
+
+test('the rooms two or more rooms from any pane are brighter toward the doorway their light comes through than at the far wall', () => {
+  const noPane = id => !O.some(o => o.room === id && o.kind !== 'door');
+  const farOff = I.rooms.filter(r => noPane(r.id) && I.openings.filter(op => op.rooms.includes(r.id)).every(op => noPane(op.rooms.find(x => x !== r.id)))).map(r => r.id);
+  assert.deepEqual(farOff.sort(), Object.keys(FAR_OFF).sort());
+  for (const [id, [f, door, far]] of Object.entries(FAR_OFF)) {
+    const z = f * I.floorRise, near = day([...door, z], UP, f), back = day([...far, z], UP, f);
+    assert.ok(near > back && near > LIGHT.day.floor * 1.3, `${id}: by the doorway ${near}, at the far wall ${back}`);
+  }
+});
+
+test('no room two or more rooms from any pane is brighter than the room it borrows through', () => {
+  for (const [id, [, , , through]] of Object.entries(FAR_OFF)) assert.ok(floorMean(id) <= floorMean(through), `${id} ${floorMean(id)} against ${through} ${floorMean(through)}`);
+});
+
+test("the master bedroom's door reveal is no brighter by day than the wall facing the doorway", () => {
+  // the passage-master opening on d = 7, a 12-13: its jambs and head on the master's side, and the far wall at d = 12
+  const half = I.wall / 2, onSide = 7 + half - .01, facing = day([12.5, 12 - half - .02, 1.2], [0, -1, 0]);
+  for (const [p, n] of [[[12, onSide, 1.2], [1, 0, 0]], [[13, onSide, 1.2], [-1, 0, 0]], [[12, onSide, .3], [1, 0, 0]], [[12.5, onSide, I.doorHead], [0, 0, -1]]])
+    assert.ok(day(p, n) <= facing, `reveal at ${p} ${day(p, n)} against the facing wall ${facing}`);
 });
 
 test('light borrowed through a doorway falls on what faces the doorway, not on the wall beside it', () => {
