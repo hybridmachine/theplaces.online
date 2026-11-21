@@ -8,7 +8,7 @@ import {lightSum} from '../../../shared/interior-light.js';
 // short dark bracket from its room's nearest wall line to a cup holding the glass. The ironwork is built here from tubes, weighed
 // by the light field at the glass (so it takes its own room's lamp and a neighbour's spill, as a wall there would) and tinted dark through the shell's boards tint;
 // it draws with the shell's surface material, lit or the Lambert fallback. The glasses are one instanced mesh and the halos one
-// merged mesh, both emitted and none of it a light source: each glass takes its colour from its room's level, set per instance, and
+// merged mesh (in `overlay`, which the view draws after the live windows), both emitted and none of it a light source: each glass takes its colour from its room's level, set per instance, and
 // each halo ball carries its room's index to read that level from a small uniform array, so a frame sets a number per room and
 // the cost does not follow the rooms lit. Interior frame [a, d, z]; three x = a, y = z, z = −d.
 

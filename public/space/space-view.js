@@ -234,16 +234,17 @@ export class SpaceView {
   drawIndoors({flat = false} = {}) {
     let ids = [];
     if (flat) this.inside.setLive([]); else ids = this.openWindows();
-    const views = ids.length ? this.viewDraw : null, overlay = this.inside.overlay, camera = this.camera;
-    const over = {get prepared() { return views ? views.prepared : []; },
-      draw: renderer => {
-        const drawn = views ? views.draw(renderer) !== false : false, autoClear = renderer.autoClear;
+    // (made once; this frame's views, if any, are set on it)
+    const view = this, over = this.overDraw ??= {views: null, get prepared() { return this.views ? this.views.prepared : []; },
+      draw(renderer) {
+        const drawn = this.views ? this.views.draw(renderer) !== false : false, autoClear = renderer.autoClear;
         renderer.state.buffers.stencil.setTest(false); renderer.autoClear = false;
-        try { renderer.render(overlay, camera); } finally { renderer.autoClear = autoClear; }
+        try { renderer.render(view.inside.overlay, view.camera); } finally { renderer.autoClear = autoClear; }
         return drawn;
       }};
-    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, camera); over.draw(this.renderer); }
-    else this.pass.render(this.inside.scene, camera, {water: false, views: over});
+    over.views = ids.length ? this.viewDraw : null;
+    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); over.draw(this.renderer); }
+    else this.pass.render(this.inside.scene, this.camera, {water: false, views: over});
     this.checkLight();
     return ids;
   }

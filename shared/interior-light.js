@@ -10,10 +10,10 @@ const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v 
 // Tuned by eye against browser captures. Reaches are metres at which a source's share has fallen to a tenth. By day `face` is the share
 // of a pane's light a surface takes whichever way it faces (the rest as it faces the pane: the room's walls hand the light about);
 // `borrow` the share of a neighbour's daylight a point that sees no pane takes at the opening it comes through, falling off over
-// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way), and
-// `hop` the share of the best light a neighbour takes at its own openings that it passes on through one more, and `behind` how far
-// past the opening the light is taken to come from, for the facing;
-// `cap` the most daylight any point takes, so that the light by the glass, strong enough to fill the room, never clips. A lamp
+// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way), the
+// light taken as coming down through the opening from `behind` metres past its head; `hop` the share of the best a neighbour takes
+// at its own openings that it passes on through one more; `cap` the most daylight any point takes, so that the light by the glass,
+// strong enough to fill the room, clips only on the brightest brushwork. A lamp
 // reaches the far walls of its own room (a wall 4 m off takes more than the floor), and `spill` of that through an opening into a
 // joined room, never through a wall; the fire's `face` is the share of its light a
 // surface takes whichever way it faces, so the wall beside the chimney breast, which sees the fire only edgewise, is warmed too; `door` the front door's strength against a window's; `floor` the least.

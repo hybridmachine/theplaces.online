@@ -813,8 +813,9 @@ try{
   // 56. Midnight (the night study, 00:30), every lamp and the fire forced out. Dim; and the way on from the living room into the hall can be seen: the floor of the opening is darker
   // than the plaster beside it (boards are a darker surface than plaster under the same night fill, and no lamp lifts the hall beyond), and the opening's two edges are luminance steps along
   // horizontal lines at three heights. The margins are what a dim screen can show: a step under 2% of full luminance (5 of 255 levels) is lost, so the way must be at least 10% darker
-  // than the wall (and by at least that step), and each edge must step by at least that much at two of the three heights.
-  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7],edgeHeights=[.3,.9,1.5];
+  // than the wall (and by at least that step), and each edge must step by at least that much at both of two heights, 0.3 m and 0.9 m up (higher, at
+  // 1.5 m, the plaster each side of a jamb takes the same fill and the step there is nearly nothing, so it is not read).
+  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7],edgeHeights=[.3,.9];
   const outPose=aim(0,[1.6,(o0+o1)/2],[hallOpening.at,(o0+o1)/2,1.2]);
   await stand(lite,outPose,1200);const litFrame=await frameMean(lite);
   await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);
@@ -823,12 +824,13 @@ try{
   const edgeAt=await project(lite,[o0,o1].flatMap(e=>edgeHeights.map(z=>[hallOpening.at,e,z]))),edgeBoxes=edgeAt.flatMap(([x,y])=>[[x-14,y-3,x-4,y+3],[x+4,y-3,x+14,y+3]].map(b=>b.map(Math.round)));
   const outCrops=await indoorRead(lite,[wayBox,wallBox2,...edgeBoxes]);await lightShot(lite,'living-out');
   const DIM=.25,STEP=.02,WAY_DARKER=.9,wayLum=lum(meanRgb(outCrops.on[0])),wallLum=lum(meanRgb(outCrops.on[1])),
-    edgeSteps=edgeAt.map((_,k)=>r3(Math.abs(lum(meanRgb(outCrops.on[2+2*k]))-lum(meanRgb(outCrops.on[3+2*k]))))),edgeOk=[0,1].map(e=>edgeSteps.slice(e*edgeHeights.length,(e+1)*edgeHeights.length).filter(v=>v>=STEP).length>=2);
-  check(`Midnight with every lamp and the fire out: the frame is dim (mean luminance under ${DIM} and at most half the lit frame's), the hall–living opening's floor is darker than the plaster beside it (at most ${WAY_DARKER} of its luminance and at least ${STEP} less), and each edge of the opening is a luminance step of at least ${STEP} at two of three heights`,
+    edgeSteps=edgeAt.map((_,k)=>r3(Math.abs(lum(meanRgb(outCrops.on[2+2*k]))-lum(meanRgb(outCrops.on[3+2*k]))))),edgeOk=[0,1].map(e=>edgeSteps.slice(e*edgeHeights.length,(e+1)*edgeHeights.length).every(v=>v>=STEP));
+  const thinnest=Math.min(wallLum-wayLum,...edgeSteps);
+  check(`Midnight with every lamp and the fire out: the frame is dim (mean luminance under ${DIM} and at most half the lit frame's), the hall–living opening's floor is darker than the plaster beside it (at most ${WAY_DARKER} of its luminance and at least ${STEP} less), and each edge of the opening is a luminance step of at least ${STEP} at both ${edgeHeights.join(' m and ')} m up`,
     outFrame.lum<DIM&&outFrame.lum<=litFrame.lum/2&&inFrame(wayBox)&&inFrame(wallBox2)&&edgeBoxes.every(b=>inFrame(b))&&wayLum<=wallLum*WAY_DARKER&&wallLum-wayLum>=STEP&&edgeOk.every(Boolean),
     {frameOut:r3(outFrame.lum),frameLit:r3(litFrame.lum),limitDim:DIM,wayBox,wallBox:wallBox2,way:rgbOf(outCrops.on[0]),wall:rgbOf(outCrops.on[1]),wayLum:r3(wayLum),wallLum:r3(wallLum),wayOverWall:r3(wayLum/wallLum),limitWayOverWall:WAY_DARKER,darkerBy:r3(wallLum-wayLum),limitStep:STEP,
-      lighter:'the wall: plaster is a paler surface than the boards of the hall floor seen through the opening, and with the lamps out both take only the night fill',edgeHeights,edgeSteps:{left:edgeSteps.slice(0,3),right:edgeSteps.slice(3)},edgesAtTwoHeights:edgeOk,
-      thin:'the margins are set from what a dim screen shows, not from the measured values; if the wall-over-way difference ever falls toward the step it is thin'});
+      lighter:'the wall: plaster is a paler surface than the boards of the hall floor seen through the opening, and with the lamps out both take only the night fill',edgeHeights,edgeSteps:{left:edgeSteps.slice(0,2),right:edgeSteps.slice(2)},edgesAtBothHeights:edgeOk,
+      thin:`the margins are set from what a dim screen shows, not from the measured values: the thinnest of the wall-over-way difference and the four edge steps is ${r3(thinnest)} against the ${STEP} step (${r3(thinnest/STEP)} times it)`});
 
   // 57. The hall and stair at night, asleep (every lamp out but the two night lamps, as the shared rules set them for a sleeping house): the wall lamp's glass glows.
   const asleep=roomLamps(I,{dark:1,pose:{main:0,second:0},lights:{main:{on:false,at:-Infinity},second:{on:false,at:-Infinity}},now:0,settled:true});
@@ -850,21 +852,24 @@ try{
     masterRatio>=MASTER_BRIGHTER&&masterWarm>=MASTER_WARMER&&masterState.room==='master bedroom'&&masterState.lit?.lamp===true,
     {day:masterDay.rgb,lit:masterLit.rgb,dayLum:r3(masterDay.lum),litLum:r3(masterLit.lum),brighter:r3(masterRatio),limitBrighter:MASTER_BRIGHTER,warmer:r3(masterWarm),limitWarmer:MASTER_WARMER,lit_:masterState.lit,clockNote:'the study is the day study, so the caption reads 15:30 in both captures; the lamp is lit by fixture, not by the clock'});
 
-  // 59. The kitchen lit by fixture with the dining room out, from the dining room: the dining side of the shared wall takes none of the kitchen's lamp.
+  // 59. The kitchen lit by fixture with the dining room out, from the dining room. A lamp's light passes through an opening but never through a wall: the
+  // dining face of the shared wall beyond the opening's jamb, and the floor at its foot there (where the line to the kitchen's lamp crosses the wall's solid
+  // run), take none of the kitchen's lamp, while the kitchen seen through the opening is lit (the control). What spills through the opening onto the dining
+  // floor in front of it is check 66's.
   await studyLight(lite,'night');
   const kitchen=I.rooms.find(r=>r.id==='kitchen'),shared=I.openings.find(o=>o.id==='kitchen-dining'),wallA=shared.at+I.wall/2,[s0,s1]=shared.span,diningRoom=I.rooms.find(r=>r.id==='dining');
   const stripSpan=[s1+.05,diningRoom.d[1]-.05],kitchenFar=[kitchen.a[0]+1,(s0+s1)/2,1.3];
   const dinePose=aim(0,[diningRoom.a[1]-.5,(s0+s1)/2-.6],[(wallA+kitchenFar[0])/2,(stripSpan[0]+stripSpan[1])/2+.4,1.2]);
   const sample=async()=>{const strip=rectOf(await project(lite,[[wallA,stripSpan[0],.3],[wallA,stripSpan[1],.3],[wallA,stripSpan[0],1.9],[wallA,stripSpan[1],1.9]]),.1),
-    floorNear=[wallA+.4,(s0+s1)/2,0],p=await patches(lite,[floorNear,kitchenFar],9),read=await indoorRead(lite,[strip]);
+    floorBehind=[wallA+.1,(s1+diningRoom.d[1])/2+.1,0],p=await patches(lite,[floorBehind,kitchenFar],6),read=await indoorRead(lite,[strip]);
     return {strip,stripRgb:rgbOf(read.on[0]),floor:p.rgb[0],kitchenFar:p.rgb[1],seen:inFrame(strip)&&p.seen};};
   await stand(lite,dinePose,1000);
   await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const bothOut=await sample();
   await setFixture(lite,{lamps:fixtureLamps({kitchen:1}),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const kitchenOn=await sample();await lightShot(lite,'kitchen-dining');
   const KITCHEN_SEEN=1.5,LEAK=1.05,leak=[lum(kitchenOn.stripRgb)/lum(bothOut.stripRgb),lum(kitchenOn.floor)/lum(bothOut.floor)],kitchenGain=lum(kitchenOn.kitchenFar)/lum(bothOut.kitchenFar);
-  check(`From the dining room, with the kitchen's lamp lit and the dining room's out, the dining side of the shared wall and the floor beside it are no brighter than with the kitchen out too (at most ${LEAK} times), while the kitchen seen through the opening is at least ${KITCHEN_SEEN} times as bright`,
+  check(`From the dining room, with the kitchen's lamp lit and the dining room's out, the dining face of the shared wall beyond the opening's jamb and the floor at its foot (behind the wall's solid run from the kitchen's lamp) are no brighter than with the kitchen out too (at most ${LEAK} times), while the kitchen seen through the opening is at least ${KITCHEN_SEEN} times as bright`,
     bothOut.seen&&kitchenOn.seen&&leak.every(v=>v<=LEAK)&&kitchenGain>=KITCHEN_SEEN,
-    {wallStrip:{out:bothOut.stripRgb,kitchenLit:kitchenOn.stripRgb,ratio:r3(leak[0])},diningFloor:{out:bothOut.floor,kitchenLit:kitchenOn.floor,ratio:r3(leak[1])},kitchenSeen:{out:bothOut.kitchenFar,lit:kitchenOn.kitchenFar,ratio:r3(kitchenGain)},limitLeak:LEAK,limitKitchen:KITCHEN_SEEN,strip:kitchenOn.strip,pose:dinePose,clockNote:'the night study, so the caption reads 00:30; the kitchen\'s lamp is lit by fixture and the dining room\'s forced out, not by the world\'s lights'});
+    {wallStrip:{out:bothOut.stripRgb,kitchenLit:kitchenOn.stripRgb,ratio:r3(leak[0])},floorBehindWall:{out:bothOut.floor,kitchenLit:kitchenOn.floor,ratio:r3(leak[1])},kitchenSeen:{out:bothOut.kitchenFar,lit:kitchenOn.kitchenFar,ratio:r3(kitchenGain)},limitLeak:LEAK,limitKitchen:KITCHEN_SEEN,strip:kitchenOn.strip,pose:dinePose,clockNote:'the night study, so the caption reads 00:30; the kitchen\'s lamp is lit by fixture and the dining room\'s forced out, not by the world\'s lights'});
   await setFixture(lite,null);
 
   // 60. The doorway from the yard at night, the door open: its crop is warmer than by day.
@@ -918,6 +923,57 @@ try{
 
   // 65. No page or console errors in any of the light's visitors.
   check('No page or console errors in the light\'s visitors',noonQuiet&&liteQuiet&&momentQuiet&&builtQuiet&&nightSpeed.quiet,{noonQuiet,liteQuiet,momentQuiet,builtQuiet,nightSpeedQuiet:nightSpeed.quiet,lite:{consoleErrors:lite.consoleErrors,pageErrors:lite.own}});
+  // ── The light's fix wave (checks 66–70), on one more visitor: light through openings, borrowed daylight, halos over the live panes, the fallback.
+  const more=await visitor();await more.goto(`${base}/?check&interior=1&tier=full`);await ready(more);await studyLight(more,'night');await walkIn(more);
+  // 66. The kitchen lit by fixture with the dining room out, from the dining room looking back at the kitchen: along the floor straight through the
+  // kitchen-dining opening there is no ruled edge. Each floor patch is read with the kitchen lit and with every lamp out; its gain (lit over out,
+  // which the boards' own pattern cancels from) must not step between neighbours 0.2 m apart by more than STEP_GAIN of the line's whole rise.
+  const lineD=(s0+s1)/2,lineAs=Array.from({length:15},(_,k)=>+(shared.at-1.4+k*.2).toFixed(2)),linePoints=lineAs.map(a=>[a,lineD,0]);
+  await stand(more,aim(0,[diningRoom.a[1]-1.1,lineD],[shared.at-.6,lineD,0]),1200);
+  await setFixture(more,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await more.waitForTimeout(800);const lineOut=await patches(more,linePoints,3);
+  await setFixture(more,{lamps:fixtureLamps({kitchen:1}),hearth:{fire:0,embers:0}});await more.waitForTimeout(800);const lineOn=await patches(more,linePoints,3);
+  await more.screenshot(shotJpeg(`${interiorDirectory}/light-kitchen-floor.jpg`));
+  const gains=lineOn.rgb.map((c,i)=>lum(c)/Math.max(lum(lineOut.rgb[i]),1e-3)),rise=Math.max(...gains)-1,lineSteps=gains.slice(1).map((g,i)=>Math.abs(g-gains[i])/Math.max(rise,1e-6)),STEP_GAIN=.3,RISE_LEAST=.5;
+  const lineWall=lineAs.findIndex(a=>a>shared.at)-1;
+  check(`With the kitchen lit and the dining room out, the lamp's light runs on across the floor through the kitchen-dining opening with no ruled edge: between floor patches 0.2 m apart the gain (lit over out) steps by at most ${STEP_GAIN} of its whole rise, which is at least ${RISE_LEAST}`,
+    lineOn.seen&&lineOut.seen&&rise>=RISE_LEAST&&lineSteps.every(v=>v<=STEP_GAIN),
+    {along:lineAs,d:lineD,gains:gains.map(r3),steps:lineSteps.map(r3),limit:STEP_GAIN,rise:r3(rise),limitRise:RISE_LEAST,stepAtTheWallLine:r3(lineSteps[lineWall]),wallLineBetween:[lineAs[lineWall],lineAs[lineWall+1]],screen:lineOn.at,
+      note:'before light passed through openings the patches past a = 7 kept a gain of 1 (none of the kitchen\'s lamp) and the step at the wall line was all of the rise'});
+  // 67. The master bedroom by day is brighter toward its doorway (from the passage, d = 7, a 12-13) than at its far wall: the floor patch just inside the
+  // doorway over the one by the far wall, by day (every lamp out), against the same two patches lit only by the night's even fill (every lamp and the fire
+  // out), which gives what the boards alone make of them.
+  const masterDoor=I.openings.find(o=>o.id==='passage-master'),doorMid=(masterDoor.span[0]+masterDoor.span[1])/2,masterNear=[doorMid,master.d[0]+.45,0],masterFar=[doorMid,master.d[1]-.45,0];
+  const masterView=aim(0,[master.a[1]-1.2,(master.d[0]+master.d[1])/2],[doorMid,(master.d[0]+master.d[1])/2,0]);
+  await studyLight(more,'day');await setFixture(more,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await stand(more,masterView,1200);const masterDayFloor=await patches(more,[masterNear,masterFar],12);
+  await more.screenshot(shotJpeg(`${interiorDirectory}/light-master-doorway.jpg`));
+  await studyLight(more,'night');await setFixture(more,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await stand(more,masterView,1200);const masterNightFloor=await patches(more,[masterNear,masterFar],12);
+  const NEAR_DOOR=1.1,dayRatio=lum(masterDayFloor.rgb[0])/lum(masterDayFloor.rgb[1]),boardsRatio=lum(masterNightFloor.rgb[0])/lum(masterNightFloor.rgb[1]),doorGain=dayRatio/boardsRatio;
+  check(`The master bedroom by day is brighter toward its doorway than at its far wall: the floor just inside the doorway over the floor by the far wall, against the same under the night's even fill, is at least ${NEAR_DOOR}`,
+    masterDayFloor.seen&&masterNightFloor.seen&&doorGain>=NEAR_DOOR,{day:masterDayFloor.rgb,fill:masterNightFloor.rgb,dayRatio:r3(dayRatio),boardsRatio:r3(boardsRatio),gain:r3(doorGain),limit:NEAR_DOOR,near:masterNear,far:masterFar,screen:masterDayFloor.at});
+  // 68. A lit lamp in front of a live roof window: from the back of the third bedroom looking up at its roof window past its hanging lamp, at night, the
+  // halo's pixels that lie over the live pane (a ring about the glass, below and beside it, clear of the shade) are brighter with the lamp lit than out.
+  const roof3=opening('bedroom-3'),lamp3=lampOf('bedroom-3'),bedroom3=I.rooms.find(r=>r.id==='bedroom-3'),roofPose=facing(roof3,[lamp3[0],bedroom3.d[1]-.4]);
+  const ring=[[-.13,0],[.13,0],[0,-.13],[-.09,-.09],[.09,-.09]].map(([da,dz])=>[lamp3[0]+da,lamp3[1],lamp3[2]+dz]);
+  await setFixture(more,{lamps:fixtureLamps({'bedroom-3':1}),hearth:{fire:0,embers:0}});await stand(more,roofPose,1200);
+  const roofLive=await paneLive(more,roof3,roofPose),roofBox=await paneBox(more,roof3,roofPose,.04),ringAt=await project(more,ring);
+  const overPane=ringAt.map((p,i)=>({p:p.map(Math.round),i})).filter(({p})=>roofBox&&p[0]>roofBox[0]+3&&p[0]<roofBox[2]-3&&p[1]>roofBox[1]+3&&p[1]<roofBox[3]-3);
+  const ringBoxes=overPane.map(({p})=>crop(p,2)),haloLit=await indoorRead(more,ringBoxes);await more.screenshot(shotJpeg(`${interiorDirectory}/light-halo-window.jpg`));
+  await setFixture(more,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await more.waitForTimeout(800);const haloOut=await indoorRead(more,ringBoxes);
+  const HALO_OVER=1.15,haloRatios=overPane.map((_,k)=>lum(meanRgb(haloLit.on[k]))/Math.max(lum(meanRgb(haloOut.on[k])),1e-3));
+  check(`A lit lamp in front of a live roof window: the halo's pixels over the pane (at least two of a ring about the glass) are at least ${HALO_OVER} times as bright with the lamp lit as out, the pane live in both`,
+    roofLive.live&&overPane.length>=2&&haloLit.ids.includes(roof3.id)&&haloOut.ids.includes(roof3.id)&&haloRatios.every(v=>v>=HALO_OVER),
+    {paneBox:roofBox,ringOverPane:overPane.map(({p,i})=>({at:p,offset:ring[i].map((c,j)=>r3(c-lamp3[j]))})),lit:haloLit.on.map(rgbOf),out:haloOut.on.map(rgbOf),ratios:haloRatios.map(r3),limit:HALO_OVER,live:roofLive,pose:roofPose,
+      note:'drawn with the rooms, before the views, the halo was cut away wherever the yard was drawn into the pane: those pixels were the same lit as out'});
+  // 69. The fallback drawn by a real renderer: in the living room by day facing its window (live), the lit surfaces are given up (inside.fallBack(), what a
+  // lit program that failed to compile calls); a frame is still drawn, the rooms are no longer lit, a hemisphere light is in their scene, the window is still live.
+  await setFixture(more,null);await studyLight(more,'day');await stand(more,rainPose,1200);const beforeFall=await paneLive(more,living,rainPose);
+  const fell=await more.evaluate(()=>{const s=window.__space;s.inside.fallBack();let hemispheres=0;s.inside.scene.traverse(o=>{if(o.isHemisphereLight)hemispheres++;});return {lit:s.inside.lit,hemispheres};});
+  await more.waitForTimeout(1200);const fallFrame=await frameMean(more),afterFall=await paneLive(more,living,rainPose);await lightShot(more,'fallback');
+  check('Given up for the flat light (inside.fallBack()) with the living window live, the room is still drawn (mean luminance above 0.1), inside.lit is false, its scene holds one hemisphere light, and the window is still live',
+    beforeFall.live&&fell.lit===false&&fell.hemispheres===1&&fallFrame.lum>.1&&afterFall.live&&!more.own.length,{before:beforeFall,fell,frame:fallFrame,after:afterFall,pageErrors:more.own});
+  // 70. No page or console errors in this visitor.
+  const moreQuiet=!more.consoleErrors.length&&!more.own.length;await more.context().close();
+  check('No page or console errors in the fix wave\'s visitor',moreQuiet,{consoleErrors:more.consoleErrors,pageErrors:more.own});
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();stopNoon();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
   if(interiorFrom!==null)await writeFile(`${interiorDirectory}/browser-results.json`,JSON.stringify({results:results.slice(interiorFrom),errors},null,2)+'\n');}
