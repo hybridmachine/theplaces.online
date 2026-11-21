@@ -237,19 +237,62 @@ test('the delays and thresholds are the same on every call and for every visitor
   assert.notDeepEqual(roomLamps({...I, lightSeed: 7}, {dark: .8, pose: {main: 0, second: 0}, lights: ON(T0), now: T0 + 40000}), a);
 });
 
-test('the fire rises over twenty seconds, and its embers die away over half an hour', () => {
-  const on = {on: true, since: 1000, lastBurn: null}, out = {on: false, since: 9000, lastBurn: {start: 1000, end: 9000}};
-  assert.deepEqual(fireLevel(on, 1000), {fire: 0, embers: 1});
-  assert.deepEqual(fireLevel(on, 1000 + DIALS.fireRise / 2), {fire: .5, embers: 1});
-  assert.deepEqual(fireLevel(on, 1000 + DIALS.fireRise * 3), {fire: 1, embers: 1});
+test('the fire rises over twenty seconds, falls over its own while it goes out, and its embers die away over half an hour', () => {
+  const start = 1000, end = start + DIALS.fireRise * 3, on = {on: true, since: start, lastBurn: null}, out = {on: false, since: end, lastBurn: {start, end}};
+  assert.deepEqual(fireLevel(on, start), {fire: 0, embers: 1});
+  assert.deepEqual(fireLevel(on, start + DIALS.fireRise / 2), {fire: .5, embers: 1});
+  assert.deepEqual(fireLevel(on, start + DIALS.fireRise * 3), {fire: 1, embers: 1});
   assert.deepEqual(fireLevel(on, 5, {settled: true}), {fire: 1, embers: 1});
-  assert.deepEqual(fireLevel(out, 9000), {fire: 0, embers: 1});
-  assert.equal(fireLevel(out, 9000 + DIALS.emberFall / 2).embers, .5);
-  assert.equal(fireLevel(out, 9000 + DIALS.emberFall * 2).embers, 0);
+  // the moment it goes out it is still at the level it had reached, and falls from there over DIALS.fireFall
+  assert.deepEqual(fireLevel(out, end), {fire: 1, embers: 1});
+  assert.equal(fireLevel(out, end + DIALS.fireFall / 2).fire, .5);
+  assert.equal(fireLevel(out, end + DIALS.fireFall).fire, 0);
+  assert.equal(fireLevel(out, end + DIALS.emberFall / 2).embers, .5);
+  assert.equal(fireLevel(out, end + DIALS.emberFall * 2).embers, 0);
+  // put out half-way up its rise, it falls from half and never jumps up
+  const early = {on: false, since: start + DIALS.fireRise / 2, lastBurn: {start, end: start + DIALS.fireRise / 2}};
+  assert.equal(fireLevel(early, early.since).fire, .5);
+  assert.ok(fireLevel(early, early.since + DIALS.fireFall / 2).fire < .5);
+});
+
+test('the fire never changes by more than a tenth between frames 100 ms apart as the hearth goes out and comes on', () => {
+  const lit = 1e6, out = lit + 120e3, again = out + 400e3, stop = again + 60e3;
+  const hearthAt = t => t < lit ? {on: false, since: 0, lastBurn: null} : t < out ? {on: true, since: lit, lastBurn: null}
+    : t < again ? {on: false, since: out, lastBurn: {start: lit, end: out}} : {on: true, since: again, lastBurn: {start: lit, end: out}};
+  let prev = null;
+  for (let t = lit - 5e3; t <= stop; t += 100) {
+    const {fire} = fireLevel(hearthAt(t), t, {introducedAt: 0});
+    if (prev !== null) assert.ok(Math.abs(fire - prev) <= .1, `t=${t}: ${prev} -> ${fire}`);
+    prev = fire;
+  }
+});
+
+test('the embers die over half an hour though the world forgets the burn after a minute', async () => {
+  const {completeCottage, decideCottage, DECISION_MS, SMOKE_LIFETIME} = cottageModule;
+  // the real sequence: the hearth lit, put out, then a decision more than a minute later that clears lastBurn
+  const t0 = 0, c0 = createCottageState(t0, t0);
+  const light = (state, at, target) => completeCottage({...state, pending: {id: `t-${at}`, actor: state.residentId, kind: 'hearth', room: 'main', from: +state.hearth.on, target, start: at - 9000, motionStart: at - 1000, end: at}}, t0, at).state;
+  const lit = light(c0, 600e3, true), out = light(lit, 900e3, false);
+  assert.ok(out.hearth.lastBurn, 'the burn is remembered at first');
+  let grid = out.nextDecisionAt; while (grid - 900e3 <= SMOKE_LIFETIME) grid += DECISION_MS;
+  const forgot = decideCottage({...out, nextDecisionAt: grid}, t0, grid);
+  assert.equal(forgot.hearth.lastBurn, null, 'the world has cleared lastBurn');
+  const state = t => t < grid ? out : forgot;
+  let prev = null;
+  for (let t = 900e3; t <= 900e3 + DIALS.emberFall + 60e3; t += 100) {
+    const {embers} = fireLevel(state(t).hearth, t, {introducedAt: c0.introducedAt});
+    if (prev !== null) assert.ok(Math.abs(embers - prev) <= .01, `t=${t}: ${prev} -> ${embers}`);
+    if (t < 900e3 + DIALS.emberFall) assert.ok(embers > 0, `embers out early at ${t}`);
+    prev = embers;
+  }
+  assert.equal(prev, 0);
+  // and the dials read the cottage's introduction themselves
+  const d = interiorDials({...base, calendar: cal(0, -1, 0), weather: {cloud: 0}, cottage: forgot, now: grid + 1000});
+  assert.ok(d.embers > .9, `${d.embers}`);
 });
 
 test('a hearth that never burned is cold; an unreadable one is cold', () => {
-  assert.deepEqual(fireLevel({on: false, since: 0, lastBurn: null}, 1e6), {fire: 0, embers: 0});
+  assert.deepEqual(fireLevel({on: false, since: 0, lastBurn: null}, 1e6, {introducedAt: 0}), {fire: 0, embers: 0});
   assert.deepEqual(fireLevel(null, 1e6), {fire: 0, embers: 0});
   assert.deepEqual(fireLevel({}, 1e6), {fire: 0, embers: 0});
 });

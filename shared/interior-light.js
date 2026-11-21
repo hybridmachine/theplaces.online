@@ -99,7 +99,7 @@ export function createLightField(interior, openings) {
 // `floor` is the least brightness any standable spot takes: at midnight with every lamp out, the night fill's blue channel alone provides it.
 // Daylight's colour is the sky's, mixed `dayMix` of the way toward the warm white `dayWhite`, so plaster keeps its cream by day.
 export const DIALS = deep({fill: [.12, .155, .26], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 2.3, dayMix: .6, dayWhite: [1, .91, .76], lamp: 1.1, fire: .9, night: .35, hallLow: .35,
-  fade: 2000, delay: [5000, 90000], threshold: [.3, .9], fireRise: 20000, emberFall: 1800000, flicker: .06, floor: .07});
+  fade: 2000, delay: [5000, 90000], threshold: [.3, .9], fireRise: 20000, fireFall: 25000, emberFall: 1800000, flicker: .06, floor: .07});
 
 const clamp = x => Math.max(0, Math.min(1, x));
 const ramp = (x, a, b) => clamp((x - a) / (b - a));
@@ -135,12 +135,16 @@ export function roomLamps(interior, {dark, pose, lights, now, settled = false}) 
   });
 }
 
-// The fire rises linearly while it burns; its embers glow while it does and die away after it goes out. Unreadable is cold.
-export function fireLevel(hearth, now, {settled = false} = {}) {
-  if (!hearth || typeof hearth.on !== 'boolean' || !Number.isFinite(now)) return {fire: 0, embers: 0};
+// The fire rises linearly while it burns; once out it falls over DIALS.fireFall from the level it had reached, and its embers, which glow
+// while it burns, die away over DIALS.emberFall. Both count from `hearth.since`, the moment it went out: the world clears `lastBurn` a
+// minute after a burn ends, long before the embers are cold. A hearth out since the cottage's `introducedAt` never burned. Unreadable is cold.
+export function fireLevel(hearth, now, {settled = false, introducedAt} = {}) {
+  if (!hearth || typeof hearth.on !== 'boolean' || !Number.isFinite(now) || !Number.isFinite(hearth.since)) return {fire: 0, embers: 0};
   if (hearth.on) return {fire: settled ? 1 : ramp(now - hearth.since, 0, DIALS.fireRise), embers: 1};
-  const end = hearth.lastBurn?.end;
-  return {fire: 0, embers: Number.isFinite(end) ? 1 - ramp(now - end, 0, DIALS.emberFall) : 0};
+  if (hearth.since === introducedAt) return {fire: 0, embers: 0};
+  // (the fall is over well inside the minute lastBurn is kept, so a burn the world has forgotten is long past its fall)
+  const b = hearth.lastBurn, reached = b && Number.isFinite(b.start) ? ramp(hearth.since - b.start, 0, DIALS.fireRise) : 0;
+  return {fire: reached * (1 - ramp(now - hearth.since, 0, DIALS.fireFall)), embers: 1 - ramp(now - hearth.since, 0, DIALS.emberFall)};
 }
 
 // Near 1: three slow sines of the world's seconds, so every visitor sees the same flame. Steady under reduced motion.
@@ -159,7 +163,7 @@ export function interiorDials({interior, calendar, weather, sky, cottage, pose, 
   const mixed = mean.map((v, i) => v / top * (1 - DIALS.dayMix) + DIALS.dayWhite[i] * DIALS.dayMix), peak = Math.max(...mixed);
   const strength = DIALS.day * light * (1 - .35 * overcast({cloud: finite(weather?.cloud)}));
   const fill = DIALS.fill.map(v => v * DIALS.night * Math.max(1 - .7 * light, .3));
-  let lit = pose, lights = houseLights(cottage), settled = false, flame = fireLevel(cottage?.hearth, now);
+  let lit = pose, lights = houseLights(cottage), settled = false, flame = fireLevel(cottage?.hearth, now, {introducedAt: cottage?.introducedAt});
   if (study) {
     lit = cottageFixture(study); settled = true; lights = {main: {on: lit.main > 0, at: -Infinity}, second: {on: lit.second > 0, at: -Infinity}};
     flame = study === 'night' || study === 'dusk' ? {fire: 1, embers: 1} : {fire: 0, embers: 0};
