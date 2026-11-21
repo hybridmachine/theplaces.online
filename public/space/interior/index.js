@@ -1,7 +1,9 @@
-import {ceilingHeight, wallSegments} from '../../../shared/interior.js';
-import {mergeGeometries, sheet} from '../geometry.js';
+import {ceilingHeight, roomAt, wallSegments} from '../../../shared/interior.js';
+import {createLightField, interiorDials} from '../../../shared/interior-light.js';
+import {mergeGeometries, sheet, V} from '../geometry.js';
 import {noise} from '../scene/noise.js';
 import {CASEMENT} from '../../../shared/lakeside-dressing.js';
+import {createInteriorLight} from './light.js';
 
 // The cabin's interior as a plain shell, its own scene: plastered walls with their openings, board floors, plaster ceilings
 // (flat downstairs, following the roof's two slopes upstairs), the stair in its shut-off box, and flat glass in every window
@@ -10,12 +12,22 @@ import {CASEMENT} from '../../../shared/lakeside-dressing.js';
 // outward and the hall's door leaf swings in. Interior [a, d, z] (z up from the ground floor) goes to three
 // through toThree, so three x = a, y = up, z = −d. Every face is wound into the rooms and drawn single-sided; an internal
 // wall is its two faces, 0.15 m apart, with reveals inside each opening.
+// Lit, as it is unless its materials cannot be made, it holds no light source: every vertex carries the light it takes (its
+// day, lamp and fire weights and its room, from shared/interior-light.js) and light.js's materials sum the frame's dials by them.
+// So that no vertex is weighed in the wrong room, every face is cut where the rooms on its side meet, and is weighed a little
+// inside the room it faces; a reveal in a doorway between rooms is weighed, each side, in the room on that side.
 
 // The brushwork tiles every metre and a half, as on the cabin's eaves; sheets are cut finer than this so the vertex tint
-// varies smoothly across them. Tints are linear and may pass 1: the brushwork texture is dark (about linear .33) and three's
-// Lambert divides the hemisphere light by π. Plaster also glows a pale base of its own, so its strokes are a gentle
-// variation on a pale ground rather than camouflage; boards have none and stay darker than the walls.
+// varies smoothly across them. Tints are linear and may pass 1: the brushwork texture is dark (about linear .33). Unlit (the
+// fallback), three's Lambert divides the hemisphere light by π and plaster also glows a pale base of its own, so its strokes are
+// a gentle variation on a pale ground rather than camouflage; boards have none and stay darker than the walls. Lit, the pale base
+// is folded into plaster's tint (as base ÷ (texture × the hemisphere's .75 on a wall)), and both tints are scaled so the living
+// room's walls, ceiling and floor at noon under a clear sky (interiorDials, cloud 0) average the luminance they had unlit. They are
+// large because most of that room takes only the day weight's floor; they are starting values, to tune by eye with the dials.
 const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
+const LIT_PLASTER = [7.9, 7.05, 5.85], LIT_BOARDS = [5.3, 3.65, 2.45];
+// How far inside its room a face's light is weighed past the wall's face, metres.
+const INTO = .03;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
 const RAIL = .9, RAIL_THICK = .04, TREADS = 15;
 // The painted joinery: frame width, bar width, how far a sill board stands into the room, how far frames and bars stand off the
@@ -26,8 +38,10 @@ const tint = (base, seed, depth = .08) => p => {
   const k = 1 - depth + 2 * depth * noise((p[0] + p[2] * .6) * .7, (p[1] - p[2] * .4) * .7, seed);
   return base.map(c => c * k);
 };
-const plaster = tint(PLASTER, 61), boards = tint(BOARDS, 62, .12), dark = tint(BOARDS.map(c => c * .7), 63, .1);
 const steps = length => Math.max(1, Math.ceil(length / STEP - 1e-9));
+// A plain daytime, the light the rooms show until a frame sets its own: full daylight from a pale sky, every lamp and the fire out.
+const DAYTIME = {calendar: {light: 1, elevation: 1, hour: 12}, weather: {cloud: 0}, sky: {zenith: [.62, .70, .76], horizon: [.83, .83, .75]},
+  cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false};
 
 export function buildInterior(THREE, {interior: I, art, openings}) {
   const W = I.wall, half = W / 2, rise = I.floorRise, [SA, SD] = I.size;
@@ -35,8 +49,50 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   // The ceiling's height above the ground floor at depth d on that storey.
   const ceiling = (floor, d) => floor === 0 ? I.groundCeiling : rise + ceilingHeight(I, 1, d);
   const near = (x, y) => Math.abs(x - y) < 1e-9;
-  // A sheet over (s, t), sized by the lengths it spans along each.
-  const face = (f, across, up, outward, colour) => sheet(THREE, f, {ns: steps(across), nt: steps(up), tile: BRUSH_TILE, outward, colour});
+
+  // ── the light: its materials first, since the tints depend on whether they could be made ──
+  const map = art.surfaces.hills;
+  let light = null, made;
+  try {
+    light = createInteriorLight(THREE, {rooms: I.rooms.length});
+    const surface = light.material({map}), leafed = light.material({map, side: THREE.DoubleSide});
+    made = {surface, plastered: surface, leafed, casement: light.material({map, side: THREE.DoubleSide,
+      stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})};
+  } catch {
+    console.warn("The cabin's light could not be set up; its rooms stay evenly lit.");
+    light?.dispose(); light = null;
+    made = {surface: new THREE.MeshLambertMaterial({map, vertexColors: true}),
+      plastered: new THREE.MeshLambertMaterial({map, vertexColors: true, emissive: new THREE.Color().setRGB(...PLASTER_BASE, THREE.LinearSRGBColorSpace)}),
+      leafed: new THREE.MeshLambertMaterial({map, vertexColors: true, side: THREE.DoubleSide}),
+      casement: new THREE.MeshLambertMaterial({map, vertexColors: true, side: THREE.DoubleSide,
+        stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})};
+  }
+  const plaster = tint(light ? LIT_PLASTER : PLASTER, 61), boards = tint(light ? LIT_BOARDS : BOARDS, 62, .12);
+  const dark = tint((light ? LIT_BOARDS : BOARDS).map(c => c * .7), 63, .1);
+
+  // Each vertex's light from the field, at its position and its surface's normal (three's axes back to the interior frame), on
+  // the storey `floorOf` its height gives, weighed at `place` of its position: by default a little inside the room its face looks
+  // into, found from the face's middle.
+  const field = createLightField(I, openings), inset = half + INTO;
+  const storey = z => z >= rise - 1e-6 ? 1 : 0, nearer = z => z >= rise / 2 ? 1 : 0;
+  const within = (x, [lo, hi]) => lo + inset > hi - inset ? (lo + hi) / 2 : Math.min(hi - inset, Math.max(lo + inset, x));
+  const into = r => r ? p => [within(p[0], r.a), within(p[1], r.d), p[2]] : p => p;
+  const roomOf = id => I.rooms.find(r => r.id === id);
+  const weighed = (g, place, floorOf) => {
+    const p = g.getAttribute('position'), n = g.getAttribute('normal'), out = new Float32Array(p.count * 4);
+    for (let i = 0; i < p.count; i++) {
+      const at = [p.getX(i), -p.getZ(i), p.getY(i)], w = field.weigh(floorOf(at[2]), place(at), [n.getX(i), -n.getZ(i), n.getY(i)]);
+      out.set([w.day, w.lamp, w.fire, w.room], i * 4);
+    }
+    g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4));
+    return g;
+  };
+  // A sheet over (s, t), sized by the lengths it spans along each, carrying its light.
+  const face = (f, across, up, outward, colour, {place, floorOf = storey} = {}) => {
+    const g = sheet(THREE, f, {ns: steps(across), nt: steps(up), tile: BRUSH_TILE, outward, colour});
+    if (!place) { const mid = f(.5, .5), u = V.norm(outward); place = into(roomAt(I, floorOf(mid[2]), [mid[0] + u[0] * .05, mid[1] + u[1] * .05])); }
+    return weighed(g, place, floorOf);
+  };
 
   // ── walls ──
   // A point on a wall line: `axis` 'a' is a line of constant a running along d, 'd' one of constant d running along a.
@@ -49,7 +105,11 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const wallFace = (floor, axis, off, lo, hi, outward, holes = []) => {
     const roof = top(floor, axis, off), piece = (x0, x1, z0, zTop, height) =>
       walls.push(face((s, t) => { const x = x0 + (x1 - x0) * s; return onLine(axis, off, x, z0 + (zTop(x) - z0) * t); }, x1 - x0, height, outward, plaster));
-    const cuts = [lo, hi, ...holes.flatMap(h => [h.x0, h.x1]), ...(floor === 1 && axis === 'a' ? [I.ridgeAt] : [])].filter(x => x >= lo && x <= hi);
+    // and where the rooms on its own side meet, so each piece lies in one room
+    const k = axis === 'a' ? 0 : 1, sign = Math.sign(outward[k]), line = off - sign * half;
+    const meets = I.rooms.filter(r => r.floor === floor && near(r[axis][sign > 0 ? 0 : 1], line)).flatMap(r => r[axis === 'a' ? 'd' : 'a'])
+      .filter(x => x > lo + half + 1e-6 && x < hi - half - 1e-6);
+    const cuts = [lo, hi, ...holes.flatMap(h => [h.x0, h.x1]), ...meets, ...(floor === 1 && axis === 'a' ? [I.ridgeAt] : [])].filter(x => x >= lo && x <= hi);
     const xs = [...new Set(cuts)].sort((x, y) => x - y);
     for (let i = 1; i < xs.length; i++) {
       const [x0, x1] = [xs[i - 1], xs[i]], mid = (x0 + x1) / 2;
@@ -62,12 +122,16 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       if (roof(mid) - bottom > 1e-6) piece(x0, x1, bottom, roof, Math.max(roof(x0), roof(x1)) - bottom);
     }
   };
-  // The sides, head and (if `sill`) sill of a hole through a wall, between the wall's faces at off0 and off1.
-  const holeFrame = (floor, axis, off0, off1, h, sill) => {
-    const along = alongAxis(axis), deep = Math.abs(off1 - off0);
+  // The sides, head and (if `sill`) sill of a hole through a wall, between the wall's faces at off0 and off1. Their faces look
+  // along the wall, so each vertex is weighed in the room on its own side of the wall's centre line, or, given `side` (+1 or −1
+  // across it), all of them in the room on that side.
+  const holeFrame = (floor, axis, off0, off1, h, sill, side = 0) => {
+    const along = alongAxis(axis), deep = Math.abs(off1 - off0), k = axis === 'a' ? 0 : 1, mid = (off0 + off1) / 2, middle = (h.x0 + h.x1) / 2;
+    const rooms = [-1, 1].map(s => into(roomAt(I, floor, onLine(axis, mid + s * inset, middle, 0))));
+    const place = p => rooms[(side || Math.sign(p[k] - mid) || 1) > 0 ? 1 : 0](p);
     for (const [x, sign] of [[h.x0, 1], [h.x1, -1]])
-      walls.push(face((s, t) => onLine(axis, off0 + (off1 - off0) * s, x, h.z0 + (h.z1 - h.z0) * t), deep, h.z1 - h.z0, along.map(v => v * sign), plaster));
-    const flat = (z, up) => walls.push(face((s, t) => onLine(axis, off0 + (off1 - off0) * t, h.x0 + (h.x1 - h.x0) * s, z), h.x1 - h.x0, deep, [0, 0, up], plaster));
+      walls.push(face((s, t) => onLine(axis, off0 + (off1 - off0) * s, x, h.z0 + (h.z1 - h.z0) * t), deep, h.z1 - h.z0, along.map(v => v * sign), plaster, {place}));
+    const flat = (z, up) => walls.push(face((s, t) => onLine(axis, off0 + (off1 - off0) * t, h.x0 + (h.x1 - h.x0) * s, z), h.x1 - h.x0, deep, [0, 0, up], plaster, {place}));
     if (h.z1 < ceiling(floor, axis === 'a' ? h.x0 : off0) - 1e-6) flat(h.z1, -1);
     if (sill) flat(h.z0, 1);
   };
@@ -96,12 +160,12 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       const inner = at + inward * half, outside = at - inward * half;
       wallFace(floor, axis, inner, x0, x1, n.map(v => v * inward), holes);
       for (const h of holes) {
-        holeFrame(floor, axis, inner, outside, h, !h.door);
+        holeFrame(floor, axis, inner, outside, h, !h.door, inward);
       }
     }
   }
 
-  // ── floors and ceilings: a plan rectangle less the holes {a0, a1, d0, d1} in it, cut into columns at the holes' edges ──
+  // ── floors and ceilings, room by room: a plan rectangle less the holes {a0, a1, d0, d1} in it, cut into columns at the holes' edges ──
   const holed = ([a0, a1], [d0, d1], holes, piece) => {
     const as = [...new Set([a0, a1, ...holes.flatMap(h => [h.a0, h.a1]).filter(a => a > a0 && a < a1)])].sort((x, y) => x - y);
     for (let i = 1; i < as.length; i++) {
@@ -116,23 +180,24 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   };
   const flatPiece = (list, z, up, colour) => (a0, a1, d0, d1) => list.push(face((s, t) => [a0 + (a1 - a0) * s, d0 + (d1 - d0) * t, z], a1 - a0, d1 - d0, [0, 0, up], colour));
   const well = {a0: I.stair.a[0], a1: I.stair.a[1], d0: I.stair.d[0], d1: I.stair.d[1]};
-  const floors = [], ceilings = [];
-  holed([0, SA], [0, SD], [], flatPiece(floors, 0, 1, boards));
-  holed([0, SA], [0, SD], [well], flatPiece(floors, rise, 1, boards));
-  // the front doorway's threshold, out to the wall's outside
-  floors.push(face((s, t) => [I.door.a + (s - .5) * I.door.width, -half * t, 0], I.door.width, half, [0, 0, 1], boards));
+  const floors = [], ceilings = [], hall = roomAt(I, 0, [I.door.a, 1]);
+  for (const r of I.rooms) holed(r.a, r.d, r.floor ? [well] : [], flatPiece(floors, base(r.floor), 1, boards));
+  // the front doorway's threshold, out to the wall's outside, in the hall's light
+  floors.push(face((s, t) => [I.door.a + (s - .5) * I.door.width, -half * t, 0], I.door.width, half, [0, 0, 1], boards, {place: into(hall)}));
   // the stairwell's edges between the ground ceiling and the floor above, where no wall closes them: its front, its open
   // side, and the strip of wall along a = 11
   const band = (pt, length, outward) => walls.push(face((s, t) => pt(s, I.groundCeiling + (rise - I.groundCeiling) * t), length, rise - I.groundCeiling, outward, plaster));
   band((s, z) => [well.a0 + (well.a1 - well.a0) * s, well.d0, z], well.a1 - well.a0, [0, 1, 0]);
   band((s, z) => [well.a0, well.d0 + (well.d1 - well.d0) * s, z], well.d1 - well.d0, [1, 0, 0]);
   band((s, z) => [well.a1 - half, well.d0 + (well.d1 - well.d0) * s, z], well.d1 - well.d0, [-1, 0, 0]);
-  holed([0, SA], [0, SD], [well], flatPiece(ceilings, I.groundCeiling, -1, plaster));
+  for (const r of I.rooms.filter(r => r.floor === 0)) holed(r.a, r.d, [well], flatPiece(ceilings, I.groundCeiling, -1, plaster));
   // Upstairs, each slope less its roof windows; each window a short reveal up to its glass.
   const roofHoles = I.windows.filter(w => w.kind === 'roof').map(w => ({a0: w.a - w.width / 2, a1: w.a + w.width / 2, d0: w.d[0], d1: w.d[1]}));
-  for (const [d0, d1] of [[0, I.ridgeAt], [I.ridgeAt, SD]])
-    holed([0, SA], [d0, d1], roofHoles, (a0, a1, e0, e1) => ceilings.push(face((s, t) => { const d = e0 + (e1 - e0) * t; return [a0 + (a1 - a0) * s, d, ceiling(1, d)]; },
+  for (const r of I.rooms.filter(r => r.floor === 1)) for (const [d0, d1] of [[0, I.ridgeAt], [I.ridgeAt, SD]]) {
+    const span = [Math.max(d0, r.d[0]), Math.min(d1, r.d[1])];
+    if (span[1] > span[0]) holed(r.a, span, roofHoles, (a0, a1, e0, e1) => ceilings.push(face((s, t) => { const d = e0 + (e1 - e0) * t; return [a0 + (a1 - a0) * s, d, ceiling(1, d)]; },
       a1 - a0, Math.hypot(e1 - e0, ceiling(1, e1) - ceiling(1, e0)), [0, 0, -1], plaster)));
+  }
   for (const h of roofHoles) {
     const up = (a, d, t) => [a, d, ceiling(1, d) + I.roofReveal * t], da = h.a1 - h.a0, dd = h.d1 - h.d0;
     ceilings.push(face((s, t) => up(h.a0, h.d0 + dd * s, t), dd, I.roofReveal, [1, 0, 0], plaster), face((s, t) => up(h.a1, h.d0 + dd * s, t), dd, I.roofReveal, [-1, 0, 0], plaster),
@@ -144,31 +209,33 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const stair = [], [sa0, sa1] = I.stair.a, [sd0, sd1] = I.stair.d, run = (sd1 - sd0) / TREADS, lift = rise / TREADS, width = sa1 - sa0;
   for (let k = 0; k < TREADS; k++) {
     const d0 = sd0 + k * run, d1 = d0 + run, z0 = k * lift, z1 = z0 + lift;
-    stair.push(face((s, t) => [sa0 + width * s, d0, z0 + lift * t], width, lift, [0, -1, 0], boards),
-      face((s, t) => [sa0 + width * s, d0 + run * t, z1], width, run, [0, 0, 1], boards));
+    stair.push(face((s, t) => [sa0 + width * s, d0, z0 + lift * t], width, lift, [0, -1, 0], boards, {floorOf: nearer}),
+      face((s, t) => [sa0 + width * s, d0 + run * t, z1], width, run, [0, 0, 1], boards, {floorOf: nearer}));
     walls.push(face((s, t) => [sa0, d0 + run * s, z1 * t], run, z1, [-1, 0, 0], plaster));   // its plastered side, with the walls
   }
   walls.push(face((s, t) => [sa0 + width * s, sd1, I.groundCeiling * t], width, I.groundCeiling, [0, 1, 0], plaster));
-  const rail = (pt, length, outward) => stair.push(face((s, t) => pt(s, rise + RAIL * t), length, RAIL, outward, dark));
+  const rail = (pt, length, outward) => stair.push(face((s, t) => pt(s, rise + RAIL * t), length, RAIL, outward, dark, {floorOf: nearer}));
   const runD = sd1 - sd0, side = sa0 + RAIL_THICK, front = sd0 + RAIL_THICK;
   rail((s, z) => [sa0, sd0 + runD * s, z], runD, [-1, 0, 0]);                        // along a = 9.6, landing side
   rail((s, z) => [side, front + (sd1 - front) * s, z], sd1 - front, [1, 0, 0]);       // and its stairwell side
   rail((s, z) => [sa0 + width * s, sd0, z], width, [0, -1, 0]);                       // along d = 1.5, landing side
   rail((s, z) => [side + (sa1 - side) * s, front, z], sa1 - side, [0, 1, 0]);         // and its stairwell side
   // its top, and its underside over the stairwell, seen from the flight
-  for (const [z, up] of [[rise + RAIL, 1], [rise, -1]]) stair.push(face((s, t) => [sa0 + RAIL_THICK * s, sd0 + runD * t, z], RAIL_THICK, runD, [0, 0, up], dark),
-    face((s, t) => [side + (sa1 - side) * s, sd0 + RAIL_THICK * t, z], sa1 - side, RAIL_THICK, [0, 0, up], dark));
+  for (const [z, up] of [[rise + RAIL, 1], [rise, -1]]) stair.push(face((s, t) => [sa0 + RAIL_THICK * s, sd0 + runD * t, z], RAIL_THICK, runD, [0, 0, up], dark, {floorOf: nearer}),
+    face((s, t) => [side + (sa1 - side) * s, sd0 + RAIL_THICK * t, z], sa1 - side, RAIL_THICK, [0, 0, up], dark, {floorOf: nearer}));
   stair.push(
-    face((s, t) => [sa0 + RAIL_THICK * s, sd1, rise + RAIL * t], RAIL_THICK, RAIL, [0, 1, 0], dark));   // its end at the top of the flight
+    face((s, t) => [sa0 + RAIL_THICK * s, sd1, rise + RAIL * t], RAIL_THICK, RAIL, [0, 1, 0], dark, {floorOf: nearer}));   // its end at the top of the flight
 
   // ── the openings: a pane in each, the painted frames, sills and bars, the casement leaf and the hall's door leaf ──
   // A point of an opening's pane: x along `across`, y along `up` from the centre, `off` metres into the room.
   const at = (o, x, y, off) => o.centre.map((c, i) => c + x * o.across[i] + y * o.up[i] - o.outward[i] * off);
   const inward = o => o.outward.map(v => -v);
   const paneOf = o => sheet(THREE, (s, t) => at(o, (2 * s - 1) * o.half[0], (2 * t - 1) * o.half[1], 0), {outward: inward(o)});
-  // A painted rectangle [x0, x1] × [y0, y1] standing `off` into the room, facing it; nothing for an empty one.
+  // A painted rectangle [x0, x1] × [y0, y1] standing `off` into the room, facing it; nothing for an empty one. The joinery stands
+  // in the wall's thickness or beyond it, so it is weighed in its opening's room.
+  const lit = o => ({place: into(roomOf(o.room))});
   const board = (list, o, [x0, x1], [y0, y1], off) => {
-    if (x1 - x0 > 1e-6 && y1 - y0 > 1e-6) list.push(face((s, t) => at(o, x0 + (x1 - x0) * s, y0 + (y1 - y0) * t, off), x1 - x0, y1 - y0, inward(o), dark));
+    if (x1 - x0 > 1e-6 && y1 - y0 > 1e-6) list.push(face((s, t) => at(o, x0 + (x1 - x0) * s, y0 + (y1 - y0) * t, off), x1 - x0, y1 - y0, inward(o), dark, lit(o)));
   };
   // A frame of FRAME round the inside of [x0, x1] × [y0, y1].
   const frame = (list, o, [x0, x1], [y0, y1], off) => {
@@ -192,9 +259,9 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     // The casement window's low-a third is the leaf's: the fixed bars are over the other two thirds only.
     if (o.id === 'living') bars(joinery, o, X, Y, OFF, {across: [2], from: -hx / 3}); else bars(joinery, o, X, Y, OFF);
     // The sill board, from the pane out past the wall's inner face, a little wider than the hole.
-    const z = -hy + SILL_THICK, deep = W + SILL, wide = hx + FRAME, edge = (x, sign) => joinery.push(face((s, t) => at(o, x, -hy + SILL_THICK * t, OFF + (deep - OFF) * s), deep - OFF, SILL_THICK, [sign * o.across[0], sign * o.across[1], sign * o.across[2]], dark));
-    joinery.push(face((s, t) => at(o, -wide + 2 * wide * s, z, OFF + (deep - OFF) * t), 2 * wide, deep - OFF, [0, 0, 1], dark),
-      face((s, t) => at(o, -wide + 2 * wide * s, -hy + SILL_THICK * t, deep), 2 * wide, SILL_THICK, inward(o), dark));
+    const z = -hy + SILL_THICK, deep = W + SILL, wide = hx + FRAME, edge = (x, sign) => joinery.push(face((s, t) => at(o, x, -hy + SILL_THICK * t, OFF + (deep - OFF) * s), deep - OFF, SILL_THICK, [sign * o.across[0], sign * o.across[1], sign * o.across[2]], dark, lit(o)));
+    joinery.push(face((s, t) => at(o, -wide + 2 * wide * s, z, OFF + (deep - OFF) * t), 2 * wide, deep - OFF, [0, 0, 1], dark, lit(o)),
+      face((s, t) => at(o, -wide + 2 * wide * s, -hy + SILL_THICK * t, deep), 2 * wide, SILL_THICK, inward(o), dark, lit(o)));
     edge(-wide, -1); edge(wide, 1);
   }
   // The casement leaf: the living window's low-a third, lying just outside its pane, as a frame about one column of three panes
@@ -205,7 +272,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   // The hall's door leaf, 1 × 2.1 m and thick, shut in the doorway about its hinge edge at doorLeaf.a.
   const hinge = [I.doorLeaf.a, 0, 0], thick = I.doorLeaf.thick, leafWidth = I.door.width, leafHigh = I.doorHead, slab = [];
   const box = (x0, x1, d0, d1, z0, z1) => {
-    const flat = (pt, lenS, lenT, outward) => slab.push(face(pt, lenS, lenT, outward, dark));
+    const flat = (pt, lenS, lenT, outward) => slab.push(face(pt, lenS, lenT, outward, dark, {place: into(hall)}));
     flat((s, t) => [x0 + (x1 - x0) * s, d0, z0 + (z1 - z0) * t], x1 - x0, z1 - z0, [0, -1, 0]); flat((s, t) => [x0 + (x1 - x0) * s, d1, z0 + (z1 - z0) * t], x1 - x0, z1 - z0, [0, 1, 0]);
     flat((s, t) => [x0, d0 + (d1 - d0) * s, z0 + (z1 - z0) * t], d1 - d0, z1 - z0, [-1, 0, 0]); flat((s, t) => [x1, d0 + (d1 - d0) * s, z0 + (z1 - z0) * t], d1 - d0, z1 - z0, [1, 0, 0]);
     flat((s, t) => [x0 + (x1 - x0) * s, d0 + (d1 - d0) * t, z0], x1 - x0, d1 - d0, [0, 0, -1]); flat((s, t) => [x0 + (x1 - x0) * s, d0 + (d1 - d0) * t, z1], x1 - x0, d1 - d0, [0, 0, 1]);
@@ -214,11 +281,10 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
 
   // ── assembly ──
   const merged = list => { const g = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return g; };
-  // Boards (floors, treads, rail) and plaster (walls, ceilings, the stair's plastered sides and the stairwell's bands).
-  const surface = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true});
-  const plastered = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true, emissive: new THREE.Color().setRGB(...PLASTER_BASE, THREE.LinearSRGBColorSpace)});
+  // Boards (floors, treads, rail) and plaster (walls, ceilings, the stair's plastered sides and the stairwell's bands); lit, one
+  // material serves both, as their tints alone tell them apart.
+  const {surface, plastered, leafed} = made;
   const glass = new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...FIRST_SKY, THREE.SRGBColorSpace)});
-  const leafed = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true, side: THREE.DoubleSide});
   const scene = new THREE.Scene(); scene.name = 'interior';
   const mesh = (name, list, material) => { const m = new THREE.Mesh(merged(list), material); m.name = name; scene.add(m); return m; };
   mesh('floors', floors, surface); mesh('ceilings', ceilings, plastered); mesh('walls', walls, plastered); mesh('stair', stair, surface); mesh('frames', joinery, surface);
@@ -230,8 +296,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const casementLeaf = hung('casement', leaf, [living.centre[0] - lx, living.centre[1] + living.outward[1] * LEAF_OUT, living.centre[2]]);
   // The leaf stands beyond the glass, so it is drawn after the panes and takes its pixels back from the living pane's stencil
   // number: the yard's view (whose sky ignores depth) is never drawn over it. Behind the flat glass it stays hidden, as before.
-  casementLeaf.material = new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true, side: THREE.DoubleSide,
-    stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0});
+  casementLeaf.material = made.casement;
   casementLeaf.renderOrder = 2;
   const doorLeaf = hung('door-leaf', slab, hinge);
   // The way a leaf turns about the vertical (+1 or −1) to take its free edge, one metre out along three's x, toward `toward`.
@@ -247,9 +312,12 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: n}));
     return markers.get(n);
   };
-  scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
+  // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
+  if (light) light.set(interiorDials({interior: I, ...DAYTIME})); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   const clamp01 = x => Math.min(1, Math.max(0, x));
-  return {scene,
+  return {scene, field, lit: !!light,
+    // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once; nothing, unlit.
+    setLight(dials) { light?.set(dials); },
     // Display-space sky colours, 0–1, as the yard's setSky receives them; the flat glass shows the horizon.
     setSky({horizon}) { glass.color.setRGB(...horizon, THREE.SRGBColorSpace); },
     // The ids whose panes mark the stencil this frame, each numbered by its place in the list (1, 2, …; an id the room does
