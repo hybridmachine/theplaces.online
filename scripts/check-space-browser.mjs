@@ -1,6 +1,8 @@
 import {createRequire} from 'node:module';
 import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:net';
+import {rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -14,11 +16,15 @@ import {coincidenceFixture} from '../shared/coincidences.js';
 import {doorOutward} from '../shared/threshold.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {viewOpenings,screenRect} from '../shared/window-views.js';
-import {roomLamps} from '../shared/interior-light.js';
+import {roomLamps,DIALS} from '../shared/interior-light.js';
 import {calendar,weather} from '../shared/world.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const directory=process.env.SPACE_VALIDATION_DIR||'docs/space-validation';await mkdir(directory,{recursive:true});
-const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null,noonChild=null,noonDir=null;
+const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null,noonDir=null;const noonChildren=[];
+// The clear-noon server (check 52) and its temporary directory are stopped on every way out: the run's end, an error, Ctrl-C and a kill.
+const stopNoon=()=>{for(const c of noonChildren)if(c.exitCode===null)c.kill();noonChildren.length=0;if(noonDir){rmSync(noonDir,{recursive:true,force:true});noonDir=null;}};
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{stopNoon();process.exit(1);});
+process.on('exit',stopNoon);
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4190';
 // Headless Chromium's default SwiftShader draws this scene at under 10 fps, below the walker's 0.1 s step cap, so the
 // walking checks would measure the software rasteriser. ANGLE uses the machine's GPU where one is available.
@@ -658,6 +664,9 @@ try{
     cabinBox[2]-cabinBox[0]>40&&cabinBox[3]-cabinBox[1]>40&&Object.values(yardShares).every(v=>v<=STILL)&&yardFrames.every(f=>f.quiet),
     {...yardShares,limit:STILL,wholePoints:wholeFrame.length,cabinPoints:cabinCrop.length,cabinBox,pinned:'frozenMotion = 1234, reduced motion, day study, arrival pose'});
 
+  // The windows' visitor is done with (its errors are read in check 51): a page left open keeps drawing at the display's rate and takes about half the
+  // GPU from the one being timed (a yard frame measured 26 ms beside it and 12.5 ms alone), so it is closed before any speed is measured.
+  await win.context().close();
   // 50. Speed, on &tier=full: the synchronous time of one whole frame forced to finish with readPixels (as check 30 measures it), the
   // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (SpaceView's
   // own indoor draw, drawIndoors, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
@@ -687,13 +696,13 @@ try{
     return {study,rounds,kept,yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,quiet};};
   const daySpeed=await measureSpeed('day'),{yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,rounds,kept}=daySpeed;
   check('Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose (median of rounds, yard and room alternating)',
-    kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open'});
+    kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open',
+      pageAlone:'no other page is open while this is timed (see the note before check 50); the yard figure is the same under every study'});
   console.log(`  speed (full): yard ${yardMs} ms, living room ${roomMs} ms (${costRatio}x), hall with the door open ${hallMs} ms (${hallTime.live.length} live)`);
   const speedQuiet=daySpeed.quiet;
 
   // 51. No page or console errors in any of these visitors.
   check('No page or console errors in the windows\' visitors',!win.consoleErrors.length&&!win.own.length&&plainQuiet&&speedQuiet,{windows:{consoleErrors:win.consoleErrors,pageErrors:win.own},plainQuiet,speedQuiet});
-  await win.context().close();
 
   // ── The cabin's light (checks 52–65). The rooms take daylight through their windows by day and their lamps' and fire's light after dusk,
   // painted into the surfaces (no light sources). Every pose and patch is computed from the blueprint (shared/lakeside-interior.js) and
@@ -730,18 +739,26 @@ try{
   // fresh database with its Date.now moved forward to the next clear noon (the whole app, caption included, then shows that moment; the
   // client takes its time from the server). The first start only creates the database, whose epoch fixes the world's hours.
   noonDir=await mkdtemp(join(tmpdir(),'a-view-noon-'));
-  const noonPort=Number(process.env.NOON_PORT||4191),serverFile=fileURLToPath(new URL('../src/server.js',import.meta.url));
-  const bootServer=shift=>spawn(process.execPath,[...(shift?['--import',`${noonDir}/shift.mjs`]:[]),serverFile],{env:{...process.env,PORT:String(noonPort),A_VIEW_DB:`${noonDir}/world.sqlite`,CLOCK_SHIFT_MS:String(shift)},stdio:'ignore'});
-  const serverUp=async()=>{for(let k=0;k<100;k++){try{const r=await fetch(`http://127.0.0.1:${noonPort}/api/world`);if(r.ok)return r.json();}catch{}await wait(150);}throw new Error('The noon server did not start.');};
+  // A free port unless NOON_PORT names one, so a stale server from an earlier run can never be the one that answers.
+  const noonPort=process.env.NOON_PORT?Number(process.env.NOON_PORT):await new Promise((done,fail)=>{const probe=createServer();probe.once('error',fail);probe.listen(0,'127.0.0.1',()=>{const {port}=probe.address();probe.close(()=>done(port));});});
+  const serverFile=fileURLToPath(new URL('../src/server.js',import.meta.url));
+  const bootServer=shift=>{const child=spawn(process.execPath,[...(shift?['--import',`${noonDir}/shift.mjs`]:[]),serverFile],{env:{...process.env,PORT:String(noonPort),A_VIEW_DB:`${noonDir}/world.sqlite`,CLOCK_SHIFT_MS:String(shift)},stdio:'ignore'});noonChildren.push(child);return child;};
+  // Up when the child we started is alive and the server on the port tells the time we gave it (its clock moved by `shift`) from the world we made (`epoch`, when known): anything else is somebody else's server or a failed start.
+  const serverUp=async(child,shift,epoch)=>{for(let k=0;k<100;k++){
+      if(child.exitCode!==null)throw new Error(`The noon server exited (code ${child.exitCode}) before it answered on port ${noonPort}; is the port in use?`);
+      try{const r=await fetch(`http://127.0.0.1:${noonPort}/api/world`);if(r.ok){const w=await r.json();
+        if(Math.abs(w.serverTime-(Date.now()+shift))>5000||(epoch!==undefined&&w.world.epoch!==epoch))throw new Error(`The server on port ${noonPort} is not the noon server this run started (its clock reads ${new Date(w.serverTime).toISOString()}, wanted about ${new Date(Date.now()+shift).toISOString()}${epoch!==undefined?`, epoch ${w.world.epoch} against ${epoch}`:''}).`);return w;}}
+      catch(e){if(/noon server/.test(e.message))throw e;}await wait(150);}
+    throw new Error(`The noon server did not answer on port ${noonPort} within 15 s.`);};
   const stopServer=child=>new Promise(done=>{if(child.exitCode!==null)return done();child.once('exit',done);child.kill();});
   await writeFile(`${noonDir}/shift.mjs`,'const real=Date.now.bind(Date),shift=Number(process.env.CLOCK_SHIFT_MS)||0;Date.now=()=>real()+shift;\n');
   const noonServer=async()=>{
-    const first=bootServer(0),epoch=(await serverUp()).world.epoch;await stopServer(first);
+    const first=bootServer(0),epoch=(await serverUp(first,0)).world.epoch;await stopServer(first);
     // The first moment after the page could be ready (30 s on) when the world's hour is within 20 minutes of 12:00 and the sky clear for a minute either side.
     const from=Date.now()+30_000,clear=t=>weather(epoch,t).cloud<.15;let at=null;
     for(let t=from;t<from+60*86_400_000&&at===null;t+=5000)if(Math.abs(calendar(epoch,t).hour-12)<.33&&[-60_000,0,60_000].every(d=>clear(t+d)))at=t;
     if(at===null)throw new Error('No clear noon within 60 days.');
-    noonChild=bootServer(at-(Date.now()+8000));await serverUp();return {epoch,shiftedBy:at-(Date.now()+8000),worldHourAimed:+calendar(epoch,at).hour.toFixed(3)};};
+    const shift=at-(Date.now()+8000);const second=bootServer(shift);await serverUp(second,shift,epoch);return {epoch,shiftedBy:shift,port:noonPort,worldHourAimed:+calendar(epoch,at).hour.toFixed(3)};};
 
   // 52 (and the noon readings that checks 53 and 54 compare with). On the noon server a visitor stands in the living room at the poses the studies use.
   const noonRun=await noonServer(),noonBase=`http://127.0.0.1:${noonPort}`;
@@ -750,7 +767,7 @@ try{
   const noonClock=await noonPage.evaluate(()=>({time:document.querySelector('#world-time').textContent,weather:document.querySelector('#weather').textContent,study:window.__space.fixture}));
   const noonFloor=await patches(noonPage,[nearFloor,farFloor]),noonMean=await frameMean(noonPage),noonState=await litState(noonPage);await lightShot(noonPage,'living-noon');
   const noonDusk=await duskRead(noonPage);
-  const noonQuiet=!noonPage.consoleErrors.length&&!noonPage.own.length;await noonPage.context().close();await stopServer(noonChild);await rm(noonDir,{recursive:true,force:true});
+  const noonQuiet=!noonPage.consoleErrors.length&&!noonPage.own.length;await noonPage.context().close();stopNoon();
   const noonHour=(([h,m])=>h+m/60)(noonClock.time.split(':').map(Number));
   // 52. The living room at clear noon, from inside: the floor by the window is brighter than the floor across the room.
   const NEAR_OVER_FAR=1.25,noonRatio=lum(noonFloor.rgb[0])/lum(noonFloor.rgb[1]);
@@ -766,12 +783,19 @@ try{
   check(`The same pose under the overcast study is darker than at noon (mean luminance at most ${OVERCAST_UNDER} of noon's)`,overMean.lum<=noonMean.lum*OVERCAST_UNDER,
     {noon:r3(noonMean.lum),overcast:r3(overMean.lum),ratio:r3(overMean.lum/noonMean.lum),limit:OVERCAST_UNDER,noonRgb:noonMean.rgb,overcastRgb:overMean.rgb});
 
-  // 54. Dusk study: the living room's lamp glass is warm, the gable plaster warmer than at noon.
+  // 54. Dusk study: the lamp's own light. The living lamp is read lit (the study) and then forced out by fixture with everything else the same (every other room's
+  // level as the study has it, the fire still burning); the ring beside its glass must be warmer and brighter lit, and the glass itself brighter lit and at least as bright as its ring.
   await studyLight(lite,'dusk');const dusk=await duskRead(lite);await lightShot(lite,'living-dusk');const duskState=await litState(lite);
-  const GLASS_WARM=1.3,WALL_WARMER=1.05,wallRatio=warmth(dusk.wall)/warmth(noonDusk.wall);
-  check(`At dusk the living room's lamp glow (the ring just outside its glass, inside the halo) is warm (red over blue at least ${GLASS_WARM}) and the gable's plaster is at least ${WALL_WARMER} times warmer than at noon (red over blue)`,
-    dusk.seen&&noonDusk.seen&&warmth(dusk.glow)>=GLASS_WARM&&wallRatio>=WALL_WARMER&&duskState.lit?.lamp===true,
-    {glow:dusk.glow,glowWarmth:r3(warmth(dusk.glow)),limitGlow:GLASS_WARM,glassPatch:dusk.glass,glassCore:dusk.core,glassCoreWarmth:r3(warmth(dusk.core)),noonGlassPatch:noonDusk.glass,glassNote:'the lit glass itself clips to white at this distance, so its colour is read in its glow',wallDusk:dusk.wall,wallNoon:noonDusk.wall,wallWarmthDusk:r3(warmth(dusk.wall)),wallWarmthNoon:r3(warmth(noonDusk.wall)),ratio:r3(wallRatio),limitWall:WALL_WARMER,screen:dusk.at,lit:duskState.lit});
+  const duskLevels=await lite.evaluate(()=>[...window.__space.dials.lamps]),lampIndex=I.rooms.findIndex(r=>r.id==='living');
+  await setFixture(lite,{lamps:duskLevels.map((v,i)=>i===lampIndex?0:v/DIALS.lamp)});await lite.waitForTimeout(800);const duskOut=await duskRead(lite);const outState=await litState(lite);await setFixture(lite,null);
+  const GLASS_WARM=1.3,WALL_WARMER=1.05,RING_BRIGHTER=1.15,RING_WARMER=1.05,GLASS_BRIGHTER=1.1,wallRatio=warmth(dusk.wall)/warmth(noonDusk.wall),
+    ringBrighter=lum(dusk.glow)/lum(duskOut.glow),ringWarmer=warmth(dusk.glow)/warmth(duskOut.glow),glassBrighter=lum(dusk.core)/lum(duskOut.core),glassOverRing=lum(dusk.core)/lum(dusk.glow);
+  check(`At dusk the living lamp's own light shows: the ring beside its glass is warm (red over blue at least ${GLASS_WARM}), at least ${RING_BRIGHTER} times as bright and ${RING_WARMER} times as warm as the same ring with that lamp forced out, its glass is at least ${GLASS_BRIGHTER} times as bright as the unlit glass and at least as bright as its ring; the gable's plaster is at least ${WALL_WARMER} times warmer than at noon`,
+    dusk.seen&&duskOut.seen&&noonDusk.seen&&warmth(dusk.glow)>=GLASS_WARM&&ringBrighter>=RING_BRIGHTER&&ringWarmer>=RING_WARMER&&glassBrighter>=GLASS_BRIGHTER&&glassOverRing>=1&&wallRatio>=WALL_WARMER&&duskState.lit?.lamp===true&&outState.lit?.lamp===false,
+    {glow:dusk.glow,glowOut:duskOut.glow,glowWarmth:r3(warmth(dusk.glow)),limitGlow:GLASS_WARM,ringBrighter:r3(ringBrighter),limitRingBrighter:RING_BRIGHTER,ringWarmer:r3(ringWarmer),limitRingWarmer:RING_WARMER,
+      glass:dusk.core,glassOut:duskOut.core,glassBrighter:r3(glassBrighter),limitGlassBrighter:GLASS_BRIGHTER,glassOverRing:r3(glassOverRing),glassPatch:dusk.glass,glassCoreWarmth:r3(warmth(dusk.core)),noonGlassPatch:noonDusk.glass,
+      finding:'the lit glass\'s centre clips to white (about 253,253,253) at this distance; it is warm only at its rim and in its halo, which is why the colour is read in the ring',
+      wallDusk:dusk.wall,wallNoon:noonDusk.wall,wallWarmthDusk:r3(warmth(dusk.wall)),wallWarmthNoon:r3(warmth(noonDusk.wall)),ratio:r3(wallRatio),limitWall:WALL_WARMER,screen:dusk.at,lit:duskState.lit,litWithLampForcedOut:outState.lit});
 
   // 55. Night study with the fire: flames in the mouth's crop (the crop differs from the same frame with the fire out and is brighter), the hearth slab warmer than the far floor.
   await studyLight(lite,'night');
@@ -786,18 +810,25 @@ try{
     {mouthBox,flames,flameShare:r3(flames.n/flames.of),limitFlames:FLAMES,mouthLit:rgbOf(fireLit.on[0]),mouthOut:rgbOf(fireOut.on[0]),mouthRatio:r3(mouthRatio),limitMouth:MOUTH_BRIGHTER,
       slab:floorRead.rgb[0],floor:floorRead.rgb[1],slabWarmth:r3(warmth(floorRead.rgb[0])),floorWarmth:r3(warmth(floorRead.rgb[1])),ratio:r3(slabRatio),limitSlab:SLAB_WARMER,slabAt:slab,floorAt:hearthFar,lit:nightState.lit});
 
-  // 56. Night, every lamp and the fire forced out: the frame is dim, and the hall–living opening differs from the wall beside it (the way on can be seen).
-  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7];
+  // 56. Midnight (the night study, 00:30), every lamp and the fire forced out. Dim; and the way on from the living room into the hall can be seen: the floor of the opening is darker
+  // than the plaster beside it (boards are a darker surface than plaster under the same night fill, and no lamp lifts the hall beyond), and the opening's two edges are luminance steps along
+  // horizontal lines at three heights. The margins are what a dim screen can show: a step under 2% of full luminance (5 of 255 levels) is lost, so the way must be at least 10% darker
+  // than the wall (and by at least that step), and each edge must step by at least that much at two of the three heights.
+  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7],edgeHeights=[.3,.9,1.5];
   const outPose=aim(0,[1.6,(o0+o1)/2],[hallOpening.at,(o0+o1)/2,1.2]);
   await stand(lite,outPose,1200);const litFrame=await frameMean(lite);
   await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);
   const rectAt=async(a,span)=>rectOf(await project(lite,[[a,span[0],opZ[0]],[a,span[1],opZ[0]],[a,span[0],opZ[1]],[a,span[1],opZ[1]]]),.1);
-  const wayBox=await rectAt(hallOpening.at,[o0,o1]),wallBox2=await rectAt(hallOpening.at,wallSpan),outFrame=await frameMean(lite),outCrops=await indoorRead(lite,[wayBox,wallBox2]);await lightShot(lite,'living-out');
-  const DIM=.25,WAY_MARGIN=.03,wayLum=lum(meanRgb(outCrops.on[0])),wallLum=lum(meanRgb(outCrops.on[1])),wayDiff=Math.abs(wayLum-wallLum);
-  check(`Night with every lamp and the fire out: the frame is dim (mean luminance under ${DIM} and at most half the lit frame's) and the hall–living opening differs from the wall beside it by at least ${WAY_MARGIN} in luminance`,
-    outFrame.lum<DIM&&outFrame.lum<=litFrame.lum/2&&inFrame(wayBox)&&inFrame(wallBox2)&&wayDiff>=WAY_MARGIN,
-    {frameOut:r3(outFrame.lum),frameLit:r3(litFrame.lum),limitDim:DIM,wayBox,wallBox:wallBox2,way:rgbOf(outCrops.on[0]),wall:rgbOf(outCrops.on[1]),wayLum:r3(wayLum),wallLum:r3(wallLum),difference:r3(wayDiff),limitWay:WAY_MARGIN,
-      changedPixels:changed(outCrops.on[0].slice(0,outCrops.on[1].length),outCrops.on[1].slice(0,outCrops.on[0].length))});
+  const wayBox=await rectAt(hallOpening.at,[o0,o1]),wallBox2=await rectAt(hallOpening.at,wallSpan),outFrame=await frameMean(lite);
+  const edgeAt=await project(lite,[o0,o1].flatMap(e=>edgeHeights.map(z=>[hallOpening.at,e,z]))),edgeBoxes=edgeAt.flatMap(([x,y])=>[[x-14,y-3,x-4,y+3],[x+4,y-3,x+14,y+3]].map(b=>b.map(Math.round)));
+  const outCrops=await indoorRead(lite,[wayBox,wallBox2,...edgeBoxes]);await lightShot(lite,'living-out');
+  const DIM=.25,STEP=.02,WAY_DARKER=.9,wayLum=lum(meanRgb(outCrops.on[0])),wallLum=lum(meanRgb(outCrops.on[1])),
+    edgeSteps=edgeAt.map((_,k)=>r3(Math.abs(lum(meanRgb(outCrops.on[2+2*k]))-lum(meanRgb(outCrops.on[3+2*k]))))),edgeOk=[0,1].map(e=>edgeSteps.slice(e*edgeHeights.length,(e+1)*edgeHeights.length).filter(v=>v>=STEP).length>=2);
+  check(`Midnight with every lamp and the fire out: the frame is dim (mean luminance under ${DIM} and at most half the lit frame's), the hall–living opening's floor is darker than the plaster beside it (at most ${WAY_DARKER} of its luminance and at least ${STEP} less), and each edge of the opening is a luminance step of at least ${STEP} at two of three heights`,
+    outFrame.lum<DIM&&outFrame.lum<=litFrame.lum/2&&inFrame(wayBox)&&inFrame(wallBox2)&&edgeBoxes.every(b=>inFrame(b))&&wayLum<=wallLum*WAY_DARKER&&wallLum-wayLum>=STEP&&edgeOk.every(Boolean),
+    {frameOut:r3(outFrame.lum),frameLit:r3(litFrame.lum),limitDim:DIM,wayBox,wallBox:wallBox2,way:rgbOf(outCrops.on[0]),wall:rgbOf(outCrops.on[1]),wayLum:r3(wayLum),wallLum:r3(wallLum),wayOverWall:r3(wayLum/wallLum),limitWayOverWall:WAY_DARKER,darkerBy:r3(wallLum-wayLum),limitStep:STEP,
+      lighter:'the wall: plaster is a paler surface than the boards of the hall floor seen through the opening, and with the lamps out both take only the night fill',edgeHeights,edgeSteps:{left:edgeSteps.slice(0,3),right:edgeSteps.slice(3)},edgesAtTwoHeights:edgeOk,
+      thin:'the margins are set from what a dim screen shows, not from the measured values; if the wall-over-way difference ever falls toward the step it is thin'});
 
   // 57. The hall and stair at night, asleep (every lamp out but the two night lamps, as the shared rules set them for a sleeping house): the wall lamp's glass glows.
   const asleep=roomLamps(I,{dark:1,pose:{main:0,second:0},lights:{main:{on:false,at:-Infinity},second:{on:false,at:-Infinity}},now:0,settled:true});
@@ -817,7 +848,7 @@ try{
   const MASTER_BRIGHTER=1.2,MASTER_WARMER=1.05,masterRatio=masterLit.lum/masterDay.lum,masterWarm=warmth(masterLit.rgb)/warmth(masterDay.rgb);
   check(`The master bedroom lit by fixture is at least ${MASTER_BRIGHTER} times as bright and ${MASTER_WARMER} times as warm as by day`,
     masterRatio>=MASTER_BRIGHTER&&masterWarm>=MASTER_WARMER&&masterState.room==='master bedroom'&&masterState.lit?.lamp===true,
-    {day:masterDay.rgb,lit:masterLit.rgb,dayLum:r3(masterDay.lum),litLum:r3(masterLit.lum),brighter:r3(masterRatio),limitBrighter:MASTER_BRIGHTER,warmer:r3(masterWarm),limitWarmer:MASTER_WARMER,lit_:masterState.lit});
+    {day:masterDay.rgb,lit:masterLit.rgb,dayLum:r3(masterDay.lum),litLum:r3(masterLit.lum),brighter:r3(masterRatio),limitBrighter:MASTER_BRIGHTER,warmer:r3(masterWarm),limitWarmer:MASTER_WARMER,lit_:masterState.lit,clockNote:'the study is the day study, so the caption reads 15:30 in both captures; the lamp is lit by fixture, not by the clock'});
 
   // 59. The kitchen lit by fixture with the dining room out, from the dining room: the dining side of the shared wall takes none of the kitchen's lamp.
   await studyLight(lite,'night');
@@ -833,7 +864,7 @@ try{
   const KITCHEN_SEEN=1.5,LEAK=1.05,leak=[lum(kitchenOn.stripRgb)/lum(bothOut.stripRgb),lum(kitchenOn.floor)/lum(bothOut.floor)],kitchenGain=lum(kitchenOn.kitchenFar)/lum(bothOut.kitchenFar);
   check(`From the dining room, with the kitchen's lamp lit and the dining room's out, the dining side of the shared wall and the floor beside it are no brighter than with the kitchen out too (at most ${LEAK} times), while the kitchen seen through the opening is at least ${KITCHEN_SEEN} times as bright`,
     bothOut.seen&&kitchenOn.seen&&leak.every(v=>v<=LEAK)&&kitchenGain>=KITCHEN_SEEN,
-    {wallStrip:{out:bothOut.stripRgb,kitchenLit:kitchenOn.stripRgb,ratio:r3(leak[0])},diningFloor:{out:bothOut.floor,kitchenLit:kitchenOn.floor,ratio:r3(leak[1])},kitchenSeen:{out:bothOut.kitchenFar,lit:kitchenOn.kitchenFar,ratio:r3(kitchenGain)},limitLeak:LEAK,limitKitchen:KITCHEN_SEEN,strip:kitchenOn.strip,pose:dinePose});
+    {wallStrip:{out:bothOut.stripRgb,kitchenLit:kitchenOn.stripRgb,ratio:r3(leak[0])},diningFloor:{out:bothOut.floor,kitchenLit:kitchenOn.floor,ratio:r3(leak[1])},kitchenSeen:{out:bothOut.kitchenFar,lit:kitchenOn.kitchenFar,ratio:r3(kitchenGain)},limitLeak:LEAK,limitKitchen:KITCHEN_SEEN,strip:kitchenOn.strip,pose:dinePose,clockNote:'the night study, so the caption reads 00:30; the kitchen\'s lamp is lit by fixture and the dining room\'s forced out, not by the world\'s lights'});
   await setFixture(lite,null);
 
   // 60. The doorway from the yard at night, the door open: its crop is warmer than by day.
@@ -870,7 +901,8 @@ try{
   check('Speed on &tier=full under the night study (the living room\'s lamp and fire lit): a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose, measured as check 50 measures it',
     nightSpeed.kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&nightLit&&nightSpeed.costRatio<=1.1,
     {yardMs:nightSpeed.yardMs,roomMs:nightSpeed.roomMs,ratio:nightSpeed.costRatio,limit:1.1,roundRatios:nightSpeed.roundRatios,ratioSpread:[Math.min(...nightSpeed.roundRatios),Math.max(...nightSpeed.roundRatios)],rounds:nightSpeed.rounds,discardedFirstRound:true,
-      method:speedMethod,litInTheRoom:nightLit,dayRatio:costRatio,hallDoorOpenMs:nightSpeed.hallMs,hallLive:nightSpeed.hallTime.live});
+      method:speedMethod,litInTheRoom:nightLit,dayRatio:costRatio,dayYardMs:yardMs,
+      nightYardNote:'a yard frame costs the same by night as by day when timed alone (12.5 ms by day, 12.1 ms by night: 44 against 47 draw calls, 330,704 against 333,404 triangles, no shadow pass in either); an earlier day figure of 26 ms was measured while the windows\' visitor was still open and drawing, which halves the GPU. The ratio compares the same page\'s room frame with its yard frame under one study: the room frame is drawIndoors, the cabin\'s own scene plus the live views of this very yard through its panes, so it shows that the lit interior costs no more than the yard it looks onto; it does not show what a night yard costs against a day one, which is the same.',hallDoorOpenMs:nightSpeed.hallMs,hallLive:nightSpeed.hallTime.live});
   console.log(`  speed (full, night): yard ${nightSpeed.yardMs} ms, living room ${nightSpeed.roomMs} ms (${nightSpeed.costRatio}x)`);
 
   // 64. The interior's build time: the first buildInside, in milliseconds, and the first indoor draw (where the lit programs are compiled). Recorded, not asserted.
@@ -887,6 +919,6 @@ try{
   // 65. No page or console errors in any of the light's visitors.
   check('No page or console errors in the light\'s visitors',noonQuiet&&liteQuiet&&momentQuiet&&builtQuiet&&nightSpeed.quiet,{noonQuiet,liteQuiet,momentQuiet,builtQuiet,nightSpeedQuiet:nightSpeed.quiet,lite:{consoleErrors:lite.consoleErrors,pageErrors:lite.own}});
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
-}finally{await browser.close();if(noonChild&&noonChild.exitCode===null)noonChild.kill();if(noonDir)await rm(noonDir,{recursive:true,force:true});await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
+}finally{await browser.close();stopNoon();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
   if(interiorFrom!==null)await writeFile(`${interiorDirectory}/browser-results.json`,JSON.stringify({results:results.slice(interiorFrom),errors},null,2)+'\n');}
 if(results.some(r=>!r.pass)||errors.length)process.exitCode=1;
