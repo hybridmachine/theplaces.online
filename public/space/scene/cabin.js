@@ -21,7 +21,7 @@ const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58
 // The front door opens inward this far (radians), over a doorway of this flat dark tone (linear), which warms toward WARM_DOORWAY as
 // the hall's lamp is lit (setDoorway; only with the interior on).
 const DOOR_SWING = 1.45;
-export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.42, .26, .12];
+export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.16, .095, .04];
 // The doorway is cut this far inside the door leaf all round, so the shut leaf covers it; it is lined with stone this deep (the
 // wall's thickness) and then dark back to a backing this far in, past the open leaf's free edge, over a floor this far above the ground.
 const HOLE_INSET = .03, REVEAL = .3, RECESS = 1.2, RECESS_FLOOR = .03;
@@ -183,7 +183,8 @@ export function buildCabin(THREE, {space, dressing, art}) {
   const setDoor = open => frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING);
   setDoor(0);
   // How far the doorway's tone has warmed with the hall's lamp, 0 dark to 1 lit.
-  const setDoorway = level => { const k = clamp01(Number.isFinite(level) ? level : 0); doorway.material.color.setRGB(...DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * k)); };
+  // By the level squared, so the hall's night lamp burning low gives only a dim warm tone.
+  const setDoorway = level => { const k = clamp01(Number.isFinite(level) ? level : 0) ** 2; doorway.material.color.setRGB(...DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * k)); };
   let leaf = null;
   for (const w of windows) {
     const name = `window-${w.id}`, z0 = doorGround + w.sill, material = lit[w.id] ?? panelMaterials.window;

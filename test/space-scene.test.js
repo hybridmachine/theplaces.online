@@ -516,7 +516,8 @@ test('the doorway\'s tone runs from dark to warm', async () => {
   const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
   assert.ok(near(tone(), DOORWAY), 'dark until told otherwise, as without the interior');
   scene.setDoorway(1); assert.ok(near(tone(), WARM_DOORWAY), `${tone()}`);
-  scene.setDoorway(.5); assert.ok(near(tone(), DOORWAY.map((c, i) => (c + WARM_DOORWAY[i]) / 2)), `${tone()}`);
+  // the level squared: a low lamp gives a dim warm tone
+  scene.setDoorway(.5); assert.ok(near(tone(), DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * .25)), `${tone()}`);
   for (const level of [0, -1, NaN, undefined]) { scene.setDoorway(level); assert.ok(near(tone(), DOORWAY), `${level}`); }
   scene.setDoorway(3); assert.ok(near(tone(), WARM_DOORWAY));
   scene.dispose();

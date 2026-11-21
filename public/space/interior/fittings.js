@@ -81,6 +81,7 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
     return g;
   });
   const levels = new Float32Array(Math.max(1, I.rooms.length));
+  let first = true;   // the glasses' colours are written the first time whatever the levels
   const haloMat = haloMaterial(THREE); haloMat.uniforms.opacity.value = HALO.opacity; haloMat.uniforms.levels = {value: levels};
   // Each replacement must take: a halo shader that no longer matches would otherwise draw every halo at one constant opacity.
   const patched = (text, from, to) => { const out = text.replace(from, to); if (out === text) throw new Error(`The halo shader no longer has ${from}`); return out; };
@@ -94,10 +95,12 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
   const halos = new THREE.Mesh(merged(balls), haloMat); halos.name = 'halos'; halos.frustumCulled = false; object.add(halos);
 
   // A frame's lamp levels, a number per room in interior.rooms order (a fully lit room is about 1.1; 1 and over is fully lit); a
-  // room not named is out. Writes into the existing arrays: nothing is allocated.
+  // room not named is out. Writes into the existing arrays: nothing is allocated, and nothing is uploaded when no level changed.
   function setLamps(given) {
-    const colours = glasses.instanceColor.array; let any = false;
-    for (let i = 0; i < levels.length; i++) levels[i] = clamp01(given?.[i]);
+    const colours = glasses.instanceColor.array; let any = false, changed = false;
+    for (let i = 0; i < levels.length; i++) { const v = Math.fround(clamp01(given?.[i])); changed ||= v !== levels[i]; levels[i] = v; }
+    if (!changed && !first) return;
+    first = false;
     for (let k = 0; k < n; k++) {
       const level = levels[roomIndex.get(I.fittings[k].room)]; any ||= level > 0;
       for (let c = 0; c < 3; c++) colours[k * 3 + c] = PALE[c] + (WARM[c] - PALE[c]) * level;

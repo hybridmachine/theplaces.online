@@ -41,7 +41,9 @@ test('a point that sees no pane borrows a share of its neighbour\'s daylight thr
   const lit = createLightField(I, [...O, high]), p = [.3, 9.4, 0];
   assert.equal(day(p), LIGHT.day.floor);
   const w = day(p, UP, 0, lit);
-  assert.ok(w > LIGHT.day.floor && w < LIGHT.day.borrow, `${w}`);
+  // less than the borrowed share of the kitchen's own daylight just inside the opening (the laundry-kitchen opening at a = 2.5, d 7.8–8.8)
+  const there = Math.max(...[UP, [1, 0, 0]].map(n => lit.weigh(0, [2.52, 8.3, 1.5], n).day));
+  assert.ok(w > LIGHT.day.floor && w < LIGHT.day.borrow * there, `${w} against ${there}`);
 });
 
 test('a windowless room borrows visibly through an opening onto a room with a window, most by the opening; one without such an opening does not', () => {
@@ -50,7 +52,18 @@ test('a windowless room borrows visibly through an opening onto a room with a wi
   assert.equal(linen, LIGHT.day.floor);
   assert.ok(box > 1.5 * LIGHT.day.floor, `${box}`);
   assert.ok(day([16.5, 7.3, 3], UP, 1) > day([16.5, 9.3, 3], UP, 1), 'brighter by the opening');
-  assert.ok(day([16.5, 9.3, 3], UP, 1) > LIGHT.day.floor, 'and still above the floor at the far end');
+  // and the far wall, facing the opening, still takes it
+  assert.ok(day([16.5, 9.5 - I.wall / 2 - .02, 4.5], [0, -1, 0], 1) > 1.5 * LIGHT.day.floor, 'and the far wall facing the opening takes it');
+});
+
+test('light borrowed through a doorway falls on what faces the doorway, not on the wall beside it', () => {
+  const half = I.wall / 2 + .02, z = I.floorRise + 1.5;
+  // The landing: bedroom 2's doorway (a = 7, d 3–4); the landing face of bedroom 2's wall beside it, and the far wall facing it.
+  const beside = F.weigh(1, [7 + half, 4.4, z], [1, 0, 0]).day, facing = F.weigh(1, [11 - half, 3.5, z], [-1, 0, 0]).day;
+  assert.ok(facing >= beside, `landing: facing ${facing}, beside ${beside}`);
+  // The nook: the sky room's doorway (a = 7, d 9–10); the far wall (beside the bathroom's own opening) facing it.
+  const nookBeside = F.weigh(1, [7 + half, 10.4, z], [1, 0, 0]).day, nookFacing = F.weigh(1, [11 - half, 10.6, z], [-1, 0, 0]).day;
+  assert.ok(nookFacing >= nookBeside, `nook: facing ${nookFacing}, beside ${nookBeside}`);
 });
 
 test('the front door lends daylight to the hall only, at half strength', () => {
@@ -250,6 +263,24 @@ test('daylight follows the sky: strong at noon, dim under overcast, gone at nigh
   assert.deepEqual(night.day, [0, 0, 0]);
   assert.ok(noon.fill.every((v, i) => Math.abs(v - DIALS.fill[i] * DIALS.night * .3) < 1e-12));
   assert.ok(night.fill.every((v, i) => v === DIALS.fill[i] * DIALS.night));
+});
+
+test('daylight is the sky\'s colour mixed with a warm white, so plaster keeps its cream; a cold sky still cools it', () => {
+  const lin = v => v ** 2.2, at = sky => interiorDials({...base, sky, calendar: cal(1, 1, 12), weather: {cloud: 0}}).day;
+  const want = sky => { const m = [0, 1, 2].map(i => lin((sky.zenith[i] + sky.horizon[i]) / 2)), top = Math.max(...m);
+    const mixed = m.map((v, i) => v / top * (1 - DIALS.dayMix) + DIALS.dayWhite[i] * DIALS.dayMix), peak = Math.max(...mixed);
+    return mixed.map(v => v / peak * DIALS.day); };
+  for (const sky of [SKY, {zenith: [.3, .45, .8], horizon: [.5, .6, .8]}]) at(sky).forEach((v, i) => assert.ok(Math.abs(v - want(sky)[i]) < 1e-9, `${at(sky)} against ${want(sky)}`));
+  const cold = at({zenith: [.3, .45, .8], horizon: [.5, .6, .8]}), warmer = at(SKY);
+  assert.ok(warmer[0] / warmer[2] > cold[0] / cold[2], 'a bluer sky gives a cooler light');
+  assert.ok(warmer[0] / warmer[2] > 1, 'a clear noon is a little warm, not blue');
+});
+
+test('the dials carry the fire\'s level without its flicker, for telling burning from embers', () => {
+  const on = {on: true, since: T0 - DIALS.fireRise / 4, lastBurn: null};
+  const levels = Array.from({length: 20}, (_, k) => interiorDials({...base, calendar: cal(0, -1, 0), weather: {cloud: 0}, cottage: cot({main: false, second: false}, {main: 0, second: 0}, on), now: T0, seconds: k * .37, motion: true}));
+  assert.ok(levels.every(d => d.flame === .25), `${levels.map(d => d.flame)}`);
+  assert.ok(new Set(levels.map(d => d.fire)).size > 1, 'the fire\'s light itself flickers');
 });
 
 test('a study shows the settled picture, with the fire lit at night and dusk', () => {

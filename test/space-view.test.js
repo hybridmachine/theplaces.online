@@ -473,3 +473,19 @@ test('a lit program that fails to compile at the first indoor draw falls back to
   const good = await rig(); good.renderer.info = {programs: [{cacheKey: `basic,x,interior-light-${I.rooms.length}`}]}; good.frame(2);
   assert.equal(good.view.inside.lit, true); assert.equal(good.view.lightChecked, true); assert.equal(warnings.length, 1);
 });
+
+test('a lamp counts as lit above 0.15 of full, so the hall\'s night lamp burning low is lit', async () => {
+  const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [9, 3], yaw: 0, pitch: 0}}), at = level => I.rooms.map(r => r.id === 'hall' ? level : 0);
+  view.check = true;
+  view.fixture = {lamps: at(DIALS.hallLow)}; frame(1, {study: 'night'}); assert.equal(view.lit.lamp, true);
+  view.fixture = {lamps: at(.1)}; frame(1, {study: 'night'}); assert.equal(view.lit.lamp, false);
+});
+
+test('the fire\'s flicker does not flip the description between burning and embers', async () => {
+  // a fire just lit, its level a hair above the burning mark and rising: with the flicker its light crosses the mark from frame to frame
+  const snapshot = worldAt(midnight, {main: false, second: false}, {on: true, since: midnight - DIALS.fireRise * .051, lastBurn: null});
+  const {view, frame} = await rig(), seen = new Set();
+  // the same world moment each frame, the flicker's clock moved on by shifting the epoch it counts from
+  for (let k = 0; k < 60; k++) { frame(1, {snapshot: {...snapshot, world: {...snapshot.world, epoch: EPOCH - k * 137}}, now: midnight}); seen.add(view.lit.fire); }
+  assert.deepEqual([...seen], ['burning']);
+});

@@ -138,3 +138,12 @@ test('the fittings hold no light source', () => {
   assert.equal(lights, 0);
   dispose();
 });
+
+test('the glasses\' colours are uploaded again only when a level changes', () => {
+  const {scene, setLamps, dispose} = build(), colours = lamps(scene).getObjectByName('glasses').instanceColor;
+  setLamps(levels(['kitchen'])); const v = colours.version;
+  setLamps(levels(['kitchen'])); setLamps(levels(['kitchen']).map(x => x && 3));
+  assert.equal(colours.version, v, 'the same levels (past 1 is full) upload nothing');
+  setLamps(levels(['kitchen', 'study'])); assert.ok(colours.version > v);
+  dispose();
+});

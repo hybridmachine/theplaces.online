@@ -10,8 +10,8 @@ const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v 
 // Tuned by eye against browser captures. Reaches are metres at which a source's share has fallen to a tenth. By day `face` is the share
 // of a pane's light a surface takes whichever way it faces (the rest as it faces the pane: the room's walls hand the light about);
 // `borrow` the share of a neighbour's daylight a point that sees no pane takes at the opening it comes through, falling off over
-// `through` metres from it; `door` the front door's strength against a window's; `floor` the least.
-export const LIGHT = deep({day: {reach: 9, face: .35, borrow: .9, through: 8, door: .5, floor: .1}, lamp: {reach: 5, floor: .15}, fire: {reach: 6}});
+// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way); `door` the front door's strength against a window's; `floor` the least.
+export const LIGHT = deep({day: {reach: 9, face: .35, borrow: .9, through: 14, aside: .2, door: .5, floor: .1}, lamp: {reach: 5, floor: .15}, fire: {reach: 6}});
 
 const UP = [0, 0, 1], OFF = .02, SHORT = .05;   // metres a sight line starts off the surface and stops short of its target
 const falloff = (dist, reach) => 1 / (1 + (dist / reach * 3) ** 2);
@@ -68,7 +68,11 @@ export function createLightField(interior, openings) {
     if (at) {
       let near = null, nearD = Infinity;
       for (const g of gaps[index]) { const dd = Math.hypot(g.mid[0] - point[0], g.mid[1] - point[1]); if (dd < nearD) { near = g; nearD = dd; } }
-      if (near) dayW = Math.max(dayW, LIGHT.day.borrow * gapShare(near) * falloff(nearD, LIGHT.day.through));
+      if (near) {
+        // as the light comes through the opening's middle: on what faces it, and only `aside` of it on what does not
+        const v = toward(point, [near.mid[0], near.mid[1], near.floor * I.floorRise + I.doorHead / 2]);
+        dayW = Math.max(dayW, LIGHT.day.borrow * gapShare(near) * (along(normal, v.u) * (1 - LIGHT.day.aside) + LIGHT.day.aside) * falloff(v.d, LIGHT.day.through));
+      }
     }
     dayW = Math.max(LIGHT.day.floor, dayW);
     // lamp: the room's own fitting only
@@ -90,7 +94,8 @@ export function createLightField(interior, openings) {
 
 // The dials: what a frame's light is made of, from the shared world's state and clock alone. Colours are linear; times are world milliseconds.
 // `floor` is the least brightness any standable spot takes: at midnight with every lamp out, the night fill's blue channel alone provides it.
-export const DIALS = deep({fill: [.12, .155, .26], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 1.2, lamp: 1.1, fire: .9, night: .35, hallLow: .35,
+// Daylight's colour is the sky's, mixed `dayMix` of the way toward the warm white `dayWhite`, so plaster keeps its cream by day.
+export const DIALS = deep({fill: [.12, .155, .26], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 1.2, dayMix: .5, dayWhite: [1, .96, .88], lamp: 1.1, fire: .9, night: .35, hallLow: .35,
   fade: 2000, delay: [5000, 90000], threshold: [.3, .9], fireRise: 20000, emberFall: 1800000, flicker: .06, floor: .07});
 
 const clamp = x => Math.max(0, Math.min(1, x));
@@ -142,12 +147,13 @@ const finite = (v, or = 0) => Number.isFinite(v) ? v : or;
 const toLinear = rgb => rgb.map(v => Math.max(0, finite(v)) ** 2.2);
 const colour = (c, i) => finite(c?.[i]);
 
-// The frame's dials. A `study` fixes the lights to its fixture, every fade finished, and the fire lit in the night and dusk studies; the
+// The frame's dials; `fire` is the fire's light (its level with the flicker) and `flame` its level alone. A `study` fixes the lights to its fixture, every fade finished, and the fire lit in the night and dusk studies; the
 // calendar and weather given are then the study's own. Anything missing or unreadable falls back to no daylight, no cloud, a dark sky and
 // no fire, so a frame never throws and never carries a number that is not finite.
 export function interiorDials({interior, calendar, weather, sky, cottage, pose, now, seconds, motion, study}) {
   const light = clamp(finite(calendar?.light)), dark = pathLightLevel(calendar), time = finite(now, 0);
   const mean = toLinear([0, 1, 2].map(i => (colour(sky?.zenith, i) + colour(sky?.horizon, i)) / 2)), top = Math.max(...mean) || 1;
+  const mixed = mean.map((v, i) => v / top * (1 - DIALS.dayMix) + DIALS.dayWhite[i] * DIALS.dayMix), peak = Math.max(...mixed);
   const strength = DIALS.day * light * (1 - .35 * overcast({cloud: finite(weather?.cloud)}));
   const fill = DIALS.fill.map(v => v * DIALS.night * Math.max(1 - .7 * light, .3));
   let lit = pose, lights = houseLights(cottage), settled = false, flame = fireLevel(cottage?.hearth, now);
@@ -157,8 +163,8 @@ export function interiorDials({interior, calendar, weather, sky, cottage, pose, 
   }
   const levels = roomLamps(interior, {dark, pose: lit, lights, now: time, settled});
   const hall = levels[interior.rooms.findIndex(r => r.id === 'hall')];
-  return {day: mean.map(v => v / top * strength), fill, lamps: levels.map(v => v * DIALS.lamp),
-    fire: flame.fire * DIALS.fire * flicker(finite(seconds), motion), embers: flame.embers, doorway: hall};
+  return {day: mixed.map(v => v / peak * strength), fill, lamps: levels.map(v => v * DIALS.lamp),
+    fire: flame.fire * DIALS.fire * flicker(finite(seconds), motion), flame: flame.fire, embers: flame.embers, doorway: hall};
 }
 
 // The light a point shows: the sum the shader computes from the same dials and weights.

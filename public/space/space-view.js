@@ -42,8 +42,9 @@ const pose = s => s.place === 'cabin'
   ? {place: 'cabin', floor: s.floor, position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch}
   : {place: 'yard', position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch};
 const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
-// Below these the fire counts as out and its embers as cold, for the scene description.
-const FIRE_SEEN = .05, EMBERS_SEEN = .1;
+// For the scene description: above LAMP_SEEN of full a room's lamp counts as lit (the hall's night lamp burning low is), and below
+// these the fire counts as out (by its level, not its flickering light) and its embers as cold.
+const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
 const interiorSwitch = () => new URLSearchParams(location.search).get('interior') === '1' ? LAKESIDE_INTERIOR : null;
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
@@ -237,6 +238,8 @@ export class SpaceView {
   }
   // After the first indoor draw of the lit surfaces: three logs a program that fails to compile or link and draws nothing with it,
   // so the rooms would vanish. Its diagnostics say so (runnable false); the rooms then fall back to the flat light, with one warning.
+  // This decides on the lit programs known after the first indoor draw that made any: it relies on both of them (the plain one and
+  // plaster's, with its base) being used in that frame, as they are wherever a visitor stands (every room has walls and a floor).
   checkLight() {
     if (this.lightChecked || !this.inside?.lit) return;
     const programs = (this.renderer.info?.programs ?? []).filter(p => String(p.cacheKey).includes('interior-light-'));
@@ -256,7 +259,7 @@ export class SpaceView {
       const fixture = this.check ? this.fixture : null, I = this.interior;
       const pose = cottagePose({fixture, study, snapshot, now, motion: this.motion});
       dials = interiorDials({interior: I, calendar, weather, sky, cottage: snapshot.world.cottage, pose, now, seconds: motionSeconds, motion: this.motion, study});
-      if (fixture?.hearth) dials = {...dials, fire: clamp01(fixture.hearth.fire) * DIALS.fire, embers: clamp01(fixture.hearth.embers)};
+      if (fixture?.hearth) dials = {...dials, fire: clamp01(fixture.hearth.fire) * DIALS.fire, flame: clamp01(fixture.hearth.fire), embers: clamp01(fixture.hearth.embers)};
       if (Array.isArray(fixture?.lamps)) {
         const levels = I.rooms.map((_, i) => clamp01(fixture.lamps[i]));
         dials = {...dials, lamps: levels.map(v => v * DIALS.lamp), doorway: levels[I.rooms.findIndex(r => r.id === 'hall')]};
@@ -274,13 +277,13 @@ export class SpaceView {
   get liveViews() { return [...this.live]; }
   // The name of the room the visitor is in, or null in the yard (or without the interior).
   get room() { return this.interior && this.state.place === 'cabin' ? roomAt(this.interior, this.state.floor, this.state.position)?.name ?? null : null; }
-  // What is lit in the room the visitor is in: {room (its name), lamp (its level above half), fire ('burning', 'embers' or 'cold' in
+  // What is lit in the room the visitor is in: {room (its name), lamp (its level above LAMP_SEEN of full), fire ('burning', 'embers' or 'cold' in
   // the living room, null elsewhere)}; null in the yard, without the interior, or before the rooms' light was first worked out.
   get lit() {
     const I = this.interior, r = I && this.state.place === 'cabin' && this.dials ? roomAt(I, this.state.floor, this.state.position) : null;
     if (!r) return null;
-    const {lamps, fire, embers} = this.dials, lamp = lamps[I.rooms.indexOf(r)] / DIALS.lamp > .5;
-    return {room: r.name, lamp, fire: r.id !== 'living' ? null : fire > FIRE_SEEN * DIALS.fire ? 'burning' : embers > EMBERS_SEEN ? 'embers' : 'cold'};
+    const {lamps, flame, embers} = this.dials, lamp = lamps[I.rooms.indexOf(r)] / DIALS.lamp > LAMP_SEEN;
+    return {room: r.name, lamp, fire: r.id !== 'living' ? null : flame > FIRE_SEEN ? 'burning' : embers > EMBERS_SEEN ? 'embers' : 'cold'};
   }
   get birdActive() { return this.life?.status.bird === 'active'; }
   get cottageActive() { return this.life?.status.cottage === 'active'; }
