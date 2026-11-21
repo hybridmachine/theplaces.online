@@ -10,8 +10,11 @@ const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v 
 // Tuned by eye against browser captures. Reaches are metres at which a source's share has fallen to a tenth. By day `face` is the share
 // of a pane's light a surface takes whichever way it faces (the rest as it faces the pane: the room's walls hand the light about);
 // `borrow` the share of a neighbour's daylight a point that sees no pane takes at the opening it comes through, falling off over
-// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way); `door` the front door's strength against a window's; `floor` the least.
-export const LIGHT = deep({day: {reach: 9, face: .35, borrow: .9, through: 14, aside: .2, door: .5, floor: .1}, lamp: {reach: 5, floor: .15}, fire: {reach: 6}});
+// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way);
+// `cap` the most daylight any point takes, so that the light by the glass, strong enough to fill the room, never clips. A lamp
+// reaches the far walls of its own room (a wall 4 m off takes more than the floor); the fire's `face` is the share of its light a
+// surface takes whichever way it faces, so the wall beside the chimney breast, which sees the fire only edgewise, is warmed too; `door` the front door's strength against a window's; `floor` the least.
+export const LIGHT = deep({day: {reach: 10, face: .4, borrow: .9, through: 14, aside: .2, door: .5, floor: .1, cap: .55}, lamp: {reach: 8, floor: .15}, fire: {reach: 6, face: .5}});
 
 const UP = [0, 0, 1], OFF = .02, SHORT = .05;   // metres a sight line starts off the surface and stops short of its target
 const falloff = (dist, reach) => 1 / (1 + (dist / reach * 3) ** 2);
@@ -85,9 +88,9 @@ export function createLightField(interior, openings) {
     let fire = 0;
     if (floor === 0 && clear(0, [point[0] + normal[0] * OFF, point[1] + normal[1] * OFF], mouth)) {
       const v = toward(point, mouth);
-      fire = (along(normal, v.u) * .7 + .3) * falloff(v.d, LIGHT.fire.reach);
+      fire = (along(normal, v.u) * (1 - LIGHT.fire.face) + LIGHT.fire.face) * falloff(v.d, LIGHT.fire.reach);
     }
-    return {day: Math.min(1, dayW), lamp: Math.min(1, lamp), fire: Math.min(1, fire), room: index};
+    return {day: Math.min(LIGHT.day.cap, dayW), lamp: Math.min(1, lamp), fire: Math.min(1, fire), room: index};
   }
   return {weigh, roomIndex: id => ids.has(id) ? ids.get(id) : -1};
 }
@@ -95,7 +98,7 @@ export function createLightField(interior, openings) {
 // The dials: what a frame's light is made of, from the shared world's state and clock alone. Colours are linear; times are world milliseconds.
 // `floor` is the least brightness any standable spot takes: at midnight with every lamp out, the night fill's blue channel alone provides it.
 // Daylight's colour is the sky's, mixed `dayMix` of the way toward the warm white `dayWhite`, so plaster keeps its cream by day.
-export const DIALS = deep({fill: [.12, .155, .26], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 1.2, dayMix: .5, dayWhite: [1, .96, .88], lamp: 1.1, fire: .9, night: .35, hallLow: .35,
+export const DIALS = deep({fill: [.12, .155, .26], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 2.3, dayMix: .6, dayWhite: [1, .91, .76], lamp: 1.1, fire: .9, night: .35, hallLow: .35,
   fade: 2000, delay: [5000, 90000], threshold: [.3, .9], fireRise: 20000, emberFall: 1800000, flicker: .06, floor: .07});
 
 const clamp = x => Math.max(0, Math.min(1, x));

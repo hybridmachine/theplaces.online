@@ -21,7 +21,7 @@ const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58
 // The front door opens inward this far (radians), over a doorway of this flat dark tone (linear), which warms toward WARM_DOORWAY as
 // the hall's lamp is lit (setDoorway; only with the interior on).
 const DOOR_SWING = 1.45;
-export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.16, .095, .04];
+export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.1, .042, .009];
 // The doorway is cut this far inside the door leaf all round, so the shut leaf covers it; it is lined with stone this deep (the
 // wall's thickness) and then dark back to a backing this far in, past the open leaf's free edge, over a floor this far above the ground.
 const HOLE_INSET = .03, REVEAL = .3, RECESS = 1.2, RECESS_FLOOR = .03;

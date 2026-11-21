@@ -108,7 +108,8 @@ test('nothing in the fireplace is a light source, and its stone takes the room\'
 
 test('the fireplace builds as well when the lit materials could not be made, with the shell\'s Lambert ones', () => {
   const warn = console.warn; console.warn = () => {};
-  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors) throw new Error('no lit material'); super(o); } }
+  // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
+  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
   let built; try { built = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings}); } finally { console.warn = warn; }
   const {scene, setFire, lit, dispose} = built;
   assert.equal(lit, false);

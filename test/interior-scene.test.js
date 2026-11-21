@@ -241,7 +241,8 @@ test('setLight moves the shared uniforms and nothing else', () => {
 });
 test('if the lit materials cannot be made the rooms stay evenly lit, with one warning', t => {
   // three as it is, but a basic material asked for vertex colours (the lit surfaces' kind) cannot be made
-  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors) throw new Error('no lit material'); super(o); } }
+  // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
+  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
   const warn = t.mock.method(console, 'warn', () => {});
   const out = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings});
   assert.equal(out.lit, false);

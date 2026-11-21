@@ -8,17 +8,22 @@ import {haloMaterial} from '../scene/lights.js';
 // mouth cut MOUTH_DEEP into it and a darker back, the stone hearth slab reaching into the room, a timber mantel shelf, a plastered
 // upper breast. The breast, slab, mantel and upper breast are built through buildInterior's `face` (so each vertex carries the light
 // it takes, from the light field) and draw with the lit materials, or, when those could not be made, the same Lambert ones as the
-// rest of the shell. The fire is emitted, never lit and never a light source: an ember bed whose colour follows the ember dial,
-// a few upright flame cards that show only while the fire burns, and a soft added halo at the mouth.
+// rest of the shell. The fire is emitted, never lit and never a light source: a low uneven mound of embers, dark ash with glowing
+// patches, whose glow follows the ember dial; a few overlapping tapered tongues of flame, each pale yellow at its foot and middle
+// shading to orange and to nothing at its tip and edges (per-vertex colour and alpha, added over the room), that show only while the
+// fire burns and sway apart from one another; and a soft added halo at the mouth.
 
 const STONE_TILE = SPACE_ART.surfaces.stone.metres;
 const LIT_STONE = [1.2, 1.1, .95], STONE = [1.5, 1.4, 1.2];   // linear tints: lit, the unlit one times the flat light on a wall (about .8)
 const MOUTH_DEEP = .35, SLAB_HIGH = .05, MANTEL = {width: 2.2, depth: .2, thick: .08, into: .08};
-// Flames: where each stands across the mouth (metres from its middle), its width and height, and its sway phase.
-const CARDS = [{x: -.3, w: .22, h: .42, a: .28, phase: 0}, {x: -.1, w: .26, h: .6, a: .25, phase: 2.1}, {x: .1, w: .24, h: .5, a: .27, phase: 4.2},
-  {x: .3, w: .2, h: .36, a: .29, phase: 5.6}];
+// Flames: where each tongue stands across the mouth (metres from its middle) and back from its front (a), its width and height, and its
+// sway phase; they overlap, the tall ones in the middle.
+const CARDS = [{x: -.27, w: .26, h: .34, a: .27, phase: 0}, {x: -.12, w: .3, h: .55, a: .23, phase: 2.1}, {x: .02, w: .32, h: .62, a: .26, phase: 4.2},
+  {x: .15, w: .28, h: .48, a: .22, phase: 1.3}, {x: .28, w: .24, h: .3, a: .28, phase: 5.6}];
 const GLOW_AT = .5, GLOW_RADII = [.25, .35, .5], GLOW = {burning: .5, embers: .12}, FLAME_FLOOR = .02;
-const ASH = [.03, .022, .02], EMBER = [1, .32, .06], FLAME = [1, .45, .07], CORE = [1, .85, .4];
+const ASH = [.03, .022, .02], EMBER = [1, .32, .06], CORE = [1, .9, .55], FLAME = [1, .42, .06];
+// The ember mound: its size (a, d) and height, and how many cells it is cut into.
+const BED = {deep: .3, wide: .8, high: .07, cells: [6, 14]};
 const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
 
 export function buildFireplace(THREE, {interior: I, art, light, face, tint, tints, materials}) {
@@ -62,21 +67,37 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
   mesh('mantel', merged(mantel), materials.surface); mesh('breast-upper', merged(upper), materials.plastered);
 
   // ── the fire ──
-  // The ember bed: a low block in the mouth, its vertices a little uneven in brightness; the material's colour is the dial.
-  const bed = new THREE.BoxGeometry(.34, .1, mouth.d1 - mouth.d0 - .2, 4, 1, 8);
-  const embers = mesh('embers', bed, new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...ASH)}));
-  embers.position.set(...toThree([mouth.back + .17, fp.d, SLAB_HIGH + .05]));
-  // A flame card: unit height, widest a third of the way up, a point at the top; it stands at its foot (the origin) and is turned
-  // to face into the room (+a). Each carries a smaller, paler core on top of it.
-  const card = new THREE.BufferGeometry();
-  card.setAttribute('position', new THREE.Float32BufferAttribute([-.5, 0, 0, .5, 0, 0, -.5, .35, 0, .5, .35, 0, 0, 1, 0, -.18, .02, 0, .18, .02, 0], 3));
-  card.setIndex([0, 1, 3, 0, 3, 2, 2, 3, 4]);
-  const flameOf = colour => new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...colour), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, fog: false});
-  const flameMaterial = flameOf(FLAME), coreMaterial = flameOf(CORE);
+  // The ember bed: a low mound across the mouth, uneven in height, its vertices dark ash or glowing patches (a fixed pattern); the
+  // material's colour is the ember dial, so the patches glow and the ash stays dark.
+  const bed = new THREE.PlaneGeometry(BED.deep, BED.wide, ...BED.cells); bed.rotateX(-Math.PI / 2);
+  { const p = bed.getAttribute('position'), colours = [];
+    for (let i = 0; i < p.count; i++) {
+      const u = p.getX(i) / BED.deep * 2, v = p.getZ(i) / BED.wide * 2, rim = Math.max(0, 1 - u * u) * Math.max(0, 1 - v * v);
+      const lump = .65 + .35 * Math.sin(u * 5.1 + v * 3.3) * Math.cos(v * 7.7 - u * 2.2);
+      p.setY(i, BED.high * rim * lump);
+      const glow = Math.max(0, Math.sin(u * 7.3 + 1.1) * Math.sin(v * 9.1 + .4) + .35 * Math.cos(v * 4.3 - u * 6.1));
+      const k = .15 + .85 * Math.min(1, glow) * Math.sqrt(rim); colours.push(k, k, k);
+    }
+    bed.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3)); bed.computeVertexNormals(); }
+  const embers = mesh('embers', bed, new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...ASH), vertexColors: true}));
+  embers.position.set(...toThree([mouth.back + BED.deep / 2 + .02, fp.d, SLAB_HIGH]));
+  // A tongue of flame: unit height, widest a quarter of the way up, tapering to a point; cut into rows and columns so its colour can
+  // run from a pale core at the foot and middle to orange, and its alpha to nothing at the tip and the edges. It stands at its foot
+  // (the origin) facing into the room (+a), drawn added over the room on both sides.
+  const ROWS = 8, COLS = 4, card = new THREE.BufferGeometry(), positions = [], colours = [], index = [];
+  for (let j = 0; j <= ROWS; j++) for (let i = 0; i <= COLS; i++) {
+    const t = j / ROWS, s = i / COLS - .5, width = t < .25 ? .75 + t : 1 - (t - .25) / .75 * .98, edge = Math.abs(s) * 2;
+    positions.push(s * width, t, 0);
+    const core = Math.max(0, 1 - edge * 1.3) * Math.max(0, 1 - t * 1.4), alpha = (1 - edge ** 2) * (1 - t ** 1.6) * Math.min(1, t * 8 + .3);
+    colours.push(...FLAME.map((c, k) => c + (CORE[k] - c) * core), Math.max(0, alpha));
+  }
+  for (let j = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++) { const a = j * (COLS + 1) + i, b = a + COLS + 1; index.push(a, a + 1, b + 1, a, b + 1, b); }
+  card.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); card.setAttribute('color', new THREE.Float32BufferAttribute(colours, 4)); card.setIndex(index);
+  const flameMaterial = new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, fog: false,
+    blending: THREE.AdditiveBlending});
   const flames = new THREE.Group(); flames.name = 'flames'; group.add(flames);
   const cards = CARDS.map(c => {
-    const m = mesh(`flame-${flames.children.length}`, card, flameMaterial, flames), core = mesh('core', card, coreMaterial, m);
-    core.scale.set(.55, .65, 1); core.position.z = .002;
+    const m = mesh(`flame-${flames.children.length}`, card, flameMaterial, flames);
     m.rotation.order = 'YXZ'; m.rotation.y = Math.PI / 2;   // so rotation.z leans a card sideways in its own plane
     m.position.set(...toThree([c.a, fp.d + c.x, SLAB_HIGH + .03])); m.scale.set(c.w, c.h, 1);
     return {m, ...c};
@@ -89,11 +110,13 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
   // Cheap and allocation-free: scalars into the existing objects.
   function setFire({fire, embers: ember, seconds, motion} = {}) {
     const f = clamp01(fire), e = clamp01(ember), t = Number.isFinite(seconds) ? seconds : 0, moving = !!motion;
-    flames.visible = f > FLAME_FLOOR; flameMaterial.opacity = .3 + .7 * f; coreMaterial.opacity = .2 + .8 * f;
+    flames.visible = f > FLAME_FLOOR; flameMaterial.opacity = .25 + .5 * f;   // added over the room: overlapping tongues reach white at their cores
     const grown = .35 + .65 * f;
     for (const c of cards) {
-      const wobble = moving ? 1 + .12 * Math.sin(t * 5.1 + c.phase) + .06 * Math.sin(t * 8.3 + c.phase * 2.3) : 1;
-      c.m.scale.y = c.h * grown * wobble; c.m.rotation.z = moving ? .14 * Math.sin(t * 2.1 + c.phase) : 0;
+      // each tongue on its own clock: its height, its lean and its width
+      const wobble = moving ? 1 + .16 * Math.sin(t * (4.3 + c.phase * .4) + c.phase) + .07 * Math.sin(t * 9.1 + c.phase * 2.3) : 1;
+      c.m.scale.y = c.h * grown * wobble; c.m.scale.x = c.w * (moving ? 1 + .1 * Math.sin(t * 3.7 + c.phase * 1.7) : 1);
+      c.m.rotation.z = moving ? .16 * Math.sin(t * (1.7 + c.phase * .3) + c.phase) : 0;
     }
     embers.material.color.setRGB(ASH[0] + (EMBER[0] - ASH[0]) * e, ASH[1] + (EMBER[1] - ASH[1]) * e, ASH[2] + (EMBER[2] - ASH[2]) * e);
     glow.material.uniforms.opacity.value = f > FLAME_FLOOR ? f * GLOW.burning : e * GLOW.embers; glow.visible = glow.material.uniforms.opacity.value > 0;
@@ -108,6 +131,6 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
     group.getObjectByName('mantel').material = flat.surface; group.getObjectByName('breast-upper').material = flat.plastered;
   }
   return {object: group, setFire, fallBack, dispose() {
-    group.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); coreMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
+    group.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
   }};
 }

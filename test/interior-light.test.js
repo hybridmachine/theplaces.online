@@ -66,9 +66,21 @@ test('light borrowed through a doorway falls on what faces the doorway, not on t
   assert.ok(nookFacing >= nookBeside, `nook: facing ${nookFacing}, beside ${nookBeside}`);
 });
 
+test('at night the gable wall beside the fireplace takes the lamp and the fire as the walls beside it do', () => {
+  const dials = interiorDials({interior: I, calendar: cal(0, -1, .5), weather: {cloud: 0}, sky: {zenith: [.1, .14, .2], horizon: [.1, .14, .2]}, cottage: null,
+    pose: {main: 1, second: 0}, now: 0, seconds: 0, motion: false, study: 'night'}), half = I.wall / 2 + .03;
+  // either side of the chimney breast, against the front and back walls at about the same distance from the lamp and the fire
+  for (const [gable, side] of [[[half, 1.5, 1.5], [.6, half, 1.5]], [[half, 5.5, 1.5], [.6, 7 - half, 1.5]]]) {
+    const g = lightAt(F, dials, 0, gable, [1, 0, 0]), w = lightAt(F, dials, 0, side, [0, side[1] < 3.5 ? 1 : -1, 0]);
+    assert.ok(g[0] >= .95 * w[0] && g[0] / g[2] >= .95 * w[0] / w[2], `gable ${g} against side ${w}`);
+    assert.ok(F.weigh(0, gable, [1, 0, 0]).lamp > LIGHT.lamp.floor, 'the lamp reaches the gable');
+  }
+});
+
 test('the front door lends daylight to the hall only, at half strength', () => {
   // The dining and study windows are in the hall's sight too, so leave them out: only the door (or the same pane as a wall pane) is left to see.
-  const rest = O.filter(o => o.id !== 'dining' && o.id !== 'study'), p = [9, .8, 0];
+  // (2 m in from the door, where even the door taken as a full window stays under LIGHT.day.cap)
+  const rest = O.filter(o => o.id !== 'dining' && o.id !== 'study'), p = [9, 2, 0];
   const withDoor = createLightField(I, rest), withoutDoor = createLightField(I, rest.filter(o => o.kind !== 'door'));
   const asWall = createLightField(I, rest.map(o => o.kind === 'door' ? {...o, kind: 'wall'} : o));
   assert.ok(day(p, UP, 0, withDoor) > day(p, UP, 0, withoutDoor));

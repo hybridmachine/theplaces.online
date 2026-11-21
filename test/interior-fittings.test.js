@@ -94,7 +94,8 @@ test('the halo patch scales each ball by its room\'s level, and refuses to pass 
 test('a glass is pale when out and warm when lit, by its own room\'s level only', () => {
   const {scene, setLamps, dispose} = build(), halos = lamps(scene).getObjectByName('halos');
   const pale = glassColour(scene, 0), out = I.fittings.map((_, k) => glassColour(scene, k));
-  assert.ok(out.every(c => c.every((v, i) => v === pale[i])), 'every glass starts pale');
+  // every glass starts out: pale (taking the plain daytime the rooms are built with), none warm
+  assert.ok(out.every(c => c[0] / c[2] < 1.6 && c[0] < 2), `every glass starts pale: ${out.map(c => c.map(v => v.toFixed(2)))}`);
   assert.equal(halos.visible, false);
   const k = slot('kitchen');
   setLamps(levels(['kitchen']));
@@ -108,7 +109,7 @@ test('a glass is pale when out and warm when lit, by its own room\'s level only'
   // a level past 1 is the same as 1; a missing or odd one is out
   setLamps(levels(['kitchen']).map(v => v && 5)); assert.deepEqual(glassColour(scene, k), warm);
   setLamps([NaN]); setLamps(undefined);
-  I.fittings.forEach((f, i) => assert.deepEqual(glassColour(scene, i), pale, f.room));
+  I.fittings.forEach((f, i) => assert.deepEqual(glassColour(scene, i), out[i], f.room));
   assert.equal(halos.visible, false);
   dispose();
 });
@@ -122,7 +123,8 @@ test('a frame\'s dials reach the lamps through setLight', () => {
 });
 
 test('the lamps are built without the lit materials too', t => {
-  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors) throw new Error('no lit material'); super(o); } }
+  // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
+  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
   t.mock.method(console, 'warn', () => {});
   const out = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings});
   assert.equal(out.lit, false);
@@ -145,5 +147,19 @@ test('the glasses\' colours are uploaded again only when a level changes', () =>
   setLamps(levels(['kitchen'])); setLamps(levels(['kitchen']).map(x => x && 3));
   assert.equal(colours.version, v, 'the same levels (past 1 is full) upload nothing');
   setLamps(levels(['kitchen', 'study'])); assert.ok(colours.version > v);
+  dispose();
+});
+
+test('an unlit glass takes its room\'s light like a pale surface: dim and bluish at night, pale by day; only a lit one glows', async () => {
+  const {interiorDials} = await import('../shared/interior-light.js');
+  const {scene, setLight, dispose} = build(), k = slot('living'), sky = {zenith: [.1, .14, .2], horizon: [.1, .14, .2]};
+  const dials = (light, lamps) => ({...interiorDials({interior: I, calendar: {light, elevation: light ? 1 : -1, hour: light ? 12 : 0}, weather: {cloud: 0},
+    sky: light ? {zenith: [.62, .7, .76], horizon: [.83, .83, .75]} : sky, cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false}), lamps: lamps ?? I.rooms.map(() => 0)});
+  setLight(dials(0)); const night = glassColour(scene, k);
+  assert.ok(Math.max(...night) < .3, `dim at night: ${night}`); assert.ok(night[2] > night[0], `bluish at night: ${night}`);
+  setLight(dials(1)); const day = glassColour(scene, k);
+  assert.ok(Math.min(...day) > .3 && day[0] > night[0] * 3, `pale by day: ${day}`);
+  setLight(dials(0, levels(['living']))); const lit = glassColour(scene, k);
+  assert.ok(lit[0] > 2 && lit[0] > lit[2] * 3, `a lit glass glows warm: ${lit}`);
   dispose();
 });

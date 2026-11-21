@@ -27,7 +27,9 @@ import {buildFittings} from './fittings.js';
 // surface (about .78 on a wall, .89 on a floor), so a surface in full light (a dial sum of 1: beside the glass at noon, or a wall
 // by a lit lamp) looks as it did unlit and the rest of the room falls away from it; nothing in full light passes 1 and clips.
 const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
-const LIT_PLASTER = [1.05, .94, .82], LIT_BOARDS = [1.25, .86, .58];
+// Lit plaster's brushwork is calmer than unlit: less of its tint and more of its pale ground, so it reads as cream and its strokes
+// leave room under the light by the window before they clip.
+const LIT_PLASTER = [.6, .54, .47], LIT_PLASTER_BASE = [.45, .405, .315], LIT_BOARDS = [1.25, .86, .58];
 // How far inside its room a face's light is weighed past the wall's face, metres.
 const INTO = .03;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
@@ -67,7 +69,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   try {
     light = createInteriorLight(THREE, {rooms: I.rooms.length});
     const surface = light.material({map}), leafed = light.material({map, side: THREE.DoubleSide});
-    made = {surface, plastered: light.material({map, base: PLASTER_BASE}), leafed, casement: light.material({map, side: THREE.DoubleSide,
+    made = {surface, plastered: light.material({map, base: LIT_PLASTER_BASE}), leafed, casement: light.material({map, side: THREE.DoubleSide,
       stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})};
   } catch (error) {
     console.warn("The cabin's light could not be set up; its rooms stay evenly lit.", error);
@@ -326,13 +328,14 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const fittings = buildFittings(THREE, {interior: I, light, field, tints: {plaster, boards}, materials: {surface, plastered}});
   scene.add(fittings.object);
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
-  if (light) light.set(interiorDials({interior: I, ...DAYTIME})); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
+  const daytime = interiorDials({interior: I, ...DAYTIME}); fittings.setLight(daytime);
+  if (light) light.set(daytime); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   const clamp01 = x => Math.min(1, Math.max(0, x));
   // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
   return {scene, field, get lit() { return !!light; },
-    // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once; unlit, the lamps' glasses alone.
-    setLight(dials) { light?.set(dials); fittings.setLamps(dials?.lamps); },
+    // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
+    setLight(dials) { light?.set(dials); fittings.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on
     // this device, found only once it is first drawn): every lit surface of the shell, the fireplace and the fittings takes the
     // Lambert materials and the hemisphere light comes in. The glasses, halos and fire carry on. Once only; nothing when unlit.

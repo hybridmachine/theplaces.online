@@ -1,6 +1,7 @@
 import {ceilingHeight} from '../../../shared/interior.js';
 import {mergeGeometries, toThree, tube} from '../geometry.js';
 import {haloMaterial} from '../scene/lights.js';
+import {DIALS} from '../../../shared/interior-light.js';
 
 // The lamp in every room (the blueprint's interior.fittings, one per room, `at` the glass's centre [a, d, z], z above the ground
 // floor). A hanging lamp is a thin dark rod from the ceiling over its place down to a small shade over the glass; a wall lamp is a
@@ -13,7 +14,9 @@ import {haloMaterial} from '../scene/lights.js';
 
 const IRON = .5;                                   // how much of the boards' tint the ironwork keeps (linear)
 const GLASS = {radius: .06, height: .16};          // the glass, a short upright cylinder about `at`
-const PALE = [.8, .76, .66], WARM = [2.4, 1.45, .6];   // linear; the glass by day and fully lit (above 1 so the lit glass blooms); starting values, to tune by eye
+// Linear: an unlit glass is a pale surface, PALE times the room's light where it hangs (dim and bluish at night, pale by day); lit, it
+// glows WARM whatever the light (above 1 so it blooms).
+const PALE = [1.3, 1.24, 1.08], WARM = [2.4, 1.45, .6];
 const HALO = {radius: .18, opacity: .55, reach: .24};   // each halo is a ball about the glass; added over the room. A wall lamp's ball ends within `reach` of the wall's face (a walking eye stays .25 off it)
 const ROD = .012, SHADE = {radius: .12, from: .09, top: .2}, ARM = .018, CUP = {radius: .07, low: .1};
 const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
@@ -82,6 +85,13 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
   });
   const levels = new Float32Array(Math.max(1, I.rooms.length));
   let first = true;   // the glasses' colours are written the first time whatever the levels
+  // The room's light where each glass hangs, but for its own lamp: its day and fire weights, weighed once at the glass and averaged
+  // over four sideways facings, and the frame's sum of them (setLight), by which an unlit glass is lit like any pale surface.
+  const sideways = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
+  const atGlass = I.fittings.map(f => { const ws = sideways.map(nrm => field.weigh(f.at[2] >= rise - 1e-6 ? 1 : 0, f.at, nrm));
+    return {day: ws.reduce((t, w) => t + w.day, 0) / 4, fire: ws.reduce((t, w) => t + w.fire, 0) / 4}; });
+  const ambient = new Float32Array(n * 3).fill(1); let ambientChanged = false;
+  const finite = v => Number.isFinite(v) ? v : 0;
   const haloMat = haloMaterial(THREE); haloMat.uniforms.opacity.value = HALO.opacity; haloMat.uniforms.levels = {value: levels};
   // Each replacement must take: a halo shader that no longer matches would otherwise draw every halo at one constant opacity.
   const patched = (text, from, to) => { const out = text.replace(from, to); if (out === text) throw new Error(`The halo shader no longer has ${from}`); return out; };
@@ -97,20 +107,29 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
   // A frame's lamp levels, a number per room in interior.rooms order (a fully lit room is about 1.1; 1 and over is fully lit); a
   // room not named is out. Writes into the existing arrays: nothing is allocated, and nothing is uploaded when no level changed.
   function setLamps(given) {
-    const colours = glasses.instanceColor.array; let any = false, changed = false;
+    const colours = glasses.instanceColor.array; let any = false, changed = ambientChanged;
     for (let i = 0; i < levels.length; i++) { const v = Math.fround(clamp01(given?.[i])); changed ||= v !== levels[i]; levels[i] = v; }
     if (!changed && !first) return;
-    first = false;
+    first = false; ambientChanged = false;
     for (let k = 0; k < n; k++) {
       const level = levels[roomIndex.get(I.fittings[k].room)]; any ||= level > 0;
-      for (let c = 0; c < 3; c++) colours[k * 3 + c] = PALE[c] + (WARM[c] - PALE[c]) * level;
+      for (let c = 0; c < 3; c++) colours[k * 3 + c] = PALE[c] * ambient[k * 3 + c] * (1 - level) + WARM[c] * level;
     }
     glasses.instanceColor.needsUpdate = true; halos.visible = any;
+  }
+  // A frame's dials (interiorDials): the room's light at each glass (daylight, the night fill and the fire, not its own lamp), then the
+  // lamps. Nothing is allocated.
+  function setLight(dials) {
+    for (let k = 0; k < n; k++) for (let c = 0; c < 3; c++) {
+      const v = Math.fround(finite(dials?.day?.[c]) * atGlass[k].day + finite(dials?.fill?.[c]) + DIALS.fireWarm[c] * finite(dials?.fire) * atGlass[k].fire);
+      if (v !== ambient[k * 3 + c]) { ambient[k * 3 + c] = v; ambientChanged = true; }
+    }
+    setLamps(dials?.lamps);
   }
   setLamps();
   // The lit surfaces given up (buildInterior's fallBack): the ironwork takes the shell's flat surface; glasses and halos carry on.
   function fallBack(flat) { object.traverse(o => { if (o.name === 'ironwork') o.material = flat.surface; }); }
-  return {object, setLamps, fallBack, dispose() {
+  return {object, setLamps, setLight, fallBack, dispose() {
     object.traverse(o => o.geometry?.dispose()); glassMaterial.dispose(); haloMat.dispose(); glasses.dispose();
   }};
 }
