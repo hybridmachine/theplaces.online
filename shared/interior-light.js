@@ -9,15 +9,15 @@ import {overcast} from './sky.js';
 const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v === 'object' ? Object.freeze(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]))) : v;
 // Tuned by eye against browser captures. Reaches are metres at which a source's share has fallen to a tenth. By day `face` is the share
 // of a pane's light a surface takes whichever way it faces (the rest as it faces the pane: the room's walls hand the light about);
-// `borrow` the share of a neighbour's daylight a point that sees no pane takes at the opening it comes through, falling off over
-// `through` metres from it and, as through a pane, weighed by how squarely the point faces the opening (`aside` whichever way), the
-// light taken as coming down through the opening from `behind` metres past its head; `hop` the share of the best a neighbour takes
-// at its own openings that it passes on through one more; `cap` the most daylight any point takes, so that the light by the glass,
+// an opening hands a point that sees no pane the daylight on the neighbour's floor just inside it, times `borrow`, falling off over
+// `through` metres from the opening and, as through a pane, weighed by how squarely the point faces it (`aside` whichever way), the
+// light taken as coming down through the opening from `behind` metres past its head, and never more than `keep` of that floor's light;
+// `cap` the most daylight any point takes, so that the light by the glass,
 // strong enough to fill the room, clips only on the brightest brushwork. A lamp
 // reaches the far walls of its own room (a wall 4 m off takes more than the floor), and `spill` of that through an opening into a
 // joined room, never through a wall; the fire's `face` is the share of its light a
 // surface takes whichever way it faces, so the wall beside the chimney breast, which sees the fire only edgewise, is warmed too; `door` the front door's strength against a window's; `floor` the least.
-export const LIGHT = deep({day: {reach: 10, face: .4, borrow: .9, through: 14, aside: .2, door: .5, floor: .1, cap: .55, hop: .75, behind: 2}, lamp: {reach: 8, floor: .15, spill: .85}, fire: {reach: 6, face: .5}});
+export const LIGHT = deep({day: {reach: 10, face: .4, borrow: 1.25, keep: .92, through: 14, aside: .2, door: .5, floor: .1, cap: .55, behind: 2}, lamp: {reach: 8, floor: .15, spill: .85}, fire: {reach: 6, face: .5}});
 
 const UP = [0, 0, 1], OFF = .02, SHORT = .05;   // metres a sight line starts off the surface and stops short of its target
 const falloff = (dist, reach) => 1 / (1 + (dist / reach * 3) ** 2);
@@ -41,7 +41,7 @@ export function createLightField(interior, openings) {
     const m = (op.span[0] + op.span[1]) / 2, other = op.rooms.find(x => x !== r.id), oth = I.rooms[ids.get(other)];
     const into = op.line === 'a' ? [op.at + (oth.a[0] >= op.at ? OFF : -OFF), m] : [m, op.at + (oth.d[0] >= op.at ? OFF : -OFF)];
     const across = op.line === 'a' ? [Math.sign(into[0] - op.at), 0, 0] : [0, Math.sign(into[1] - op.at), 0];
-    return {floor: r.floor, room: r.id, other, mid: op.line === 'a' ? [op.at, m] : [m, op.at], into, across, direct: null, share: null};
+    return {floor: r.floor, room: r.id, other, mid: op.line === 'a' ? [op.at, m] : [m, op.at], into, across, up: 0, face: 0};
   }));
 
   // The rooms joined to each room by an opening (on its floor) that have a fitting, by index.
@@ -67,39 +67,40 @@ export function createLightField(interior, openings) {
     }
     return Math.min(1, sum);
   };
-  // The panes' daylight at an opening, 1.5 m up just inside the neighbour, as it reaches a surface there facing up or facing into the
-  // neighbour (the way the light comes through), whichever takes more.
-  const gapDirect = g => g.direct ??= Math.max(...[UP, g.across].map(n => direct(g.floor, [g.into[0], g.into[1], g.floor * I.floorRise + 1.5], n, null)));
-  // Its share: that, or `hop` of the best share the neighbour takes at its other openings, whichever is more, so a room two or more
-  // rooms from any pane still takes some, through the rooms between, a little less at each. The shares are settled together, once,
-  // until none grows (each hop takes `hop` of the last, so this ends; a ring of rooms only hands the best on round it).
-  const flat = gaps.flat();
-  for (const g of flat) g.share = gapDirect(g);
+  // What a point takes of an opening's share: by its distance from the opening's middle and, as through a pane, by how squarely it
+  // faces the way the light comes, down through the opening from `behind` metres beyond its head (so the floor and the far wall take
+  // it, and a jamb or head in the doorway, which looks across it, takes little; `aside` of it whichever way); never more than `keep`.
+  const taken = (g, point, normal) => {
+    const z = g.floor * I.floorRise, d = toward(point, [g.mid[0], g.mid[1], z + I.doorHead / 2]).d;
+    const u = toward(point, [g.mid[0] + g.across[0] * LIGHT.day.behind, g.mid[1] + g.across[1] * LIGHT.day.behind, z + I.doorHead]).u;
+    return Math.min(LIGHT.day.keep, LIGHT.day.borrow * (along(normal, u) * (1 - LIGHT.day.aside) + LIGHT.day.aside) * falloff(d, LIGHT.day.through));
+  };
+  // An opening's share is the daylight the neighbour takes just inside it, like for like: `up` on its floor, `face` 1.5 m up on a
+  // surface looking on into the neighbour (as a wall beyond the opening, facing it, does), each from the panes or borrowed in its
+  // turn through the neighbour's other openings, falling across the neighbour as it does for any point there. So no floor beyond an
+  // opening is brighter than the floor the light crossed to reach it, and a room two or more rooms from any pane takes a little
+  // less at each. The shares are settled together, once, until none grows (each pass hands on at most `keep` of the last, so this ends).
+  const flat = gaps.flat(), foot = g => [g.into[0], g.into[1], g.floor * I.floorRise], chest = g => [g.into[0], g.into[1], g.floor * I.floorRise + 1.5];
+  const share = (g, normal) => g.up + Math.max(0, g.face - g.up) * along(normal, g.across);
+  for (const g of flat) { g.up = direct(g.floor, foot(g), UP, null); g.face = direct(g.floor, chest(g), g.across, null); }
   for (let grew = true, k = 0; grew && k < flat.length; k++) {
     grew = false;
-    for (const g of flat) {
-      const passed = LIGHT.day.hop * Math.max(0, ...gaps[ids.get(g.other)].filter(h => h.other !== g.room).map(h => h.share));
-      if (passed > g.share + 1e-12) { g.share = passed; grew = true; }
+    for (const g of flat) for (const h of gaps[ids.get(g.other)]) {
+      if (h.other === g.room) continue;
+      const up = share(h, UP) * taken(h, foot(g), UP), face = share(h, g.across) * taken(h, chest(g), g.across);
+      if (up > g.up + 1e-12) { g.up = up; grew = true; }
+      if (face > g.face + 1e-12) { g.face = face; grew = true; }
     }
   }
-  const gapShare = g => g.share;
 
   function weigh(floor, point, normal) {
     const at = roomAt(I, floor, [point[0] + normal[0] * SHORT, point[1] + normal[1] * SHORT]), index = at ? ids.get(at.id) : -1, id = at && at.id;
     // day: the panes in sight, or the share borrowed through the room's openings (each falling with distance from it) where the best
     // of those is more, as it is for a point that sees no pane or sees one only far off; and never less than the floor
     let dayW = direct(floor, point, normal, id);
-    if (at) for (const g of gaps[index]) {
-      const share = gapShare(g);
-      if (!(share > 0)) continue;
-      // falling with distance from the opening's middle; on what faces back the way the light comes, down through the opening from
-      // `behind` metres beyond its head (so the floor and the far wall take it, and a jamb or head in the doorway, which looks across
-      // it, takes little), and only `aside` of it on what does not
-      const z = g.floor * I.floorRise, d = toward(point, [g.mid[0], g.mid[1], z + I.doorHead / 2]).d;
-      const u = toward(point, [g.mid[0] + g.across[0] * LIGHT.day.behind, g.mid[1] + g.across[1] * LIGHT.day.behind, z + I.doorHead]).u;
-      dayW = Math.max(dayW, LIGHT.day.borrow * share * (along(normal, u) * (1 - LIGHT.day.aside) + LIGHT.day.aside) * falloff(d, LIGHT.day.through));
-    }
-    dayW = Math.max(LIGHT.day.floor, dayW);
+    if (at) for (const g of gaps[index]) dayW = Math.max(dayW, share(g, normal) * taken(g, point, normal));
+    // never less than the floor, which it nears softly, so that the little a far room takes still falls from its doorway to its far wall
+    dayW = Math.hypot(LIGHT.day.floor, dayW);
     // lamp: the room's own fitting, never less than the floor; and the spill of the stronger of the neighbours' fittings in plain
     // sight through an opening (the plan line to it crosses no solid wall) on a surface facing it, by the same rule times LIGHT.lamp.spill
     let lamp = 0, spill = 0, spillRoom = -1;
