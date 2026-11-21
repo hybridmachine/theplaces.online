@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {KINDS, footprint, corners} from '../shared/furniture.js';
+import {KINDS, footprint, corners, bareInterior} from '../shared/furniture.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
@@ -451,4 +451,12 @@ test('no light source and nothing new in the overlay', () => {
   let found = 0; inside.overlay.traverse(o => { if (o.name === 'shades' || o.name === 'grounding') found++; });
   assert.equal(found, 0);
   inside.dispose(); bare.dispose();
+});
+
+test('a blueprint with no furniture reports it is not furnished and draws no furniture', () => {
+  const inside = build(bareInterior(I));
+  assert.equal(inside.furnished, false);
+  let vertices = 0;
+  inside.scene.traverse(o => { if (o.name?.startsWith('furniture') && o.geometry) vertices += o.geometry.getAttribute('position')?.count ?? 0; });
+  assert.equal(vertices, 0);
 });

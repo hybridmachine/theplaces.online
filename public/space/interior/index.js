@@ -400,8 +400,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   let withRooms = false;
   const overlayWithRooms = on => { if (on === withRooms) return; withRooms = on; (on ? scene : overlay).add(fittings.overlay, fireplace.overlay); };
   return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
-    // Whether the furniture was built, its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
-    furnished: !!furniture, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
+    // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
+    furnished: !!furniture && I.furniture.length > 0, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
     setLight(dials) { light?.set(dials); fittings.setLight(dials); furniture?.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on

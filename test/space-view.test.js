@@ -12,6 +12,7 @@ import {viewConditions} from '../shared/world.js';
 import {WorldStore} from '../src/store.js';
 import {sceneText} from '../public/scene-description.js';
 import {stepIndoors} from '../shared/walker.js';
+import {bareInterior} from '../shared/furniture.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -187,6 +188,12 @@ test('a furnished view walks by the furnished blueprint, and one whose furniture
   assert.deepEqual(bare.view.walkPlan.obstacles, I.breasts); assert.equal(bare.view.interior, I, 'the place memory keeps the furnished blueprint');
   const x = walkWest(bare.view);
   assert.ok(x < sofa.at[0] && x >= breast.a[1] - 1e-6, `stops at the chimney breast, at ${x}`);
+});
+
+test('a view built from the bare blueprint is not furnished, so its description carries no clause', async () => {
+  const {view} = await rig({interior: bareInterior(I)});
+  assert.equal(view.furnished, false);
+  assert.doesNotMatch(sceneText({world: {epoch: 0, nest: {stage: 'built'}}}, 0, {room: view.room, furnished: view.furnished}).description, /sofa/);
 });
 
 // ── The cabin's windows, drawn through SpaceView.render with a recording renderer ──
