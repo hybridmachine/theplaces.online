@@ -1,4 +1,5 @@
 import {KINDS} from '../../../shared/furniture.js';
+import {basis, toThree, V} from '../geometry.js';
 import {hash, stream} from '../scene/noise.js';
 
 // The furniture kit: flat helpers that make a piece's parts from buildInterior's `face`, so every vertex carries the light it takes
@@ -7,7 +8,8 @@ import {hash, stream} from '../scene/noise.js';
 // interior's [a, d, z] at the entry's `at` and `turn`, and every helper takes such a map (`at`) first. Colours are tint functions of
 // the interior point (buildInterior's `tint`). Each helper returns an array of geometries carrying position, normal, uv, colour, light
 // and spill. Nothing is lit by anything but the field: what the field cannot know (a shelf's inside, a bench's underside) is darkened
-// in the tint, by TUCK.
+// in the tint, by TUCK. The sculpted helpers (turned, roll, drape) make curved surfaces that are not `face`s: they set their own uv and
+// colour and are weighed by `lit` in the room their map names (`placed` and `moved` carry the entry's room).
 
 // How much of its tint a tucked face keeps (linear).
 export const TUCK = .45;
@@ -17,6 +19,10 @@ const TILE = .9;
 const BROKEN = .012;
 // How many cells a cushion's side is cut into each way: enough for its bulge and its dent to read.
 const CUSHION_CUTS = 4;
+// A roll's rings stand at most this far apart along it (metres), so its light, weighed at its vertices, follows it.
+const ROLL_RING = .4;
+// A drape's cells are about this size (metres), and never more than DRAPE_CUTS a side.
+const DRAPE_CELL = .1, DRAPE_CUTS = 12;
 // A box's faces, each by its four corners (corner k is [x, y, z] = [k & 1, k >> 1 & 1, k >> 2 & 1] of the box) at (s, t) = (0, 0),
 // (1, 0), (0, 1), (1, 1), and its outward normal in the piece's frame. The front faces −y, the way the piece faces.
 const FACES = {under: [[0, 1, 2, 3], [0, 0, -1]], top: [[4, 5, 6, 7], [0, 0, 1]], front: [[0, 1, 4, 5], [0, -1, 0]], back: [[2, 3, 6, 7], [0, 1, 0]],
@@ -29,14 +35,15 @@ const seedOf = (...xs) => xs.reduce((h, x) => hash(Math.round(x * 1000), h, 977)
 export function createKit(THREE, {face, lit, tint}) {
   // The piece's frame into the interior's: [a, d, z] for local (x, y, z), turned anticlockwise by `turn` about `at` and raised by
   // `lift` (the floor, or the top of whatever the piece is set on).
-  const placed = ({at, turn = 0, lift = 0}) => {
+  // The map carries the entry's `room`, in which the sculpted helpers weigh what they make.
+  const placed = ({at, turn = 0, lift = 0, room}) => {
     const c = Math.cos(turn), s = Math.sin(turn);
-    return (x, y, z) => [at[0] + x * c - y * s, at[1] + x * s + y * c, lift + z];
+    return Object.assign((x, y, z) => [at[0] + x * c - y * s, at[1] + x * s + y * c, lift + z], {room});
   };
   // A frame inside another: tilted by `tilt` about its own x axis (its +y rising), turned by `turn` about its z, set at `offset`.
   const moved = (at, [ox, oy, oz] = [0, 0, 0], {turn = 0, tilt = 0} = {}) => {
     const c = Math.cos(turn), s = Math.sin(turn), ct = Math.cos(tilt), st = Math.sin(tilt);
-    return (x, y, z) => { const y1 = y * ct - z * st, z1 = y * st + z * ct; return at(ox + x * c - y1 * s, oy + x * s + y1 * c, oz + z1); };
+    return Object.assign((x, y, z) => { const y1 = y * ct - z * st, z1 = y * st + z * ct; return at(ox + x * c - y1 * s, oy + x * s + y1 * c, oz + z1); }, {room: at.room});
   };
   // A local direction in the interior's frame.
   const direction = (at, n) => { const o = at(0, 0, 0), q = at(...n); return [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; };
@@ -86,7 +93,8 @@ export function createKit(THREE, {face, lit, tint}) {
 
   // A cushion over the box [x0, x1] × [y0, y1] × [z0, z1]: every side cut CUSHION_CUTS × CUSHION_CUTS, its sides bulging out and its top up, the top
   // sagging toward a dent at a seeded place. Its edges stay where the box's are, so its faces close; its bottom lies flat on its seat.
-  const cushion = (at, [x0, x1], [y0, y1], [z0, z1], colour, {seed, tile = TILE * .6, bulge = .5, sag = .3} = {}) => {
+// Sides named in `skip` (as box's) are not drawn: those nothing will see.
+  const cushion = (at, [x0, x1], [y0, y1], [z0, z1], colour, {seed, tile = TILE * .6, bulge = .5, sag = .3, skip = []} = {}) => {
     const random = stream(seed ?? seedOf(...at(x0, y0, z0)), 5), hx = (x1 - x0) / 2, hy = (y1 - y0) / 2, hz = (z1 - z0) / 2;
     const cx = x0 + hx, cy = y0 + hy, cz = z0 + hz, rise = bulge * hz, out = .5 * bulge * hz;
     const dent = [(random() - .5) * 1.1, (random() - .5) * 1.1], deep = sag * hz * (.7 + .6 * random());
@@ -102,7 +110,7 @@ export function createKit(THREE, {face, lit, tint}) {
       under: [(s, t) => [2 * s - 1, 2 * t - 1, -1], 2 * hx, 2 * hy], top: [(s, t) => [2 * s - 1, 2 * t - 1, 1], 2 * hx, 2 * hy],
       front: [(s, t) => [2 * s - 1, -1, 2 * t - 1], 2 * hx, 2 * hz], back: [(s, t) => [2 * s - 1, 1, 2 * t - 1], 2 * hx, 2 * hz],
       left: [(s, t) => [-1, 2 * s - 1, 2 * t - 1], 2 * hy, 2 * hz], right: [(s, t) => [1, 2 * s - 1, 2 * t - 1], 2 * hy, 2 * hz]};
-    return Object.entries(sides).map(([name, [unit, across, up]]) => {
+    return Object.entries(sides).filter(([name]) => !skip.includes(name)).map(([name, [unit, across, up]]) => {
       const n = FACES[name][1];
       return face((s, t) => at(...shape(...unit(s, t), n)), across, up, direction(at, n), colour, {tile, cols: CUSHION_CUTS, rows: CUSHION_CUTS});
     });
@@ -175,5 +183,78 @@ export function createKit(THREE, {face, lit, tint}) {
     return out;
   };
 
-  return {placed, moved, board, box, post, cushion, books, framed, mat, lit, tint};
+  // ── the sculpted helpers ──
+  // A grid of local points `rows[j][i]` with their local normals, mapped by `at` into the interior; uv in metres along i and along j
+  // over `tile`, colour `colourOf(point, j)` (a tint, which may read the row), each triangle wound to face its vertices' normals (a
+  // triangle with no area is left out). Weighed by `lit` in `at`'s room.
+  const grid = (at, rows, normals, colourOf, tile) => {
+    const nj = rows.length, ni = rows[0].length, position = [], normal = [], uv = [], color = [], pts = [], ns = [];
+    const along = Array(nj).fill(0), up = Array(ni).fill(0);
+    for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
+      const p = at(...rows[j][i]), n = V.norm(direction(at, normals[j][i]));
+      if (i) along[j] += dist(p, pts[j * ni + i - 1]);
+      if (j) up[i] += dist(p, pts[(j - 1) * ni + i]);
+      pts.push(p); ns.push(n);
+      position.push(...toThree(p)); normal.push(...toThree(n)); uv.push(along[j] / tile, up[i] / tile); color.push(...colourOf(p, j));
+    }
+    const index = [], tri = (p, q, r) => {
+      const c = V.cross(V.sub(pts[q], pts[p]), V.sub(pts[r], pts[p]));
+      if (V.len(c) < 1e-10) return;
+      index.push(...(V.dot(c, V.add(V.add(ns[p], ns[q]), ns[r])) >= 0 ? [p, q, r] : [p, r, q]));
+    };
+    for (let j = 0; j < nj - 1; j++) for (let i = 0; i < ni - 1; i++) {
+      const p = j * ni + i, q = p + 1, r = p + ni + 1, t = p + ni;
+      tri(p, q, r); tri(p, r, t);
+    }
+    const g = new THREE.BufferGeometry();
+    for (const [name, list, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) g.setAttribute(name, new THREE.Float32BufferAttribute(list, size));
+    g.setIndex(index);
+    return lit(g, at.room);
+  };
+  // A profile [[radius, z], …] spun about the local z axis of `at` in `segments`: each point's normal the mean of its two spans' (a
+  // point repeated is a crease: each copy takes the span on its own side). Going up the outside, the normals face out.
+  const lathe = (at, profile, colourOf, segments, tile) => {
+    const spans = profile.slice(1).map(([r, z], k) => { const [r0, z0] = profile[k], l = Math.hypot(r - r0, z - z0); return l < 1e-9 ? null : [(z - z0) / l, -(r - r0) / l]; });
+    const flat = profile.map((_, k) => {
+      const [p, q] = [spans[k - 1], spans[k]], m = p && q ? [p[0] + q[0], p[1] + q[1]] : p || q || [1, 0], l = Math.hypot(...m) || 1;
+      return [m[0] / l, m[1] / l];
+    });
+    const ring = f => Array.from({length: segments + 1}, (_, i) => f(2 * Math.PI * i / segments));
+    return grid(at, profile.map(([r, z]) => ring(a => [r * Math.cos(a), r * Math.sin(a), z])),
+      flat.map(([nr, nz]) => ring(a => [nr * Math.cos(a), nr * Math.sin(a), nz])), colourOf, tile);
+  };
+
+  // A turned piece: `profile` [[radius, z], …] (bottom to top, outside first; repeat a point for a crease) spun about the vertical at
+  // [x, y] of `at`. `colourOf(point, k)` is a tint, which may read k, the profile point's index. Returns [geometry].
+  const turned = (at, [x, y], profile, colourOf, {segments = 12, tile = TILE * .5} = {}) =>
+    [lathe(Object.assign((u, v, w) => at(x + u, y + v, w), {room: at.room}), profile, colourOf, segments, tile)];
+
+  // A round bar of `radius` between the local points `from` and `to`, its ends closed (in `ends`, by default its own colour), with a
+  // ring every ROLL_RING at most. Returns [geometry].
+  const roll = (at, from, to, radius, colour, {sides = 8, ends = colour, tile = TILE * .5} = {}) => {
+    const axis = V.sub(to, from), length = V.len(axis), u = V.norm(axis), [r1, r2] = basis(u);
+    const frame = Object.assign((x, y, z) => at(...V.add(V.add(V.add(from, r1, x), r2, y), u, z)), {room: at.room});
+    const n = Math.max(1, Math.ceil(length / ROLL_RING - 1e-9)), side = Array.from({length: n + 1}, (_, k) => [radius, length * k / n]);
+    const profile = [[0, 0], [radius, 0], ...side, [radius, length], [0, length]], last = profile.length - 2;
+    return [lathe(frame, profile, (p, k) => (k < 2 || k > last ? ends : colour)(p), sides, tile)];
+  };
+
+  // A sheet of cloth over `pointOf(s, t)` (local points, s and t in [0, 1]; its front is the side ∂p/∂s × ∂p/∂t points to), `across`
+  // and `down` metres along s and t, folded: pushed out along its front by up to `folds` metres in seeded waves across s, as much as
+  // `free(s, t)` (0 where it rests on something, 1 where it hangs; by default t). Double-sided: its back is drawn too, a few
+  // millimetres behind, facing the other way. Returns [front, back].
+  const drape = (at, pointOf, across, down, colour, {seed, folds = .03, free = (s, t) => t, tile = TILE * .6} = {}) => {
+    const random = stream(seed ?? seedOf(...at(0, 0, 0)), 13), cols = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(across / DRAPE_CELL))), rows = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(down / DRAPE_CELL)));
+    const waves = [0, 1, 2].map(k => [2 + k * 1.7 + random() * 1.5, random() * 6.3, 1 / (k + 1.4)]), h = 1e-3;
+    const front = (s, t) => V.norm(V.cross(V.sub(pointOf(Math.min(1, s + h), t), pointOf(Math.max(0, s - h), t)), V.sub(pointOf(s, Math.min(1, t + h)), pointOf(s, Math.max(0, t - h)))));
+    const fold = (s, t) => folds * free(s, t) * waves.reduce((sum, [f, phase, w]) => sum + w * (.5 + .5 * Math.sin(2 * Math.PI * f * s + phase + 2.2 * t)), 0) / 1.4;
+    const pts = Array.from({length: rows + 1}, (_, j) => Array.from({length: cols + 1}, (_, i) => { const s = i / cols, t = j / rows; return V.add(pointOf(s, t), front(s, t), fold(s, t)); }));
+    // the folded sheet's own normals, from its neighbours
+    const at2 = (i, j) => pts[Math.min(rows, Math.max(0, j))][Math.min(cols, Math.max(0, i))];
+    const normals = pts.map((row, j) => row.map((_, i) => V.norm(V.cross(V.sub(at2(i + 1, j), at2(i - 1, j)), V.sub(at2(i, j + 1), at2(i, j - 1))))));
+    const back = pts.map((row, j) => row.map((p, i) => V.add(p, normals[j][i], -.004)));
+    return [grid(at, pts, normals, colour, tile), grid(at, back, normals.map(row => row.map(n => V.scale(n, -1))), colour, tile)];
+  };
+
+  return {placed, moved, board, box, post, cushion, books, framed, mat, turned, roll, drape, lit, tint};
 }

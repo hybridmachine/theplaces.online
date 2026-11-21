@@ -355,7 +355,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     const weigh = coarseWeigh();
     furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
       lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint, tints: {plaster, boards, dark},
-      materials: {surface, plastered, leafed}});
+      materials: {surface, plastered, leafed}, treads: TREADS});
     scene.add(furniture.object);
   } catch (error) {
     console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
