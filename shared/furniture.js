@@ -2,20 +2,21 @@
 // Pure data and geometry: no three.js. Metres, in the interior frame (a, d).
 // A piece faces its local −deep side; `turn` (radians, anticlockwise seen from above) rotates it about `at`.
 
-const kind = (standing, size, height) => Object.freeze({standing, size: Object.freeze(size), height});
-const solid = (size, height) => kind('solid', size, height);
+// `seat`, where a piece has one, is its seat's height (metres): what is set on it sits there rather than on its top.
+const kind = (standing, size, height, extra = {}) => Object.freeze({standing, size: Object.freeze(size), height, ...extra});
+const solid = (size, height, extra) => kind('solid', size, height, extra);
 const walkOver = (height) => kind('walk-over', [1, 1], height);
 const wallHung = (height) => kind('wall-hung', [0, 0], height);
 const setOn = (height) => kind('set-on', [0, 0], height);
 
 export const KINDS = Object.freeze({
-  sofa: solid([2.2, .9], .85),
-  armchair: solid([.85, .85], .9),
+  sofa: solid([2.2, .9], .85, {seat: .45}),
+  armchair: solid([.85, .85], .9, {seat: .45}),
   'low-table': solid([1.0, .6], .42),
   'side-table': solid([.45, .45], .55),
   console: solid([1.8, .35], .85),
   bookshelf: solid([2.6, .35], 2.1),
-  'window-seat': solid([1.8, .48], .45),
+  'window-seat': solid([1.8, .48], .45, {seat: .45}),
   'standing-lamp': solid([.3, .3], 1.6),
   'log-basket': solid([.45, .45], .4),
   'fire-irons': solid([.2, .2], .7),
