@@ -5,6 +5,12 @@ import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
 import {PainterlyPass, canPaint} from '../public/space/painterly-pass.js';
+import {DIALS, interiorDials} from '../shared/interior-light.js';
+import {cottageFixture, createCottageState} from '../shared/cottage.js';
+import {pathLightLevel} from '../shared/path-lights.js';
+import {viewConditions} from '../shared/world.js';
+import {WorldStore} from '../src/store.js';
+import {sceneText} from '../public/scene-description.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -165,15 +171,17 @@ const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I
   Object.assign(view, {space: S, dressing: D, interior, skyConfig: SCENES[0].sky, art: stubArt(), renderer, camera, check: false, fixture: null,
     motion: true, frozenMotion: null, lastMotion: null, frozenCelestial: null, lastCelestial: null, celestialStudy: null, shown: true, passage: null,
     disposed: false, failed: false, state: structuredClone(state), door: 0, inside: null, insideFailed: false, views: null, viewsFailed: false, live: [],
+    dials: null, dialsFailed: false, lightChecked: false,
     scene: new THREE.Scene(), meter, budget: createViewBudget(), passMode: tier === 'plain' ? 'off' : tier,
     pass: null,
-    yard: {cottage: {main: 0, second: 0, open: .6}, shown: true, setSky() {}, setGarden() {}, setCabinShown(s) { this.shown = s; }, ...yard},
+    yard: {cottage: {main: 0, second: 0, open: .6}, shown: true, doorway: [], setSky() {}, setGarden() {}, setCabinShown(s) { this.shown = s; }, setDoorway(level) { this.doorway.push(level); }, ...yard},
     sky: {update: () => ({zenith: [.6, .7, .76], horizon: [.83, .83, .75]}), centreOn() {}},
     life: {frames: [], update(f) { this.frames.push(f); }, aim() {}}});
   view.step = () => {}; view.applyLight = () => {};
   if (tier !== 'plain') view.pass = view.makePass(renderer);   // as build makes it
   view.buildInside();
-  const frame = (n = 1) => { for (let i = 0; i < n; i++) view.render({world: {epoch: 0}}, 1_000_000 + i * 16); };
+  // n frames 16 ms apart from `now`, of `snapshot` (by default a world with no cottage), under `study`.
+  const frame = (n = 1, {snapshot = {world: {epoch: 0}}, now = 1_000_000, study = null} = {}) => { for (let i = 0; i < n; i++) view.render(snapshot, now + i * 16, study); };
   // The yard scene's draws, and the options the pass was last given.
   const yardDraws = () => log.filter(e => e[0] === 'render' && e[1] === view.scene);
   return {THREE, view, log, renderer, frame, yardDraws, meter, D, failing};
@@ -326,4 +334,142 @@ test('a view prepare that throws gives the views up, with one warning, and leave
   assert.equal(warnings.length, 1); assert.equal(view.viewsFailed, true);
   assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
   assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0));
+});
+
+// ── The rooms' light, driven by the world each frame ──
+const level = (lamps, id) => lamps[I.rooms.findIndex(r => r.id === id)];
+// Spies on the rooms' setLight and setFire, passing each on.
+const watchRooms = view => {
+  const seen = {light: [], fire: []}, {setLight, setFire} = view.inside;
+  view.inside.setLight = d => { seen.light.push(d); setLight(d); }; view.inside.setFire = f => { seen.fire.push(f); setFire(f); };
+  return seen;
+};
+const EPOCH = 1_800_000_000_000;
+// A world moment in the dead of night (no daylight, the path lights full), and a real world then whose cottage has `rooms` lit since
+// long before and its hearth as given.
+const midnight = (() => { for (let t = EPOCH; ; t += 600_000) { const {calendar} = viewConditions(EPOCH, t, null); if (calendar.light === 0 && pathLightLevel(calendar) === 1) return t; } })();
+const worldAt = (t, rooms, hearth = {on: false, since: EPOCH, lastBurn: null}) => {
+  const store = new WorldStore(':memory:', EPOCH);
+  try { const snapshot = store.snapshot(t); snapshot.world.cottage = {...createCottageState(EPOCH, EPOCH), rooms, hearth}; return snapshot; } finally { store.close(); }
+};
+
+test('indoors each frame the rooms are given the dials and the fire its level', async () => {
+  const {view, frame} = await rig(), seen = watchRooms(view), now = 1_000_000;
+  frame(3, {now, study: 'night'});
+  assert.equal(seen.light.length, 3); assert.equal(seen.fire.length, 3);
+  // the dials are interiorDials' own for this frame's world, sky, pose and clock
+  const at = now + 32, {calendar, weather} = viewConditions(0, at, 'night');
+  const want = interiorDials({interior: I, calendar, weather, sky: {zenith: [.6, .7, .76], horizon: [.83, .83, .75]}, cottage: undefined, pose: cottageFixture('night'),
+    now: at, seconds: at / 1000, motion: true, study: 'night'});
+  assert.deepEqual(seen.light.at(-1), want); assert.equal(view.dials, seen.light.at(-1));
+  assert.deepEqual(seen.fire.at(-1), {fire: want.fire / DIALS.fire, embers: want.embers, seconds: at / 1000, motion: true});
+  assert.ok(level(want.lamps, 'living') > 0 && want.fire > 0, 'the night study lights the lamp and the fire');
+  // the lit surfaces and the glasses take them
+  const lit = view.inside.scene.getObjectByName('walls').material, shader = {uniforms: {}, vertexShader: '', fragmentShader: ''};
+  lit.onBeforeCompile(shader); assert.ok(Math.abs(shader.uniforms.fire.value - want.fire) < 1e-12);
+});
+
+test('at night with the main room lit, the living room\'s lamp dial is up and the description says so', async () => {
+  const snapshot = worldAt(midnight, {main: true, second: false}), {view, frame} = await rig();
+  frame(1, {snapshot, now: midnight});
+  assert.equal(level(view.dials.lamps, 'living'), DIALS.lamp);
+  assert.equal(level(view.dials.lamps, 'study'), 0);
+  assert.deepEqual(view.lit, {room: 'living room', lamp: true, fire: 'cold'});
+  assert.match(sceneText(snapshot, midnight, {room: view.room, lit: view.lit}).description, /^Inside the cabin, in the living room\. The lamp is lit, and the hearth is cold\. /);
+  // with the main room dark, the living room's lamp is out; with the fire lit an hour ago it burns
+  const dark = worldAt(midnight, {main: false, second: false}, {on: true, since: midnight - 3_600_000, lastBurn: null}), other = await rig();
+  other.frame(1, {snapshot: dark, now: midnight});
+  assert.equal(level(other.view.dials.lamps, 'living'), 0);
+  assert.deepEqual(other.view.lit, {room: 'living room', lamp: false, fire: 'burning'});
+  assert.match(sceneText(dark, midnight, {room: other.view.room, lit: other.view.lit}).description, /The lamp is out, and the fire is burning\. /);
+  // in another room nothing is said of the fire; in the yard nothing is lit
+  other.view.state = {place: 'cabin', floor: 0, position: [14, 2], yaw: 0, pitch: 0}; other.frame(1, {snapshot: dark, now: midnight});
+  assert.deepEqual(other.view.lit, {room: 'study', lamp: false, fire: null});
+  other.view.state = {place: 'yard', position: [...S.arrival.position], yaw: 0, pitch: 0}; assert.equal(other.view.lit, null);
+});
+
+test('the doorway warms with the hall\'s lamp, and is never touched without the interior', async () => {
+  const {view, frame} = await rig();
+  frame(2, {study: 'night'});
+  assert.equal(view.yard.doorway.length, 2); assert.equal(view.yard.doorway.at(-1), view.dials.doorway);
+  assert.equal(view.yard.doorway.at(-1), level(view.dials.lamps, 'hall') / DIALS.lamp); assert.equal(view.yard.doorway.at(-1), 1);
+  frame(1, {study: 'day'});
+  assert.equal(view.yard.doorway.at(-1), 0, 'by day the hall\'s night lamp is out and the doorway dark');
+  const off = await rig({interior: null, state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
+  off.frame(3, {study: 'night'});
+  assert.deepEqual(off.view.yard.doorway, []); assert.equal(off.view.dials, null); assert.equal(off.view.lit, null);
+});
+
+test('a check fixture can set the hearth and the lamps', async () => {
+  const {view, frame} = await rig(), hall = I.rooms.findIndex(r => r.id === 'hall');
+  const fixture = {hearth: {fire: 0, embers: .6}, lamps: I.rooms.map((_, i) => i === hall ? 1 : 0)};
+  view.fixture = fixture; frame(1, {study: 'night'});
+  assert.ok(level(view.dials.lamps, 'living') > 0 && view.dials.fire > 0, 'without ?check a fixture is ignored');
+  view.check = true; frame(1, {study: 'night'});
+  assert.equal(view.dials.fire, 0); assert.equal(view.dials.embers, .6);
+  assert.equal(level(view.dials.lamps, 'living'), 0); assert.equal(level(view.dials.lamps, 'hall'), DIALS.lamp);
+  assert.equal(view.yard.doorway.at(-1), 1);
+  assert.deepEqual(view.lit, {room: 'living room', lamp: false, fire: 'embers'});
+  // each on its own: the hearth alone leaves the lamps to the world
+  view.fixture = {hearth: {fire: 1, embers: 1}}; frame(1, {study: 'night'});
+  assert.equal(view.dials.fire, DIALS.fire); assert.equal(level(view.dials.lamps, 'living'), DIALS.lamp);
+  view.fixture = {hearth: {fire: 0, embers: 0}}; frame(1, {study: 'night'});
+  assert.deepEqual(view.lit, {room: 'living room', lamp: true, fire: 'cold'});
+});
+
+test('under reduced motion the fire\'s dial does not change from frame to frame', async () => {
+  const moving = await rig(), seenMoving = watchRooms(moving.view);
+  moving.frame(6, {study: 'night'});
+  assert.ok(new Set(seenMoving.fire.map(f => f.fire)).size > 1, 'with motion the fire flickers');
+  const still = await rig(), seen = watchRooms(still.view); still.view.motion = false;
+  still.frame(6, {study: 'night'});
+  assert.equal(new Set(seen.fire.map(f => f.fire)).size, 1); assert.equal(new Set(seen.light.map(d => d.fire)).size, 1);
+  assert.ok(seen.fire.every(f => f.motion === false && f.seconds === seen.fire[0].seconds));
+});
+
+test('a dial computation that throws warns once and leaves the rooms as they were', async t => {
+  const warnings = quietWarnings(t), {view, frame} = await rig(), seen = watchRooms(view);
+  frame(2, {study: 'night'});
+  const last = view.dials, doorways = view.yard.doorway.length, lit = view.inside.scene.getObjectByName('walls').material, shader = {uniforms: {}, vertexShader: '', fragmentShader: ''};
+  lit.onBeforeCompile(shader); const before = [...shader.uniforms.lamps.value];
+  const broken = {world: {epoch: 0, get cottage() { throw new Error('unreadable'); }}};
+  assert.doesNotThrow(() => frame(3, {snapshot: broken}));
+  assert.equal(warnings.length, 1); assert.match(String(warnings[0][0]), /light could not be worked out/);
+  assert.equal(seen.light.length, 2); assert.equal(seen.fire.length, 2); assert.equal(view.yard.doorway.length, doorways);
+  assert.deepEqual([...shader.uniforms.lamps.value], before); assert.equal(view.dials, last);
+  // given up for good: a readable world later changes nothing and warns no more
+  assert.doesNotThrow(() => frame(2, {study: 'day'}));
+  assert.equal(seen.light.length, 2); assert.equal(warnings.length, 1);
+});
+
+test('outdoors with the interior on, the rooms are not touched but the doorway is', async () => {
+  const {view, frame} = await rig({state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
+  assert.ok(view.inside, 'the rooms are built');
+  const seen = watchRooms(view);
+  frame(3, {study: 'night'});
+  assert.equal(seen.light.length, 0); assert.equal(seen.fire.length, 0);
+  assert.deepEqual(view.yard.doorway, [1, 1, 1]);
+  assert.equal(view.lit, null);
+});
+
+test('a lit program that fails to compile at the first indoor draw falls back to the flat light, with one warning', async t => {
+  const warnings = quietWarnings(t), {view, frame, renderer} = await rig(), seen = watchRooms(view);
+  // before any program is known nothing is decided
+  frame(1, {study: 'night'}); assert.equal(view.inside.lit, true); assert.equal(view.lightChecked, false);
+  renderer.info = {programs: [{cacheKey: 'basic,yard', diagnostics: {runnable: true}}, {cacheKey: `basic,x,interior-light-${I.rooms.length}`, diagnostics: {runnable: false, programLog: 'bad'}}]};
+  frame(1, {study: 'night'});
+  assert.equal(warnings.length, 1); assert.equal(warnings[0][0], "The cabin's light could not be set up; its rooms stay evenly lit.");
+  assert.equal(view.inside.lit, false);
+  let hemispheres = 0; view.inside.scene.traverse(o => { if (o.isHemisphereLight) hemispheres++; });
+  assert.equal(hemispheres, 1);
+  for (const name of ['floors', 'ceilings', 'walls', 'stair', 'frames', 'casement', 'door-leaf', 'breast', 'slab', 'mantel', 'breast-upper', 'ironwork'])
+    assert.ok(view.inside.scene.getObjectByName(name).material.isMeshLambertMaterial, name);
+  assert.ok(view.inside.scene.getObjectByName('casement').material.stencilWrite);
+  // the glasses and the fire carry on, and nothing more is warned of
+  assert.doesNotThrow(() => frame(3, {study: 'night'}));
+  assert.equal(warnings.length, 1); assert.equal(seen.light.length, 5); assert.equal(seen.fire.length, 5);
+  assert.ok(view.inside.scene.getObjectByName('flames').visible);
+  // a program that compiled keeps the rooms lit
+  const good = await rig(); good.renderer.info = {programs: [{cacheKey: `basic,x,interior-light-${I.rooms.length}`}]}; good.frame(2);
+  assert.equal(good.view.inside.lit, true); assert.equal(good.view.lightChecked, true); assert.equal(warnings.length, 1);
 });

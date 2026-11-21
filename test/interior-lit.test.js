@@ -60,3 +60,16 @@ test('the shader patch declares the light attribute and a lamp array sized to th
   assert.ok(s.fragmentShader.indexOf('varying vec3 vLight;') < s.fragmentShader.indexOf('void main'));
   light.dispose();
 });
+
+test('a material with a pale base adds it under the light, in a program of its own that shares the uniforms', () => {
+  const light = createInteriorLight(THREE, {rooms: I.rooms.length}), plain = light.material({}), based = light.material({base: [.3, .27, .21]});
+  const s = compile(based);
+  assert.ok(s.fragmentShader.includes('diffuseColor.rgb = ( diffuseColor.rgb + vec3( 0.3000, 0.2700, 0.2100 ) ) * vLight;'));
+  assert.ok(!s.fragmentShader.includes('diffuseColor.rgb *= vLight;'));
+  assert.ok(s.fragmentShader.indexOf('vec3( 0.3000') > s.fragmentShader.indexOf('#include <color_fragment>'));
+  assert.notEqual(based.customProgramCacheKey(), plain.customProgramCacheKey());
+  assert.match(based.customProgramCacheKey(), /^interior-light-/);
+  assert.equal(based.base, undefined, 'the base is not passed on to three as a material option');
+  assert.equal(s.uniforms.lamps, light.uniforms.lamps);
+  light.dispose();
+});

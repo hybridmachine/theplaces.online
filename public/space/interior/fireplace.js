@@ -12,7 +12,7 @@ import {haloMaterial} from '../scene/lights.js';
 // a few upright flame cards that show only while the fire burns, and a soft added halo at the mouth.
 
 const STONE_TILE = SPACE_ART.surfaces.stone.metres;
-const LIT_STONE = [4.8, 4.3, 3.7], STONE = [1.5, 1.4, 1.2];   // linear tints; starting values, to tune by eye
+const LIT_STONE = [1.2, 1.1, .95], STONE = [1.5, 1.4, 1.2];   // linear tints: lit, the unlit one times the flat light on a wall (about .8)
 const MOUTH_DEEP = .35, SLAB_HIGH = .05, MANTEL = {width: 2.2, depth: .2, thick: .08, into: .08};
 // Flames: where each stands across the mouth (metres from its middle), its width and height, and its sway phase.
 const CARDS = [{x: -.3, w: .22, h: .42, a: .28, phase: 0}, {x: -.1, w: .26, h: .6, a: .25, phase: 2.1}, {x: .1, w: .24, h: .5, a: .27, phase: 4.2},
@@ -27,7 +27,7 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
   const stoneTint = tint(light ? LIT_STONE : STONE, 71, .1), darkStone = tint((light ? LIT_STONE : STONE).map(c => c * .5), 72, .12);
 
   const map = art.surfaces.stone ? {map: art.surfaces.stone} : {};   // (an art bundle without the stone draws it plain)
-  const stoneMaterial = light ? light.material(map) : new THREE.MeshLambertMaterial({...map, vertexColors: true});
+  let stoneMaterial = light ? light.material(map) : new THREE.MeshLambertMaterial({...map, vertexColors: true});
   const stone = (list, f, across, up, outward, colour = stoneTint) => list.push(face(f, across, up, outward, colour, {tile: STONE_TILE}));
   // A rectangle in a plane of constant a, d or z, over [p0, p1] × [q0, q1], facing `outward`.
   const wallA = (list, a, [p0, p1], [q0, q1], dir, colour) => stone(list, (s, t) => [a, p0 + (p1 - p0) * s, q0 + (q1 - q0) * t], p1 - p0, q1 - q0, [dir, 0, 0], colour);
@@ -99,7 +99,15 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
     glow.material.uniforms.opacity.value = f > FLAME_FLOOR ? f * GLOW.burning : e * GLOW.embers; glow.visible = glow.material.uniforms.opacity.value > 0;
   }
   setFire({fire: 0, embers: 0, seconds: 0, motion: false});
-  return {object: group, setFire, dispose() {
+  // The lit surfaces given up (buildInterior's fallBack): the stone takes a Lambert material whose colour brings its lit tint back
+  // to the unlit one, the mantel and the upper breast the shell's own `flat` surface and plaster. The fire is untouched.
+  function fallBack(flat) {
+    if (!light) return;
+    stoneMaterial = new THREE.MeshLambertMaterial({...map, vertexColors: true, color: new THREE.Color().setRGB(...STONE.map((c, i) => c / LIT_STONE[i]), THREE.LinearSRGBColorSpace)});
+    for (const name of ['breast', 'slab']) group.getObjectByName(name).material = stoneMaterial;
+    group.getObjectByName('mantel').material = flat.surface; group.getObjectByName('breast-upper').material = flat.plastered;
+  }
+  return {object: group, setFire, fallBack, dispose() {
     group.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); coreMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
   }};
 }

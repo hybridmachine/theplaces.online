@@ -105,7 +105,9 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
     glasses.instanceColor.needsUpdate = true; halos.visible = any;
   }
   setLamps();
-  return {object, setLamps, dispose() {
+  // The lit surfaces given up (buildInterior's fallBack): the ironwork takes the shell's flat surface; glasses and halos carry on.
+  function fallBack(flat) { object.traverse(o => { if (o.name === 'ironwork') o.material = flat.surface; }); }
+  return {object, setLamps, fallBack, dispose() {
     object.traverse(o => o.geometry?.dispose()); glassMaterial.dispose(); haloMat.dispose(); glasses.dispose();
   }};
 }

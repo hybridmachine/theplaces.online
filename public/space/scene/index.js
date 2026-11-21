@@ -36,6 +36,8 @@ export function buildScene(THREE, {space, dressing, art}) {
     setCabinShown(shown) { cabin.building.visible = !!shown; },
     // How far the cabin's front door stands open, 0 shut to 1 open (cabin.js).
     setDoor(open) { cabin.setDoor(open); },
+    // How warm the open doorway shows with the hall's lamp, 0 dark (as without the interior) to 1 lit (cabin.js).
+    setDoorway(level) { cabin.setDoorway(level); },
     // How brightly the path lights burn, 0–1 (lights.js).
     setPathLights(level) { lights.setLevel(level); },
     // The world day the garden stands at, whole days since the world began; true if it was redrawn (garden.js).

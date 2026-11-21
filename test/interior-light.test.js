@@ -44,6 +44,15 @@ test('a point that sees no pane borrows a share of its neighbour\'s daylight thr
   assert.ok(w > LIGHT.day.floor && w < LIGHT.day.borrow, `${w}`);
 });
 
+test('a windowless room borrows visibly through an opening onto a room with a window, most by the opening; one without such an opening does not', () => {
+  // The box room opens onto the third bedroom (a roof window); the linen cupboard only onto the upstairs bathroom (none).
+  const box = day(centre('box-room'), UP, 1), linen = day(centre('linen'), UP, 1);
+  assert.equal(linen, LIGHT.day.floor);
+  assert.ok(box > 1.5 * LIGHT.day.floor, `${box}`);
+  assert.ok(day([16.5, 7.3, 3], UP, 1) > day([16.5, 9.3, 3], UP, 1), 'brighter by the opening');
+  assert.ok(day([16.5, 9.3, 3], UP, 1) > LIGHT.day.floor, 'and still above the floor at the far end');
+});
+
 test('the front door lends daylight to the hall only, at half strength', () => {
   // The dining and study windows are in the hall's sight too, so leave them out: only the door (or the same pane as a wall pane) is left to see.
   const rest = O.filter(o => o.id !== 'dining' && o.id !== 'study'), p = [9, .8, 0];
@@ -51,7 +60,9 @@ test('the front door lends daylight to the hall only, at half strength', () => {
   const asWall = createLightField(I, rest.map(o => o.kind === 'door' ? {...o, kind: 'wall'} : o));
   assert.ok(day(p, UP, 0, withDoor) > day(p, UP, 0, withoutDoor));
   assert.ok(Math.abs(day(p, UP, 0, withDoor) - LIGHT.day.door * day(p, UP, 0, asWall)) < 1e-9);
-  for (const q of [[5, 1, 0], [13, 2, 0], [9, 5, 0]]) assert.equal(day(q, UP, 0, withDoor), day(q, UP, 0, withoutDoor));
+  // Beyond the hall it lends nothing, even where it is in plain sight (the dining room, straight back through the hall-dining opening),
+  // and a room that borrows the hall's daylight through an opening borrows none of the door's (the study, its own window left out).
+  for (const q of [[5, 1, 0], [13, 2, 0], [9, 9, 0]]) assert.equal(day(q, UP, 0, withDoor), day(q, UP, 0, withoutDoor));
 });
 
 test('a lamp lights its own room and not the far side of its walls', () => {

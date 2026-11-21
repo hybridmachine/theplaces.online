@@ -22,12 +22,12 @@ import {buildFittings} from './fittings.js';
 // The brushwork tiles every metre and a half, as on the cabin's eaves; sheets are cut finer than this so the vertex tint
 // varies smoothly across them. Tints are linear and may pass 1: the brushwork texture is dark (about linear .33). Unlit (the
 // fallback), three's Lambert divides the hemisphere light by π and plaster also glows a pale base of its own, so its strokes are
-// a gentle variation on a pale ground rather than camouflage; boards have none and stay darker than the walls. Lit, the pale base
-// is folded into plaster's tint (as base ÷ (texture × the hemisphere's .75 on a wall)), and both tints are scaled so the living
-// room's walls, ceiling and floor at noon under a clear sky (interiorDials, cloud 0) average the luminance they had unlit. They are
-// large because most of that room takes only the day weight's floor; they are starting values, to tune by eye with the dials.
+// a gentle variation on a pale ground rather than camouflage; boards have none and stay darker than the walls. Lit, plaster keeps
+// its pale base (light.js adds it under the light), and each tint is the unlit one times the flat light's irradiance on that
+// surface (about .78 on a wall, .89 on a floor), so a surface in full light (a dial sum of 1: beside the glass at noon, or a wall
+// by a lit lamp) looks as it did unlit and the rest of the room falls away from it; nothing in full light passes 1 and clips.
 const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [.3, .27, .21], BOARDS = [1.4, .97, .65];
-const LIT_PLASTER = [7.9, 7.05, 5.85], LIT_BOARDS = [5.3, 3.65, 2.45];
+const LIT_PLASTER = [1.05, .94, .82], LIT_BOARDS = [1.25, .86, .58];
 // How far inside its room a face's light is weighed past the wall's face, metres.
 const INTO = .03;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
@@ -54,20 +54,25 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
 
   // ── the light: its materials first, since the tints depend on whether they could be made ──
   const map = art.surfaces.hills;
+  // The flat light's materials, under the one hemisphere light. Built unlit, the tints are the unlit ones; when the lit surfaces are
+  // given up after they were built (fallBack), their vertices keep the lit tints and each material's colour takes them back to the
+  // unlit ones: plaster's `plasterK` (with its pale base glowing as before) and boards' `boardsK`, per channel.
+  const linear = rgb => new THREE.Color().setRGB(...rgb, THREE.LinearSRGBColorSpace);
+  const lambert = ({plasterK = [1, 1, 1], boardsK = [1, 1, 1]} = {}) => ({surface: new THREE.MeshLambertMaterial({map, vertexColors: true, color: linear(boardsK)}),
+    plastered: new THREE.MeshLambertMaterial({map, vertexColors: true, color: linear(plasterK), emissive: linear(PLASTER_BASE)}),
+    leafed: new THREE.MeshLambertMaterial({map, vertexColors: true, color: linear(boardsK), side: THREE.DoubleSide}),
+    casement: new THREE.MeshLambertMaterial({map, vertexColors: true, color: linear(boardsK), side: THREE.DoubleSide,
+      stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})});
   let light = null, made;
   try {
     light = createInteriorLight(THREE, {rooms: I.rooms.length});
     const surface = light.material({map}), leafed = light.material({map, side: THREE.DoubleSide});
-    made = {surface, plastered: surface, leafed, casement: light.material({map, side: THREE.DoubleSide,
+    made = {surface, plastered: light.material({map, base: PLASTER_BASE}), leafed, casement: light.material({map, side: THREE.DoubleSide,
       stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})};
-  } catch {
-    console.warn("The cabin's light could not be set up; its rooms stay evenly lit.");
+  } catch (error) {
+    console.warn("The cabin's light could not be set up; its rooms stay evenly lit.", error);
     light?.dispose(); light = null;
-    made = {surface: new THREE.MeshLambertMaterial({map, vertexColors: true}),
-      plastered: new THREE.MeshLambertMaterial({map, vertexColors: true, emissive: new THREE.Color().setRGB(...PLASTER_BASE, THREE.LinearSRGBColorSpace)}),
-      leafed: new THREE.MeshLambertMaterial({map, vertexColors: true, side: THREE.DoubleSide}),
-      casement: new THREE.MeshLambertMaterial({map, vertexColors: true, side: THREE.DoubleSide,
-        stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, stencilRef: 0})};
+    made = lambert();
   }
   const plaster = tint(light ? LIT_PLASTER : PLASTER, 61), boards = tint(light ? LIT_BOARDS : BOARDS, 62, .12);
   const dark = tint((light ? LIT_BOARDS : BOARDS).map(c => c * .7), 63, .1);
@@ -283,8 +288,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
 
   // ── assembly ──
   const merged = list => { const g = mergeGeometries(THREE, list); for (const x of list) x.dispose(); return g; };
-  // Boards (floors, treads, rail) and plaster (walls, ceilings, the stair's plastered sides and the stairwell's bands); lit, one
-  // material serves both, as their tints alone tell them apart.
+  // Boards (floors, treads, rail) and plaster (walls, ceilings, the stair's plastered sides and the stairwell's bands), each with its own
+  // material, lit or not: plaster's carries its pale base.
   const {surface, plastered, leafed} = made;
   const glass = new THREE.MeshBasicMaterial({color: new THREE.Color().setRGB(...FIRST_SKY, THREE.SRGBColorSpace)});
   const scene = new THREE.Scene(); scene.name = 'interior';
@@ -323,9 +328,22 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
   if (light) light.set(interiorDials({interior: I, ...DAYTIME})); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   const clamp01 = x => Math.min(1, Math.max(0, x));
-  return {scene, field, lit: !!light,
-    // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once; nothing, unlit.
+  // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
+  const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
+  return {scene, field, get lit() { return !!light; },
+    // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once; unlit, the lamps' glasses alone.
     setLight(dials) { light?.set(dials); fittings.setLamps(dials?.lamps); },
+    // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on
+    // this device, found only once it is first drawn): every lit surface of the shell, the fireplace and the fittings takes the
+    // Lambert materials and the hemisphere light comes in. The glasses, halos and fire carry on. Once only; nothing when unlit.
+    fallBack() {
+      if (!light) return;
+      const ratio = (unlit, lit) => unlit.map((c, i) => c / lit[i]), flat = lambert({plasterK: ratio(PLASTER, LIT_PLASTER), boardsK: ratio(BOARDS, LIT_BOARDS)});
+      for (const [name, kind] of Object.entries(FLAT)) { const m = scene.getObjectByName(name); if (m) m.material = flat[kind]; }
+      fireplace.fallBack(flat); fittings.fallBack(flat);
+      light.dispose(); light = null;
+      scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
+    },
     // The lamps' levels alone, a number per room in interior.rooms order (see fittings.js).
     setLamps: fittings.setLamps,
     // Display-space sky colours, 0–1, as the yard's setSky receives them; the flat glass shows the horizon.

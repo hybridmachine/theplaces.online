@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WorldClient, keepStream, STREAM_RETRY_MIN, STREAM_RETRY_MAX } from '../public/world-client.js';
-import { sceneText } from '../public/scene-description.js';
+import { sceneText, SceneDescriber } from '../public/scene-description.js';
 import { WorldStore } from '../src/store.js';
 import { birdPose } from '../shared/world.js';
 
@@ -161,4 +161,41 @@ test('a stream the server refused is reopened with backoff, while ordinary drops
   live.readyState=2;live.onerror();assert.equal(timers.at(-1).delay,STREAM_RETRY_MIN);
   stream.stop();assert.equal(timers.at(-1).cancelled,true);assert.equal(live.closed,true);
   const count=sources.length;timers.at(-1).fn();assert.equal(sources.length,count);
+});
+
+test('indoors the description says what is lit in the room', () => {
+  const store = new WorldStore(':memory:', epoch);
+  try {
+    const data = store.snapshot(epoch), text = options => sceneText(data, epoch, options).description;
+    const living = (lamp, fire) => text({room: 'living room', lit: {room: 'living room', lamp, fire}});
+    assert.ok(living(true, 'burning').startsWith('Inside the cabin, in the living room. The lamp is lit, and the fire is burning. '));
+    assert.ok(living(false, 'embers').startsWith('Inside the cabin, in the living room. The lamp is out, and the fire\'s embers are glowing. '));
+    assert.ok(living(true, 'cold').startsWith('Inside the cabin, in the living room. The lamp is lit, and the hearth is cold. '));
+    const study = lamp => text({room: 'study', lit: {room: 'study', lamp, fire: null}});
+    assert.ok(study(true).startsWith('Inside the cabin, in the study. The lamp is lit. '));
+    assert.ok(study(false).startsWith('Inside the cabin, in the study. The lamp is out. '));
+    assert.doesNotMatch(study(true), /fire|hearth|embers/);
+    // In the yard nothing is said of lamps, and the announcement never changes with them.
+    assert.doesNotMatch(text({lit: null}), /lamp/);
+    assert.doesNotMatch(text({}), /lamp/);
+    assert.equal(sceneText(data, epoch, {room: 'living room', lit: {room: 'living room', lamp: true, fire: 'burning'}}).announcement, sceneText(data, epoch).announcement);
+  } finally { store.close(); }
+});
+
+test('the description is refreshed when a lamp or the fire changes', () => {
+  const store = new WorldStore(':memory:', epoch);
+  try {
+    const data = store.snapshot(epoch), described = [], announced = [];
+    const scene = new SceneDescriber({describe: text => described.push(text), announce: text => announced.push(text)});
+    const at = (lamp, fire) => ({room: 'living room', lit: {room: 'living room', lamp, fire}});
+    scene.update(data, epoch, at(false, 'cold'));
+    assert.equal(scene.rendered(data, epoch, at(false, 'cold')), false, 'nothing changed');
+    assert.equal(scene.rendered(data, epoch, at(true, 'cold')), true);
+    assert.match(described.at(-1), /The lamp is lit, and the hearth is cold/);
+    assert.equal(scene.rendered(data, epoch, at(true, 'cold')), false);
+    assert.equal(scene.rendered(data, epoch, at(true, 'burning')), true);
+    assert.match(described.at(-1), /the fire is burning/);
+    assert.equal(scene.rendered(data, epoch, {room: 'living room', lit: null}), true, 'the light no longer known');
+    assert.equal(announced.length, 1, 'only update announces');
+  } finally { store.close(); }
 });

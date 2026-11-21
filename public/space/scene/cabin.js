@@ -18,8 +18,10 @@ const STONE = lin([182, 156, 108]), SLATE = lin([128, 126, 124]);
 // bars at thirds of the 212 px between, on 256 px), stands this far proud of the panel, and behind it the opening shows the middle
 // pane's glass, stretched, so the room's light shows through without bars.
 const LEAF = (22 + 212 / 3) / 256, LEAF_PROUD = .012, PANE = [.42, .42, .58, .58];
-// The front door opens inward this far (radians), over a doorway of this flat dark tone (linear).
-const DOOR_SWING = 1.45, DOORWAY = [.035, .03, .025];
+// The front door opens inward this far (radians), over a doorway of this flat dark tone (linear), which warms toward WARM_DOORWAY as
+// the hall's lamp is lit (setDoorway; only with the interior on).
+const DOOR_SWING = 1.45;
+export const DOORWAY = [.035, .03, .025], WARM_DOORWAY = [.42, .26, .12];
 // The doorway is cut this far inside the door leaf all round, so the shut leaf covers it; it is lined with stone this deep (the
 // wall's thickness) and then dark back to a backing this far in, past the open leaf's free edge, over a floor this far above the ground.
 const HOLE_INSET = .03, REVEAL = .3, RECESS = 1.2, RECESS_FLOOR = .03;
@@ -180,6 +182,8 @@ export function buildCabin(THREE, {space, dressing, art}) {
   // How far the front door stands open, 0 shut to 1 open.
   const setDoor = open => frontDoor.mesh.quaternion.setFromAxisAngle(frontDoor.axis, frontDoor.turn * clamp01(open) * DOOR_SWING);
   setDoor(0);
+  // How far the doorway's tone has warmed with the hall's lamp, 0 dark to 1 lit.
+  const setDoorway = level => { const k = clamp01(Number.isFinite(level) ? level : 0); doorway.material.color.setRGB(...DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * k)); };
   let leaf = null;
   for (const w of windows) {
     const name = `window-${w.id}`, z0 = doorGround + w.sill, material = lit[w.id] ?? panelMaterials.window;
@@ -266,7 +270,7 @@ export function buildCabin(THREE, {space, dressing, art}) {
     mesh('chimney', merged(stack), stone), openings, mesh('dabs', dabs.geometry(THREE), cards));
   object.add(building, mesh('shrubs', shrubs.geometry(THREE), cards));
   setCottage({});
-  return {object, building, setCottage, setDoor, dispose() {
+  return {object, building, setCottage, setDoor, setDoorway, dispose() {
     const materials = new Set();
     object.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
     for (const m of materials) m.dispose();

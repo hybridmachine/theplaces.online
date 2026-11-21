@@ -508,3 +508,16 @@ test('the lake, the halos and the smoke are clipped by a global plane; the sky i
   }
   sky.dispose(); smoke.dispose(); scene.dispose();
 });
+
+test('the doorway\'s tone runs from dark to warm', async () => {
+  const {DOORWAY, WARM_DOORWAY} = await import('../public/space/scene/cabin.js');
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), doorway = scene.parts.cabin.getObjectByName('doorway');
+  const tone = () => [doorway.material.color.r, doorway.material.color.g, doorway.material.color.b];
+  const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+  assert.ok(near(tone(), DOORWAY), 'dark until told otherwise, as without the interior');
+  scene.setDoorway(1); assert.ok(near(tone(), WARM_DOORWAY), `${tone()}`);
+  scene.setDoorway(.5); assert.ok(near(tone(), DOORWAY.map((c, i) => (c + WARM_DOORWAY[i]) / 2)), `${tone()}`);
+  for (const level of [0, -1, NaN, undefined]) { scene.setDoorway(level); assert.ok(near(tone(), DOORWAY), `${level}`); }
+  scene.setDoorway(3); assert.ok(near(tone(), WARM_DOORWAY));
+  scene.dispose();
+});
