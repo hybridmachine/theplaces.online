@@ -1,4 +1,4 @@
-import {KINDS, corners} from '../../../shared/furniture.js';
+import {KINDS} from '../../../shared/furniture.js';
 import {lightSum} from '../../../shared/interior-light.js';
 import {roomAt} from '../../../shared/interior.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
@@ -349,8 +349,8 @@ export const RECIPES = {
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.
 // `weightsAt(point, normal, roomId)` is the light field's weights at a point of the interior frame, in that room.
-export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, tints, materials, treads, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
-  const kit = createKit(THREE, {face, lit, tint}), plain = createKit(THREE, {face, lit: g => g, tint}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
+export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, materials, treads, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
+  const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
   const colours = light ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),
     // the shades' own: pale and neutral, not lit by the room's weights, so not taken back by the flat light's ratio
@@ -428,7 +428,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   // A walk-over piece (a rug) the piece's middle stands on: the patch lies just over its top, not under it.
   const rugs = I.furniture.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
   const under = e => {
-    const rug = rugs.find(r => { const [w, h] = sizeOf(r), c = Math.cos(r.turn || 0), s = Math.sin(r.turn || 0), x = e.at[0] - r.at[0], y = e.at[1] - r.at[1];
+    const rug = rugs.find(r => { if (r.room !== e.room) return false; const [w, h] = sizeOf(r), c = Math.cos(r.turn || 0), s = Math.sin(r.turn || 0), x = e.at[0] - r.at[0], y = e.at[1] - r.at[1];
       return Math.abs(x * c + y * s) <= w / 2 && Math.abs(-x * s + y * c) <= h / 2; });
     return rug ? pieceBox(rug.id).z[1] : null;
   };
@@ -472,7 +472,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     // Not lit: black with an alpha, blended over the floor (lifted just off it, and pulled toward the eye by its polygon offset) in the rooms'
     // own scene, never into the depth buffer, so it hides nothing drawn after it; nothing of it is in the overlay.
     ground = new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1}));
-    ground.name = 'grounding'; ground.renderOrder = 0; object.add(ground);
+    ground.name = 'grounding'; object.add(ground);
   }
   object.userData.grounding = grounded;
 

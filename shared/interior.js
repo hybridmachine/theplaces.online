@@ -1,5 +1,5 @@
 // The rules that say a cabin interior is valid, and the plain questions asked of it. Pure: no three.js.
-import {KINDS, footprint} from './furniture.js';
+import {KINDS, footprint, obstaclesOf} from './furniture.js';
 
 const numbers = v => typeof v === 'number' ? Number.isFinite(v) : Array.isArray(v) ? v.every(numbers) : v && typeof v === 'object' ? Object.values(v).every(numbers) : true;
 const inside = (r, [a, d]) => a > r.a[0] && a < r.a[1] && d > r.d[0] && d < r.d[1];
@@ -92,6 +92,9 @@ const newelAtFoot = (I, e) => Math.hypot(e.at[0] - I.stair.a[0], e.at[1] - I.sta
 
 function furnitureFit(I, byId) {
   if (!Array.isArray(I.furniture) || !Array.isArray(I.breasts) || !I.spots || !Array.isArray(I.spots.speed)) return false;
+  // (the walker's obstacles are the breasts and the solid pieces, as obstaclesOf derives them: the same rectangles in the same order)
+  const same = (x, y) => x.floor === y.floor && x.a[0] === y.a[0] && x.a[1] === y.a[1] && x.d[0] === y.d[0] && x.d[1] === y.d[1], want = obstaclesOf(I);
+  if (!Array.isArray(I.obstacles) || I.obstacles.length !== want.length || !want.every((o, k) => same(o, I.obstacles[k]))) return false;
   const pieces = new Map();
   for (const e of I.furniture) {   // 1
     if (!e || typeof e.id !== 'string' || pieces.has(e.id) || !Object.hasOwn(KINDS, e.kind) || !byId.has(e.room)) return false;
@@ -157,6 +160,7 @@ function wallHungFits(I, e, room) {
 // A flood over a 0.1 m grid of that floor's standable points from `start`, keeping `clear` off walls and obstacles: null when the start itself
 // is not standable, else a test of whether any reached point satisfies `fn`, with `.reaches(p)` for whether the grid point nearest p was reached.
 // A deep-frozen blueprint's floods are remembered, since they cannot change.
+// (This relies on the blueprint being deep-frozen: a top-level-only freeze with mutable rooms would give stale floods.)
 const floods = new WeakMap();
 const fixed = I => Object.isFrozen(I) && [I.obstacles, I.rooms, I.openings, I.stair, I.doorLeaf].every(v => v == null || Object.isFrozen(v));
 function flood(I, floor, start, clear = I.eyeClear) {

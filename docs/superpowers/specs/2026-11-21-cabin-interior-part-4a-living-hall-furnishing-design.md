@@ -154,6 +154,14 @@ Intended arrangement (front wall at the bottom; not to scale):
 - Budget for the two rooms' furniture **(call)**: at most 6 added draw calls with no halo over a pane, and at most 60 ms added to the interior's first build. The builder reports the vertex count.
 - If the limit is missed, the remedies in order: fewer cuts in kit faces, coarser sculpted forms, fewer dressing pieces. Then come back to the owner. Dropping a must-have is the owner's decision.
 
+### Failure, as built
+
+- If a single piece's recipe throws, that piece is skipped and warned about, but its obstacle still stops the walker, so the walker and the drawing then disagree for that piece. The real blueprint is tested to skip nothing. Carrying this to the next furnishing plan.
+
+### One validity rule added
+
+- `validInterior` also requires the blueprint's `obstacles` to equal `obstaclesOf` its furniture (the breasts followed by one rectangle per solid piece, the same rectangles in the same order). A blueprint whose obstacles drift from its furniture is invalid. A blueprint without `furniture` is judged as before, and `bareInterior` still validates.
+
 ### The description
 
 - Indoors the scene description gains one fixed clause per furnished room, after the room's name: for the living room, that a sofa and armchairs are drawn up to the fire; for the hall, that coats hang by the door and the stair climbs ahead. What is lit is reported as today. Wording is the builder's. **(call)**
@@ -257,9 +265,10 @@ Where the build departs from the design above, or settles what it left open. The
 
 ### Measured
 
-The full browser script (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on an Apple M1, on mains power, 1440 × 810, tier full. 80 of 80 checks pass.
+The full browser script (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on an Apple M1, on mains power, 1440 × 810, tier full. 80 of 80 checks passed in that run's console output. The saved file, `docs/interior-validation/browser-results.json`, holds checks 32–80 (49 entries, all passing); checks 1–31 passed in the same run, but their saved file (`docs/space-validation/space-browser-results.json`) was not re-committed by this branch.
+- Check 76 (the furniture after `inside.fallBack()`) records no before/after brightness figure: it asserts only that both rooms are still drawn with furniture (mean luminance above 0.1, the furniture's meshes present). The capture (`fallback-living`) is the evidence of how it looks.
 
-- **Speed at [4.2, 3] facing the window:** 1.04 times a yard frame by day (yard 12.6 ms, room 13.1 ms) and 1.04 under the night study. Limit 1.1.
+- **Speed at [4.2, 3] facing the window:** 1.04 times a yard frame by day (yard 12.6 ms, room 13.1 ms) and 1.04 under the night study. Limit 1.1. No bare run was taken at [4.2, 3]: bare was measured only at [3.8, 5.5], so these two figures are against a yard frame, not against the bare room.
 - **Speed at [3.8, 5.5] at night with the lamp lit:** furnished 1.039, bare 1.065 on the same run, so −0.026. Limit +0.05.
   - The bare figure is the noisier of the two; its first round read 1.195. In part 4a's task 7 runs the difference was +0.010 to +0.024.
 - **Draw calls:** +5 (47 against 42) at the living capture pose. Limit 6.

@@ -34,7 +34,7 @@ const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
 // A seed from numbers (to the millimetre), for helpers given none: the same piece in the same place always breaks the same way.
 const seedOf = (...xs) => xs.reduce((h, x) => hash(Math.round(x * 1000), h, 977) * 4294967296 >>> 0, 1);
 
-export function createKit(THREE, {face, lit, tint}) {
+export function createKit(THREE, {face, lit}) {
   // The piece's frame into the interior's: [a, d, z] for local (x, y, z), turned anticlockwise by `turn` about `at` and raised by
   // `lift` (the floor, or the top of whatever the piece is set on).
   // The map carries the entry's `room`, in which the sculpted helpers weigh what they make.
@@ -266,7 +266,7 @@ export function createKit(THREE, {face, lit, tint}) {
   // `free(s, t)` (0 where it rests on something, 1 where it hangs; by default t). Double-sided: its back is drawn too, a few
   // millimetres behind, facing the other way, and takes its front's light (a cloth's two sides, millimetres apart, are lit alike;
   // weighing the back again doubled the drape's cost to build). The folds' troughs are darkened in the tint, by up to FOLD_SHADE where the
-// cloth hangs free: the coarse weighing rounds a normal to WEIGH_TURN, finer than which a fold's own turn would not show. Returns [front, back].
+  // cloth hangs free: the coarse weighing rounds a normal to WEIGH_TURN, finer than which a fold's own turn would not show. Returns [front, back].
   const drape = (at, pointOf, across, down, colour, {seed, folds = .03, free = (s, t) => t, tile = TILE * .6, cell = DRAPE_CELL} = {}) => {
     const random = stream(seed ?? seedOf(...at(0, 0, 0)), 13), cols = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(across / cell))), rows = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(down / cell)));
     const waves = [0, 1, 2].map(k => [2 + k * 1.7 + random() * 1.5, random() * 6.3, 1 / (k + 1.4)]), h = 1e-3;
@@ -290,5 +290,5 @@ export function createKit(THREE, {face, lit, tint}) {
     return [face, behind];
   };
 
-  return {placed, moved, board, box, post, cushion, books, framed, mat, turned, roll, drape, lit, tint};
+  return {placed, moved, board, box, post, cushion, books, framed, mat, turned, roll, drape};
 }

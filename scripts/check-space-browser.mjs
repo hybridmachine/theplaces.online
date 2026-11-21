@@ -1088,14 +1088,13 @@ try{
   await stand(fur,aim(0,[spots.casement[0],spots.casement[1]+1.1],[seat.at[0],seat.at[1],.6]),600);await setFixture(fur,{cottagePose:{main:0,second:0,open:1}});await fur.waitForTimeout(1200);await furnishShot(fur,'window-seat-open');await setFixture(fur,null);
   await studyLight(fur,'night');await setFixture(fur,{lamps:asleep,hearth:{fire:0,embers:0}});await stand(fur,dayShots[2][1],1200);await furnishShot(fur,'hall-night');await setFixture(fur,null);
   // 76. After inside.fallBack() both rooms are still drawn with their furniture: each frame's mean luminance above 0.1 and the furniture's meshes there.
-  await studyLight(fur,'day');await stand(fur,livingShot,1000);const beforeFallLiving=await frameMean(fur);const pieceCrop=await patches(fur,[[sofa.at[0]+.2,sofa.at[1],.6]],12);
+  await studyLight(fur,'day');await stand(fur,livingShot,1000);
   await fur.evaluate(()=>window.__space.inside.fallBack());await fur.waitForTimeout(800);
-  const afterFall=await furnitureOf(fur),fellLit=await fur.evaluate(()=>window.__space.inside.lit),fallLiving=await frameMean(fur),pieceFallen=await patches(fur,[[sofa.at[0]+.2,sofa.at[1],.6]],12);await furnishShot(fur,'fallback-living');
+  const afterFall=await furnitureOf(fur),fellLit=await fur.evaluate(()=>window.__space.inside.lit),fallLiving=await frameMean(fur);await furnishShot(fur,'fallback-living');
   await stand(fur,dayShots[2][1],1000);const fallHall=await frameMean(fur);await furnishShot(fur,'fallback-hall');
-  check('After inside.fallBack() the living room and the hall are still drawn with their furniture (each frame\'s mean luminance above 0.1, the furniture\'s meshes present)',
+  check('After inside.fallBack() (inside.lit false) the living room and the hall are still drawn with their furniture (each frame\'s mean luminance above 0.1, the furniture\'s meshes present)',
     fellLit===false&&fallLiving.lum>.1&&fallHall.lum>.1&&afterFall.meshes.filter(m=>m.visible&&m.vertices>0).length===furnishedLook.counts.meshes,
-    {lit:fellLit,living:fallLiving,hall:fallHall,meshes:afterFall.meshes,livingBeforeFall:beforeFallLiving,sofaCrop:{lit:pieceCrop.rgb[0],fallen:pieceFallen.rgb[0],ratio:r3(lum(pieceFallen.rgb[0])/lum(pieceCrop.rgb[0])),screen:pieceCrop.at},
-      note:'the sofa crop is the same pose and light before and after: the fallen-back furniture against the lit, as the shell falls back'});
+    {lit:fellLit,living:fallLiving,hall:fallHall,meshes:afterFall.meshes});
   const furQuiet=!fur.consoleErrors.length&&!fur.own.length;await fur.context().close();
 
   // 77. The same moment draws the same furnished living room: three loads with the world held still (as check 61) at the living room's capture

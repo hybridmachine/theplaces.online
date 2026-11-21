@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {bareInterior, obstaclesOf, solidObstacles} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
@@ -113,6 +114,8 @@ test('a leaf hinged on the stair side, or shutting the cabin in two, is invalid'
 
 // The fireplace, the lamps and the solid chimney breasts.
 const variant = f => { const c = structuredClone(I); f(c); return validInterior(c); };
+// A free-standing solid piece added in a room, the walker's obstacles derived from the furniture again (obstacles must match it).
+const solid = (room, at) => variant(c => { c.furniture.push({id: 'extra', kind: 'side-table', room, at, turn: 0}); c.obstacles = obstaclesOf(c); });
 const fit = (c, room) => c.fittings.find(f => f.room === room);
 test('the blueprint has a fireplace, one fitting for every room, and is still valid', () => {
   assert.equal(validInterior(I), true);
@@ -147,7 +150,7 @@ test('an obstacle that shuts a room off, or sits across two rooms, is invalid', 
   assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6.5, 7.5], d: [2, 5]}); }), false, 'across the hall-living opening');
   assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6, 8], d: [5.5, 6.5]}); }), false, 'in two rooms');
   assert.equal(variant(c => { c.obstacles.push({floor: 1, a: [6.2, 7], d: [3, 4]}); }), false, 'shuts the landing off bedroom-2');
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [9.5, 10.5], d: [10, 11]}); }), true, 'a free-standing one is fine');
+  assert.equal(solid('dining', [10, 10.5]), true, 'a free-standing one is fine');
 });
 test('no wall fitting sits inside an obstacle; a hanging one may hang over one', () => {
   // a wall lamp on the living room's gable wall: clear of the chimney breast it is fine, on it it is not
@@ -155,12 +158,11 @@ test('no wall fitting sits inside an obstacle; a hanging one may hang over one',
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
   assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
   // a table under the dining room's lamp leaves the blueprint valid
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [8.4, 9.6], d: [8.9, 10.1]}); }), true);
+  assert.equal(solid('dining', [9, 9.5]), true);
 });
 
 // The living room's and hall's furniture, and the rules that keep it walkable.
 import {doorwayPoint, furnishedWay, reachable, wideTargets} from '../shared/interior.js';
-import {bareInterior, obstaclesOf, solidObstacles} from '../shared/furniture.js';
 
 const piece = (c, id) => c.furniture.find(e => e.id === id);
 // A copy of the blueprint with its furniture changed, the walker's obstacles derived again.
@@ -253,4 +255,11 @@ test('a blueprint without furniture or breasts is judged as before', () => {
   const {furniture, breasts, spots, stairRail, ...old} = structuredClone(I);
   assert.equal(validInterior({...old, obstacles: breasts}), true);
   assert.equal(validInterior({...structuredClone(I), spots: undefined}), false, 'furniture without its spots');
+});
+test('a blueprint whose obstacles omit a solid piece, or reorder them, is invalid', () => {
+  const omit = structuredClone(I); omit.obstacles = omit.obstacles.filter((o, k) => k !== omit.obstacles.length - 1);
+  assert.equal(validInterior(omit), false, 'a solid piece\'s rectangle is missing');
+  const swapped = structuredClone(I); swapped.obstacles.reverse();
+  assert.equal(validInterior(swapped), false, 'the same rectangles in another order');
+  assert.equal(validInterior(bareInterior(I)), true);
 });

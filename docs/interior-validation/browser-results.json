@@ -2146,7 +2146,7 @@
     },
     {
       "n": 76,
-      "name": "After inside.fallBack() the living room and the hall are still drawn with their furniture (each frame's mean luminance above 0.1, the furniture's meshes present)",
+      "name": "After inside.fallBack() (inside.lit false) the living room and the hall are still drawn with their furniture (each frame's mean luminance above 0.1, the furniture's meshes present)",
       "pass": true,
       "detail": {
         "lit": false,
@@ -2192,35 +2192,7 @@
             "vertices": 250,
             "visible": true
           }
-        ],
-        "livingBeforeFall": {
-          "rgb": [
-            145,
-            138,
-            118
-          ],
-          "lum": 0.5402499295343137
-        },
-        "sofaCrop": {
-          "lit": [
-            15,
-            18,
-            16
-          ],
-          "fallen": [
-            17,
-            19,
-            16
-          ],
-          "ratio": 1.066,
-          "screen": [
-            [
-              157,
-              818
-            ]
-          ]
-        },
-        "note": "the sofa crop is the same pose and light before and after: the fallen-back furniture against the lit, as the shell falls back"
+        ]
       }
     },
     {

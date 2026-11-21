@@ -358,8 +358,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   try {
     const weigh = coarseWeigh();
     furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
-      lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint, tints: {plaster, boards, dark},
-      materials: {surface, plastered, leafed}, treads: TREADS,
+      lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint,
+      materials: {surface, leafed}, treads: TREADS,
       weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
     scene.add(furniture.object);
   } catch (error) {

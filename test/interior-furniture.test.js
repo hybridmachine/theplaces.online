@@ -350,7 +350,7 @@ const patch = (scene, id) => {
 };
 
 test('a roll\'s far end cap takes the end colour as the near one does', () => {
-  const kit = createKit(THREE, {face: () => { throw new Error('no face'); }, lit: g => g, tint: () => () => [0, 0, 1]});
+  const kit = createKit(THREE, {face: () => { throw new Error('no face'); }, lit: g => g});
   const sides = 6, [g] = kit.roll(kit.placed({at: [0, 0], turn: 0, lift: 0, room: 'living'}), [0, 0, 0], [0, 0, 1.3], .05, () => [0, 0, 1], {sides, ends: () => [1, 0, 0]});
   const c = g.getAttribute('color'); let ends = 0;
   for (let i = 0; i < c.count; i++) if (c.getX(i) === 1) { ends++; assert.deepEqual([c.getX(i), c.getY(i), c.getZ(i)], [1, 0, 0], `vertex ${i} is wholly the end colour`); }
@@ -387,7 +387,7 @@ test('the grounding lies just above the floor and inside the piece\'s room', () 
   for (const e of SOLID) {
     const r = room(e.room), floor = r.floor * I.floorRise, wall = I.wall / 2;
     // a piece standing on a rug has its patch just over the rug's top instead
-    const base = rugs.map(g => inside.pieceBox(g.id)).filter(b => b && b.a[0] <= e.at[0] && e.at[0] <= b.a[1] && b.d[0] <= e.at[1] && e.at[1] <= b.d[1]).reduce((t, b) => Math.max(t, b.z[1]), floor);
+    const base = rugs.filter(g => g.room === e.room).map(g => inside.pieceBox(g.id)).filter(b => b && b.a[0] <= e.at[0] && e.at[0] <= b.a[1] && b.d[0] <= e.at[1] && e.at[1] <= b.d[1]).reduce((t, b) => Math.max(t, b.z[1]), floor);
     for (const v of patch(inside.scene, e.id)) {
       assert.ok(v.z - base >= .002 - 1e-6 && v.z - base <= .006 + 1e-6, `${e.id} z ${v.z - base} over ${base}`);
       assert.ok(v.a >= r.a[0] + wall - 1e-6 && v.a <= r.a[1] - wall + 1e-6 && v.d >= r.d[0] + wall - 1e-6 && v.d <= r.d[1] - wall + 1e-6, `${e.id} (${v.a}, ${v.d}) is inside ${r.id}`);
@@ -494,4 +494,21 @@ test('a blueprint with no furniture reports it is not furnished and draws no fur
   let vertices = 0;
   inside.scene.traverse(o => { if (o.name?.startsWith('furniture') && o.geometry) vertices += o.geometry.getAttribute('position')?.count ?? 0; });
   assert.equal(vertices, 0);
+});
+
+test('a rug in another room over the same plan position does not lift a piece\'s patch', () => {
+  const rug = I.furniture.find(e => e.id === 'hearth-rug');
+  const onRug = SOLID.filter(e => e.room === rug.room && Math.abs(e.at[0] - rug.at[0]) <= 1 && Math.abs(e.at[1] - rug.at[1]) <= .8);
+  assert.ok(onRug.length, 'some piece stands on the hearth rug');
+  const floor = room(rug.room).floor * I.floorRise, lowest = (scene, id) => Math.min(...patch(scene, id).map(v => v.z));
+  const lifted = build();
+  const other = structuredClone(I); other.furniture.find(e => e.id === 'hearth-rug').room = 'hall';
+  const moved = build(other);
+  let lifts = 0;
+  for (const e of onRug) {
+    if (lowest(lifted.scene, e.id) > floor + .006 + 1e-6) lifts++;
+    assert.ok(lowest(moved.scene, e.id) <= floor + .006 + 1e-6, `${e.id}'s patch lies over the floor when the rug is in another room`);
+  }
+  assert.ok(lifts > 0, 'on its own room\'s rug a patch is lifted');
+  lifted.dispose(); moved.dispose();
 });
