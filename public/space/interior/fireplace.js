@@ -133,7 +133,10 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
     for (const name of ['breast', 'slab']) group.getObjectByName(name).material = stoneMaterial;
     group.getObjectByName('mantel').material = flat.surface; group.getObjectByName('breast-upper').material = flat.plastered;
   }
-  return {object: group, overlay, setFire, fallBack, dispose() {
+  // A sphere about the mouth that holds the flames and the glow (three's frame), passed to `fn` while either shows.
+  const fireSphere = new THREE.Sphere(new THREE.Vector3(...toThree([reach, fp.d, mouth.z0 + fp.mouth.height / 2])), Math.hypot(fp.mouth.width / 2, fp.mouth.height / 2, .5) + .1);
+  const eachShown = fn => { if (flames.visible || glow.visible) fn(fireSphere); };
+  return {object: group, overlay, setFire, fallBack, eachShown, dispose() {
     group.traverse(o => o.geometry?.dispose()); overlay.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
   }};
 }

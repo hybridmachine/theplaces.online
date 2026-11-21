@@ -229,22 +229,26 @@ export class SpaceView {
   // live and the shell's flat glass is drawn. Returns the live ids.
   // After the views the rooms' added light (the halos, flames and the fire's glow: inside.overlay) is drawn over them, from the
   // visitor's eye into the same target without clearing it and with the stencil test off, still depth-tested against the rooms;
-  // it is drawn whether any pane is live or not. Through the pass all of it goes into the scene target before the filter: the pass's
-  // `views` hook is given both, and told by its result whether any view was drawn.
+  // it is drawn so wherever some of it lies over a live pane, and otherwise with the rooms. Through the pass all of it goes into the scene target before the filter: the pass's
+  // `views` hook draws the views (and says whether it drew any) and its `over` the added light.
   drawIndoors({flat = false} = {}) {
     let ids = [];
     if (flat) this.inside.setLive([]); else ids = this.openWindows();
-    // (made once; this frame's views, if any, are set on it)
-    const view = this, over = this.overDraw ??= {views: null, get prepared() { return this.views ? this.views.prepared : []; },
-      draw(renderer) {
-        const drawn = this.views ? this.views.draw(renderer) !== false : false, autoClear = renderer.autoClear;
+    // (made once; this frame's views, if any, are set on it, and its `over` only when something of the overlay lies over a live pane:
+    // each draw into the pass's multisampled target is resolved in full, about a millisecond, so a frame that need not skips it)
+    const view = this, hook = this.overDraw ??= {views: null, over: null, get prepared() { return this.views ? this.views.prepared : []; },
+      draw(renderer) { return this.views ? this.views.draw(renderer) !== false : false; },
+      overlay(renderer) {
+        const autoClear = renderer.autoClear;
         renderer.state.buffers.stencil.setTest(false); renderer.autoClear = false;
         try { renderer.render(view.inside.overlay, view.camera); } finally { renderer.autoClear = autoClear; }
-        return drawn;
       }};
-    over.views = ids.length ? this.viewDraw : null;
-    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); over.draw(this.renderer); }
-    else this.pass.render(this.inside.scene, this.camera, {water: false, views: over});
+    // The overlay after the views only when some of it lies over a live pane; otherwise it is drawn with the rooms, as nothing will cover it.
+    hook.views = ids.length ? this.viewDraw : null;
+    const need = this.inside.overlayNeed(this.camera, hook.views ? hook.views.prepared : []);
+    this.inside.overlayWithRooms(need < 2); hook.over = need === 2 ? hook.overlay : null;
+    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); hook.draw(this.renderer); hook.over?.(this.renderer); }
+    else this.pass.render(this.inside.scene, this.camera, {water: false, views: hook});
     this.checkLight();
     return ids;
   }

@@ -331,7 +331,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   scene.add(fittings.object);
   // The added light (the lamps' halos, the flames and the fire's glow), a scene of its own that the view draws after the yard seen
   // through the live panes, into the same target, depth-tested against the rooms and with no stencil: drawn with the rooms it would
-  // lie under the views, and a halo in front of a live pane would be cut along the pane's edge.
+  // lie under the views, and a halo in front of a live pane would be cut along the pane's edge. When none of it lies over a live
+  // pane the view puts it back with the rooms (overlayWithRooms), which saves a draw.
   const overlay = new THREE.Scene(); overlay.name = 'interior-overlay'; overlay.add(fittings.overlay, fireplace.overlay);
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
   const daytime = interiorDials({interior: I, ...DAYTIME}); fittings.setLight(daytime);
@@ -339,7 +340,30 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const clamp01 = x => Math.min(1, Math.max(0, x));
   // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
-  return {scene, overlay, field, get lit() { return !!light; },
+  // Where the overlay's lit parts lie from `camera` against the live panes' rectangles (`views`, each with its `rect` [u0, v0, u1, v1]
+  // on screen, 0–1 from the bottom left): 0 when none is in sight, 1 when some is but over no live pane, 2 when some lies over one.
+  // Each part is taken as its bounding sphere's square on screen (a sphere about the eye or behind it counts as over every pane).
+  // Nothing allocated.
+  const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), centre = new THREE.Vector3();
+  let need = 0, cam = null, rects = null;
+  const judge = sphere => {
+    if (need === 2 || !frustum.intersectsSphere(sphere)) return;
+    centre.copy(sphere.center).applyMatrix4(cam.matrixWorldInverse);
+    const depth = -centre.z;
+    if (depth <= sphere.radius + cam.near) { need = rects.length ? 2 : 1; return; }
+    centre.applyMatrix4(cam.projectionMatrix);
+    const ry = sphere.radius / (depth * Math.tan(cam.fov * Math.PI / 360)) / 2, rx = ry / cam.aspect, u = (centre.x + 1) / 2, v = (centre.y + 1) / 2;
+    need = Math.max(need, rects.some(({rect: r}) => u + rx >= r[0] && u - rx <= r[2] && v + ry >= r[1] && v - ry <= r[3]) ? 2 : 1);
+  };
+  const overlayNeed = (camera, views) => {
+    camera.updateMatrixWorld(); frustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    need = 0; cam = camera; rects = views; fittings.eachShown(judge); fireplace.eachShown(judge); cam = rects = null;
+    return need;
+  };
+  // Whether the overlay's parts are drawn with the rooms (true: in their scene, as nothing lies over them) or after the views (false).
+  let withRooms = false;
+  const overlayWithRooms = on => { if (on === withRooms) return; withRooms = on; (on ? scene : overlay).add(fittings.overlay, fireplace.overlay); };
+  return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
     setLight(dials) { light?.set(dials); fittings.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on

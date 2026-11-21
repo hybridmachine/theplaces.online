@@ -861,7 +861,7 @@ try{
   const stripSpan=[s1+.05,diningRoom.d[1]-.05],kitchenFar=[kitchen.a[0]+1,(s0+s1)/2,1.3];
   const dinePose=aim(0,[diningRoom.a[1]-.5,(s0+s1)/2-.6],[(wallA+kitchenFar[0])/2,(stripSpan[0]+stripSpan[1])/2+.4,1.2]);
   const sample=async()=>{const strip=rectOf(await project(lite,[[wallA,stripSpan[0],.3],[wallA,stripSpan[1],.3],[wallA,stripSpan[0],1.9],[wallA,stripSpan[1],1.9]]),.1),
-    floorBehind=[wallA+.1,(s1+diningRoom.d[1])/2+.1,0],p=await patches(lite,[floorBehind,kitchenFar],6),read=await indoorRead(lite,[strip]);
+    floorBehind=[wallA+.05,diningRoom.d[1]-.1,0],p=await patches(lite,[floorBehind,kitchenFar],6),read=await indoorRead(lite,[strip]);
     return {strip,stripRgb:rgbOf(read.on[0]),floor:p.rgb[0],kitchenFar:p.rgb[1],seen:inFrame(strip)&&p.seen};};
   await stand(lite,dinePose,1000);
   await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);const bothOut=await sample();

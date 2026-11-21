@@ -115,6 +115,24 @@ test('the painterly pass draws the views after the scene and before the filter, 
   pass.dispose();
 });
 
+test('with something drawn over the views, only that last draw into the scene target resolves its depth', async () => {
+  const THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
+  const pass = {}, seen = [], renderer = {setRenderTarget() {}, render(scene) { seen.push([scene.name, pass.p.sceneTarget.resolveDepthBuffer]); }};
+  pass.p = new PainterlyPass(THREE, renderer, {stencil: true});
+  const scene = new THREE.Scene(), yard = new THREE.Scene(), top = new THREE.Scene(), camera = new THREE.PerspectiveCamera(); scene.name = 'rooms'; yard.name = 'yard'; top.name = 'over';
+  const views = {prepared: [], draw(r) { r.render(yard); return true; }, over(r) { r.render(top); }};
+  pass.p.render(scene, camera, {water: false, views});
+  assert.deepEqual(seen.slice(0, 3), [['rooms', false], ['yard', false], ['over', true]]);
+  assert.equal(pass.p.sceneTarget.resolveDepthBuffer, true);
+  // without an `over`, every draw resolves its depth as before
+  seen.length = 0; pass.p.render(scene, camera, {water: false, views: {prepared: [], draw(r) { r.render(yard); }}});
+  assert.deepEqual(seen.slice(0, 2), [['rooms', true], ['yard', true]]);
+  // a views draw that throws leaves the target resolving its depth
+  assert.throws(() => pass.p.render(scene, camera, {views: {prepared: [], draw() { throw new Error('x'); }, over() {}}}));
+  assert.equal(pass.p.sceneTarget.resolveDepthBuffer, true);
+  pass.p.dispose();
+});
+
 test('the painterly pass builds its depth-stencil scene target only when asked; by default its target is the plain one', async () => {
   const THREE = await import('../public/assets/vendor/three-0.170.0.module.js'), renderer = {setRenderTarget() {}, render() {}};
   const plain = new PainterlyPass(THREE, renderer), want = new THREE.DepthTexture(1, 1);
@@ -221,10 +239,12 @@ test('indoors facing the living room window, its pane is live and the yard is dr
 
 test('the rooms\' added light (halos, flames, the fire\'s glow) is drawn over the views, before the filter, with no stencil and no clear', async () => {
   const overlaid = ['halos', 'flames', 'fire-glow'];
-  for (const [tier, state] of [['full'], ['plain'], ['full', {place: 'cabin', floor: 0, position: [4.2, 3], yaw: 0, pitch: 0}], ['plain', {place: 'cabin', floor: 0, position: [4.2, 3], yaw: 0, pitch: 0}]]) {
-    const {view, frame, log, yardDraws} = await rig({tier, ...(state ? {state} : {})}), {overlay, scene} = view.inside;
+  // at night (every lamp lit), from the back of the third bedroom looking up at its roof window, the lit lamp's halo in front of the live pane
+  const past = {place: 'cabin', floor: 1, position: [14.5, 6.6], yaw: Math.PI, pitch: .3};
+  for (const tier of ['full', 'plain']) {
+    const {view, frame, log, yardDraws} = await rig({tier, state: past}), {overlay, scene} = view.inside, state = false;
+    frame(1, {study: 'night'});
     for (const name of overlaid) { assert.ok(overlay.getObjectByName(name), `${name} in the overlay`); assert.equal(scene.getObjectByName(name), undefined, `${name} not in the rooms`); }
-    frame();
     const rooms = log.findIndex(e => e[0] === 'render' && e[1] === scene), over = log.findIndex(e => e[0] === 'render' && e[1] === overlay);
     const lastYard = yardDraws().length ? log.indexOf(yardDraws().at(-1)) : -1, filter = view.pass ? log.findIndex((e, i) => i > rooms && e[0] === 'target' && e[1] !== view.pass.sceneTarget) : log.length;
     const where = `${tier}, ${state ? 'facing away' : 'facing the window'}`;
@@ -237,6 +257,17 @@ test('the rooms\' added light (halos, flames, the fire\'s glow) is drawn over th
     // the filter is still told of the views alone
     if (view.pass) assert.equal(view.pass.canvas.uniforms.viewCount.value, state ? 0 : 1);
   }
+  // Where none of it lies over a live pane it is drawn with the rooms and the overlay is not drawn: facing the window with the lamp and
+  // the fire behind, facing the lamp with no pane in sight, and by day with the lamp and the fire out.
+  const away = {place: 'cabin', floor: 0, position: [3.8, 1.2], yaw: 0, pitch: .1};
+  for (const [pose, study] of [[undefined, 'night'], [away, 'night'], [past, 'day']]) {
+    const {view, frame, log} = await rig(pose ? {state: pose} : {}); frame(1, {study});
+    assert.ok(!log.some(e => e[0] === 'render' && e[1] === view.inside.overlay), `${study} ${pose?.position}`);
+    for (const name of overlaid) assert.ok(view.inside.scene.getObjectByName(name), `${name} with the rooms`);
+  }
+  // and back to the overlay when it lies over a pane again
+  const {view, frame, log} = await rig({state: away}); frame(1, {study: 'night'}); view.state = structuredClone(past); frame(1, {study: 'night'});
+  assert.ok(log.some(e => e[0] === 'render' && e[1] === view.inside.overlay)); assert.equal(view.inside.scene.getObjectByName('halos'), undefined);
 });
 
 test('render draws indoors through drawIndoors, the one indoor draw the browser checks call too, and its ids are the live ones', async () => {
@@ -500,7 +531,7 @@ test('a lit program that fails to compile at the first indoor draw falls back to
   // the glasses and the fire carry on, and nothing more is warned of
   assert.doesNotThrow(() => frame(3, {study: 'night'}));
   assert.equal(warnings.length, 1); assert.equal(seen.light.length, 5); assert.equal(seen.fire.length, 5);
-  assert.ok(view.inside.overlay.getObjectByName('flames').visible);
+  assert.ok((view.inside.overlay.getObjectByName('flames') ?? view.inside.scene.getObjectByName('flames')).visible);
   // a program that compiled keeps the rooms lit
   const good = await rig(); good.renderer.info = {programs: [{cacheKey: `basic,x,interior-light-${I.rooms.length}`}]}; good.frame(2);
   assert.equal(good.view.inside.lit, true); assert.equal(good.view.lightChecked, true); assert.equal(warnings.length, 1);

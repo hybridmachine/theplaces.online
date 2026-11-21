@@ -137,7 +137,10 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
   setLamps();
   // The lit surfaces given up (buildInterior's fallBack): the ironwork takes the shell's flat surface; glasses and halos carry on.
   function fallBack(flat) { object.traverse(o => { if (o.name === 'ironwork') o.material = flat.surface; }); }
-  return {object, overlay, setLamps, setLight, fallBack, dispose() {
+  // The lit halos' bounding spheres (three's frame), each passed to `fn`; for the view to tell where on screen the overlay lies.
+  const haloSpheres = I.fittings.map(f => new THREE.Sphere(new THREE.Vector3(...toThree(f.at)), HALO.radius)), haloRoom = I.fittings.map(f => roomIndex.get(f.room));
+  const eachShown = fn => { if (halos.visible) for (let k = 0; k < n; k++) if (levels[haloRoom[k]] > 0) fn(haloSpheres[k]); };
+  return {object, overlay, setLamps, setLight, fallBack, eachShown, dispose() {
     object.traverse(o => o.geometry?.dispose()); halos.geometry.dispose(); glassMaterial.dispose(); haloMat.dispose(); glasses.dispose();
   }};
 }

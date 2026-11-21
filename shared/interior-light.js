@@ -101,7 +101,7 @@ export function createLightField(interior, openings) {
     }
     dayW = Math.max(LIGHT.day.floor, dayW);
     // lamp: the room's own fitting, never less than the floor; and the spill of the stronger of the neighbours' fittings in plain
-    // sight through an opening (the plan line to it crosses no solid wall), by the same rule times LIGHT.lamp.spill
+    // sight through an opening (the plan line to it crosses no solid wall) on a surface facing it, by the same rule times LIGHT.lamp.spill
     let lamp = 0, spill = 0, spillRoom = -1;
     if (at && lamps.has(id)) lamp = Math.max(LIGHT.lamp.floor, lampWeight(point, normal, lamps.get(id)));
     if (at) {
@@ -109,7 +109,9 @@ export function createLightField(interior, openings) {
       for (const k of joined[index]) {
         const q = lamps.get(I.rooms[k].id);
         if (!clear(floor, from, q)) continue;
-        const w = LIGHT.lamp.spill * lampWeight(point, normal, q);
+        // (only on what faces the lamp, fading in as it turns toward it: a face looking away, as the far side of a wall beside the
+        // opening does, takes none even where it sees the lamp past the jamb's corner)
+        const facing = along(normal, toward(point, q).u), w = LIGHT.lamp.spill * Math.min(1, facing * 5) * lampWeight(point, normal, q);
         if (w > spill) { spill = w; spillRoom = k; }
       }
     }

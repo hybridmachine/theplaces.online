@@ -154,7 +154,8 @@ test('a lamp\'s light passes through a wide opening onto the floor beyond with n
 test('a lamp spills only through openings: none behind the solid part of a wall, none to a room it is not joined to, none two openings away', () => {
   const kitchen = F.roomIndex('kitchen'), half = I.wall / 2 + .02;
   // the dining face of the kitchen-dining wall beyond the opening's jambs (d 7.5-11.5), facing the dining room
-  for (const d of [7.05, 7.2, 7.35, 11.65, 11.8, 11.95]) for (const z of [.3, 1.2, 2.4]) {
+  // (right up to the jambs: the face looks away from the kitchen's lamp, so even where it could see the lamp past the jamb's corner it takes none)
+  for (const d of [7.05, 7.2, 7.35, 7.45, 7.5, 11.5, 11.55, 11.65, 11.8, 11.95]) for (const z of [.3, 1.2, 2.4]) {
     const w = F.weigh(0, [7 + half, d, z], [1, 0, 0]);
     assert.equal(w.room, F.roomIndex('dining'));
     assert.ok(w.spillRoom !== kitchen || w.spill === 0, `${d}, ${z}: ${JSON.stringify(w)}`);
