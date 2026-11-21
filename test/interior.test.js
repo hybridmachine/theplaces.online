@@ -147,9 +147,14 @@ test('a wall lamp away from its room\'s walls, a fitting in the wrong room, or a
   assert.equal(variant(c => { delete c.fittings; }), false);
 });
 test('an obstacle that shuts a room off, or sits across two rooms, is invalid', () => {
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6.5, 7.5], d: [2, 5]}); }), false, 'across the hall-living opening');
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6, 8], d: [5.5, 6.5]}); }), false, 'in two rooms');
-  assert.equal(variant(c => { c.obstacles.push({floor: 1, a: [6.2, 7], d: [3, 4]}); }), false, 'shuts the landing off bedroom-2');
+  // On the blueprint without its furniture (the breasts alone), so the obstacle's own rules decide: with furniture present a raw
+  // obstacle is refused first for not matching the pieces, which would prove nothing about these.
+  const lone = extra => variant(c => { delete c.furniture; c.obstacles = [...c.breasts, ...extra]; });
+  assert.equal(lone([]), true, 'the breasts alone are valid');
+  assert.equal(lone([{floor: 0, a: [6.5, 7.5], d: [2, 5]}]), false, 'across the hall-living opening');
+  assert.equal(lone([{floor: 0, a: [6, 8], d: [5.5, 6.5]}]), false, 'in two rooms');
+  assert.equal(lone([{floor: 1, a: [6.2, 7], d: [3, 4]}]), false, 'shuts the landing off bedroom-2');
+  assert.equal(lone([{floor: 0, a: [9.5, 10.5], d: [10, 11]}]), true, 'a free-standing one is fine');
   assert.equal(solid('dining', [10, 10.5]), true, 'a free-standing one is fine');
 });
 test('no wall fitting sits inside an obstacle; a hanging one may hang over one', () => {
