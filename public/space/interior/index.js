@@ -342,7 +342,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
   // Where the overlay's lit parts lie from `camera` against the live panes' rectangles (`views`, each with its `rect` [u0, v0, u1, v1]
   // on screen, 0–1 from the bottom left): 0 when none is in sight, 1 when some is but over no live pane, 2 when some lies over one.
-  // Each part is taken as its bounding sphere's square on screen (a sphere about the eye or behind it counts as over every pane).
+  // Each part is taken as the box about its bounding sphere, on screen (a sphere about the eye or behind it counts as over every pane).
   // Nothing allocated.
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), centre = new THREE.Vector3();
   let need = 0, cam = null, rects = null;
@@ -351,9 +351,12 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     centre.copy(sphere.center).applyMatrix4(cam.matrixWorldInverse);
     const depth = -centre.z;
     if (depth <= sphere.radius + cam.near) { need = rects.length ? 2 : 1; return; }
-    centre.applyMatrix4(cam.projectionMatrix);
-    const ry = sphere.radius / (depth * Math.tan(cam.fov * Math.PI / 360)) / 2, rx = ry / cam.aspect, u = (centre.x + 1) / 2, v = (centre.y + 1) / 2;
-    need = Math.max(need, rects.some(({rect: r}) => u + rx >= r[0] && u - rx <= r[2] && v + ry >= r[1] && v - ry <= r[3]) ? 2 : 1);
+    // (the box about the sphere in the camera's frame, each side taken at the depth that carries it furthest out: the radius at the
+    // centre's depth alone falls short of the sphere's outline toward the edges of the screen)
+    const r = sphere.radius, k = 1 / Math.tan(cam.fov * Math.PI / 360), far = depth + r, near = depth - r;
+    const lo = x => (x - r) / (x - r < 0 ? near : far), hi = x => (x + r) / (x + r > 0 ? near : far), ndc = (x, s) => (x * s + 1) / 2;
+    const u0 = ndc(lo(centre.x), k / cam.aspect), u1 = ndc(hi(centre.x), k / cam.aspect), v0 = ndc(lo(centre.y), k), v1 = ndc(hi(centre.y), k);
+    need = Math.max(need, rects.some(({rect: q}) => u1 >= q[0] && u0 <= q[2] && v1 >= q[1] && v0 <= q[3]) ? 2 : 1);
   };
   const overlayNeed = (camera, views) => {
     camera.updateMatrixWorld(); frustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));

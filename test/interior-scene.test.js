@@ -274,3 +274,20 @@ test("the stair's plastered side has its vertex rows level from tread to tread, 
   assert.ok(n > 60, `${n}`);
   dispose();
 });
+
+test('a halo toward the edge of the screen is taken at its full outline against a live pane', () => {
+  // The kitchen's lamp alone, 2 m off and 40° to the right of a 16:9 camera: its outline on screen reaches further right than its
+  // radius (0.18 m) taken at its centre's depth. A pane beginning between the two is under the halo; one well clear of it is not.
+  const {setLamps, overlayNeed, dispose} = build(), at = I.fittings.find(f => f.room === 'kitchen').at, turn = 40 * Math.PI / 180, far = 2, R = .18;
+  setLamps(I.rooms.map(r => r.id === 'kitchen' ? 1 : 0));
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, .05, 100); camera.position.set(at[0], at[2], -at[1] + far); camera.rotation.y = turn;
+  const k = 1 / Math.tan(30 * Math.PI / 180) / (16 / 9), u = angle => (Math.tan(angle) * k + 1) / 2;
+  const outline = u(turn + Math.asin(R / far)), atCentre = u(turn) + R / (far * Math.cos(turn)) * k / 2;
+  assert.ok(atCentre < outline && outline < 1, `${atCentre} ${outline}`);
+  const need = from => overlayNeed(camera, [{rect: [from, 0, 1.5, 1]}]);
+  assert.equal(need(u(turn)), 2, 'over the lamp itself');
+  assert.equal(need((atCentre + outline) / 2), 2, 'under the outline, past the radius at the centre\'s depth');
+  assert.equal(need(1.2), 1, 'in sight but over no pane');
+  assert.equal(overlayNeed(camera, []), 1);
+  dispose();
+});

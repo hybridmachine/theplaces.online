@@ -54,6 +54,22 @@ export function createLightField(interior, openings) {
     const len = Math.hypot(q[0] - p[0], q[1] - p[1]), k = len > SHORT ? 1 - SHORT / len : 0, end = [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k];
     return !runs[floor].some(r => crossing(p, end, r) !== null);
   };
+  // Whether the line from `p` to `q` (both with their heights) passes under the head of every opening it goes through: where it
+  // crosses either face of an opening's wall within the opening's span, it is no higher than the door head. (`clear` is plan only,
+  // and would let light over the lintel onto the ceiling beyond.)
+  const heads = [0, 1].map(f => I.openings.filter(op => op.floor === f));
+  const under = (floor, p, q) => {
+    const top = floor * I.floorRise + I.doorHead + 1e-6;
+    for (const op of heads[floor]) {
+      const i = op.line === 'a' ? 0 : 1, j = 1 - i;
+      for (const x of [op.at - I.wall / 2, op.at + I.wall / 2]) {
+        if ((p[i] - x) * (q[i] - x) >= 0) continue;
+        const t = (x - p[i]) / (q[i] - p[i]), c = p[j] + t * (q[j] - p[j]);
+        if (c > op.span[0] && c < op.span[1] && p[2] + t * (q[2] - p[2]) > top) return false;
+      }
+    }
+    return true;
+  };
   // Daylight from the panes alone (no borrowing, no floor).
   const direct = (floor, point, n, roomId) => {
     const from = [point[0] + n[0] * OFF, point[1] + n[1] * OFF];
@@ -61,7 +77,7 @@ export function createLightField(interior, openings) {
     for (const {o, targets} of panes[floor]) {
       if (o.kind === 'door' && roomId !== 'hall') continue;
       let best = null;
-      for (const t of targets) if (clear(floor, from, t)) { const v = toward(point, t); if (!best || v.d < best.d) best = v; }
+      for (const t of targets) if (clear(floor, from, t) && under(floor, point, t)) { const v = toward(point, t); if (!best || v.d < best.d) best = v; }
       if (!best) continue;
       sum += (along(n, best.u) * (1 - LIGHT.day.face) + LIGHT.day.face) * falloff(best.d, LIGHT.day.reach) * (o.kind === 'door' ? LIGHT.day.door : 1);
     }
@@ -102,14 +118,14 @@ export function createLightField(interior, openings) {
     // never less than the floor, which it nears softly, so that the little a far room takes still falls from its doorway to its far wall
     dayW = Math.hypot(LIGHT.day.floor, dayW);
     // lamp: the room's own fitting, never less than the floor; and the spill of the stronger of the neighbours' fittings in plain
-    // sight through an opening (the plan line to it crosses no solid wall) on a surface facing it, by the same rule times LIGHT.lamp.spill
+    // sight through an opening (the line to it crosses no solid wall and passes under the opening's head) on a surface facing it, by the same rule times LIGHT.lamp.spill
     let lamp = 0, spill = 0, spillRoom = -1;
     if (at && lamps.has(id)) lamp = Math.max(LIGHT.lamp.floor, lampWeight(point, normal, lamps.get(id)));
     if (at) {
       const from = [point[0] + normal[0] * OFF, point[1] + normal[1] * OFF];
       for (const k of joined[index]) {
         const q = lamps.get(I.rooms[k].id);
-        if (!clear(floor, from, q)) continue;
+        if (!clear(floor, from, q) || !under(floor, point, q)) continue;
         // (only on what faces the lamp, fading in as it turns toward it: a face looking away, as the far side of a wall beside the
         // opening does, takes none even where it sees the lamp past the jamb's corner)
         const facing = along(normal, toward(point, q).u), w = LIGHT.lamp.spill * Math.min(1, facing * 5) * lampWeight(point, normal, q);
@@ -118,7 +134,7 @@ export function createLightField(interior, openings) {
     }
     // fire: ground floor only, and only where the mouth is in sight
     let fire = 0;
-    if (floor === 0 && clear(0, [point[0] + normal[0] * OFF, point[1] + normal[1] * OFF], mouth)) {
+    if (floor === 0 && clear(0, [point[0] + normal[0] * OFF, point[1] + normal[1] * OFF], mouth) && under(0, point, mouth)) {
       const v = toward(point, mouth);
       fire = (along(normal, v.u) * (1 - LIGHT.fire.face) + LIGHT.fire.face) * falloff(v.d, LIGHT.fire.reach);
     }

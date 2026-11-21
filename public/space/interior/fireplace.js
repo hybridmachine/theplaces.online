@@ -20,7 +20,7 @@ const MOUTH_DEEP = .35, SLAB_HIGH = .05, MANTEL = {width: 2.2, depth: .2, thick:
 // sway phase; they overlap, the tall ones in the middle.
 const CARDS = [{x: -.27, w: .26, h: .34, a: .27, phase: 0}, {x: -.12, w: .3, h: .55, a: .23, phase: 2.1}, {x: .02, w: .32, h: .62, a: .26, phase: 4.2},
   {x: .15, w: .28, h: .48, a: .22, phase: 1.3}, {x: .28, w: .24, h: .3, a: .28, phase: 5.6}];
-const GLOW_AT = .5, GLOW_RADII = [.25, .35, .5], GLOW = {burning: .5, embers: .12}, FLAME_FLOOR = .02;
+const GLOW_AT = .5, GLOW_RADII = [.25, .35, .5], GLOW = {burning: .5, embers: .12}, FLAME_FLOOR = .02, FLAME_FADE = .1;
 const ASH = [.03, .022, .02], EMBER = [1, .32, .06], CORE = [1, .9, .55], FLAME = [1, .42, .06];
 // The ember mound: its size (a, d) and height, and how many cells it is cut into.
 const BED = {deep: .3, wide: .8, high: .07, cells: [6, 14]};
@@ -113,7 +113,9 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
   // Cheap and allocation-free: scalars into the existing objects.
   function setFire({fire, embers: ember, seconds, motion} = {}) {
     const f = clamp01(fire), e = clamp01(ember), t = Number.isFinite(seconds) ? seconds : 0, moving = !!motion;
-    flames.visible = f > FLAME_FLOOR; flameMaterial.opacity = .25 + .5 * f;   // added over the room: overlapping tongues reach white at their cores
+    // (the tongues come in from nothing over FLAME_FADE above the floor, and go out the same way: never a flame in one frame)
+    const shown = clamp01((f - FLAME_FLOOR) / FLAME_FADE);
+    flames.visible = f > FLAME_FLOOR; flameMaterial.opacity = (.25 + .5 * f) * shown * shown * (3 - 2 * shown);   // added over the room: overlapping tongues reach white at their cores
     const grown = .35 + .65 * f;
     for (const c of cards) {
       // each tongue on its own clock: its height, its lean and its width
@@ -122,7 +124,8 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
       c.m.rotation.z = moving ? .16 * Math.sin(t * (1.7 + c.phase * .3) + c.phase) : 0;
     }
     embers.material.color.setRGB(ASH[0] + (EMBER[0] - ASH[0]) * e, ASH[1] + (EMBER[1] - ASH[1]) * e, ASH[2] + (EMBER[2] - ASH[2]) * e);
-    glow.material.uniforms.opacity.value = f > FLAME_FLOOR ? f * GLOW.burning : e * GLOW.embers; glow.visible = glow.material.uniforms.opacity.value > 0;
+    glow.material.uniforms.opacity.value = Math.max(f * GLOW.burning, e * GLOW.embers);   // the embers' glow until the fire's passes it: no step either way
+    glow.visible = glow.material.uniforms.opacity.value > 0;
   }
   setFire({fire: 0, embers: 0, seconds: 0, motion: false});
   // The lit surfaces given up (buildInterior's fallBack): the stone takes a Lambert material whose colour brings its lit tint back

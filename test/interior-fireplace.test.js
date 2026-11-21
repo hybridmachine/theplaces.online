@@ -93,6 +93,18 @@ test('the embers glow after the fire and are dark when cold', () => {
   dispose();
 });
 
+test('the flames and the glow come and go with no step as the fire crosses its floor', () => {
+  const {scene, setFire, dispose} = build(), flames = part(scene, 'flames'), glow = part(scene, 'fire-glow');
+  const read = fire => { setFire({fire, embers: 1, seconds: 0, motion: false}); return {flame: flames.visible ? flames.children[0].material.opacity : 0, glow: glow.material.uniforms.opacity.value}; };
+  // across the floor itself, and all the way up in steps of a hundredth: neither changes by much between neighbours
+  const below = read(.0199), above = read(.0201);
+  assert.ok(above.flame < .01, `the flame begins from nothing: ${above.flame}`); assert.ok(Math.abs(above.glow - below.glow) < .005, `${below.glow} ${above.glow}`);
+  let last = read(0);
+  for (let f = .01; f <= 1.0001; f += .01) { const now = read(f); assert.ok(Math.abs(now.flame - last.flame) < .08 && Math.abs(now.glow - last.glow) < .02 && now.glow >= last.glow, `at ${f}`); last = now; }
+  assert.ok(last.flame > .7 && last.glow > .4);
+  dispose();
+});
+
 test('nothing in the fireplace is a light source, and its stone takes the room\'s light', () => {
   const {scene, dispose} = build(), group = scene.getObjectByName('fireplace');
   group.traverse(o => assert.ok(!o.isLight, o.name));

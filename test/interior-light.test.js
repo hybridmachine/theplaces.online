@@ -185,6 +185,19 @@ test('a lamp spills only through openings: none behind the solid part of a wall,
   assert.deepEqual([F.weigh(0, [-3, -3, 0], UP).spill, F.weigh(0, [-3, -3, 0], UP).spillRoom], [0, -1]);
 });
 
+test('no light passes over the head of a doorway onto the ceiling beyond', () => {
+  // The dining room's ceiling just beyond the kitchen-dining opening (a = 7): the line to the kitchen's lamp crosses the wall at
+  // about 2.6 m, above the 2.1 m head, so the lamp spills nothing there; the floor below, under the head, still takes it.
+  assert.equal(F.weigh(0, [7.4, 9.5, I.groundCeiling], [0, 0, -1]).spill, 0);
+  assert.ok(F.weigh(0, [7.4, 9.5, 0], UP).spill > .1);
+  // The fire, through the hall-living opening (a = 7, d 2-5): the hall's ceiling close to the wall is over the head from the mouth.
+  assert.equal(F.weigh(0, [7.3, 3.5, I.groundCeiling], [0, 0, -1]).fire, 0);
+  assert.ok(F.weigh(0, [7.3, 3.5, 0], UP).fire > 0);
+  // Daylight: the kitchen's ceiling just inside the kitchen-dining opening takes no more from the dining window than its floor does.
+  const noLiving = createLightField(I, O.filter(o => o.id === 'dining'));
+  assert.ok(noLiving.weigh(0, [6.6, 9.5, I.groundCeiling], [0, 0, -1]).day <= noLiving.weigh(0, [6.6, 9.5, 0], UP).day);
+});
+
 test('a spill is the neighbour\'s lamp by the lamp\'s own rule, times LIGHT.lamp.spill, and the stronger neighbour wins', () => {
   const p = [8, 9.5, 0], at = I.fittings.find(f => f.room === 'kitchen').at, t = at.map((x, i) => x - p[i]), L = Math.hypot(...t);
   const want = LIGHT.lamp.spill * (Math.max(0, t[2] / L) * .6 + .4) / (1 + (L / LIGHT.lamp.reach * 3) ** 2);
