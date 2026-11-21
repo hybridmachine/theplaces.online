@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {KINDS, footprint} from '../shared/furniture.js';
+import {KINDS, footprint, corners} from '../shared/furniture.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
-import {TUCK} from '../public/space/interior/furniture-kit.js';
-import {RECIPES} from '../public/space/interior/furniture.js';
+import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
+import {RECIPES, GROUND, SHADE_PALE, SHADE_WARM} from '../public/space/interior/furniture.js';
 import {LAKESIDE_SPACE} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
@@ -24,7 +24,7 @@ const vertices = (scene, id, meshName) => {
   if (!range) return [];
   const g = mesh.geometry, p = g.getAttribute('position'), n = g.getAttribute('normal'), c = g.getAttribute('color'), l = g.getAttribute('light'), s = g.getAttribute('spill'), out = [];
   for (let i = range.first; i < range.first + range.count; i++) out.push({a: p.getX(i), d: -p.getZ(i), z: p.getY(i), n: [n.getX(i), -n.getZ(i), n.getY(i)],
-    colour: [c.getX(i), c.getY(i), c.getZ(i)], light: [l.getX(i), l.getY(i), l.getZ(i), l.getW(i)], spill: [s.getX(i), s.getY(i)]});
+    colour: [c.getX(i), c.getY(i), c.getZ(i)], light: l ? [l.getX(i), l.getY(i), l.getZ(i), l.getW(i)] : null, spill: s ? [s.getX(i), s.getY(i)] : null});
   return out;
 };
 const mean = xs => xs.reduce((t, x) => t + x, 0) / xs.length;
@@ -297,6 +297,158 @@ test('sculpted pieces carry light: no vertex of furniture-wood, -cloth or -stone
 test('counts are reported', () => {
   const inside = build();
   assert.ok(inside.furniture.vertices > 0); assert.ok(inside.furniture.meshes <= 5);
-  assert.equal(inside.furniture.meshes, 3, 'wood, cloth and stone');
+  assert.equal(inside.furniture.meshes, 5, 'wood, cloth, stone, shades and grounding');
   inside.dispose();
+});
+
+// ── grounding and the lamps' shades ──
+const living = I.rooms.findIndex(r => r.id === 'living');
+// The frame's dials as buildInterior's setLight reads them: a mid-day-ish light, the night fill, the living room's lamp at `level` and `others` for every other room.
+const dialsAt = (level, others = 0) => ({day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0, lamps: I.rooms.map((_, i) => i === living ? level : others)});
+const shadeColour = (inside, dials) => {
+  inside.setLight(dials);
+  const c = furniture(inside.scene).getObjectByName('shades').material.color;
+  return [c.r, c.g, c.b];
+};
+const SOLID = I.furniture.filter(e => KINDS[e.kind].standing === 'solid');
+// A piece's patch: its vertices as {a, d, z, alpha}.
+const patch = (scene, id) => {
+  const range = furniture(scene).userData.grounding.get(id), g = furniture(scene).getObjectByName('grounding').geometry, p = g.getAttribute('position'), c = g.getAttribute('color'), out = [];
+  for (let i = range.first; i < range.first + range.count; i++) out.push({a: p.getX(i), d: -p.getZ(i), z: p.getY(i), alpha: c.getW(i)});
+  return out;
+};
+
+test('a roll\'s far end cap takes the end colour as the near one does', () => {
+  const kit = createKit(THREE, {face: () => { throw new Error('no face'); }, lit: g => g, tint: () => () => [0, 0, 1]});
+  const sides = 6, [g] = kit.roll(kit.placed({at: [0, 0], turn: 0, lift: 0, room: 'living'}), [0, 0, 0], [0, 0, 1.3], .05, () => [0, 0, 1], {sides, ends: () => [1, 0, 0]});
+  const c = g.getAttribute('color'); let ends = 0;
+  for (let i = 0; i < c.count; i++) if (c.getX(i) === 1) { ends++; assert.deepEqual([c.getX(i), c.getY(i), c.getZ(i)], [1, 0, 0], `vertex ${i} is wholly the end colour`); }
+  assert.equal(ends, 4 * (sides + 1), 'two rings a cap, both caps');
+  // every vertex off the ends is body colour
+  for (let i = 0; i < c.count; i++) if (c.getX(i) !== 1) assert.deepEqual([c.getX(i), c.getY(i), c.getZ(i)], [0, 0, 1]);
+});
+
+test('every solid piece has a patch on the floor beneath it, darkest under it and nothing at its rim', () => {
+  const inside = build();
+  assert.equal(GROUND.reach, .22); assert.equal(GROUND.dark, .42);
+  for (const e of SOLID) {
+    const p = patch(inside.scene, e.id), dark = p.filter(v => v.alpha > 0), rim = p.filter(v => v.alpha === 0);
+    assert.ok(p.length > 0, `${e.id} has a patch`);
+    assert.ok(dark.length > 0 && rim.length > 0, e.id);
+    for (const v of dark) assert.ok(Math.abs(v.alpha - GROUND.dark) < 1e-6, `${e.id} dark ${v.alpha}`);
+    // the dark vertices lie within the piece's reach of its footprint, the rim vertices are the outermost
+    const f = footprint(e), cx = mean(f.a), cy = mean(f.d);
+    const far = v => Math.hypot(v.a - cx, v.d - cy);
+    assert.ok(Math.max(...dark.map(far)) < Math.min(...rim.map(far)) + 1e-6, `${e.id}: the dark lies inside the rim`);
+  }
+  const mat = furniture(inside.scene).getObjectByName('grounding').material;
+  assert.ok(mat.isMeshBasicMaterial && mat.vertexColors && mat.transparent && !mat.depthWrite && mat.polygonOffset && mat.polygonOffsetFactor === -1);
+  assert.ok(furniture(inside.scene).getObjectByName('grounding').renderOrder < inside.scene.children.find(o => o.name.startsWith('pane-')).renderOrder, 'drawn before the panes');
+  inside.dispose();
+});
+
+test('the grounding lies just above the floor and inside the piece\'s room', () => {
+  const inside = build(), rugs = I.furniture.filter(e => KINDS[e.kind].standing === 'walk-over');
+  for (const e of SOLID) {
+    const r = room(e.room), floor = r.floor * I.floorRise, wall = I.wall / 2;
+    // a piece standing on a rug has its patch just over the rug's top instead
+    const base = rugs.map(g => inside.pieceBox(g.id)).filter(b => b && b.a[0] <= e.at[0] && e.at[0] <= b.a[1] && b.d[0] <= e.at[1] && e.at[1] <= b.d[1]).reduce((t, b) => Math.max(t, b.z[1]), floor);
+    for (const v of patch(inside.scene, e.id)) {
+      assert.ok(v.z - base >= .002 - 1e-6 && v.z - base <= .006 + 1e-6, `${e.id} z ${v.z - base} over ${base}`);
+      assert.ok(v.a >= r.a[0] + wall - 1e-6 && v.a <= r.a[1] - wall + 1e-6 && v.d >= r.d[0] + wall - 1e-6 && v.d <= r.d[1] - wall + 1e-6, `${e.id} (${v.a}, ${v.d}) is inside ${r.id}`);
+    }
+  }
+  // pieces that stand on no rug lie over the floor itself
+  for (const id of ['sofa', 'armchair-front', 'bookshelf']) for (const v of patch(inside.scene, id)) assert.ok(v.z <= room('living').floor * I.floorRise + .006 + 1e-6, id);
+  inside.dispose();
+});
+
+test('the patch turns with a turned piece', () => {
+  const inside = build(), e = I.furniture.find(x => x.id === 'armchair-front'), [w, h] = KINDS.armchair.size, k = GROUND.reach;
+  const p = patch(inside.scene, e.id), dark = p.filter(v => v.alpha > 0), c = Math.cos(e.turn), s = Math.sin(e.turn);
+  assert.equal(dark.length, 4);
+  // the inner cell is the footprint drawn in by .05 (corners() turned and shrunk), not the square-on bound
+  const want = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => { const x = u * (w / 2 - .05), y = v * (h / 2 - .05); return [e.at[0] + x * c - y * s, e.at[1] + x * s + y * c]; });
+  for (const [a, d] of want) assert.ok(dark.some(v => Math.hypot(v.a - a, v.d - d) < 1e-4), `inner corner ${a}, ${d}`);
+  const pts = corners(e), bound = footprint(e);
+  assert.ok(pts.some(([a]) => a < bound.a[1] - .05 && a > bound.a[0] + .05), 'the chair is turned, so its corners are not the bound\'s');
+  assert.ok(Math.max(...p.map(v => Math.hypot(v.a - e.at[0], v.d - e.at[1]))) <= Math.hypot(w / 2 + k, h / 2 + k) + 1e-4);
+  inside.dispose();
+});
+
+test('the newel and the standing lamp take a small round patch', () => {
+  const inside = build();
+  for (const id of ['newel', 'standing-lamp']) {
+    const e = I.furniture.find(x => x.id === id), p = patch(inside.scene, id), far = Math.max(...p.map(v => Math.hypot(v.a - e.at[0], v.d - e.at[1])));
+    assert.ok(far > .15 && far <= GROUND.disc + 1e-4, `${id} reaches ${far}`);
+    assert.ok(p.some(v => Math.abs(v.alpha - GROUND.dark) < 1e-6) && p.some(v => v.alpha === 0));
+  }
+  inside.dispose();
+});
+
+test('the grounding patches face up', () => {
+  const inside = build(), g = furniture(inside.scene).getObjectByName('grounding').geometry, p = g.getAttribute('position'), idx = g.index.array;
+  for (let t = 0; t < idx.length; t += 3) {
+    const [A, B, C] = [0, 1, 2].map(k => [p.getX(idx[t + k]), p.getY(idx[t + k]), p.getZ(idx[t + k])]);
+    const ny = (B[2] - A[2]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[2] - A[2]);
+    assert.ok(ny >= -1e-12, `triangle ${t / 3} faces up`);
+  }
+  inside.dispose();
+});
+
+test('the shades are pale with the lamp out and warm with it lit, by the living room\'s dial alone', () => {
+  const inside = build(), out = shadeColour(inside, dialsAt(0)), lit = shadeColour(inside, dialsAt(1));
+  assert.ok(out[0] / out[2] < 1.4, `out r/b ${out[0] / out[2]}`);
+  assert.ok(lit[0] / lit[2] > 2, `lit r/b ${lit[0] / lit[2]}`);
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)), 'fully lit is the warm colour');
+  assert.deepEqual(shadeColour(inside, dialsAt(0, 1)), out, 'another room\'s lamp changes nothing');
+  assert.deepEqual(shadeColour(inside, dialsAt(1, 1)), lit);
+  // pale is the pale tint times the room's light, so more day makes it brighter
+  const brighter = shadeColour(inside, {...dialsAt(0), day: [1.2, 1.1, .9]});
+  assert.ok(brighter[0] > out[0] && SHADE_PALE.every(v => v > 0));
+  inside.dispose();
+});
+
+test('the shade never jumps: its colour at level .5 lies between its colours at 0 and 1', () => {
+  const inside = build(), a = shadeColour(inside, dialsAt(0)), m = shadeColour(inside, dialsAt(.5)), b = shadeColour(inside, dialsAt(1));
+  for (let c = 0; c < 3; c++) assert.ok(m[c] >= Math.min(a[c], b[c]) - 1e-9 && m[c] <= Math.max(a[c], b[c]) + 1e-9, `channel ${c}: ${a[c]} ${m[c]} ${b[c]}`);
+  // and it steps smoothly: a small change of level is a small change of colour
+  const near = shadeColour(inside, dialsAt(.51));
+  for (let c = 0; c < 3; c++) assert.ok(Math.abs(near[c] - m[c]) < .05 * Math.abs(b[c] - a[c]) + 1e-6);
+  // an unreadable dial never throws nor gives a colour that is not finite
+  for (const bad of [{...dialsAt(0), lamps: [NaN, undefined, Infinity]}, {...dialsAt(1), fire: NaN, day: [NaN, 1, 1]}]) assert.ok(shadeColour(inside, bad).every(Number.isFinite));
+  inside.dispose();
+});
+
+test('the shades are their own mesh, drawn double-sided, the lamps\' shades and nothing else', () => {
+  const inside = build(), group = furniture(inside.scene), shades = group.getObjectByName('shades');
+  assert.ok(shades && shades.material.isMeshBasicMaterial && shades.material.side === THREE.DoubleSide);
+  for (const id of ['standing-lamp', 'table-lamp']) {
+    assert.ok(vertices(inside.scene, id, 'shades').length > 0, `${id} has a shade`);
+    assert.equal(vertices(inside.scene, id, 'furniture-cloth').length, 0, `${id} has none in the cloth`);
+  }
+  assert.equal(group.userData.pieces.get('sofa')?.some(r => r.mesh === 'shades'), false);
+  inside.dispose();
+});
+
+test('given up for the flat light with the lamp lit: furniture drawn, shades still warm, grounding in place, nothing thrown', () => {
+  const inside = build(), group = furniture(inside.scene), ground = group.getObjectByName('grounding'), material = ground.material, count = ground.geometry.getAttribute('position').count;
+  inside.fallBack();
+  const lit = shadeColour(inside, dialsAt(1));
+  assert.ok(lit[0] / lit[2] > 2, 'still warm');
+  assert.equal(group.getObjectByName('grounding').material, material); assert.equal(group.getObjectByName('grounding').geometry.getAttribute('position').count, count);
+  assert.ok(group.getObjectByName('furniture-wood').material.isMeshLambertMaterial);
+  assert.ok(group.getObjectByName('shades').material.isMeshBasicMaterial);
+  assert.ok(shadeColour(inside, dialsAt(0))[0] / shadeColour(inside, dialsAt(0))[2] < 1.4);
+  inside.dispose();
+});
+
+test('no light source and nothing new in the overlay', () => {
+  const inside = build(), bare = build({...I, furniture: [], obstacles: I.breasts});
+  let lights = 0; inside.scene.traverse(o => { if (o.isLight && !o.isHemisphereLight) lights++; });
+  assert.equal(lights, 0);
+  assert.equal(inside.overlay.children.length, bare.overlay.children.length);
+  let found = 0; inside.overlay.traverse(o => { if (o.name === 'shades' || o.name === 'grounding') found++; });
+  assert.equal(found, 0);
+  inside.dispose(); bare.dispose();
 });

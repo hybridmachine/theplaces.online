@@ -355,7 +355,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     const weigh = coarseWeigh();
     furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
       lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint, tints: {plaster, boards, dark},
-      materials: {surface, plastered, leafed}, treads: TREADS});
+      materials: {surface, plastered, leafed}, treads: TREADS,
+      weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
     scene.add(furniture.object);
   } catch (error) {
     console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
@@ -402,7 +403,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     // Whether the furniture was built, its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
     furnished: !!furniture, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
-    setLight(dials) { light?.set(dials); fittings.setLight(dials); },
+    setLight(dials) { light?.set(dials); fittings.setLight(dials); furniture?.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on
     // this device, found only once it is first drawn): every lit surface of the shell, the fireplace, the fittings and the furniture takes the
     // Lambert materials and the hemisphere light comes in. The glasses, halos and fire carry on. Once only; nothing when unlit.

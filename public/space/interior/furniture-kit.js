@@ -236,7 +236,7 @@ export function createKit(THREE, {face, lit, tint}) {
     const frame = Object.assign((x, y, z) => at(...V.add(V.add(V.add(from, r1, x), r2, y), u, z)), {room: at.room});
     const n = Math.max(1, Math.ceil(length / ROLL_RING - 1e-9)), side = Array.from({length: n + 1}, (_, k) => [radius, length * k / n]);
     const profile = [[0, 0], [radius, 0], ...side, [radius, length], [0, length]], last = profile.length - 2;
-    return [lathe(frame, profile, (p, k) => (k < 2 || k > last ? ends : colour)(p), sides, tile)];
+    return [lathe(frame, profile, (p, k) => (k < 2 || k >= last ? ends : colour)(p), sides, tile)];
   };
 
   // A sheet of cloth over `pointOf(s, t)` (local points, s and t in [0, 1]; its front is the side ∂p/∂s × ∂p/∂t points to), `across`

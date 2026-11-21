@@ -1,4 +1,5 @@
-import {KINDS} from '../../../shared/furniture.js';
+import {KINDS, corners} from '../../../shared/furniture.js';
+import {lightSum} from '../../../shared/interior-light.js';
 import {roomAt} from '../../../shared/interior.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {mergeGeometries} from '../geometry.js';
@@ -8,7 +9,9 @@ import {MANTEL} from './fireplace.js';
 
 // The furniture of the furnished rooms (the blueprint's interior.furniture), drawn from the kit (furniture-kit.js) by one recipe per
 // kind and merged into a few meshes by material: wood (the shell's lit `surface` material), cloth (its double-sided `leafed` one) and
-// stone (a lit material of its own over the stone brushwork, for the mantel's jug and candlesticks).
+// stone (a lit material of its own over the stone brushwork, for the mantel's jug and candlesticks). Two more meshes are not lit by the
+// room's weights: the shades of the two lamps (`shades`, one colour for the mesh, set by setLight from the room's light and the living
+// room's lamp) and the grounding (a soft dark patch on the floor under each solid piece).
 // Where a piece stands comes from its entry: standing pieces at their `at` and `turn`, wall-hung ones on the face of their wall line,
 // set-on ones on their parent (on a seat at the parent kind's `seat`, otherwise on its top) or on the fireplace's mantel. A piece
 // whose kind has no recipe, whose parent cannot be found, or whose recipe throws, is passed over, with one warning for the whole
@@ -18,7 +21,18 @@ import {MANTEL} from './fireplace.js';
 const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], rugRed: [.95, .4, .3], ochre: [1.1, .85, .45], green: [.5, .62, .48], blue: [.5, .6, .75],
   linen: [1.2, 1.12, .95], glass: [.82, .9, .98]};
 const FLAT = .89;
-const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone'};
+const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
+// The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
+// `dark` black (alpha) and fades to nothing at the rim; `lift` above the floor (or above the rug a piece stands on); the newel and the
+// standing lamp's foot take a round patch of radius `disc`.
+export const GROUND = {reach: .22, dark: .42, inner: .05, lift: .003, disc: .2};
+const ROUND = ['newel', 'standing-lamp'];
+// A lamp's shade, linear: pale (times the room's light there, without the lamp's own) with the lamp out, and glowing warm, above 1 so
+// it blooms, with the living room's lamp lit; between them by that lamp's level.
+export const SHADE_PALE = [1.12, 1.08, 1.05], SHADE_WARM = [1.9, 1.25, .6];
+const SHADE_ROOM = 'living';
+const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
+const finite = v => Number.isFinite(v) ? v : 0;
 // The stone's brushwork on the mantel's small pieces: finer than the breast's, so a jug shows a few strokes, not one stone.
 const STONE_TILE = SPACE_ART.surfaces.stone.metres * .2;
 // The stair's handrail's radius.
@@ -42,11 +56,12 @@ const upholsteryOf = e => {
   return {...u, armR: u.arm / 2 * (.8 + .4 * r(21)), backR: u.back / 2 * (.85 + .15 * r(22)), armTop: .6 + .06 * (r(23) - .5)};
 };
 
-// ── the recipes: (kit, entry, palette, {interior, treads}) → {wood?: [geometry], cloth?: [geometry], stone?: [geometry]} ──
+// ── the recipes: (kit, entry, palette, {interior, treads, plain}) → {wood?: [geometry], cloth?: [geometry], stone?: [geometry], shades?: [geometry]} ──
 // `entry` is resolved: `at`, `turn` and `lift` place it (kit.placed), a set-on one also carries its `parent` (resolved), its `index`
 // among the pieces of its kind on that parent and their `count`. `palette.<colour>(k = 0, spread = .08, times = 1)` is that colour's
 // tint function (times `times`), varied by the piece's seed plus k; `palette.seed` is the piece's seed and `palette.random(k)` a
-// fixed number in [0, 1) from it. The last argument is the whole interior and the stair's tread count (for the newel's rail).
+// fixed number in [0, 1) from it. The last argument is the whole interior, the stair's tread count (for the newel's rail) and a `plain` kit
+// (the same, its geometry not weighed by the light's field) for what the shades draw.
 const rug = (field, border, band) => (kit, e, pal) => {
   const [hx, hy] = halves(e);
   return {cloth: kit.mat(kit.placed(e), [hx, hy], .01, pal[field](0, .1), pal[border](1, .1, .6), {band, seed: pal.seed})};
@@ -84,8 +99,9 @@ const upholstered = (kit, e, pal) => {
   }
   return {wood, cloth};
 };
-// A lamp's shade, an open cone of cloth from [radius, z] at its foot to [radius, z] at its top (Task 5 gives shades their own mesh).
-const shade = (kit, at, foot, top, colour) => kit.turned(at, [0, 0], [foot, top], colour);
+// A lamp's shade, an open cone from [radius, z] at its foot to [radius, z] at its top, drawn by the plain kit (its geometry is not weighed:
+// the shades' one colour is set a frame).
+const shade = (plain, at, foot, top, colour) => plain.turned(at, [0, 0], [foot, top], colour);
 // The inside of an open turned piece (profile points from `from` on) darker than its outside.
 const lined = (colour, from) => (p, k) => k >= from ? colour(p).map(c => c * TUCK) : colour(p);
 
@@ -186,17 +202,17 @@ export const RECIPES = {
   sofa: upholstered,
   armchair: upholstered,
   // A turned stem on a weighted foot, a fitting at its top and the shade over it.
-  'standing-lamp'(kit, e, pal) {
+  'standing-lamp'(kit, e, pal, {plain}) {
     const at = kit.placed(e), h = KINDS[e.kind].height, wood = pal.darkOak(0, .07), top = h - .25;
     return {wood: kit.turned(at, [0, 0], [[0, 0], [.13, 0], [.13, 0], [.135, .015], [.12, .035], [.05, .05], [.03, .08], [.02, .12], [.016, .14], [.016, top - .05],
       [.024, top - .04], [.024, top - .01], [.012, top], [0, top]], wood, {segments: 10}),
-      cloth: shade(kit, at, [.165, h - .33], [.11, h - .02], pal.linen(1, .05, .95))};
+      shades: shade(plain, at, [.165, h - .33], [.11, h - .02], pal.shade(1))};
   },
   // A rounded pot of a base on its table, a short stem and the shade.
-  'table-lamp'(kit, e, pal) {
+  'table-lamp'(kit, e, pal, {plain}) {
     const at = kit.moved(kit.placed(e), [-.04, .05, 0]), h = KINDS[e.kind].height, pot = pal.blue(0, .08, .9);
     return {wood: kit.turned(at, [0, 0], [[0, 0], [.055, 0], [.055, 0], [.072, .03], [.078, .08], [.06, .14], [.026, .17], [.014, .19], [.014, .26], [0, .26]], pot, {segments: 10}),
-      cloth: shade(kit, at, [.14, .22], [.09, h - .02], pal.linen(1, .05, .95))};
+      shades: shade(plain, at, [.14, .22], [.09, h - .02], pal.shade(1))};
   },
   // A woven basket, open, its inside darker, and four logs across it, their cut ends paler than their bark.
   'log-basket'(kit, e, pal) {
@@ -297,10 +313,13 @@ export const RECIPES = {
 };
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.
-export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, tints, materials, treads}) {
-  const kit = createKit(THREE, {face, lit, tint}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
+// `weightsAt(point, normal, roomId)` is the light field's weights at a point of the interior frame, in that room.
+export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, tints, materials, treads, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
+  const kit = createKit(THREE, {face, lit, tint}), plain = createKit(THREE, {face, lit: g => g, tint}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
   const colours = light ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),
+    // the shades' own: pale and neutral, not lit by the room's weights, so not taken back by the flat light's ratio
+    shade: (k = 0, spread = .04) => tint([1, 1, 1], seed + k, spread),
     ...Object.fromEntries(Object.entries(colours).map(([name, c]) => [name, (k = 0, spread = .08, times = 1) => tint(c.map(v => v * times), seed + k, spread)]))});
 
   // Where an entry stands: the entry with `at`, `turn` and `lift` (and, set on a piece, its parent and its place among its kind
@@ -327,7 +346,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   };
 
   // Every piece's geometries by mesh, and the range of vertices each piece has in each.
-  const lists = {wood: [], cloth: [], stone: []}, counts = {wood: 0, cloth: 0, stone: 0}, ranges = new Map(), skipped = [], scene = {interior: I, treads};
+  const lists = {wood: [], cloth: [], stone: [], shades: []}, counts = {wood: 0, cloth: 0, stone: 0, shades: 0}, ranges = new Map(), skipped = [], scene = {interior: I, treads, plain};
   for (const entry of I.furniture) {
     const recipe = Object.hasOwn(RECIPES, entry?.kind) ? RECIPES[entry.kind] : null;
     if (!recipe) { skipped.push(`${entry?.id} (no recipe for ${entry?.kind})`); continue; }
@@ -351,13 +370,14 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   // The stone's own material, as the fireplace's: lit over the stone brushwork (plain where the art has none), or Lambert when built unlit.
   const stoneMap = art?.surfaces?.stone ? {map: art.surfaces.stone} : {};
   let stone = lists.stone.length ? (light ? light.material(stoneMap) : new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true})) : null;
-  const material = {wood: materials.surface, cloth: materials.leafed, stone};
+  // The shades' own: one colour for the mesh, set by setLight; double-sided, as an open cone is seen inside and out.
+  const shadeMaterial = lists.shades.length ? new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.DoubleSide, fog: false}) : null;
+  const material = {wood: materials.surface, cloth: materials.leafed, stone, shades: shadeMaterial};
   for (const [k, list] of Object.entries(lists)) {
     if (!list.length) continue;
     const g = mergeGeometries(THREE, list); for (const x of list) x.dispose();
     const m = new THREE.Mesh(g, material[k]); m.name = MESHES[k]; object.add(m);
   }
-  const vertices = object.children.reduce((t, m) => t + m.geometry.getAttribute('position').count, 0);
   // A piece's box in the interior frame {a, d, z}, from its own vertices; null for a piece not drawn.
   const pieceBox = id => {
     const own = ranges.get(id);
@@ -369,15 +389,93 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     }
     return box;
   };
+  // ── the grounding: one patch a solid piece, merged into one mesh ──
+  // A walk-over piece (a rug) the piece's middle stands on: the patch lies just over its top, not under it.
+  const rugs = I.furniture.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
+  const under = e => {
+    const rug = rugs.find(r => { const [w, h] = sizeOf(r), c = Math.cos(r.turn || 0), s = Math.sin(r.turn || 0), x = e.at[0] - r.at[0], y = e.at[1] - r.at[1];
+      return Math.abs(x * c + y * s) <= w / 2 && Math.abs(-x * s + y * c) <= h / 2; });
+    return rug ? pieceBox(rug.id).z[1] : null;
+  };
+  const position = [], colour = [], index = [], grounded = new Map();
+  const patchOf = e => {
+    const room = rooms.get(e.room), first = position.length / 3, wall = I.wall / 2, z = (under(e) ?? room.floor * I.floorRise) + GROUND.lift;
+    // (a vertex past a wall's face is brought to it, so the dark stops at the wall and shows nowhere past it, doorways included)
+    const put = (a, d, alpha) => {
+      position.push(Math.min(Math.max(a, room.a[0] + wall), room.a[1] - wall), z, -Math.min(Math.max(d, room.d[0] + wall), room.d[1] - wall)); colour.push(0, 0, 0, alpha);
+    };
+    // A triangle, wound to face up (three's y).
+    const tri = (i, j, k) => {
+      const at = n => [position[3 * (first + n)], position[3 * (first + n) + 2]], [A, B, C] = [i, j, k].map(at);
+      (B[1] - A[1]) * (C[0] - A[0]) - (B[0] - A[0]) * (C[1] - A[1]) >= 0 ? index.push(first + i, first + j, first + k) : index.push(first + i, first + k, first + j);
+    };
+    if (ROUND.includes(e.kind)) {
+      // a fan of rings: dark to the middle ring, nothing at the rim
+      const rings = [[0, GROUND.dark], [GROUND.disc * .45, GROUND.dark], [GROUND.disc, 0]], n = 14;
+      put(e.at[0], e.at[1], GROUND.dark);
+      for (const [r, alpha] of rings.slice(1)) for (let k = 0; k < n; k++) put(e.at[0] + r * Math.cos(2 * Math.PI * k / n), e.at[1] + r * Math.sin(2 * Math.PI * k / n), alpha);
+      const at = (ring, k) => 1 + ring * n + k % n;
+      for (let k = 0; k < n; k++) tri(0, at(0, k), at(0, k + 1));
+      for (let k = 0; k < n; k++) { tri(at(0, k), at(1, k), at(1, k + 1)); tri(at(0, k), at(1, k + 1), at(0, k + 1)); }
+    } else {
+      // a 3 × 3 cut about the turned footprint, the middle cell the footprint drawn in
+      const [w, h] = sizeOf(e), cs = Math.cos(e.turn || 0), sn = Math.sin(e.turn || 0), R = GROUND.reach, k = GROUND.inner;
+      const cuts = half => [-(half + R), -Math.max(half - k, 0), Math.max(half - k, 0), half + R], us = cuts(w / 2), vs = cuts(h / 2);
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+        const inner = i > 0 && i < 3 && j > 0 && j < 3;
+        put(e.at[0] + us[i] * cs - vs[j] * sn, e.at[1] + us[i] * sn + vs[j] * cs, inner ? GROUND.dark : 0);
+      }
+      for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const v = 4 * j + i; tri(v, v + 1, v + 5); tri(v, v + 5, v + 4); }
+    }
+    grounded.set(e.id, {first, count: position.length / 3 - first});
+  };
+  for (const e of I.furniture) if (KINDS[e.kind]?.standing === 'solid' && ranges.has(e.id)) patchOf(e);
+  let ground = null;
+  if (grounded.size) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(position, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(colour, 4)); g.setIndex(index);
+    // Not lit: black with an alpha, drawn over the floor and under the panes, never into the depth buffer.
+    ground = new THREE.Mesh(g, new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1}));
+    ground.name = 'grounding'; ground.renderOrder = 0; object.add(ground);
+  }
+  object.userData.grounding = grounded;
+
+  // ── the shades' colour ──
+  // The room's light at each shade but for its own lamp, as an unlit glass takes it (fittings.js): weighed at the shade's middle over four
+  // sideways facings, and the frame's sum of them by lightSum. A neighbour's lamp is not in it: the shade follows the living room's lamp alone.
+  const sideways = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]], mean = (ws, k) => ws.reduce((t, w) => t + w[k], 0) / ws.length;
+  const atShades = (() => {
+    const mesh = object.getObjectByName(MESHES.shades), ws = [];
+    for (const [id, own] of ranges) for (const r of own) {
+      if (r.mesh !== MESHES.shades) continue;
+      const p = mesh.geometry.getAttribute('position'), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      for (let i = r.first; i < r.first + r.count; i++) [p.getX(i), -p.getZ(i), p.getY(i)].forEach((v, c) => { lo[c] = Math.min(lo[c], v); hi[c] = Math.max(hi[c], v); });
+      const middle = lo.map((v, c) => (v + hi[c]) / 2);
+      for (const n of sideways) ws.push(weightsAt(middle, n, byId.get(id).room));
+    }
+    return ws.length ? {day: mean(ws, 'day'), fire: mean(ws, 'fire'), lamp: 0, room: -1, spill: 0, spillRoom: -1} : null;
+  })();
+  // The dials as lightSum reads them, every value finite: refilled each frame, nothing allocated.
+  const livingAt = I.rooms.findIndex(r => r.id === SHADE_ROOM), safe = {day: [0, 0, 0], fill: [0, 0, 0], fire: 0, lamps: new Float64Array(I.rooms.length)};
+  function setLight(dials) {
+    if (!shadeMaterial || !atShades) return;
+    for (let c = 0; c < 3; c++) { safe.day[c] = finite(dials?.day?.[c]); safe.fill[c] = finite(dials?.fill?.[c]); }
+    safe.fire = finite(dials?.fire); for (let i = 0; i < safe.lamps.length; i++) safe.lamps[i] = finite(dials?.lamps?.[i]);
+    const level = clamp01(safe.lamps[livingAt] ?? 0), [r, g, b] = [0, 1, 2].map(c => SHADE_PALE[c] * lightSum(safe, atShades, c) * (1 - level) + SHADE_WARM[c] * level);
+    shadeMaterial.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
+  }
+  setLight();
+  const vertices = object.children.reduce((t, m) => t + m.geometry.getAttribute('position').count, 0);
   return {object, counts: {vertices, meshes: object.children.length}, pieceBox,
-    // The frame's dials: nothing of the furniture follows them yet (its light is the shell's, through its materials).
-    setLight() {},
+    // The frame's dials: the lit surfaces follow them through the shell's materials; the shades' colour is set here, from the living room's
+    // lamp and the light at the shades without it.
+    setLight,
     // The lit surfaces given up (buildInterior's fallBack): wood and cloth take the shell's flat surface and its double-sided one, the
-    // stone a Lambert of its own whose colour takes its lit tints back to the unlit ones.
+    // stone a Lambert of its own whose colour takes its lit tints back to the unlit ones. The shades and the grounding are not lit surfaces and carry on.
     fallBack(flat) {
       if (!light) return;
       if (stone) { stone.dispose(); stone = new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true, color: new THREE.Color().setRGB(1 / FLAT, 1 / FLAT, 1 / FLAT, THREE.LinearSRGBColorSpace)}); }
-      for (const m of object.children) m.material = m.name === MESHES.cloth ? flat.leafed : m.name === MESHES.stone ? stone : flat.surface;
+      for (const m of object.children) if (m.name === MESHES.wood) m.material = flat.surface; else if (m.name === MESHES.cloth) m.material = flat.leafed; else if (m.name === MESHES.stone) m.material = stone;
     },
-    dispose() { object.traverse(o => o.geometry?.dispose()); stone?.dispose(); }};
+    dispose() { object.traverse(o => o.geometry?.dispose()); stone?.dispose(); shadeMaterial?.dispose(); ground?.material.dispose(); }};
 }

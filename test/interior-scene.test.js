@@ -237,7 +237,9 @@ test('setLight moves the shared uniforms and nothing else', () => {
   // every lit surface shares those uniforms
   for (const name of LIT) { const t = {uniforms: {}, vertexShader: THREE.ShaderLib.basic.vertexShader, fragmentShader: THREE.ShaderLib.basic.fragmentShader};
     scene.getObjectByName(name).material.onBeforeCompile(t); assert.equal(t.uniforms.lamps, s.uniforms.lamps, name); }
-  scene.traverse(o => { if (o.isMesh) assert.deepEqual({material: o.material, rotation: o.rotation.y, colour: o.material.color?.getHex()}, before.get(o.name), o.name); });
+  // (the lamps' shades' own colour follows the frame's light and the living room's lamp: furniture's setLight sets it, and nothing else of theirs)
+  scene.traverse(o => { if (o.isMesh) assert.deepEqual({material: o.material, rotation: o.rotation.y, colour: o.name === 'shades' ? undefined : o.material.color?.getHex()},
+    {...before.get(o.name), colour: o.name === 'shades' ? undefined : before.get(o.name).colour}, o.name); });
   dispose();
 });
 test('if the lit materials cannot be made the rooms stay evenly lit, with one warning', t => {
