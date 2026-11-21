@@ -259,16 +259,23 @@ test('the pass gets the depth-stencil scene target with the interior on, and the
   off.frame(2); assert.deepEqual(off.view.liveViews, []);
 });
 
-test('a browser with multisampled render-to-texture leaves every pane flat, with one warning, and the pass without the stencil', async t => {
+test('a browser with multisampled render-to-texture keeps the panes flat through the pass, warned of once, and opens them on plain', async t => {
   const warnings = quietWarnings(t), {view, frame, yardDraws} = await rig({extensions: ['WEBGL_multisampled_render_to_texture']});
   assert.equal(view.pass.sceneTarget.stencilBuffer, false);
   assert.doesNotThrow(() => frame(4));
-  assert.equal(warnings.length, 1); assert.match(String(warnings[0][0]), /windows could not be opened/);
-  assert.equal(view.viewsFailed, true); assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
+  assert.equal(warnings.length, 1); assert.match(String(warnings[0][0]), /windows stay blank/);
+  assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, 0);
   assert.ok(I.windows.every(w => view.inside.stencilOf(w.id) === 0));
-  // On plain (no pass: the rooms straight to the canvas) the same.
+  // The extension only matters to the pass's multisampled scene target. Stepped to plain, the rooms and the yard go straight to
+  // the canvas, whose stencil is all the views need: the same view opens its panes, with no further warning.
+  view.setPass('off'); frame(2);
+  assert.deepEqual(view.liveViews, ['living']); assert.ok(yardDraws().length > 0); assert.equal(warnings.length, 1);
+  // Back through the pass they are flat again.
+  view.setPass('full'); const drawn = yardDraws().length; frame(2);
+  assert.deepEqual(view.liveViews, []); assert.equal(yardDraws().length, drawn); assert.equal(warnings.length, 1);
+  // Started on plain (no pass at all), the panes are live from the first frame and nothing is warned of.
   const plain = await rig({tier: 'plain', extensions: ['WEBGL_multisampled_render_to_texture']});
-  assert.doesNotThrow(() => plain.frame(2)); assert.equal(warnings.length, 2); assert.deepEqual(plain.view.liveViews, []);
+  assert.doesNotThrow(() => plain.frame(2)); assert.equal(warnings.length, 1); assert.deepEqual(plain.view.liveViews, ['living']);
 });
 
 test('a view set-up that throws leaves every pane flat, with one warning', async t => {

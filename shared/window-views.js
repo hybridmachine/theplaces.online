@@ -100,16 +100,18 @@ export function screenShare(o, view) {
 function hidingRuns(I, floor) {
   const [w, h] = I.size, is = (x, y) => Math.abs(x - y) < 1e-6, outer = ({from: [a, d], to: [b, e]}) => (is(a, b) && (is(a, 0) || is(a, w))) || (is(d, e) && (is(d, 0) || is(d, h)));
   const runs = wallSegments(I, floor).filter(r => r.solid && !outer(r));
-  if (floor === 0) runs.push({from: [I.stair.a[0], I.stair.d[0]], to: [I.stair.a[0], I.stair.d[1]]}, {from: [I.stair.a[0], I.stair.d[1]], to: [I.stair.a[1], I.stair.d[1]]});
+  // The flight's open side is plastered only up to its treads (`flight`: hides a line only where the line is below them, see
+  // inSight); its top end is closed to the ceiling.
+  if (floor === 0) runs.push({from: [I.stair.a[0], I.stair.d[0]], to: [I.stair.a[0], I.stair.d[1]], flight: true}, {from: [I.stair.a[0], I.stair.d[1]], to: [I.stair.a[1], I.stair.d[1]]});
   return runs;
 }
 
-// Whether a sight line (p to q, plan) crosses a run strictly inside both; parallel lines never cross.
-function crosses(p, q, {from, to}) {
+// How far along a sight line (p to q, plan; 0 at p, 1 at q) it crosses a run, strictly inside both, or null; parallel lines never cross.
+function crossing(p, q, {from, to}) {
   const [rx, ry, sx, sy] = [q[0] - p[0], q[1] - p[1], to[0] - from[0], to[1] - from[1]], den = rx * sy - ry * sx;
-  if (Math.abs(den) < 1e-12) return false;
+  if (Math.abs(den) < 1e-12) return null;
   const [ex, ey] = [from[0] - p[0], from[1] - p[1]], t = (ex * sy - ey * sx) / den, u = (ex * ry - ey * rx) / den;
-  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9;
+  return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9 ? t : null;
 }
 
 // Whether the 3D sight line from the eye to p passes between the floors only through the stairwell: where it crosses the ground
@@ -125,7 +127,8 @@ function throughWell(I, eye, p) {
 
 // Whether the eye ([a, d, z]) can see the pane. On the pane's own floor, past the interior walls: at least one plan sight line from
 // the eye to one of the pane's targets (points spread across it) crosses no solid wall run of that floor, each line stopping 0.05 m
-// short of the pane. A pane on the other floor is seen only up or down the stairwell: at least one 3D line from the eye to a target
+// short of the pane. The stair's open side hides a line only where the line, at its height there, is below the flight (taken as
+// its smooth slope, the treads' lower edge: a line grazing the treads counts as seen, since a pane wrongly left flat is the worse error). A pane on the other floor is seen only up or down the stairwell: at least one 3D line from the eye to a target
 // passes the floor between them inside the well (throughWell).
 export function inSight(o, interior, state, eye) {
   // A 13 x 3 grid, thirteen evenly across +-0.98 of the width and three up it (foot, middle, head: the same in plan, apart for a
@@ -135,9 +138,14 @@ export function inSight(o, interior, state, eye) {
   const targets = spread.map(([s, t]) => o.centre.map((c, i) => c + s * o.half[0] * o.across[i] + t * o.half[1] * o.up[i]));
   if (o.floor !== state.floor) return targets.some(p => throughWell(interior, eye, p));
   const runs = hidingRuns(interior, o.floor), plan = o.kind === 'roof' ? targets : targets.filter((_, i) => i % 3 === 1);   // a wall pane's middles
-  return plan.some(([x, y]) => {
+  const {d: [d0, d1]} = interior.stair, flightAt = d => interior.floorRise * (d - d0) / (d1 - d0);
+  return plan.some(([x, y, z]) => {
     const len = Math.hypot(x - eye[0], y - eye[1]), k = len > .05 ? 1 - .05 / len : 0, end = [eye[0] + (x - eye[0]) * k, eye[1] + (y - eye[1]) * k];
-    return !runs.some(r => crosses([eye[0], eye[1]], end, r));
+    return !runs.some(r => {
+      const t = crossing([eye[0], eye[1]], end, r);
+      if (t === null) return false;
+      return !r.flight || eye[2] + (z - eye[2]) * t * k <= flightAt(eye[1] + (end[1] - eye[1]) * t);
+    });
   });
 }
 

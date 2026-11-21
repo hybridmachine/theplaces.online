@@ -1,7 +1,7 @@
 // How much of the painterly pass this device can hold. Pure: fed the time of every rendered frame, no DOM, no three.js.
 export const TIERS = Object.freeze(['full', 'light', 'plain']);
 // Stalls one after another with no ordinary frame between them are a very slow device, not a hidden tab.
-const STALL_RUN = 8;
+export const STALL_RUN = 8;
 // A window steps down only when its median interval is this much longer than a frame at target. app.js draws on whole
 // display refreshes, so on a 48 Hz display the median interval is two refreshes, which is exactly a frame at 24 fps:
 // without room above it, timestamp rounding and jitter would decide, and a healthy device could lose a tier for good.

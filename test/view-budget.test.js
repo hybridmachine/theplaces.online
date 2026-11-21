@@ -41,3 +41,16 @@ test('a hidden tab or one long stall is not a measurement', () => {
   const c = createViewBudget(o); u = 0; c.frame(u, IN3); for (const dt of [100, 100, 100, 100, 100, 101, 100, 100, 100, 100]) c.frame(u += dt, IN3);
   assert.equal(c.limit('full'), 3, 'the 101 ms stall emptied the window');
 });
+
+test('a run of stalls sheds an opening, as the tier meter counts them; one long gap between ordinary frames does not', () => {
+  // A device overloaded by the extra yard draws: every frame two and a half seconds, each one a stall.
+  const slow = createViewBudget(); let t = 0;
+  for (let k = 0; k < 12; k++, t += 2500) slow.frame(t, IN3);
+  assert.equal(slow.limit('full'), 2, 'more than eight stalls in a row shed one');
+  for (let k = 0; k < 60; k++, t += 2500) slow.frame(t, IN3);
+  assert.equal(slow.limit('full'), 1, 'and go on shedding down to one');
+  // Stalls broken by an ordinary frame are hidden-tab gaps, not a slow device.
+  const gaps = createViewBudget(); t = feed(gaps, 1000 / 30, 3, IN3);
+  for (let k = 0; k < 40; k++) { t += 2500; gaps.frame(t, IN3); t += 33; gaps.frame(t, IN3); t += 33; gaps.frame(t, IN3); }
+  assert.equal(gaps.limit('full'), 3);
+});

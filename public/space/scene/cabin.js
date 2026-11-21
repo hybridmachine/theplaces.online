@@ -257,13 +257,16 @@ export function buildCabin(THREE, {space, dressing, art}) {
   const stone = new THREE.MeshLambertMaterial({map: art.surfaces.stone, vertexColors: true}), cards = cardMaterial(THREE, art.cards, SPACE_ART);
   const mesh = (name, geometry, material) => { const m = new THREE.Mesh(geometry, material); m.name = name; return m; };
   const object = new THREE.Group(); object.name = 'cabin';
-  object.add(mesh('walls', merged(walls), stone),
+  // The building itself, apart from the shrubs at its foot: seen from indoors through a window the building is hidden (it would
+  // stand in the way), while the shrubs, which stand out past the walls, are part of the yard that is seen.
+  const building = new THREE.Group(); building.name = 'building';
+  building.add(mesh('walls', merged(walls), stone),
     mesh('roof', merged(roof), new THREE.MeshLambertMaterial({map: art.surfaces.slate, vertexColors: true, side: THREE.DoubleSide})),
     mesh('eaves', merged([...boards, ...soffits]), new THREE.MeshLambertMaterial({map: art.surfaces.hills, vertexColors: true})),
-    mesh('chimney', merged(stack), stone), openings,
-    mesh('shrubs', shrubs.geometry(THREE), cards), mesh('dabs', dabs.geometry(THREE), cards));
+    mesh('chimney', merged(stack), stone), openings, mesh('dabs', dabs.geometry(THREE), cards));
+  object.add(building, mesh('shrubs', shrubs.geometry(THREE), cards));
   setCottage({});
-  return {object, setCottage, setDoor, dispose() {
+  return {object, building, setCottage, setDoor, dispose() {
     const materials = new Set();
     object.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
     for (const m of materials) m.dispose();

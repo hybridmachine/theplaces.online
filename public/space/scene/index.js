@@ -31,8 +31,9 @@ export function buildScene(THREE, {space, dressing, art}) {
     setRipple(r) { ground.setRipple(r); },
     // Each cottage room's light and the casement's opening, 0–1 (cabin.js).
     setCottage(pose) { const {main = 0, second = 0, open = 0} = pose ?? {}; cottage = {main, second, open}; cabin.setCottage(pose); },
-    // Whether the cabin's outside (walls, roof, chimney, panels, door, doorway and casement) is drawn; smoke and path lights are not its.
-    setCabinShown(shown) { parts.cabin.visible = !!shown; },
+    // Whether the cabin's building (walls, roof, chimney, panels, door, doorway and casement) is drawn; the shrubs at its foot, the
+    // smoke and the path lights are not part of it.
+    setCabinShown(shown) { cabin.building.visible = !!shown; },
     // How far the cabin's front door stands open, 0 shut to 1 open (cabin.js).
     setDoor(open) { cabin.setDoor(open); },
     // How brightly the path lights burn, 0–1 (lights.js).

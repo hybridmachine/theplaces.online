@@ -461,15 +461,20 @@ test('the front door stays in sight through its swing, over a dark recess cut in
   scene.dispose();
 });
 
-test('hiding the cabin hides its walls, roof, chimney, panels and door and nothing else', () => {
+test('hiding the cabin hides its walls, roof, chimney, panels and door, and leaves its shrubs and everything else', () => {
   const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin, before = new Map();
-  for (const name of ['walls', 'door', 'openings', 'casement']) assert.ok(cabin.getObjectByName(name), name);
-  scene.group.traverse(o => before.set(o, o.visible));
+  for (const name of ['walls', 'roof', 'eaves', 'chimney', 'door', 'openings', 'casement', 'dabs', 'shrubs']) assert.ok(cabin.getObjectByName(name), name);
+  // Drawn only if it and every group above it are visible.
+  const drawn = o => { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; };
+  scene.group.traverse(o => before.set(o, drawn(o)));
   scene.setCabinShown(false);
-  assert.equal(cabin.visible, false);
-  scene.group.traverse(o => { if (o !== cabin) assert.equal(o.visible, before.get(o), o.name); });
+  for (const name of ['walls', 'roof', 'eaves', 'chimney', 'door', 'openings', 'casement', 'dabs']) assert.equal(drawn(cabin.getObjectByName(name)), false, name);
+  // The bushes at its foot stand out past the walls, in the yard: seen sideways through a front window or the doorway.
+  assert.equal(drawn(cabin.getObjectByName('shrubs')), true, 'shrubs');
+  const building = new Set(); cabin.getObjectByName('building').traverse(o => building.add(o));
+  scene.group.traverse(o => { if (!building.has(o)) assert.equal(drawn(o), before.get(o), o.name); });
   scene.setCabinShown(true);
-  scene.group.traverse(o => assert.equal(o.visible, before.get(o), o.name));
+  scene.group.traverse(o => assert.equal(drawn(o), before.get(o), o.name));
   scene.dispose();
 });
 

@@ -158,12 +158,16 @@ export class SpaceView {
     addEventListener('resize', this.resize); this.resize();
     return true;
   }
-  // Whether the cabin's views can be drawn on this renderer: only with the interior on, and not where three would draw into the
-  // multisampled scene target through WEBGL_multisampled_render_to_texture, which attaches its depth-stencil so that the panes'
-  // stencil may not last from the rooms' draw to the views' (untried on such a device; nothing would throw).
-  viewsPossible(renderer) { return !!this.interior && !renderer.extensions.has('WEBGL_multisampled_render_to_texture'); }
-  // The painterly pass, its scene target carrying a stencil only where the views can be drawn.
-  makePass(renderer) { return new PainterlyPass(THREE, renderer, {stencil: this.viewsPossible(renderer)}); }
+  // Whether three would draw into the pass's multisampled scene target through WEBGL_multisampled_render_to_texture, which
+  // attaches its depth-stencil so that the panes' stencil may not last from the rooms' draw to the views' (untried on such a
+  // device; nothing would throw). It concerns only that target: drawn straight to the canvas (plain) the views need only the
+  // canvas's own stencil.
+  targetUnsure(renderer) { return renderer.extensions.has('WEBGL_multisampled_render_to_texture'); }
+  // The painterly pass, its scene target carrying a stencil only with the interior on and where the views can be drawn into it.
+  makePass(renderer) { return new PainterlyPass(THREE, renderer, {stencil: !!this.interior && !this.targetUnsure(renderer)}); }
+  // Whether this frame's views would have to be drawn into a target they cannot be trusted in: through the pass, on such a browser.
+  // Asked every frame, so a view stepped down to plain opens its windows, and one set back to the pass shuts them.
+  viewsBarred() { return this.passMode !== 'off' && !!this.pass && this.targetUnsure(this.renderer); }
   // The cabin's rooms, built once. A build that throws is logged once and leaves the door shut for good; a visitor
   // remembered indoors is then set down at the arrival pose.
   buildInside() {
@@ -177,12 +181,11 @@ export class SpaceView {
       if (this.state.place === 'cabin') this.state = pose(this.space.arrival);
     }
   }
-  // The views of the yard through the cabin's panes, made once when first wanted. A renderer they cannot be drawn on
-  // (viewsPossible), a context without a stencil, or a set-up that throws, leaves every pane flat for good, warned of once (dropViews).
+  // The views of the yard through the cabin's panes, made once when first wanted. A context without a stencil, or a set-up that
+  // throws, leaves every pane flat for good, warned of once (dropViews).
   windowViews() {
     if (this.views || this.viewsFailed) return this.views;
     try {
-      if (!this.viewsPossible(this.renderer)) throw new Error('This browser draws multisampled targets through WEBGL_multisampled_render_to_texture.');
       if (!this.renderer.getContext().getContextAttributes()?.stencil) throw new Error('The drawing buffer has no stencil.');
       const views = this.views = createWindowViews(THREE, {openings: this.openings, yardScene: this.scene, yard: this.yard, life: this.life, sky: this.sky});
       // What the frame draws through: a draw that throws gives the views up rather than the frame, and reports false so the pass
@@ -201,6 +204,10 @@ export class SpaceView {
   openWindows() {
     const {inside, state, camera} = this, door = this.door;
     inside.setCasement(this.yard.cottage.open); inside.setDoor(door);
+    if (this.viewsBarred()) {
+      if (!this.barredWarned) { this.barredWarned = true; console.warn("The cabin's windows stay blank while the painterly pass is on: this browser draws its multisampled target through WEBGL_multisampled_render_to_texture."); }
+      inside.setLive([]); return [];
+    }
     const views = this.windowViews(), ids = views ? liveOpenings(this.openings, this.interior, state, {eye: indoorEye(this.interior, state, this.space.eyeHeight),
       yaw: state.yaw, pitch: state.pitch, fov: camera.fov * Math.PI / 180, aspect: camera.aspect}, {limit: this.budget.limit(this.tier), doorOpen: door}) : [];
     inside.setLive(ids);

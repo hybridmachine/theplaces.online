@@ -322,3 +322,13 @@ test('over the hall, the flight and the landing, no other-floor pane is in sight
   }
   assert.ok(across > 0 && across < checked / 2, `some lines do pass the well, most do not: ${across} of ${checked}`);
 });
+
+test("a sight line that clears the stair's low treads is not hidden by the flight's side", () => {
+  // From the hall beside the living room's opening, the study window shows over the foot of the stair and through the study's door.
+  const study = by('study'), state = {place: 'cabin', floor: 0, position: [7.2, 2.6], yaw: 0, pitch: 0};
+  assert.equal(inSight(study, I, state, [7.2, 2.6, 1.6]), true, 'over the low treads');
+  // It is the height that decides: were the flight steep enough to stand above that line where it crosses, the pane would be hidden.
+  assert.equal(inSight(study, {...I, floorRise: 600}, state, [7.2, 2.6, 1.6]), false, 'under a steeper flight');
+  // Higher up the flight the treads stand above a standing eye: the door, seen from beyond the stair's top end, stays hidden.
+  assert.equal(inSight(by('door'), I, {...state, position: [10.5, 6.3]}, [10.5, 6.3, 1.6]), false, 'behind the stair box');
+});
