@@ -35,8 +35,9 @@ const LIT_PLASTER = [.6, .54, .47], LIT_PLASTER_BASE = [.45, .405, .315], LIT_BO
 // How far inside its room a face's light is weighed past the wall's face, metres.
 const INTO = .03;
 // The furniture's light is weighed once a cell of this lattice (metres) and a facing rounded to this, so its many small faces cost no more
-// to light than a few walls.
-const WEIGH_GRID = .12, WEIGH_TURN = .25;
+// to light than a few walls. The lattice is finer than the shell's own vertices (STEP, 0.4 m), between which a wall's or a floor's light is
+// only interpolated. At 0.12 m and 0.25 the furniture added about 88 ms to a first build in the browser, against the 60 ms it has.
+const WEIGH_GRID = .3, WEIGH_TURN = .5;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
 const RAIL = .9, RAIL_THICK = .04, TREADS = 15;
 // The painted joinery: frame width, bar width, how far a sill board stands into the room, how far frames and bars stand off the
@@ -115,7 +116,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     const known = new Map(), cell = x => Math.floor(x / WEIGH_GRID), turn = x => Math.round(x / WEIGH_TURN);
     return (floor, p, n) => {
       const r = roomAt(I, floor, p), c = p.map(cell), q = n.map(turn);
-      // (one number: the floor, the room, the cell (each index under 256 inside the cabin) and the facing (each −4 to 4))
+      // (one number: the floor, the room, the cell (each index under 256 inside the cabin) and the facing (each −2 to 2, in nine slots))
       const key = ((((((floor * 64 + I.rooms.indexOf(r) + 1) * 256 + c[0]) * 256 + c[1]) * 256 + c[2]) * 9 + q[0] + 4) * 9 + q[1] + 4) * 9 + q[2] + 4;
       let w = known.get(key);
       if (!w) { w = field.weigh(floor, into(r)(c.map(k => (k + .5) * WEIGH_GRID)), V.norm(q)); known.set(key, w); }

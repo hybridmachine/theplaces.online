@@ -18,11 +18,11 @@ const TILE = .9;
 // How far a box's corners are pulled in at most, metres; never more than a quarter of the box's own size.
 const BROKEN = .012;
 // How many cells a cushion's side is cut into each way: enough for its bulge and its dent to read.
-const CUSHION_CUTS = 4;
+const CUSHION_CUTS = 3;
 // A roll's rings stand at most this far apart along it (metres), so its light, weighed at its vertices, follows it.
 const ROLL_RING = .4;
 // A drape's cells are about this size (metres), and never more than DRAPE_CUTS a side.
-const DRAPE_CELL = .1, DRAPE_CUTS = 12;
+const DRAPE_CELL = .13, DRAPE_CUTS = 12;
 // A box's faces, each by its four corners (corner k is [x, y, z] = [k & 1, k >> 1 & 1, k >> 2 & 1] of the box) at (s, t) = (0, 0),
 // (1, 0), (0, 1), (1, 1), and its outward normal in the piece's frame. The front faces −y, the way the piece faces.
 const FACES = {under: [[0, 1, 2, 3], [0, 0, -1]], top: [[4, 5, 6, 7], [0, 0, 1]], front: [[0, 1, 4, 5], [0, -1, 0]], back: [[2, 3, 6, 7], [0, 1, 0]],
@@ -132,7 +132,7 @@ export function createKit(THREE, {face, lit, tint}) {
           book(cornersOf([x + skew, x + skew + long], [y, y + depth], [z, z + thick]), pick()); z += thick; }
         x += long + .01 + .02 * random(); continue;
       }
-      const thick = .018 + .032 * random(), tall = height * (.72 + .28 * random());
+      const thick = .024 + .038 * random(), tall = height * (.72 + .28 * random());
       if (x + thick > x1) break;
       if (r < .2 && x + thick + tall * .45 < x1) {                                                   // leaning: tipped about its foot's far edge
         const lean = .18 + .22 * random(), c = Math.cos(lean), s = Math.sin(lean), px = x + thick;
@@ -186,8 +186,8 @@ export function createKit(THREE, {face, lit, tint}) {
   // ── the sculpted helpers ──
   // A grid of local points `rows[j][i]` with their local normals, mapped by `at` into the interior; uv in metres along i and along j
   // over `tile`, colour `colourOf(point, j)` (a tint, which may read the row), each triangle wound to face its vertices' normals (a
-  // triangle with no area is left out). Weighed by `lit` in `at`'s room.
-  const grid = (at, rows, normals, colourOf, tile) => {
+  // triangle with no area is left out). Weighed by `lit` in `at`'s room, unless `weighed` is false (its caller then gives it its light).
+  const grid = (at, rows, normals, colourOf, tile, weighed = true) => {
     const nj = rows.length, ni = rows[0].length, position = [], normal = [], uv = [], color = [], pts = [], ns = [];
     const along = Array(nj).fill(0), up = Array(ni).fill(0);
     for (let j = 0; j < nj; j++) for (let i = 0; i < ni; i++) {
@@ -209,7 +209,7 @@ export function createKit(THREE, {face, lit, tint}) {
     const g = new THREE.BufferGeometry();
     for (const [name, list, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) g.setAttribute(name, new THREE.Float32BufferAttribute(list, size));
     g.setIndex(index);
-    return lit(g, at.room);
+    return weighed ? lit(g, at.room) : g;
   };
   // A profile [[radius, z], …] spun about the local z axis of `at` in `segments`: each point's normal the mean of its two spans' (a
   // point repeated is a crease: each copy takes the span on its own side). Going up the outside, the normals face out.
@@ -242,7 +242,8 @@ export function createKit(THREE, {face, lit, tint}) {
   // A sheet of cloth over `pointOf(s, t)` (local points, s and t in [0, 1]; its front is the side ∂p/∂s × ∂p/∂t points to), `across`
   // and `down` metres along s and t, folded: pushed out along its front by up to `folds` metres in seeded waves across s, as much as
   // `free(s, t)` (0 where it rests on something, 1 where it hangs; by default t). Double-sided: its back is drawn too, a few
-  // millimetres behind, facing the other way. Returns [front, back].
+  // millimetres behind, facing the other way, and takes its front's light (a cloth's two sides, millimetres apart, are lit alike;
+  // weighing the back again doubled the drape's cost to build). Returns [front, back].
   const drape = (at, pointOf, across, down, colour, {seed, folds = .03, free = (s, t) => t, tile = TILE * .6} = {}) => {
     const random = stream(seed ?? seedOf(...at(0, 0, 0)), 13), cols = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(across / DRAPE_CELL))), rows = Math.min(DRAPE_CUTS, Math.max(2, Math.ceil(down / DRAPE_CELL)));
     const waves = [0, 1, 2].map(k => [2 + k * 1.7 + random() * 1.5, random() * 6.3, 1 / (k + 1.4)]), h = 1e-3;
@@ -253,7 +254,9 @@ export function createKit(THREE, {face, lit, tint}) {
     const at2 = (i, j) => pts[Math.min(rows, Math.max(0, j))][Math.min(cols, Math.max(0, i))];
     const normals = pts.map((row, j) => row.map((_, i) => V.norm(V.cross(V.sub(at2(i + 1, j), at2(i - 1, j)), V.sub(at2(i, j + 1), at2(i, j - 1))))));
     const back = pts.map((row, j) => row.map((p, i) => V.add(p, normals[j][i], -.004)));
-    return [grid(at, pts, normals, colour, tile), grid(at, back, normals.map(row => row.map(n => V.scale(n, -1))), colour, tile)];
+    const face = grid(at, pts, normals, colour, tile), behind = grid(at, back, normals.map(row => row.map(n => V.scale(n, -1))), colour, tile, false);
+    for (const name of ['light', 'spill']) if (face.getAttribute(name)) behind.setAttribute(name, face.getAttribute(name).clone());
+    return [face, behind];
   };
 
   return {placed, moved, board, box, post, cushion, books, framed, mat, turned, roll, drape, lit, tint};

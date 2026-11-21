@@ -97,7 +97,7 @@ test('a cushion is not a box: its top is not flat', () => {
   const inside = build();
   for (const id of ['cushion-window-seat-1', 'cushion-sofa-1']) {
     const vs = vertices(inside.scene, id, 'furniture-cloth');
-    assert.ok(vs.length >= 6 * 25, `${id}: cut at least 4 × 4 on every side (${vs.length} vertices)`);
+    assert.ok(vs.length >= 6 * 16, `${id}: cut at least 3 × 3 on every side (${vs.length} vertices)`);
     // its top: the vertices whose normals point most nearly along the cushion's own up (lying, z; leaning, tilted back)
     const up = vs.reduce((b, v) => v.n[2] > b.n[2] ? v : b).n, top = vs.filter(v => v.n[0] * up[0] + v.n[1] * up[1] + v.n[2] * up[2] > .5);
     const along = top.map(v => v.a * up[0] + v.d * up[1] + v.z * up[2]);
@@ -206,9 +206,10 @@ test('the armchairs are not mirror images of one another', () => {
   assert.notDeepEqual(key(one), key(two), 'not the same chair');
   assert.notDeepEqual(key(one.map(v => ({...v, x: -v.x}))), key(two), 'nor its mirror image');
   // their arms' rolls differ in size, and their seats' dents
-  const arm = vs => { const top = vs.filter(v => v.x > .2 && v.z > .45); return Math.max(...top.map(v => v.z)) - Math.min(...top.filter(v => v.n[2] < -.2).map(v => v.z)); };
+  // (over the front half of the arm itself, clear of the seat's cushions and the back)
+  const [hx] = half('armchair-front'), arm = vs => { const top = vs.filter(v => v.x > hx - .12 && v.y < 0 && v.z > .45); return Math.max(...top.map(v => v.z)) - Math.min(...top.filter(v => v.n[2] < -.2).map(v => v.z)); };
   assert.ok(Math.abs(arm(one) - arm(two)) > .005, `arm rolls ${arm(one)} and ${arm(two)}`);
-  const seat = vs => vs.filter(v => Math.abs(v.x) < .25 && v.y < 0 && v.z > .4 && v.z < .6 && v.n[2] > .8).map(v => v.z);
+  const seat = vs => vs.filter(v => Math.abs(v.x) < .3 && v.y < .1 && v.z > .4 && v.z < .6 && v.n[2] > .8).map(v => v.z);
   assert.ok(seat(one).length > 4 && seat(two).length > 4);
   assert.notDeepEqual(seat(one).map(z => Math.round(z * 500)).sort(), seat(two).map(z => Math.round(z * 500)).sort(), 'their seats dent differently');
   inside.dispose();
