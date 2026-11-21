@@ -14,7 +14,7 @@ import {haloMaterial} from '../scene/lights.js';
 const IRON = .5;                                   // how much of the boards' tint the ironwork keeps (linear)
 const GLASS = {radius: .06, height: .16};          // the glass, a short upright cylinder about `at`
 const PALE = [.8, .76, .66], WARM = [2.4, 1.45, .6];   // linear; the glass by day and fully lit (above 1 so the lit glass blooms); starting values, to tune by eye
-const HALO = {radius: .18, opacity: .55};          // each halo is a ball about the glass; added over the room
+const HALO = {radius: .18, opacity: .55, reach: .24};   // each halo is a ball about the glass; added over the room. A wall lamp's ball ends within `reach` of the wall's face (a walking eye stays .25 off it)
 const ROD = .012, SHADE = {radius: .12, from: .09, top: .2}, ARM = .018, CUP = {radius: .07, low: .1};
 const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
 
@@ -31,12 +31,21 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
     tube6([[a, d, r.floor * rise + ceilingHeight(I, r.floor, d), ROD], [a, d, z + SHADE.top - .005, ROD]]),
     tube6([[a, d, z + SHADE.from, SHADE.radius], [a, d, z + (SHADE.from + SHADE.top) / 2, SHADE.radius * .55], [a, d, z + SHADE.top, .001]])];
   // A wall lamp: a bracket from the nearest wall line level with the glass, a small plate on the wall and the cup under the glass.
-  const wall = ([a, d, z], r) => {
+  // The wall line nearest a fitting, [axis, line]: axis 0 a line of constant a, 1 one of constant d.
+  const nearestWall = ([a, d], r) => {
     const lines = [[0, r.a[0]], [0, r.a[1]], [1, r.d[0]], [1, r.d[1]]], gap = ([axis, at]) => Math.abs((axis ? d : a) - at);
-    const [axis, line] = lines.reduce((best, l) => gap(l) < gap(best) ? l : best);
-    const sign = (axis ? d : a) > line ? 1 : -1, onWall = (off = 0) => axis ? [a, line + sign * off, z] : [line + sign * off, d, z];
+    return lines.reduce((best, l) => gap(l) < gap(best) ? l : best);
+  };
+  const wall = ([a, d, z], r) => {
+    const [axis, line] = nearestWall([a, d], r), sign = (axis ? d : a) > line ? 1 : -1, onWall = (off = 0) => axis ? [a, line + sign * off, z] : [line + sign * off, d, z];
     return [tube6([[...onWall(), ARM], [a, d, z, ARM]]), tube6([[...onWall(), .05], [...onWall(.03), .05]]),
       tube6([[a, d, z - CUP.low, ARM], [a, d, z - GLASS.height / 2 - .01, CUP.radius], [a, d, z - GLASS.height / 2 + .02, CUP.radius * .9]])];
+  };
+  // A halo's radius: the ball's, or for a wall lamp as much of it as keeps its surface within HALO.reach of the wall's face.
+  const haloRadius = (f, r) => {
+    if (f.kind !== 'wall') return HALO.radius;
+    const [axis, line] = nearestWall(f.at, r);
+    return Math.min(HALO.radius, HALO.reach - (Math.abs(f.at[axis] - line) - I.wall / 2));
   };
   const dark = list => {
     for (const g of list) { const p = g.getAttribute('position'), c = g.getAttribute('color'); for (let i = 0; i < c.count; i++) c.setXYZ(i, ...tints.boards([p.getX(i), -p.getZ(i), p.getY(i)]).map(v => v * IRON)); }
@@ -67,18 +76,19 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
   // ── the halos: one merged mesh of balls, each vertex carrying its room's index; the standard halo shader, its added light scaled
   //    by that room's entry in `levels` ──
   const balls = I.fittings.map(f => {
-    const g = new THREE.IcosahedronGeometry(HALO.radius, 3); g.translate(...toThree(f.at));
+    const g = new THREE.IcosahedronGeometry(haloRadius(f, I.rooms.find(x => x.id === f.room)), 3); g.translate(...toThree(f.at));
     g.setAttribute('lampRoom', new THREE.Float32BufferAttribute(new Float32Array(g.getAttribute('position').count).fill(roomIndex.get(f.room)), 1));
     return g;
   });
   const levels = new Float32Array(Math.max(1, I.rooms.length));
   const haloMat = haloMaterial(THREE); haloMat.uniforms.opacity.value = HALO.opacity; haloMat.uniforms.levels = {value: levels};
+  // Each replacement must take: a halo shader that no longer matches would otherwise draw every halo at one constant opacity.
+  const patched = (text, from, to) => { const out = text.replace(from, to); if (out === text) throw new Error(`The halo shader no longer has ${from}`); return out; };
   haloMat.onBeforeCompile = shader => {
-    shader.vertexShader = shader.vertexShader.replace('varying vec3 vNormal, vView;', `varying vec3 vNormal, vView; varying float vLevel;
-attribute float lampRoom; uniform float levels[${levels.length}];`)
-      .replace('vNormal = normalMatrix * normal;', `vLevel = levels[ int( lampRoom + 0.5 ) ]; vNormal = normalMatrix * normal;`);
-    shader.fragmentShader = shader.fragmentShader.replace('varying vec3 vNormal, vView;', 'varying vec3 vNormal, vView; varying float vLevel;')
-      .replace('vec4( glow, opacity *', 'vec4( glow, opacity * vLevel *');
+    shader.vertexShader = patched(patched(shader.vertexShader, 'varying vec3 vNormal, vView;', `varying vec3 vNormal, vView; varying float vLevel;
+attribute float lampRoom; uniform float levels[${levels.length}];`),
+      'vNormal = normalMatrix * normal;', `vLevel = levels[ int( lampRoom + 0.5 ) ]; vNormal = normalMatrix * normal;`);
+    shader.fragmentShader = patched(patched(shader.fragmentShader, 'varying vec3 vNormal, vView;', 'varying vec3 vNormal, vView; varying float vLevel;'), 'vec4( glow, opacity *', 'vec4( glow, opacity * vLevel *');
   };
   haloMat.customProgramCacheKey = () => `fitting-halos-${levels.length}`;
   const halos = new THREE.Mesh(merged(balls), haloMat); halos.name = 'halos'; halos.frustumCulled = false; object.add(halos);

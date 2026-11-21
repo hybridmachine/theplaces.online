@@ -54,18 +54,40 @@ test('a hanging lamp hangs from the ceiling above it and a wall lamp is brackete
   dispose();
 });
 
-test('no part of a fitting hangs lower than 1.95 m over a floor a visitor can stand on', () => {
+// Every vertex of one fitting in the interior frame: its ironwork, its glass and its halo ball.
+const wholeFitting = (scene, k) => {
+  const f = I.fittings[k], out = vertices(lamps(scene).getObjectByName(`lamp-${f.room}`)), glasses = lamps(scene).getObjectByName('glasses');
+  const g = glasses.geometry.getAttribute('position'), m = new THREE.Matrix4().fromArray(glasses.instanceMatrix.array, k * 16), v = new THREE.Vector3();
+  for (let i = 0; i < g.count; i++) { v.fromBufferAttribute(g, i).applyMatrix4(m); out.push([v.x, -v.z, v.y]); }
+  const halo = lamps(scene).getObjectByName('halos').geometry, p = halo.getAttribute('position'), room = halo.getAttribute('lampRoom');
+  for (let i = 0; i < p.count; i++) if (Math.round(room.getX(i)) === indexOf(f.room)) out.push([p.getX(i), -p.getZ(i), p.getY(i)]);
+  return out;
+};
+
+test('no part of a fitting, its halo included, hangs lower than 1.95 m or stands out more than 0.25 m from its wall', () => {
   const {scene, dispose} = build();
-  for (const f of I.fittings) {
-    const r = roomOf(f.room), v = vertices(lamps(scene).getObjectByName(`lamp-${f.room}`)), rel = r.floor * I.floorRise;
+  I.fittings.forEach((f, k) => {
+    const r = roomOf(f.room), v = wholeFitting(scene, k), rel = r.floor * I.floorRise;
     if (f.kind === 'hanging') assert.ok(Math.min(...v.map(p => p[2])) - rel >= 1.95, `${f.room} lowest ${Math.min(...v.map(p => p[2])) - rel}`);
-    else for (const [axis, at] of [[0, r.a[0]], [0, r.a[1]], [1, r.d[0]], [1, r.d[1]]]) {
-      if (Math.abs(f.at[axis] - at) > .3) continue;   // (only its own wall)
+    else {
+      const lines = [[0, r.a[0]], [0, r.a[1]], [1, r.d[0]], [1, r.d[1]]], gap = ([axis, at]) => Math.abs(f.at[axis] - at);
+      const [axis, at] = lines.reduce((best, l) => gap(l) < gap(best) ? l : best);
       const out = Math.max(...v.map(p => Math.abs(p[axis] - at))) - I.wall / 2;
-      assert.ok(out <= .25 + 1e-9, `${f.room} stands ${out} out`);
+      assert.ok(out <= .25, `${f.room} stands ${out} out`);
     }
-    // glasses and halos too: the glass is inside the hanging bound already
-  }
+  });
+  dispose();
+});
+
+test('the halo patch scales each ball by its room\'s level, and refuses to pass when the shader is not the one it knows', () => {
+  const {scene, dispose} = build(), m = lamps(scene).getObjectByName('halos').material;
+  const stub = {vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, uniforms: m.uniforms};
+  m.onBeforeCompile(stub);
+  assert.notEqual(stub.vertexShader, m.vertexShader); assert.notEqual(stub.fragmentShader, m.fragmentShader);
+  assert.match(stub.vertexShader, /attribute float lampRoom/); assert.match(stub.vertexShader, /vLevel = levels\[/);
+  assert.match(stub.fragmentShader, /varying float vLevel/); assert.match(stub.fragmentShader, /opacity \* vLevel/);
+  assert.throws(() => m.onBeforeCompile({vertexShader: 'void main() {}', fragmentShader: m.fragmentShader, uniforms: {}}));
+  assert.throws(() => m.onBeforeCompile({vertexShader: m.vertexShader, fragmentShader: 'void main() {}', uniforms: {}}));
   dispose();
 });
 
