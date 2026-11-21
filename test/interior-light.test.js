@@ -4,10 +4,10 @@ import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
-import {ceilingHeight} from '../shared/interior.js';
-import {floorArea} from '../shared/interior.js';
-import {createLightField, LIGHT, DIALS, houseAwake, roomLamps, fireLevel, flicker, interiorDials, lightAt} from '../shared/interior-light.js';
+import {ceilingHeight, floorArea} from '../shared/interior.js';
+import {createLightField, LIGHT, DIALS, houseLights, roomLamps, fireLevel, flicker, interiorDials, lightAt} from '../shared/interior-light.js';
 import {createCottageState, sampleCottage} from '../shared/cottage.js';
+import * as cottageModule from '../shared/cottage.js';
 import {overcast} from '../shared/sky.js';
 import {overcast as reexported} from '../public/space/sky-dome.js';
 
@@ -119,7 +119,8 @@ test('a sweep of 20,000 points is fast', () => {
 const T0 = 1e9, ids = I.rooms.map(r => r.id), idx = id => ids.indexOf(id);
 const OTHERS = ids.filter(id => !['living', 'study', 'hall', 'landing'].includes(id));
 const cot = (rooms, lastLightAt, hearth = {on: false, since: 0, lastBurn: null}) => ({...createCottageState(0, 0), rooms, lastLightAt, hearth});
-const lamps = (o) => roomLamps(I, {dark: 1, pose: {main: 0, second: 0}, awake: {on: true, since: T0}, now: T0, ...o});
+const ON = at => ({main: {on: true, at}, second: {on: false, at: -Infinity}}), OFF = at => ({main: {on: false, at}, second: {on: false, at: -Infinity}});
+const lamps = (o) => roomLamps(I, {dark: 1, pose: {main: 0, second: 0}, lights: ON(T0), now: T0, ...o});
 const level = (arr, id) => arr[idx(id)];
 
 test('the overcast helper moved to shared and is still exported by the sky dome', () => {
@@ -128,12 +129,18 @@ test('the overcast helper moved to shared and is still exported by the sky dome'
   assert.equal(overcast({cloud: .9}), 1);
 });
 
-test('the house wakes at the first light and sleeps at the last; a second light does not wake it again', () => {
-  assert.deepEqual(houseAwake(cot({main: true, second: false}, {main: 5000, second: 1000})), {on: true, since: 5000});
-  assert.deepEqual(houseAwake(cot({main: true, second: true}, {main: 5000, second: 9000})), {on: true, since: 5000});
-  assert.deepEqual(houseAwake(cot({main: false, second: true}, {main: 5000, second: 9000})), {on: true, since: 9000});
-  assert.deepEqual(houseAwake(cot({main: false, second: false}, {main: 5000, second: 9000})), {on: false, since: 9000});
-  assert.deepEqual(houseAwake(null), {on: false, since: -Infinity});
+test('each light is read on its own: on or off, and when it last changed', () => {
+  const c = cot({main: true, second: false}, {main: 5000, second: 1000});
+  assert.deepEqual(houseLights(c), {main: {on: true, at: 5000}, second: {on: false, at: 1000}});
+  assert.deepEqual(houseLights(cot({main: true, second: true}, {main: 5000, second: 9000})), {main: {on: true, at: 5000}, second: {on: true, at: 9000}});
+  // a light off since the world began has never been lit
+  assert.deepEqual(houseLights(cot({main: false, second: false}, {main: 0, second: 0})), {main: {on: false, at: -Infinity}, second: {on: false, at: -Infinity}});
+  assert.deepEqual(houseLights(null), {main: {on: false, at: -Infinity}, second: {on: false, at: -Infinity}});
+});
+
+test('the fade of a room is shorter than the cottage lets one light change again', () => {
+  assert.ok(cottageModule.LIGHT_REST_MS >= 180_000);
+  assert.ok(DIALS.delay[1] + DIALS.fade < cottageModule.LIGHT_REST_MS);
 });
 
 test("the living room and the study follow the world's two lights, with their fades", () => {
@@ -149,12 +156,12 @@ test("the living room and the study follow the world's two lights, with their fa
 });
 
 test('the hall and landing burn low from dusk to dawn and fully while the house is awake', () => {
-  const asleep = {on: false, since: T0 - 1e7}, awake = {on: true, since: T0 - 1e7};
+  const asleep = OFF(T0 - 1e7), awake = ON(T0 - 1e7);
   for (const id of ['hall', 'landing']) {
-    assert.equal(level(lamps({awake: asleep}), id), DIALS.hallLow);
-    assert.equal(level(lamps({awake}), id), 1);
-    assert.equal(level(lamps({awake, dark: 0}), id), 0);
-    assert.equal(level(lamps({awake: asleep, dark: .5}), id), .5 * DIALS.hallLow);
+    assert.equal(level(lamps({lights: asleep}), id), DIALS.hallLow);
+    assert.equal(level(lamps({lights: awake}), id), 1);
+    assert.equal(level(lamps({lights: awake, dark: 0}), id), 0);
+    assert.equal(level(lamps({lights: asleep, dark: .5}), id), .5 * DIALS.hallLow);
   }
 });
 
@@ -170,12 +177,6 @@ test('the other rooms need the dark and a waking house, each after its own delay
   assert.ok(at(DIALS.delay[1] + DIALS.fade).every(v => v === 1));
 });
 
-test('a visitor arriving hours after the house woke finds every room already lit', () => {
-  const l = lamps({now: T0 + 3 * 3600e3});
-  assert.ok(OTHERS.every(id => level(l, id) === 1));
-  assert.deepEqual(l, lamps({now: T0 + 3 * 3600e3}));
-});
-
 test('each room answers the dusk at its own point', () => {
   const settled = {settled: true};
   assert.ok(OTHERS.every(id => level(lamps({dark: .25, ...settled}), id) === 0));
@@ -186,7 +187,7 @@ test('each room answers the dusk at its own point', () => {
 });
 
 test('when the house sleeps the rooms go out apart, and the hall falls back to low', () => {
-  const since = T0, asleep = ms => lamps({awake: {on: false, since}, now: since + ms});
+  const since = T0, asleep = ms => lamps({lights: OFF(since), now: since + ms});
   assert.ok(OTHERS.every(id => level(asleep(0), id) === 1));
   assert.ok(OTHERS.every(id => level(asleep(DIALS.delay[1] + DIALS.fade), id) === 0));
   assert.ok(new Set(OTHERS.map(id => level(asleep(30000), id))).size > 1);
@@ -197,7 +198,7 @@ test('when the house sleeps the rooms go out apart, and the hall falls back to l
 test('the delays and thresholds are the same on every call and for every visitor', () => {
   const a = lamps({now: T0 + 40000, dark: .8}), b = lamps({now: T0 + 40000, dark: .8});
   assert.deepEqual(a, b);
-  assert.notDeepEqual(roomLamps({...I, lightSeed: 7}, {dark: .8, pose: {main: 0, second: 0}, awake: {on: true, since: T0}, now: T0 + 40000}), a);
+  assert.notDeepEqual(roomLamps({...I, lightSeed: 7}, {dark: .8, pose: {main: 0, second: 0}, lights: ON(T0), now: T0 + 40000}), a);
 });
 
 test('the fire rises over twenty seconds, and its embers die away over half an hour', () => {
@@ -278,4 +279,56 @@ test('no standable spot is dark at midnight under full overcast with every lamp 
   }
   assert.ok(n > 500);
   console.log(`# darkest standable point: ${worst.toFixed(4)} over ${n} samples`);
+});
+
+// ---- the lights over time ----
+const EV = 1e6, LIGHTS_AT = t => {   // main on at 0, second on at +100 s, main out at +190 s, while the house has woken only 90 s from the second, second out at +500 s, main on again at +700 s
+  const m = t < EV ? [false, 0] : t < EV + 180e3 ? [true, EV] : t < EV + 700e3 ? [false, EV + 180e3] : [true, EV + 700e3];
+  const q = t < EV + 170e3 ? [false, 0] : t < EV + 500e3 ? [true, EV + 170e3] : [false, EV + 500e3];
+  return cot({main: m[0], second: q[0]}, {main: m[1], second: q[1]});
+};
+const stateAt = (t, dark) => interiorDials({...base, cottage: LIGHTS_AT(t), pose: {main: 0, second: 0}, now: t, calendar: cal(0, .06 - .08 * dark, 20), weather: {cloud: 0}});
+const roomsAt = (t, dark) => OTHERS.map(id => level(stateAt(t, dark).lamps, id) / DIALS.lamp).concat(['hall', 'landing'].map(id => level(stateAt(t, dark).lamps, id) / DIALS.lamp));
+
+test('no lamp jumps between frames as the lights change, whatever the dusk does', () => {
+  for (const dusk of [false, true]) {
+    let prev = null, worst = 0;
+    const end = EV + 1500e3, total = (end - (EV - 20e3)) / 100;
+    for (let t = EV - 20e3, k = 0; t <= end; t += 100, k++) {
+      const cur = roomsAt(t, dusk ? k / total : 1);
+      if (prev) cur.forEach((v, i) => { worst = Math.max(worst, Math.abs(v - prev[i])); assert.ok(Math.abs(v - prev[i]) <= .1, `t=${t - EV} room ${i}: ${prev[i]} -> ${v}`); });
+      prev = cur;
+    }
+  }
+});
+
+test('at the end of each phase the rooms are what the lights say', () => {
+  const rooms = t => roomsAt(EV + t, 1), first = OTHERS.length;
+  assert.ok(rooms(-1000).every(v => v <= DIALS.hallLow), 'a world whose lights were never lit starts dark');
+  assert.ok(rooms(99e3).slice(0, first).every(v => v === 1));          // main on
+  assert.ok(rooms(179e3).slice(0, first).every(v => v === 1));         // both on
+  assert.ok(rooms(499e3).slice(0, first).every(v => v === 1));         // main out, second still lit
+  assert.ok(rooms(699e3).slice(0, first).every(v => v === 0));        // both out
+  assert.ok(rooms(699e3).slice(first).every(v => v === DIALS.hallLow));
+  assert.ok(rooms(799e3).slice(0, first).every(v => v === 1));         // waking again
+  assert.ok(rooms(799e3).slice(first).every(v => v === 1));
+});
+
+test('a visitor arriving hours after the house woke finds every room as the sweep left it', () => {
+  const last = EV + 1500e3;
+  assert.deepEqual(stateAt(last, 1).lamps, stateAt(last, 1).lamps);
+  let swept; for (let t = EV - 20e3; t <= last; t += 100) swept = stateAt(t, 1).lamps;
+  assert.deepEqual(stateAt(last, 1).lamps, swept);
+  assert.ok(OTHERS.every(id => level(swept, id) === DIALS.lamp));
+});
+
+test('missing or unreadable inputs never throw and never give a number that is not finite', () => {
+  const ok = d => [d.day, d.fill, d.lamps, [d.fire, d.embers, d.doorway]].flat().every(Number.isFinite);
+  const good = {...base, calendar: cal(.5, 0, 18), weather: {cloud: .5}, cottage: LIGHTS_AT(EV + 1e5), pose: {main: 1, second: 0}};
+  for (const bad of [{calendar: null}, {calendar: {}}, {calendar: {light: NaN, elevation: 0, hour: 18}}, {weather: undefined}, {weather: {}}, {weather: {cloud: NaN}},
+    {sky: undefined}, {sky: {}}, {sky: {zenith: [NaN, 0, 0], horizon: [0, 0, 0]}}, {now: NaN}, {now: undefined}, {seconds: NaN}, {cottage: null}, {pose: null}]) {
+    assert.ok(ok(interiorDials({...good, ...bad})), JSON.stringify(Object.keys(bad)));
+    assert.ok(ok(interiorDials({...good, ...bad, motion: true})));
+  }
+  assert.deepEqual(fireLevel({on: true, since: 0, lastBurn: null}, NaN), {fire: 0, embers: 0});
 });
