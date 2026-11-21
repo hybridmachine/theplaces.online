@@ -72,7 +72,7 @@ docs/space-validation/review/*
 !docs/space-validation/review/*-full.jpg
 !docs/space-validation/review/*-plain.jpg
 
-# Interior captures are JPEG (quality 85): retain the five room frames, the three door frames and thirteen frames of the live windows (each of the six windows among them); PNGs and the other window frames stay local.
+# Interior captures are JPEG (quality 85): retain the five room frames, the three door frames, thirteen frames of the live windows (each of the six windows among them) and twelve of the cabin's light; PNGs and the other window frames stay local.
 docs/interior-validation/*.png
 docs/interior-validation/*.jpg
 !docs/interior-validation/hall.jpg
@@ -96,3 +96,15 @@ docs/interior-validation/*.jpg
 !docs/interior-validation/living-night.jpg
 !docs/interior-validation/dining-from-kitchen.jpg
 !docs/interior-validation/hall-two-views.jpg
+!docs/interior-validation/light-living-noon.jpg
+!docs/interior-validation/light-living-overcast.jpg
+!docs/interior-validation/light-living-dusk.jpg
+!docs/interior-validation/light-living-night.jpg
+!docs/interior-validation/light-living-out.jpg
+!docs/interior-validation/light-hall-night.jpg
+!docs/interior-validation/light-master-day.jpg
+!docs/interior-validation/light-master-lit.jpg
+!docs/interior-validation/light-kitchen-dining.jpg
+!docs/interior-validation/light-doorway-night.jpg
+!docs/interior-validation/light-halo-window.jpg
+!docs/interior-validation/light-fallback.jpg

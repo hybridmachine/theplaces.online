@@ -2,6 +2,8 @@ import {calendar, clamp, hash, smooth, weather} from './world.js';
 import {integratedWind} from './wind.js';
 
 export const COTTAGE_RULES=1, DECISION_MS=30_000, SMOKE_LIFETIME=64_000;
+// The least time before the routine changes the same light again; the cabin's lamp fades rely on finishing inside it.
+export const LIGHT_REST_MS=180_000;
 const residentId='lakeside-resident-01';
 
 export function createCottageState(epoch,at){
@@ -46,7 +48,7 @@ export function cottageIntent(state,epoch,at,conditions=null){
   // Closing for weather has priority over a dwell or an interior light task.
   if(state.casement&&close)return {kind:'casement',target:0,room:'main'};
   for(const [room,target]of [['main',desiredMain],['second',desiredSecond]]){
-    if(state.rooms[room]!==target&&at-state.lastLightAt[room]>=180_000)return {kind:'light',target,room};
+    if(state.rooms[room]!==target&&at-state.lastLightAt[room]>=LIGHT_REST_MS)return {kind:'light',target,room};
   }
   if(!state.casement&&safe&&at-state.lastCasementAt>=180_000)return {kind:'casement',target:1,room:'main'};
   const fire=(c.hour>c.sunrise+.15&&c.hour<c.sunrise+1.3)||(c.hour>Math.max(16,c.sunset-1)&&c.hour<21.5);

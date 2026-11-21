@@ -508,3 +508,32 @@ test('the lake, the halos and the smoke are clipped by a global plane; the sky i
   }
   sky.dispose(); smoke.dispose(); scene.dispose();
 });
+
+test('the doorway\'s tone runs from dark to warm', async () => {
+  const {DOORWAY, WARM_DOORWAY} = await import('../public/space/scene/cabin.js');
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), doorway = scene.parts.cabin.getObjectByName('doorway');
+  const tone = () => [doorway.material.color.r, doorway.material.color.g, doorway.material.color.b];
+  const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+  assert.ok(near(tone(), DOORWAY), 'dark until told otherwise, as without the interior');
+  scene.setDoorway(1); assert.ok(near(tone(), WARM_DOORWAY), `${tone()}`);
+  // the level squared: a low lamp gives a dim warm tone
+  scene.setDoorway(.5); assert.ok(near(tone(), DOORWAY.map((c, i) => c + (WARM_DOORWAY[i] - c) * .25)), `${tone()}`);
+  for (const level of [0, -1, NaN, undefined]) { scene.setDoorway(level); assert.ok(near(tone(), DOORWAY), `${level}`); }
+  scene.setDoorway(3); assert.ok(near(tone(), WARM_DOORWAY));
+  scene.dispose();
+});
+
+test('with the interior on the doorway reads as a lit space: darker toward its head, warmest low down; without it, one flat tone', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), doorway = scene.parts.cabin.getObjectByName('doorway');
+  assert.equal(doorway.material.vertexColors, false, 'flat until the interior sets its tone, so the yard without it is unchanged');
+  const version = doorway.material.version;
+  scene.setDoorway(.35); scene.setDoorway(1);
+  assert.equal(doorway.material.vertexColors, true); assert.equal(doorway.material.version, version + 1, 'the program changes once');
+  const p = doorway.geometry.getAttribute('position'), c = doorway.geometry.getAttribute('color');
+  let lo = Infinity, hi = -Infinity; for (let i = 0; i < p.count; i++) { lo = Math.min(lo, p.getY(i)); hi = Math.max(hi, p.getY(i)); }
+  const at = band => { let t = [0, 0, 0], n = 0; for (let i = 0; i < p.count; i++) if (Math.abs((p.getY(i) - lo) / (hi - lo) - band) < .2) { t = t.map((v, k) => v + c.getComponent(i, k)); n++; } return t.map(v => v / n); };
+  const low = at(0), high = at(1);
+  assert.ok(low.every((v, k) => v > 1.5 * high[k]), `low ${low} against high ${high}`);
+  assert.ok(low[0] / low[2] > high[0] / high[2], 'and warmest low down');
+  scene.dispose();
+});

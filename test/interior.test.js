@@ -110,3 +110,50 @@ test('a leaf hinged on the stair side, or shutting the cabin in two, is invalid'
   assert.equal(validInterior({...I, doorLeaf: {...I.doorLeaf, d: [0, 13]}}), false, 'a leaf across the whole cabin walls off the living room');
   assert.equal(validInterior({...I, doorLeaf: {...I.doorLeaf, thick: 0}}), false);
 });
+
+// The fireplace, the lamps and the solid chimney breasts.
+const variant = f => { const c = structuredClone(I); f(c); return validInterior(c); };
+const fit = (c, room) => c.fittings.find(f => f.room === room);
+test('the blueprint has a fireplace, one fitting for every room, and is still valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.equal(I.fittings.length, I.rooms.length);
+  for (const r of I.rooms) assert.equal(I.fittings.filter(f => f.room === r.id).length, 1, r.id);
+  assert.equal(I.lightSeed, 20261120);
+  const {fireplace: f} = I;
+  assert.deepEqual(I.obstacles, [{floor: 0, a: [0, f.breast.depth], d: [f.d - f.breast.width / 2, f.d + f.breast.width / 2]}, {floor: 1, a: [0, f.upper.depth], d: [f.d - f.upper.width / 2, f.d + f.upper.width / 2]}]);
+});
+test('the chimney breasts are solid on both floors and the hearth slab is not', () => {
+  assert.equal(floorArea(I, 0, [.3, 3.5]), false);
+  assert.equal(floorArea(I, 0, [.5 + I.eyeClear - .01, 3.5]), false);
+  assert.equal(floorArea(I, 0, [1.2, 3.5]), true, 'on the slab\'s reach');
+  assert.equal(floorArea(I, 1, [.2, 3.5]), false);
+  assert.equal(floorArea(I, 1, [1, 3.5]), true);
+});
+test('a hanging lamp that a head would meet, or one under a roof window, is invalid', () => {
+  assert.equal(variant(c => { fit(c, 'living').at[2] = 1.9; }), false);
+  assert.equal(variant(c => { fit(c, 'bedroom-2').at[1] = 2.7; }), false);
+  assert.equal(variant(c => { fit(c, 'nook').at[2] = I.floorRise + ceilingHeight(I, 1, 9.5) - .2; }), false, 'too close to the ceiling');
+});
+test('a wall lamp away from its room\'s walls, a fitting in the wrong room, or a room without one is invalid', () => {
+  assert.equal(variant(c => { fit(c, 'hall').at[1] = 2; }), false);
+  assert.equal(variant(c => { fit(c, 'hall').at[2] = 2.5; }), false, 'too high');
+  assert.equal(variant(c => { fit(c, 'hall').at[2] = 1.2; }), false, 'too low');
+  assert.equal(variant(c => { fit(c, 'study').at[0] = 3; }), false);
+  assert.equal(variant(c => { c.fittings.pop(); }), false);
+  assert.equal(variant(c => { c.fittings.push({...c.fittings[0]}); }), false, 'two for one room');
+  assert.equal(variant(c => { delete c.fittings; }), false);
+});
+test('an obstacle that shuts a room off, or sits across two rooms, is invalid', () => {
+  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6.5, 7.5], d: [2, 5]}); }), false, 'across the hall-living opening');
+  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6, 8], d: [5.5, 6.5]}); }), false, 'in two rooms');
+  assert.equal(variant(c => { c.obstacles.push({floor: 1, a: [6.2, 7], d: [3, 4]}); }), false, 'shuts the landing off bedroom-2');
+  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [1.5, 2.5], d: [5, 6]}); }), true, 'a free-standing one is fine');
+});
+test('no wall fitting sits inside an obstacle; a hanging one may hang over one', () => {
+  // a wall lamp on the living room's gable wall: clear of the chimney breast it is fine, on it it is not
+  assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 1.5, 1.8]}); }), true);
+  assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
+  assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
+  // a table under the dining room's lamp leaves the blueprint valid
+  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [8.4, 9.6], d: [8.9, 10.1]}); }), true);
+});

@@ -214,6 +214,9 @@ export class PainterlyPass {
     this.geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 2, 0, 0, 2], 2));
     this.quad = new THREE.Mesh(this.geometry, this.canvas); this.quad.frustumCulled = false;
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    // three 0.170 invalidates a multisampled target's attachments after resolving it only in the Oculus browser
+    // (supportsInvalidateFramebuffer); there an unresolved depth would be lost between the rooms' draw and the views'.
+    this.invalidates = typeof navigator !== 'undefined' && /OculusBrowser/.test(navigator.userAgent ?? '');
   }
   // width and height in CSS pixels; the targets are sized in device pixels, as the canvas is.
   setSize(width, height, pixelRatio) {
@@ -235,19 +238,29 @@ export class PainterlyPass {
     this.canvas.uniforms.detail.value.y = this.scale < 1 ? LIGHT_NEAR_DETAIL : DETAIL[1];
     this.canvas.uniforms.dpr.value = this.pixelRatio;
   }
-  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water. `views` (window-views.js),
-  // if given, draws the yard through the live panes into the scene target after the scene; its prepared views (each with the
-  // visitor's projection) tell the filter where they lie on screen and from which eye.
+  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water. `views` (window-views.js, as
+  // SpaceView wraps it), if given, draws into the scene target after the scene and before the filter: `draw` the yard through the
+  // live panes, and then `over`, if it has one, what lies over them (the rooms' added light). draw's result says whether any view was
+  // drawn, and its prepared views (each with the visitor's projection) tell the filter where they lie on screen and from which eye.
+  // three resolves the multisampled target into its textures at the end of every render call; only the last before the filter
+  // needs the depth (the filter reads it), so with an `over` the draws before it resolve colour alone. (Not on a browser where
+  // three would then invalidate the multisampled depth between draws: see `invalidates`.)
   render(scene, camera, {water = true, views = null} = {}) {
-    const {renderer} = this, u = this.canvas.uniforms;
+    const {renderer} = this, u = this.canvas.uniforms, target = this.sceneTarget, over = views?.over, lastOnly = !!over && !this.invalidates;
     u.waterMask.value = water ? 1 : 0;
     this.kuwahara.uniforms.clip.value.set(camera.near, camera.far);
     camera.updateMatrixWorld();
     u.unproject.value.copy(camera.projectionMatrixInverse); u.eye.value.copy(camera.matrixWorld);
-    renderer.setRenderTarget(this.sceneTarget); renderer.render(scene, camera);
-    // A draw that reports failure (false) drew no view this frame: the filter is told of none. Where rectangles overlap the
-    // filter takes the first that holds a pixel, so they are given smallest first and the tighter one wins.
-    const drawn = views ? views.draw(renderer) !== false : false, area = r => (r[2] - r[0]) * (r[3] - r[1]);
+    let drawn = false;
+    try {
+      target.resolveDepthBuffer = !lastOnly;
+      renderer.setRenderTarget(target); renderer.render(scene, camera);
+      // A draw that reports failure (false) drew no view this frame: the filter is told of none.
+      drawn = views ? views.draw(renderer) !== false : false;
+    } finally { target.resolveDepthBuffer = true; }
+    over?.call(views, renderer);
+    // Where rectangles overlap the filter takes the first that holds a pixel, so they are given smallest first and the tighter one wins.
+    const area = r => (r[2] - r[0]) * (r[3] - r[1]);
     const list = drawn ? [...views.prepared].sort((a, b) => area(a.rect) - area(b.rect)).slice(0, VIEWS) : [];
     u.viewCount.value = list.length;
     list.forEach((v, k) => { u.viewRect.value[k].set(...v.rect); u.viewEye.value[k].copy(v.eye); });

@@ -97,7 +97,7 @@ export function screenShare(o, view) {
 
 // The wall runs of a storey that can hide a pane: its solid runs, less the outer boundary (the pane sits in one of those), plus the
 // stair's shut-off box on the ground floor (its chimney-side and top edges), which wallSegments does not list. The door leaf is no wall.
-function hidingRuns(I, floor) {
+export function hidingRuns(I, floor) {
   const [w, h] = I.size, is = (x, y) => Math.abs(x - y) < 1e-6, outer = ({from: [a, d], to: [b, e]}) => (is(a, b) && (is(a, 0) || is(a, w))) || (is(d, e) && (is(d, 0) || is(d, h)));
   const runs = wallSegments(I, floor).filter(r => r.solid && !outer(r));
   // The flight's open side is plastered only up to its treads (`flight`: hides a line only where the line is below them, see
@@ -107,7 +107,7 @@ function hidingRuns(I, floor) {
 }
 
 // How far along a sight line (p to q, plan; 0 at p, 1 at q) it crosses a run, strictly inside both, or null; parallel lines never cross.
-function crossing(p, q, {from, to}) {
+export function crossing(p, q, {from, to}) {
   const [rx, ry, sx, sy] = [q[0] - p[0], q[1] - p[1], to[0] - from[0], to[1] - from[1]], den = rx * sy - ry * sx;
   if (Math.abs(den) < 1e-12) return null;
   const [ex, ey] = [from[0] - p[0], from[1] - p[1]], t = (ex * sy - ey * sx) / den, u = (ex * ry - ey * rx) / den;

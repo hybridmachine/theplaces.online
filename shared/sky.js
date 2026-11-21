@@ -3,6 +3,8 @@ import { CELESTIAL_MODEL, DEG, sampleCelestial } from './celestial.js';
 import { SKY_CAMERA, cameraFrame, projectBody, projectDirection } from './celestial-projection.js';
 
 const clamp = x => Math.max(0, Math.min(1, x));
+// How far the sky is overcast: nothing up to the thin cloud of clear skies (0.2), all of it at 0.9 and above.
+export const overcast = weather => clamp((weather.cloud - .2) / .7);
 const mod = (x, n) => ((x % n) + n) % n;
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };

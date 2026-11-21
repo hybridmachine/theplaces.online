@@ -8,6 +8,7 @@ import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
+import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
 import {createWindowViews} from './window-views.js';
 import {createViewBudget} from './view-budget.js';
@@ -22,6 +23,7 @@ import {PlaceMemory} from './place-memory.js';
 import {PainterlyPass, canPaint} from './painterly-pass.js';
 import {TIERS, createTierMeter} from './tier.js';
 import {createLife, lifeFrame} from './life/index.js';
+import {cottagePose} from './life/cottage.js';
 import {lifeLayout} from '../../shared/lakeside-life.js';
 
 export {toThree};
@@ -39,6 +41,10 @@ const OVERCAST_SHADE = .35, CLOUD_SHADE = .65;
 const pose = s => s.place === 'cabin'
   ? {place: 'cabin', floor: s.floor, position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch}
   : {place: 'yard', position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch};
+const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
+// For the scene description: above LAMP_SEEN of full a room's lamp counts as lit (the hall's night lamp burning low is), and below
+// these the fire counts as out (by its level, not its flickering light) and its embers as cold.
+const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
 const interiorSwitch = () => new URLSearchParams(location.search).get('interior') === '1' ? LAKESIDE_INTERIOR : null;
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
@@ -64,6 +70,9 @@ export class SpaceView {
     // The cabin's rooms are built when first wanted (inside: their scene; insideFailed: a build that threw, for good); the
     // passage swings the door and carries the visitor through it.
     this.inside = null; this.insideFailed = false;
+    // The rooms' light: the last frame's dials (shared/interior-light.js), whether working them out has failed for good, and whether
+    // the lit surfaces' program has been seen to compile (lightChecked).
+    this.dials = null; this.dialsFailed = false; this.lightChecked = false;
     // The cabin's openings, the views of the yard through its live panes (made when first wanted; viewsFailed: never, for good),
     // the door's swing as the passage last gave it, the ids live in the last frame and how many the frames allow.
     this.openings = null; this.views = null; this.viewDraw = null; this.viewsFailed = false; this.door = 0; this.live = []; this.rainAt = null;
@@ -218,18 +227,89 @@ export class SpaceView {
   // Indoors, one frame: the openings chosen and prepared (openWindows), then the rooms drawn and the yard through each live pane
   // into the same frame, through the pass or straight to the canvas. With `flat` (for the browser checks' comparisons) no pane is
   // live and the shell's flat glass is drawn. Returns the live ids.
+  // After the views the rooms' added light (the halos, flames and the fire's glow: inside.overlay) is drawn over them, from the
+  // visitor's eye into the same target without clearing it and with the stencil test off, still depth-tested against the rooms;
+  // it is drawn so wherever some of it lies over a live pane, and otherwise with the rooms. Through the pass all of it goes into the scene target before the filter: the pass's
+  // `views` hook draws the views (and says whether it drew any) and its `over` the added light.
   drawIndoors({flat = false} = {}) {
     let ids = [];
     if (flat) this.inside.setLive([]); else ids = this.openWindows();
-    const views = ids.length ? this.viewDraw : null;
-    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); views?.draw(this.renderer); }
-    else this.pass.render(this.inside.scene, this.camera, {water: false, views});
+    // (made once; this frame's views, if any, are set on it, and its `over` only when something of the overlay lies over a live pane:
+    // each draw into the pass's multisampled target is resolved in full, about a millisecond, so a frame that need not skips it)
+    const view = this, hook = this.overDraw ??= {views: null, over: null, get prepared() { return this.views ? this.views.prepared : []; },
+      draw(renderer) { return this.views ? this.views.draw(renderer) !== false : false; },
+      overlay(renderer) {
+        const autoClear = renderer.autoClear;
+        renderer.state.buffers.stencil.setTest(false); renderer.autoClear = false;
+        try { renderer.render(view.inside.overlay, view.camera); } finally { renderer.autoClear = autoClear; }
+      }};
+    // The overlay after the views only when some of it lies over a live pane; otherwise it is drawn with the rooms, as nothing will cover it.
+    hook.views = ids.length ? this.viewDraw : null;
+    const need = this.inside.overlayNeed(this.camera, hook.views ? hook.views.prepared : []);
+    this.inside.overlayWithRooms(need < 2); hook.over = need === 2 ? hook.overlay : null;
+    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); hook.draw(this.renderer); hook.over?.(this.renderer); }
+    else this.pass.render(this.inside.scene, this.camera, {water: false, views: hook});
+    this.checkLight();
     return ids;
+  }
+  // After the first indoor draw of the lit surfaces: three logs a program that fails to compile or link and draws nothing with it,
+  // so the rooms would vanish. Its diagnostics say so (runnable false); the rooms then fall back to the flat light, with one warning.
+  // This decides on the lit programs known after the first indoor draw that made any: it relies on both of them (the plain one and
+  // plaster's, with its base) being used in that frame, as they are wherever a visitor stands (every room has walls and a floor).
+  checkLight() {
+    if (this.lightChecked || !this.inside?.lit) return;
+    const programs = (this.renderer.info?.programs ?? []).filter(p => String(p.cacheKey).includes('interior-light-'));
+    if (!programs.length) return;
+    this.lightChecked = true;
+    if (programs.some(p => p.diagnostics?.runnable === false)) {
+      this.inside.fallBack(); console.warn("The cabin's light could not be set up; its rooms stay evenly lit.");
+    }
+  }
+  // Each frame with the interior on: the rooms' dials from the shared world and the clock (or a check's fixture: `hearth`
+  // {fire, embers} and `lamps`, a level 0–1 per room), the doorway warmed by the hall's lamp, and indoors the rooms and the fire
+  // given them. Working the dials out is not to throw: if it does, once, it is warned of and given up, the rooms keeping their last light.
+  lightRooms({snapshot, now, study, calendar, weather, sky, motionSeconds, indoors, fixture}) {
+    if (this.dialsFailed) return;
+    let dials;
+    try {
+      const I = this.interior;
+      const pose = cottagePose({fixture, study, snapshot, now, motion: this.motion});
+      dials = interiorDials({interior: I, calendar, weather, sky, cottage: snapshot.world.cottage, pose, now, seconds: motionSeconds, motion: this.motion, study});
+      if (fixture?.hearth) dials = {...dials, fire: clamp01(fixture.hearth.fire) * DIALS.fire, flame: clamp01(fixture.hearth.fire), embers: clamp01(fixture.hearth.embers)};
+      if (Array.isArray(fixture?.lamps)) {
+        const levels = I.rooms.map((_, i) => clamp01(fixture.lamps[i]));
+        dials = {...dials, lamps: levels.map(v => v * DIALS.lamp), doorway: levels[I.rooms.findIndex(r => r.id === 'hall')]};
+      }
+    } catch (error) {
+      this.dialsFailed = true; console.warn("The cabin's light could not be worked out; its rooms keep their last light.", error); return;
+    }
+    this.dials = dials;
+    this.yard.setDoorway(dials.doorway);
+    if (!indoors) return;
+    this.inside.setLight(dials);
+    this.inside.setFire({fire: dials.fire / DIALS.fire, embers: dials.embers, seconds: motionSeconds, motion: this.motion});
+  }
+  // A check's fixture as this frame uses it (null without ?check): one that sets the rooms' lamps and not the cottage's pose gives the
+  // yard's cottage windows the living room's and the study's levels too (its casement as the world has it), so a capture with those
+  // lamps out shows no window glow lying on the grass outside them.
+  checkFixture({snapshot, now, study}) {
+    const fixture = this.check ? this.fixture : null, I = this.interior;
+    if (!I || !Array.isArray(fixture?.lamps) || fixture.cottagePose) return fixture;
+    const level = id => clamp01(fixture.lamps[I.rooms.findIndex(r => r.id === id)]), open = cottagePose({fixture: null, study, snapshot, now, motion: this.motion})?.open ?? 0;
+    return {...fixture, cottagePose: {main: level('living'), second: level('study'), open}};
   }
   // The ids of the openings drawn live in the last frame.
   get liveViews() { return [...this.live]; }
   // The name of the room the visitor is in, or null in the yard (or without the interior).
   get room() { return this.interior && this.state.place === 'cabin' ? roomAt(this.interior, this.state.floor, this.state.position)?.name ?? null : null; }
+  // What is lit in the room the visitor is in: {room (its name), lamp (its level above LAMP_SEEN of full), fire ('burning', 'embers' or 'cold' in
+  // the living room, null elsewhere)}; null in the yard, without the interior, or before the rooms' light was first worked out.
+  get lit() {
+    const I = this.interior, r = I && this.state.place === 'cabin' && this.dials ? roomAt(I, this.state.floor, this.state.position) : null;
+    if (!r) return null;
+    const {lamps, flame, embers} = this.dials, lamp = lamps[I.rooms.indexOf(r)] / DIALS.lamp > LAMP_SEEN;
+    return {room: r.name, lamp, fire: r.id !== 'living' ? null : flame > FIRE_SEEN ? 'burning' : embers > EMBERS_SEEN ? 'embers' : 'cold'};
+  }
   get birdActive() { return this.life?.status.bird === 'active'; }
   get cottageActive() { return this.life?.status.cottage === 'active'; }
   get coincidenceActive() { return this.life?.status.ripples === 'active'; }
@@ -315,12 +395,14 @@ export class SpaceView {
     const clouds = sampleCloudLayers({realSeconds, motionSeconds, weather: w, config: this.skyConfig});
     const {zenith, horizon} = this.sky.update({calendar: c, weather: w, bodies, clouds, cameraPosition: this.camera.position});
     this.yard.setSky({zenith, horizon}); this.inside?.setSky({zenith, horizon});
-    this.yard.setGarden(this.check && Number.isInteger(this.fixture?.gardenDay) ? this.fixture.gardenDay : c.day);
+    const fixture = this.checkFixture({snapshot, now, study});
+    if (this.interior) this.lightRooms({snapshot, now, study, calendar: c, weather: w, sky: {zenith, horizon}, motionSeconds, indoors, fixture});
+    this.yard.setGarden(Number.isInteger(fixture?.gardenDay) ? fixture.gardenDay : c.day);
     this.applyLight(c, w, bodies, horizon);
     // Indoors the rain falls round the cabin's outside, centred over it at its eaves so the streaks stand above the roof windows
     // too: it is seen through every window and never in a room.
     const rainAt = indoors ? this.rainAt ??= new THREE.Vector3(...toThree([...this.space.cabin.center, cabinFrame(this.space, this.dressing).eave])) : null;
-    this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture: this.check ? this.fixture : null, rainAt}));
+    this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture, rainAt}));
     // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same, and is drawn again
     // through each live pane into the same frame.
     const ids = this.live = indoors ? this.drawIndoors() : [];

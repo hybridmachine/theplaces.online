@@ -7,6 +7,7 @@ import {LAKESIDE_SPACE} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
 import {stubArt} from './space-scene.test.js';
+import {createLightField, interiorDials} from '../shared/interior-light.js';
 
 const openings = viewOpenings(I, LAKESIDE_SPACE, LAKESIDE_DRESSING);
 const build = () => buildInterior(THREE, {interior: I, art: stubArt(), openings});
@@ -22,7 +23,7 @@ test('the shell builds its named parts with finite geometry inside the blueprint
     const b = box(m);   // three: x = a, y = up, z = −d
     assert.ok(b.min.x >= -.2 && b.max.x <= 18.2 && b.min.z >= -12.2 && b.max.z <= .2 && b.min.y >= -.01 && b.max.y <= 6.7, `${name} ${JSON.stringify(b)}`);
   }
-  assert.ok(scene.children.some(o => o.isHemisphereLight)); assert.equal(scene.fog, null);
+  assert.equal(scene.fog, null);
   dispose();
 });
 test('the stair climbs 3 m in 15 treads', () => {
@@ -153,5 +154,140 @@ test('nothing solid stands in an opening, the doorway or the stair foot', () => 
   }
   assert.equal(hits([9, .5, 1.6], [9, -.5, 1.6]), 0, 'front doorway');
   assert.ok(hits([3.5, 3.5, 1.6], [-1, 3.5, 1.6]) > 0, 'the gable wall is solid');
+  dispose();
+});
+
+// ── the painted-in light ──
+const LIT = ['floors', 'ceilings', 'walls', 'stair', 'frames', 'casement', 'door-leaf'];
+// A vertex in the interior frame, and its surface's normal there, from three's axes (x = a, y = up, z = −d).
+const vertex = (g, i) => { const p = g.getAttribute('position'), n = g.getAttribute('normal'); return [[p.getX(i), -p.getZ(i), p.getY(i)], [n.getX(i), -n.getZ(i), n.getY(i)]]; };
+const weightsOf = (g, i) => { const l = g.getAttribute('light'), q = g.getAttribute('spill'); return {day: l.getX(i), lamp: l.getY(i), fire: l.getZ(i), room: l.getW(i), spill: q.getX(i), spillRoom: q.getY(i)}; };
+const night = () => interiorDials({interior: I, calendar: {light: 0, elevation: -1, hour: 0}, weather: {cloud: 0}, sky: {zenith: [.1, .1, .2], horizon: [.1, .1, .2]},
+  cottage: null, pose: {main: .8, second: .4}, now: 0, seconds: 0, motion: false});
+
+test('every surface vertex carries its light weights, and they are the field\'s', () => {
+  const {scene, field, lit, dispose} = build();
+  assert.equal(lit, true);
+  for (const name of LIT) {
+    const g = scene.getObjectByName(name).geometry, l = g.getAttribute('light');
+    assert.ok(l && l.itemSize === 4 && l.count === g.getAttribute('position').count, name);
+    const q = g.getAttribute('spill'); assert.ok(q && q.itemSize === 2 && q.count === l.count, `${name} spill`);
+    for (let i = 0; i < l.count; i++) {
+      const w = weightsOf(g, i);
+      assert.ok([w.day, w.lamp, w.fire, w.room].every(Number.isFinite), `${name} ${i}`);
+      assert.ok([w.day, w.lamp, w.fire].every(v => v >= 0 && v <= 1), `${name} ${i} ${JSON.stringify(w)}`);
+      assert.ok(Number.isInteger(w.room) && w.room >= -1 && w.room < I.rooms.length, `${name} ${i}`);
+    }
+  }
+  // Every floor, wall and ceiling vertex belongs to a room: none falls between them.
+  for (const name of ['floors', 'walls', 'ceilings']) {
+    const g = scene.getObjectByName(name).geometry;
+    for (let i = 0; i < g.getAttribute('light').count; i++) assert.notEqual(weightsOf(g, i).room, -1, `${name} ${vertex(g, i)[0]}`);
+  }
+  // Ten floor vertices well inside their rooms take exactly the field's weights there.
+  const g = scene.getObjectByName('floors').geometry, inner = [];
+  for (let i = 0; i < g.getAttribute('position').count; i++) {
+    const [p] = vertex(g, i), floor = p[2] > 1 ? 1 : 0;
+    if (I.rooms.some(r => r.floor === floor && p[0] > r.a[0] + .3 && p[0] < r.a[1] - .3 && p[1] > r.d[0] + .3 && p[1] < r.d[1] - .3)) inner.push(i);
+  }
+  assert.ok(inner.length > 100);
+  for (let k = 0; k < 10; k++) {
+    const i = inner[Math.floor(k * inner.length / 10)], [p, n] = vertex(g, i), want = field.weigh(p[2] > 1 ? 1 : 0, p, n), got = weightsOf(g, i);
+    for (const key of ['day', 'lamp', 'fire', 'room', 'spill', 'spillRoom']) assert.ok(Math.abs(got[key] - want[key]) < 1e-6, `${p} ${key}: ${got[key]} against ${want[key]}`);
+  }
+  // The field handed back is the blueprint's.
+  const own = createLightField(I, openings);
+  assert.deepEqual(field.weigh(0, [3, 3, 0], [0, 0, 1]), own.weigh(0, [3, 3, 0], [0, 0, 1]));
+  dispose();
+});
+test('no reveal inside a doorway between rooms falls between them', () => {
+  const {scene, dispose} = build(), g = scene.getObjectByName('walls').geometry;
+  let seen = 0;
+  for (let i = 0; i < g.getAttribute('position').count; i++) {
+    const [p] = vertex(g, i);
+    for (const o of I.openings) {
+      const base = o.floor * I.floorRise, across = o.line === 'a' ? p[0] : p[1], along = o.line === 'a' ? p[1] : p[0];
+      if (Math.abs(across - o.at) > I.wall / 2 + 1e-6 || along < o.span[0] - 1e-6 || along > o.span[1] + 1e-6 || p[2] < base - 1e-6 || p[2] > base + I.doorHead + 1e-6) continue;
+      seen++;
+      const w = weightsOf(g, i);
+      assert.ok(w.room !== -1 && w.lamp > 0, `${o.id} at ${p}: ${JSON.stringify(w)}`);
+    }
+  }
+  assert.ok(seen >= I.openings.length * 8, `${seen}`);
+  dispose();
+});
+test('the interior holds no light source', () => {
+  const {scene, dispose} = build();
+  let lights = 0; scene.traverse(o => { if (o.isLight) lights++; });
+  assert.equal(lights, 0);
+  dispose();
+});
+test('setLight moves the shared uniforms and nothing else', () => {
+  const {scene, setLight, dispose} = build(), before = new Map();
+  scene.traverse(o => { if (o.isMesh) before.set(o.name, {material: o.material, rotation: o.rotation.y, colour: o.material.color?.getHex()}); });
+  const lit = scene.getObjectByName('walls').material, s = {uniforms: {}, vertexShader: THREE.ShaderLib.basic.vertexShader, fragmentShader: THREE.ShaderLib.basic.fragmentShader};
+  lit.onBeforeCompile(s);
+  const dials = night();
+  setLight(dials);
+  assert.deepEqual([s.uniforms.day.value.x, s.uniforms.day.value.y, s.uniforms.day.value.z], dials.day);
+  assert.deepEqual([s.uniforms.fill.value.x, s.uniforms.fill.value.y, s.uniforms.fill.value.z], dials.fill);
+  [...s.uniforms.lamps.value].forEach((v, i) => assert.ok(Math.abs(v - dials.lamps[i]) < 1e-6, `lamp ${i}`));
+  assert.equal(s.uniforms.fire.value, dials.fire);
+  assert.ok(dials.lamps[I.rooms.findIndex(r => r.id === 'living')] > 0, 'the living room\'s lamp is lit in this frame');
+  // every lit surface shares those uniforms
+  for (const name of LIT) { const t = {uniforms: {}, vertexShader: THREE.ShaderLib.basic.vertexShader, fragmentShader: THREE.ShaderLib.basic.fragmentShader};
+    scene.getObjectByName(name).material.onBeforeCompile(t); assert.equal(t.uniforms.lamps, s.uniforms.lamps, name); }
+  scene.traverse(o => { if (o.isMesh) assert.deepEqual({material: o.material, rotation: o.rotation.y, colour: o.material.color?.getHex()}, before.get(o.name), o.name); });
+  dispose();
+});
+test('if the lit materials cannot be made the rooms stay evenly lit, with one warning', t => {
+  // three as it is, but a basic material asked for vertex colours (the lit surfaces' kind) cannot be made
+  // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
+  class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
+  const warn = t.mock.method(console, 'warn', () => {});
+  const out = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings});
+  assert.equal(out.lit, false);
+  assert.equal(warn.mock.callCount(), 1);
+  assert.equal(warn.mock.calls[0].arguments[0], 'The cabin\'s light could not be set up; its rooms stay evenly lit.');
+  let hemispheres = 0, lights = 0; out.scene.traverse(o => { if (o.isLight) lights++; if (o.isHemisphereLight) hemispheres++; });
+  assert.equal(hemispheres, 1); assert.equal(lights, 1);
+  for (const name of [...LIT, ...openings.map(o => `pane-${o.id}`)]) assert.ok(out.scene.getObjectByName(name), name);
+  for (const name of LIT) assert.ok(out.scene.getObjectByName(name).material.isMeshLambertMaterial, name);
+  const leaf = out.scene.getObjectByName('casement');
+  assert.deepEqual([leaf.renderOrder, leaf.material.stencilWrite, leaf.material.stencilRef], [2, true, 0]);
+  assert.equal(out.setLight(night()), undefined);
+  out.dispose();
+});
+test("the stair's plastered side has its vertex rows level from tread to tread, and is weighed by the nearer storey", () => {
+  const {scene, field, dispose} = build(), g = scene.getObjectByName('walls').geometry, lift = I.floorRise / 15, [d0, d1] = I.stair.d;
+  let n = 0;
+  for (let i = 0; i < g.getAttribute('position').count; i++) {
+    const [p, nrm] = vertex(g, i);
+    if (Math.abs(p[0] - I.stair.a[0]) > 1e-6 || nrm[0] > -.9 || p[1] < d0 - 1e-6 || p[1] > d1 + 1e-6 || p[2] > I.groundCeiling + 1e-6) continue;
+    if (p[1] > d1 - 1e-6 && p[2] > I.floorRise - 1e-6) continue;
+    n++;
+    const k = p[2] / lift;
+    assert.ok(Math.abs(k - Math.round(k)) < 1e-6, `a row at ${p[2].toFixed(4)}, not on a tread's height`);
+    const want = field.weigh(p[2] >= I.floorRise / 2 ? 1 : 0, [p[0] - I.wall / 2 - .03, p[1], p[2]], nrm), got = weightsOf(g, i);
+    assert.equal(got.room, want.room, `${p}`);
+  }
+  assert.ok(n > 60, `${n}`);
+  dispose();
+});
+
+test('a halo toward the edge of the screen is taken at its full outline against a live pane', () => {
+  // The kitchen's lamp alone, 2 m off and 40° to the right of a 16:9 camera: its outline on screen reaches further right than its
+  // radius (0.18 m) taken at its centre's depth. A pane beginning between the two is under the halo; one well clear of it is not.
+  const {setLamps, overlayNeed, dispose} = build(), at = I.fittings.find(f => f.room === 'kitchen').at, turn = 40 * Math.PI / 180, far = 2, R = .18;
+  setLamps(I.rooms.map(r => r.id === 'kitchen' ? 1 : 0));
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, .05, 100); camera.position.set(at[0], at[2], -at[1] + far); camera.rotation.y = turn;
+  const k = 1 / Math.tan(30 * Math.PI / 180) / (16 / 9), u = angle => (Math.tan(angle) * k + 1) / 2;
+  const outline = u(turn + Math.asin(R / far)), atCentre = u(turn) + R / (far * Math.cos(turn)) * k / 2;
+  assert.ok(atCentre < outline && outline < 1, `${atCentre} ${outline}`);
+  const need = from => overlayNeed(camera, [{rect: [from, 0, 1.5, 1]}]);
+  assert.equal(need(u(turn)), 2, 'over the lamp itself');
+  assert.equal(need((atCentre + outline) / 2), 2, 'under the outline, past the radius at the centre\'s depth');
+  assert.equal(need(1.2), 1, 'in sight but over no pane');
+  assert.equal(overlayNeed(camera, []), 1);
   dispose();
 });

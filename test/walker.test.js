@@ -135,3 +135,15 @@ test('the living room, the study and the stair are all still reached from the en
   const up = indoors({...entry, position: [10.3, 1.0], yaw: 0}, {forward: 1}, 4);
   assert.equal(up.floor, 1);
 });
+
+test('holding W into the chimney breast from any side never enters it', () => {
+  for (const [floor, start, yaw] of [[0, [2, 3.5], -Math.PI / 2], [0, [.4, 1.5], 0], [0, [.4, 5.5], Math.PI], [1, [2, 3.5], -Math.PI / 2], [1, [.4, 1.5], 0], [1, [.4, 5.5], Math.PI]]) {
+    let s = {...entry, floor, position: start, yaw};
+    assert.ok(standable(s), `${floor} ${start}`);
+    for (let i = 0; i < 240; i++) {
+      s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+      assert.ok(standable(s) && s.floor === floor, `${floor} ${start} entered at ${s.position}`);
+      for (const o of I.obstacles) if (o.floor === floor) assert.ok(!(s.position[0] < o.a[1] && s.position[1] > o.d[0] && s.position[1] < o.d[1]), `inside the breast at ${s.position}`);
+    }
+  }
+});

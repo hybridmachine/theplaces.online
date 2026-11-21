@@ -36,27 +36,64 @@ export function validInterior(I) {
   const hall = byId.get('hall'), [a, d] = I.entry.position, leaf = I.doorLeaf;
   if (!hall || !inside(hall, [a, d]) || a < hall.a[0] + I.wall / 2 + I.eyeClear || d < hall.d[0] + I.wall / 2 + I.eyeClear) return false;
   if (!leaf || !Array.isArray(leaf.d) || !(leaf.d[0] < leaf.d[1]) || !(leaf.thick > 0) || Math.abs(leaf.a - (I.door.a - I.door.width / 2)) > 1e-9) return false;
-  return leafLeavesWayOpen(I, byId);
+  return leafLeavesWayOpen(I) && obstaclesFit(I) && fittingsFit(I, byId);
 }
 
-// With the open leaf in place the entry spot is still standable and joins every ground-floor opening of the hall and the stair foot:
-// a flood over a 0.1 m grid of the ground floor's standable points.
-function leafLeavesWayOpen(I, byId) {
+// Each obstacle stands inside one room of its floor and leaves that room's openings reachable (floor 0 flooded from the entry spot, floor 1
+// from the stair's top; the flood also proves both starts standable).
+function obstaclesFit(I) {
+  if (!Array.isArray(I.obstacles)) return false;
+  const reach = [flood(I, 0, I.entry.position), flood(I, 1, [(I.stair.a[0] + I.stair.a[1]) / 2, I.stair.d[1] + .1])];
+  return I.obstacles.every(o => {
+    if (!(o.floor === 0 || o.floor === 1) || !(o.a[0] < o.a[1]) || !(o.d[0] < o.d[1]) || !reach[o.floor]) return false;
+    const r = I.rooms.find(r => r.floor === o.floor && o.a[0] >= r.a[0] && o.a[1] <= r.a[1] && o.d[0] >= r.d[0] && o.d[1] <= r.d[1]);
+    return !!r && I.openings.filter(p => p.floor === o.floor && p.rooms.includes(r.id)).every(p => reach[o.floor](doorway(I, p)));
+  });
+}
+
+// One lamp per room, inside it; a wall one clear of the obstacles; a hanging one hangs 2 m up and 0.3 m below the ceiling and not under a roof
+// window, a wall one is within 0.3 m of a wall line of its room and between 1.4 and 1.9 m above its floor.
+function fittingsFit(I, byId) {
+  if (!Array.isArray(I.fittings) || I.fittings.length !== I.rooms.length || new Set(I.fittings.map(f => f.room)).size !== I.rooms.length) return false;
+  return I.fittings.every(f => {
+    const r = byId.get(f.room);
+    if (!r || !Array.isArray(f.at) || f.at.length !== 3 || !inside(r, f.at)) return false;
+    const [a, d, z] = f.at, up = z - r.floor * I.floorRise;
+    // (a hanging lamp hangs above head height, so it may hang over an obstacle such as a table; a wall one may not stand in one)
+    if (f.kind !== 'hanging' && I.obstacles.some(o => o.floor === r.floor && a >= o.a[0] && a <= o.a[1] && d >= o.d[0] && d <= o.d[1])) return false;
+    if (f.kind === 'hanging') return up >= 2 - EPS && ceilingHeight(I, r.floor, d) - up >= .3 - EPS
+      && !I.windows.some(w => w.kind === 'roof' && byId.get(w.room).floor === r.floor && Math.abs(a - w.a) <= w.width / 2 && d >= w.d[0] && d <= w.d[1]);
+    return f.kind === 'wall' && up >= 1.4 - EPS && up <= 1.9 + EPS
+      && (Math.min(a - r.a[0], r.a[1] - a, d - r.d[0], r.d[1] - d) <= .3 + EPS);
+  });
+}
+
+// A flood over a 0.1 m grid of that floor's standable points from `start`: null when the start itself is not standable, else a test
+// of whether any reached point lies in an opening's doorway (the wall's thickness across, its span along).
+function flood(I, floor, start) {
   const N = 10, nA = I.size[0] * N, nD = I.size[1] * N, id = (i, j) => i * (nD + 1) + j;
-  const at = (i, j) => [i / N, j / N], ok = (i, j) => i >= 0 && j >= 0 && i <= nA && j <= nD && floorArea(I, 0, at(i, j));
-  const i0 = Math.round(I.entry.position[0] * N), j0 = Math.round(I.entry.position[1] * N);
-  if (!ok(i0, j0)) return false;
+  const at = (i, j) => [i / N, j / N], ok = (i, j) => i >= 0 && j >= 0 && i <= nA && j <= nD && floorArea(I, floor, at(i, j));
+  const i0 = Math.round(start[0] * N), j0 = Math.round(start[1] * N);
+  if (!ok(i0, j0)) return null;
   const reached = new Set([id(i0, j0)]), todo = [[i0, j0]];
   while (todo.length) {
     const [i, j] = todo.pop();
     for (const [x, y] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (!reached.has(id(x, y)) && ok(x, y)) { reached.add(id(x, y)); todo.push([x, y]); }
   }
   const hit = fn => { for (const k of reached) if (fn(at(Math.floor(k / (nD + 1)), k % (nD + 1)))) return true; return false; };
+  return hit;
+}
+const doorway = (I, o) => ([a, d]) => {
+  const [across, along] = o.line === 'a' ? [a, d] : [d, a];
+  return Math.abs(across - o.at) <= I.wall / 2 && along >= o.span[0] && along <= o.span[1];
+};
+
+// With the open leaf in place the entry spot is still standable and joins every ground-floor opening of the hall and the stair foot.
+function leafLeavesWayOpen(I) {
+  const hit = flood(I, 0, I.entry.position);
+  if (!hit) return false;
   const [d0] = I.stair.d, foot = ([a, d]) => a >= I.stair.a[0] + I.eyeClear && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear && d < d0 && d > d0 - .15;
-  return I.openings.filter(o => o.floor === 0 && o.rooms.includes('hall')).every(o => hit(([a, d]) => {
-    const [across, along] = o.line === 'a' ? [a, d] : [d, a];
-    return Math.abs(across - o.at) <= I.wall / 2 && along >= o.span[0] && along <= o.span[1];
-  })) && hit(foot);
+  return I.openings.filter(o => o.floor === 0 && o.rooms.includes('hall')).every(o => hit(doorway(I, o))) && hit(foot);
 }
 
 const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary value (11 - 9.6 is not exactly 1.4)
@@ -65,11 +102,12 @@ const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary v
 export const onStair = (I, [a, d]) => a >= I.stair.a[0] + I.eyeClear - EPS && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear + EPS
   && d >= I.stair.d[0] - EPS && d <= I.stair.d[1] + EPS;
 
-// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box and
-// the open door leaf (ground floor) excluded.
+// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box, the open door
+// leaf (ground floor) and the obstacles' rectangles with the eye's clearance around them excluded.
 export function floorArea(I, floor, [a, d]) {
   const c = I.wall / 2 + I.eyeClear, [d0, d1] = I.stair.d, leaf = I.doorLeaf;
   if (floor === 0 && leaf && Math.hypot(a - leaf.a, d - Math.min(Math.max(d, leaf.d[0]), leaf.d[1])) <= leaf.thick / 2 + I.eyeClear + EPS) return false;   // the open door leaf
+  if (I.obstacles && I.obstacles.some(o => o.floor === floor && Math.hypot(a - Math.min(Math.max(a, o.a[0]), o.a[1]), d - Math.min(Math.max(d, o.d[0]), o.d[1])) <= I.eyeClear + EPS)) return false;   // a chimney breast
   if (a >= I.stair.a[0] - I.eyeClear - EPS && a <= I.stair.a[1] + EPS && (floor === 0 ? d >= d0 - EPS && d <= d1 + I.eyeClear + EPS : d >= d0 - I.eyeClear - EPS && d <= d1 + EPS)) return false;
   if (I.rooms.some(r => r.floor === floor && a >= r.a[0] + c - EPS && a <= r.a[1] - c + EPS && d >= r.d[0] + c - EPS && d <= r.d[1] - c + EPS)) return true;
   return I.openings.some(o => {
