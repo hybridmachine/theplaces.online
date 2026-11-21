@@ -554,13 +554,13 @@ try{
       const x0=(r[0]+1)/2*W,x1=(r[2]+1)/2*W,y0=(1-r[3])/2*H,y1=(1-r[1])/2*H,dx=(x1-x0)*inset,dy=(y1-y0)*inset;return [x0+dx,y0+dy,x1-dx,y1-dy].map(Math.round);});
   // Draws one frame with SpaceView's own indoor draw (drawIndoors, which render calls: openWindows, then the rooms and the live
   // views) and reads each box's pixels; with `flat` the views are left out (the shell's flat glass), with `hide` those named objects
-  // of the yard are hidden for a second draw of the same frame.
+  // of the yard (or, failing that, of the rooms) are hidden for a second draw of the same frame.
   const indoorRead=(page,boxes,{flat=false,hide=[]}={})=>page.evaluate(({boxes,flat,hide})=>{
     const s=window.__space,g=s.renderer.getContext(),W=g.drawingBufferWidth,H=g.drawingBufferHeight,k=W/innerWidth,b=[];
     const draw=()=>s.drawIndoors({flat});
     const read=()=>boxes.map(([x0,y0,x1,y1])=>{const X=Math.round(x0*k),Y=Math.round(H-y1*k),w=Math.round((x1-x0)*k),h=Math.round((y1-y0)*k),p=new Uint8Array(w*h*4);g.readPixels(X,Y,w,h,g.RGBA,g.UNSIGNED_BYTE,p);return [...p];});
     const ids=draw(),on=read();let off=null;
-    if(hide.length){const objects=hide.map(n=>s.scene.getObjectByName(n)).filter(Boolean),was=objects.map(o=>o.visible);objects.forEach(o=>{o.visible=false;});draw();off=read();objects.forEach((o,i)=>{o.visible=was[i];});}
+    if(hide.length){const objects=hide.map(n=>s.scene.getObjectByName(n)??s.inside?.scene.getObjectByName(n)).filter(Boolean),was=objects.map(o=>o.visible);objects.forEach(o=>{o.visible=false;});draw();off=read();objects.forEach((o,i)=>{o.visible=was[i];});}
     return {ids,on,off};},{boxes,flat,hide});
   // How many of a crop's pixels differ from its own first pixel (a flat colour has none), and of how many.
   const varied=a=>{let n=0;for(let i=4;i<a.length;i+=4)if(Math.abs(a[i]-a[0])>2||Math.abs(a[i+1]-a[1])>2||Math.abs(a[i+2]-a[2])>2)n++;return {n,of:a.length/4};};
@@ -828,15 +828,28 @@ try{
   // 56. Midnight (the night study, 00:30), every lamp and the fire forced out. Dim; and the way on from the living room into the hall can be seen: the floor of the opening is darker
   // than the plaster beside it (boards are a darker surface than plaster under the same night fill, and no lamp lifts the hall beyond), and the opening's two edges are luminance steps along
   // horizontal lines at three heights. The margins are what a dim screen can show: a step under 2% of full luminance (5 of 255 levels) is lost, so the way must be at least 10% darker
-  // than the wall (and by at least that step), and each edge must step by at least that much at both of two heights, 0.3 m and 0.9 m up (higher, at
-  // 1.5 m, the plaster each side of a jamb takes the same fill and the step there is nearly nothing, so it is not read).
-  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7],edgeHeights=[.3,.9];
-  const outPose=aim(0,[1.6,(o0+o1)/2],[hallOpening.at,(o0+o1)/2,1.2]);
+  // than the wall (and by at least that step), and each edge must step by at least that much at both of two heights (higher up the plaster each
+  // side of a jamb takes the same fill and the step there is nearly nothing, so it is not read; the heights and the pose are below).
+  // Part 3 stood at [1.6, 3.5] by the hearth and read the edges at 0.3 m and 0.9 m. The sofa and its console now stand across the opening's foot
+  // from there (from anywhere on the hearth side the line to one jamb or the other at 0.3 m crosses them), so the check stands where the
+  // furnished room shows the opening: [4.4, 1.0], between the window seat and the side table, the sofa's end clear of both lines of sight. From
+  // there the hall's far wall, not its floor, lies beyond the opening above about 0.8 m, plaster against plaster with no step (0.002 at
+  // the near jamb at 0.9 m), so the edges are read at 0.3 m and 0.6 m. The wall beside it is the plaster past the opening's other jamb. Part 3's
+  // pose is still read, with the furniture hidden for that draw, and recorded (not asserted): the shell's own light, as part 3 left it.
+  const hallOpening=I.openings.find(o=>o.id==='hall-living'),[o0,o1]=hallOpening.span,wallSpan=[hallOpening.span[1]+.25,livingRoom.d[1]-.25],opZ=[.15,.7],edgeHeights=[.3,.6];
+  const outPose=aim(0,[4.4,1],[hallOpening.at,(o0+o1)/2,.6]),hearthOutPose=aim(0,[1.6,(o0+o1)/2],[hallOpening.at,(o0+o1)/2,1.2]),partThreeHeights=[.3,.9];
   await stand(lite,outPose,1200);const litFrame=await frameMean(lite);
   await setFixture(lite,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await lite.waitForTimeout(800);
   const rectAt=async(a,span)=>rectOf(await project(lite,[[a,span[0],opZ[0]],[a,span[1],opZ[0]],[a,span[0],opZ[1]],[a,span[1],opZ[1]]]),.1);
+  const edgesAt=async heights=>{const at=await project(lite,[o0,o1].flatMap(e=>heights.map(z=>[hallOpening.at,e,z])));return {at,boxes:at.flatMap(([x,y])=>[[x-14,y-3,x-4,y+3],[x+4,y-3,x+14,y+3]].map(b=>b.map(Math.round)))};};
+  const stepsOf=(crops,n)=>Array.from({length:n},(_,k)=>r3(Math.abs(lum(meanRgb(crops[2+2*k]))-lum(meanRgb(crops[3+2*k])))));
+  // (part 3's pose, the furniture hidden: recorded)
+  await stand(lite,hearthOutPose,1200);const shellWay=await rectAt(hallOpening.at,[o0,o1]),shellWall=await rectAt(hallOpening.at,wallSpan),shellEdges=await edgesAt(partThreeHeights);
+  const shellRead=await indoorRead(lite,[shellWay,shellWall,...shellEdges.boxes],{hide:['furniture']}),shell={furnitureHidden:'in inside.scene, for this draw only',
+    way:r3(lum(meanRgb(shellRead.off[0]))),wall:r3(lum(meanRgb(shellRead.off[1]))),edgeSteps:stepsOf(shellRead.off,4),drawnEdgeSteps:stepsOf(shellRead.on,4),heights:partThreeHeights,pose:hearthOutPose.position};
+  await stand(lite,outPose,1200);
   const wayBox=await rectAt(hallOpening.at,[o0,o1]),wallBox2=await rectAt(hallOpening.at,wallSpan),outFrame=await frameMean(lite);
-  const edgeAt=await project(lite,[o0,o1].flatMap(e=>edgeHeights.map(z=>[hallOpening.at,e,z]))),edgeBoxes=edgeAt.flatMap(([x,y])=>[[x-14,y-3,x-4,y+3],[x+4,y-3,x+14,y+3]].map(b=>b.map(Math.round)));
+  const {at:edgeAt,boxes:edgeBoxes}=await edgesAt(edgeHeights);
   const outCrops=await indoorRead(lite,[wayBox,wallBox2,...edgeBoxes]);await lightShot(lite,'living-out');
   const DIM=.25,STEP=.02,WAY_DARKER=.9,wayLum=lum(meanRgb(outCrops.on[0])),wallLum=lum(meanRgb(outCrops.on[1])),
     edgeSteps=edgeAt.map((_,k)=>r3(Math.abs(lum(meanRgb(outCrops.on[2+2*k]))-lum(meanRgb(outCrops.on[3+2*k]))))),edgeOk=[0,1].map(e=>edgeSteps.slice(e*edgeHeights.length,(e+1)*edgeHeights.length).every(v=>v>=STEP));
@@ -845,6 +858,7 @@ try{
     outFrame.lum<DIM&&outFrame.lum<=litFrame.lum/2&&inFrame(wayBox)&&inFrame(wallBox2)&&edgeBoxes.every(b=>inFrame(b))&&wayLum<=wallLum*WAY_DARKER&&wallLum-wayLum>=STEP&&edgeOk.every(Boolean),
     {frameOut:r3(outFrame.lum),frameLit:r3(litFrame.lum),limitDim:DIM,wayBox,wallBox:wallBox2,way:rgbOf(outCrops.on[0]),wall:rgbOf(outCrops.on[1]),wayLum:r3(wayLum),wallLum:r3(wallLum),wayOverWall:r3(wayLum/wallLum),limitWayOverWall:WAY_DARKER,darkerBy:r3(wallLum-wayLum),limitStep:STEP,
       lighter:'the wall: plaster is a paler surface than the boards of the hall floor seen through the opening, and with the lamps out both take only the night fill',edgeHeights,edgeSteps:{left:edgeSteps.slice(0,2),right:edgeSteps.slice(2)},edgesAtBothHeights:edgeOk,
+      pose:outPose.position,moved:'part 3 read this from [1.6, 3.5] at 0.3 m and 0.9 m; the sofa and console now cover the opening\'s foot from there',partThreePoseShellOnly:shell,
       thin:`the margins are set from what a dim screen shows, not from the measured values: the thinnest of the wall-over-way difference and the four edge steps is ${r3(thinnest)} against the ${STEP} step (${r3(thinnest/STEP)} times it)`});
 
   // 57. The hall and stair at night, asleep (every lamp out but the two night lamps, as the shared rules set them for a sleeping house): the wall lamp's glass glows.
@@ -1031,9 +1045,9 @@ try{
     furnishedLook.atSofa.room==='living room'&&stopAt>=sofaNear+I.eyeClear-.02&&stopAt<hallOpeningSpot[0]-.5&&bareStop<sofaNear-.3&&kitchenEnd.room==='kitchen',
     {from:hallOpeningSpot,stoppedAt:furnishedLook.atSofa.position,sofaEdge:+sofaNear.toFixed(3),eyeClear:I.eyeClear,bareWentTo:bareLook.atSofa.position,bareRoom:bareLook.atSofa.room,toKitchen:furnishedLook.toKitchen});
   const med3=a=>median(a),buildAdded=+(med3(loads.furnished)-med3(loads.bare)).toFixed(1),callsAdded=furnishedLook.draw.calls-bareLook.draw.calls,BUILD_BUDGET=60,CALLS_BUDGET=6;
-  // The build time is recorded and reported, not asserted: after the plan's reductions it measured about 63 ms while the bare build took about 127 ms,
-  // and about 100 ms once this machine slowed (on battery, below 20%) and the bare build took about 224 ms (see the task report); the owner
-  // decides on the budget.
+  // The build time is recorded and reported, not asserted: after the plan's reductions (a coarser weighing lattice, fewer cuts, lighter book runs)
+  // it measured 60.5 to 68.9 ms on mains power over runs of seven to nine loads each, the spread being the machine's other work (the bare build
+  // itself moved between 127 and 147 ms); it sits at the 60 ms budget, not safely under it, so asserting it would fail at random. The owner decides.
   check(`Furniture adds at most ${CALLS_BUDGET} draw calls at the living room's capture pose; the ms it adds to the interior's first build (median of three loads each, furnished and &bare=1, budget ${BUILD_BUDGET} ms) and its vertices are recorded and reported, not asserted`,
     callsAdded<=CALLS_BUDGET&&loadsQuiet,
     {callsAdded,limitCalls:CALLS_BUDGET,calls:{furnished:furnishedLook.draw.calls,bare:bareLook.draw.calls},triangles:{furnished:furnishedLook.draw.triangles,bare:bareLook.draw.triangles},

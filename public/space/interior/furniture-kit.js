@@ -120,8 +120,22 @@ export function createKit(THREE, {face, lit, tint}) {
   // heights up to `height` and depths, a few gaps, now and then one leaning into the gap after it or a short stack lying flat. Each
   // book is its spine, top and two sides (the sides darkened, pressed between neighbours); `colours` are the covers' tints.
   const books = (at, [x0, x1], y, z0, {height = .26, seed, colours, tile = TILE * .5} = {}) => {
-    const random = stream(seed ?? seedOf(...at(x0, y, z0)), 7), out = [], pick = () => colours[Math.floor(random() * colours.length) % colours.length];
-    const book = (corner, colour) => out.push(...hexahedron(at, corner, colour, {tile, tuck: ['left', 'right'], skip: ['under', 'back'], cuts: {cols: 1, rows: 1}}));
+    const random = stream(seed ?? seedOf(...at(x0, y, z0)), 7), pick = () => colours[Math.floor(random() * colours.length) % colours.length];
+    // The whole run is one geometry, weighed once by `lit` (each book's faces drawn as `face` would draw a 1 × 1 sheet: its four corners,
+    // uv in metres over `tile`, the quad's own normal turned the way its face looks): a run's dozens of little sheets cost more to make
+    // and merge than to light.
+    const position = [], normal = [], uv = [], color = [], index = [];
+    const book = (corner, colour) => {
+      for (const name of ['top', 'front', 'left', 'right']) {
+        const [[k00, k10, k01, k11], n] = FACES[name], q = [k00, k10, k01, k11].map(k => at(...corner[k])), tone = name === 'left' || name === 'right' ? tucked(colour) : colour;
+        const out = direction(at, n), across = dist(q[0], q[1]), up = dist(q[0], q[2]);
+        let m = V.norm(V.cross(V.sub(q[1], q[0]), V.sub(q[2], q[0])));
+        const flip = V.dot(m, out) < 0; if (flip) m = V.scale(m, -1);
+        const base = position.length / 3;
+        q.forEach((p, k) => { position.push(...toThree(p)); normal.push(...toThree(m)); uv.push(k & 1 ? across / tile : 0, k & 2 ? up / tile : 0); color.push(...tone(p)); });
+        index.push(...(flip ? [base, base + 3, base + 1, base, base + 2, base + 3] : [base, base + 1, base + 3, base, base + 3, base + 2]));
+      }
+    };
     let x = x0 + .005 + random() * .02;
     while (x < x1 - .02) {
       const r = random(), depth = .15 + .07 * random();
@@ -143,7 +157,11 @@ export function createKit(THREE, {face, lit, tint}) {
       book(cornersOf([x, x + thick], [y + .01 * random(), y + depth], [z0, z0 + tall]), pick());     // standing
       x += thick + .001;
     }
-    return out;
+    if (!index.length) return [];
+    const g = new THREE.BufferGeometry();
+    for (const [name, list, size] of [['position', position, 3], ['normal', normal, 3], ['uv', uv, 2], ['color', color, 3]]) g.setAttribute(name, new THREE.Float32BufferAttribute(list, size));
+    g.setIndex(index);
+    return [lit(g, at.room)];
   };
 
   // A framed panel hung on its wall (a wall-hung entry, resolved to its wall's face: `at` there, turned to face the room, with its

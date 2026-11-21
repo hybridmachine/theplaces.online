@@ -51,6 +51,8 @@ const pegsOf = e => {
 // The upholstered kinds' builds: colour (times), seat and back cushions, the arms' and back's thickness; and each piece's own build from
 // its seed: its arms' and back's rolls a little fuller or leaner and its arms a little higher or lower (the throw reads its sofa's).
 const UPHOLSTERY = {sofa: {colour: 'green', times: 1, seats: 2, backs: 2, arm: .18, back: .2}, armchair: {colour: 'rugRed', times: .75, seats: 1, backs: 1, arm: .15, back: .18}};
+// How much of its half-shelf every other run of books on the bookshelf fills.
+const SHORT_RUN = .6;
 const upholsteryOf = e => {
   const u = UPHOLSTERY[e.kind], r = k => hash(k, 11, idSeed(e.id));
   return {...u, armR: u.arm / 2 * (.8 + .4 * r(21)), backR: u.back / 2 * (.85 + .15 * r(22)), armTop: .6 + .06 * (r(23) - .5)};
@@ -147,7 +149,9 @@ export const RECIPES = {
       for (const [x0, x1] of [[-hx + T, -T / 2], [T / 2, hx - T]]) {
         carcass.push(...kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
         const room = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
-        cloth.push(...kit.books(at, [x0, x1], spines, z, {height: Math.min(.3, room * .8), seed: pal.seed * 10 + k * 2 + (x0 < 0 ? 0 : 1), colours: covers}));
+        // every other run stops short, leaving the end of its shelf bare (a shelf is seldom full; fewer books to build)
+        const end = (k + (x0 < 0 ? 0 : 1)) % 2 ? x0 + (x1 - x0) * SHORT_RUN : x1;
+        cloth.push(...kit.books(at, [x0, end], spines, z, {height: Math.min(.3, room * .8), seed: pal.seed * 10 + k * 2 + (x0 < 0 ? 0 : 1), colours: covers}));
       }
     });
     return {wood: carcass, cloth};
