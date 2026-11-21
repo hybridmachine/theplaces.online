@@ -46,7 +46,12 @@ export function createFarBirds(THREE, ctx) {
     const mesh = new THREE.Mesh(g, material); mesh.frustumCulled = false; group.add(mesh);
     return mesh;
   });
-  const direction = new THREE.Vector3();
+  // Each bird's direction from the eye, in three's axes, as the last update found it.
+  const directions = birds.map(() => new THREE.Vector3());
+  // Puts the birds DISTANCE out along their directions from `camera`, facing it.
+  const place = camera => birds.forEach((mesh, i) => {
+    mesh.position.copy(camera.position).addScaledVector(directions[i], DISTANCE); mesh.quaternion.copy(camera.quaternion);
+  });
   return {
     update(frame) {
       const now = frame.study || !frame.motion ? [] : farBirdsNow(frame.motionSeconds ?? 0, frame.calendar?.light ?? 0, layout);
@@ -58,13 +63,14 @@ export function createFarBirds(THREE, ctx) {
       material.color.setRGB(mix(0), mix(1), mix(2), THREE.SRGBColorSpace);
       birds.forEach((mesh, i) => {
         const {azimuth, elevation, wing} = now[i], c = Math.cos(elevation);
-        direction.set(Math.sin(azimuth) * c, Math.sin(elevation), -Math.cos(azimuth) * c); // in three's axes
-        mesh.position.copy(frame.camera.position).addScaledVector(direction, DISTANCE);
-        mesh.quaternion.copy(frame.camera.quaternion);
+        directions[i].set(Math.sin(azimuth) * c, Math.sin(elevation), -Math.cos(azimuth) * c); // in three's axes
         strokes(mesh.geometry.attributes.position.array, wing); mesh.geometry.attributes.position.needsUpdate = true;
       });
+      place(frame.camera);
       return true;
     },
+    // The same birds, at the same point in their crossing, placed for another eye.
+    aim(camera) { if (group.visible && camera?.position && camera.quaternion) place(camera); },
     dispose() {
       scene.remove(group); material.dispose();
       for (const mesh of birds) mesh.geometry.dispose();

@@ -8,6 +8,8 @@ import {eyePosition} from '../shared/walker.js';
 import {birdFixture,createBirdState,birdProgress} from '../shared/bird.js';
 import {coincidenceFixture} from '../shared/coincidences.js';
 import {doorOutward} from '../shared/threshold.js';
+import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
+import {viewOpenings,screenRect} from '../shared/window-views.js';
 const {chromium}=createRequire(import.meta.url)('playwright');
 const directory=process.env.SPACE_VALIDATION_DIR||'docs/space-validation';await mkdir(directory,{recursive:true});
 const interiorDirectory=process.env.INTERIOR_VALIDATION_DIR||'docs/interior-validation';let interiorFrom=null;
@@ -526,6 +528,161 @@ try{
   check('With the interior build forced to fail, standing at the door and holding W leaves the door shut and the visitor in the yard, with one warning and no page errors',
     stuck.door<1e-6&&stuck.place==='yard'&&stuck.opacity==='1'&&stuck.insideFailed&&warnings.length===1&&!failing.own.length,{stuck,warnings,pageErrors:failing.own});
   await failing.context().close();
+  // ── The cabin's windows, live (checks 40–51). Poses and pane crops come from viewOpenings and screenRect, never typed numbers.
+  const openings=viewOpenings(I,S,D),opening=id=>openings.find(o=>o.id===id);
+  // Looking at an opening from [a, d] on its floor: yaw clockwise from +d seen from above, pitch up (level for the wall windows).
+  const eyeAt=(floor,[a,d])=>[a,d,floor*I.floorRise+S.eyeHeight];
+  const facing=(o,spot,level=o.kind!=='roof')=>{const e=eyeAt(o.floor,spot),r=o.centre.map((c,i)=>c-e[i]);
+    return {place:'cabin',floor:o.floor,position:[...spot],yaw:Math.atan2(r[0],r[1]),pitch:level?0:Math.atan2(r[2],Math.hypot(r[0],r[1]))};};
+  // A pane's rectangle in CSS pixels [x0, y0, x1, y1] from the top left, shrunk by `inset` of its size so only glass is read.
+  const paneBox=(page,o,pose,inset=.15)=>page.evaluate(({o,pose,inset,eye})=>({o,pose,inset,eye,cam:{fov:window.__space.camera.fov*Math.PI/180,aspect:window.__space.camera.aspect},W:innerWidth,H:innerHeight}),{o,pose,inset,eye:eyeAt(pose.floor,pose.position)})
+    .then(({cam,W,H,eye})=>{const r=screenRect(o,{eye,yaw:pose.yaw,pitch:pose.pitch,fov:cam.fov,aspect:cam.aspect});if(!r)return null;
+      const x0=(r[0]+1)/2*W,x1=(r[2]+1)/2*W,y0=(1-r[3])/2*H,y1=(1-r[1])/2*H,dx=(x1-x0)*inset,dy=(y1-y0)*inset;return [x0+dx,y0+dy,x1-dx,y1-dy].map(Math.round);});
+  // Draws one frame with SpaceView's own indoor draw (drawIndoors, which render calls: openWindows, then the rooms and the live
+  // views) and reads each box's pixels; with `flat` the views are left out (the shell's flat glass), with `hide` those named objects
+  // of the yard are hidden for a second draw of the same frame.
+  const indoorRead=(page,boxes,{flat=false,hide=[]}={})=>page.evaluate(({boxes,flat,hide})=>{
+    const s=window.__space,g=s.renderer.getContext(),W=g.drawingBufferWidth,H=g.drawingBufferHeight,k=W/innerWidth,b=[];
+    const draw=()=>s.drawIndoors({flat});
+    const read=()=>boxes.map(([x0,y0,x1,y1])=>{const X=Math.round(x0*k),Y=Math.round(H-y1*k),w=Math.round((x1-x0)*k),h=Math.round((y1-y0)*k),p=new Uint8Array(w*h*4);g.readPixels(X,Y,w,h,g.RGBA,g.UNSIGNED_BYTE,p);return [...p];});
+    const ids=draw(),on=read();let off=null;
+    if(hide.length){const objects=hide.map(n=>s.scene.getObjectByName(n)).filter(Boolean),was=objects.map(o=>o.visible);objects.forEach(o=>{o.visible=false;});draw();off=read();objects.forEach((o,i)=>{o.visible=was[i];});}
+    return {ids,on,off};},{boxes,flat,hide});
+  // How many of a crop's pixels differ from its own first pixel (a flat colour has none), and of how many.
+  const varied=a=>{let n=0;for(let i=4;i<a.length;i+=4)if(Math.abs(a[i]-a[0])>2||Math.abs(a[i+1]-a[1])>2||Math.abs(a[i+2]-a[2])>2)n++;return {n,of:a.length/4};};
+  const moveTo=async(page,pose)=>{await setPose(page,pose);await page.waitForTimeout(700);};
+  // A pane is live when the last frame drew it and its glass is not the shell's flat glass: the live crop and the flat one differ over most of it.
+  const paneLive=async(page,o,pose)=>{const box=await paneBox(page,o,pose);if(!box)return {box,live:false};
+    const lv=await indoorRead(page,[box]),fl=await indoorRead(page,[box],{flat:true}),c=changed(lv.on[0],fl.on[0]),v=varied(lv.on[0]);
+    return {box,ids:lv.ids,live:lv.ids.includes(o.id)&&c.n>c.of*.6,unlike:c,varied:v,mean:meanRgb(lv.on[0]).map(Math.round)};};
+  const win=await visitor();await win.goto(`${base}/?check&interior=1&tier=full`);await ready(win);await studyLight(win,'day');
+  // The bedrooms and the sky room stand on the upper floor, so the whole cabin is built first by walking in through the door.
+  await setPose(win,atDoor(.6));await win.waitForTimeout(1500);await hold(win,['KeyW'],900);await win.waitForTimeout(900);
+  const paneSpots={living:[4.2,3],study:[13.8,2.2],dining:[10,9],'bedroom-2':[3.5,5],'bedroom-3':[14.5,5],'sky-room':[3.5,7.6]};
+  // 40. Each of the six windows by day, from a pose in its room facing it: live, and its glass is not the flat horizon colour.
+  const panes={};
+  for(const id of Object.keys(paneSpots)){const o=opening(id),pose=facing(o,paneSpots[id]);await moveTo(win,pose);panes[id]={pose:{floor:pose.floor,position:pose.position,yaw:+pose.yaw.toFixed(3),pitch:+pose.pitch.toFixed(3)},...await paneLive(win,o,pose),room:(await indoorsState(win)).room};
+    await win.screenshot(shotJpeg(`${interiorDirectory}/window-${id}.jpg`));}
+  check('Each of the six windows by day, from its room and facing it, is live and shows more than the flat horizon colour',Object.values(panes).every(p=>p.live),{panes});
+
+  // 41. The open door from the hall is live; from 3 m back in the hall with the leaf shut it is not.
+  const doorOpening=opening('door'),doorPose=facing(doorOpening,[9,2.2],true);
+  await moveTo(win,doorPose);await win.waitForTimeout(1500);const doorOpen=await paneLive(win,doorOpening,doorPose);
+  await win.screenshot(shotJpeg(`${interiorDirectory}/door-from-hall.jpg`));
+  const backPose=facing(doorOpening,[9,3.8],true);await moveTo(win,backPose);await win.waitForTimeout(2000);
+  const doorShutAngle=await doorAngle(win),doorBack=await indoorRead(win,[[0,0,4,4]]);
+  check('The open door from the hall is live; from 3 m back in the hall with the leaf shut it is not',doorOpen.live&&!doorBack.ids.includes('door')&&doorShutAngle<.05,{doorOpen,backIds:doorBack.ids,leafAngle:doorShutAngle});
+
+  // 42. Parallax: the living window from [3.2, 3] and [5.2, 3], both facing the front wall, shows different yard.
+  const living=opening('living'),parallax={};
+  for(const [label,spot] of [['left',[3.2,3]],['right',[5.2,3]],['rightAgain',[5.2,3]]]){const pose={place:'cabin',floor:0,position:spot,yaw:Math.PI,pitch:0};await moveTo(win,pose);
+    const box=await paneBox(win,living,pose,.1),read=await indoorRead(win,[box]);parallax[label]={box,ids:read.ids,pixels:read.on[0]};
+    if(label!=='rightAgain')await win.screenshot(shotJpeg(`${interiorDirectory}/living-${label}.jpg`));}
+  // The two boxes differ in size and place, so each is read over the pane's own width and height: resampled to a 24 x 12 grid.
+  const resampled=({box,pixels})=>{const w=box[2]-box[0],h=box[3]-box[1],out=[];for(let j=0;j<12;j++)for(let i=0;i<24;i++){const x=Math.min(w-1,Math.floor((i+.5)*w/24)),y=Math.min(h-1,Math.floor((j+.5)*h/12)),q=((h-1-y)*w+x)*4;out.push(pixels[q],pixels[q+1],pixels[q+2],255);}return out;};
+  const gridL=resampled(parallax.left),gridR=resampled(parallax.right),gridR2=resampled(parallax.rightAgain),parallaxDiff=changed(gridL,gridR),parallaxControl=changed(gridR,gridR2);
+  check('The living window from [3.2, 3] and from [5.2, 3] shows different yard (more than a tenth of its pane differs; the same spot twice agrees)',
+    parallax.left.ids.includes('living')&&parallax.right.ids.includes('living')&&parallaxDiff.n>parallaxDiff.of/10&&parallaxControl.n<parallaxDiff.n/2,{left:parallax.left.box,right:parallax.right.box,parallaxDiff,parallaxControl});
+
+  // 43. The sideways cut: from the kitchen, looking along the back wall through the kitchen-dining opening at the dining window.
+  const dining=opening('dining'),sidePose=facing(dining,[3.2,10],true);await moveTo(win,sidePose);
+  const side=await paneLive(win,dining,sidePose);await win.screenshot(shotJpeg(`${interiorDirectory}/dining-from-kitchen.jpg`));const sideRoom=(await indoorsState(win)).room;
+  check('From the kitchen, looking along the wall at the dining window, the pane is live and shows yard or sky, not one flat colour',sideRoom==='kitchen'&&side.live&&side.varied.n>side.varied.of*.2,{side,sideRoom});
+
+  // 44. Two at once: from the hall, 2.4 m from the entry spot with the door open, turned between the door and the living window
+  // (seen through the wide hall-living opening); each of the two is live and its glass differs from the flat glass over a third of its pane.
+  const twoSpot=[8,3],bearing=[doorOpening,living].map(o=>facing(o,twoSpot).yaw);
+  const twoPose={place:'cabin',floor:0,position:twoSpot,yaw:Math.atan2(Math.sin(bearing[0])+Math.sin(bearing[1]),Math.cos(bearing[0])+Math.cos(bearing[1])),pitch:0};
+  await moveTo(win,twoPose);await win.waitForTimeout(1500);const twoBoxes=await Promise.all([doorOpening,living].map(o=>paneBox(win,o,twoPose)));
+  const twoLive=twoBoxes.every(Boolean)?await indoorRead(win,twoBoxes):{ids:[],on:[]},twoFlat=twoBoxes.every(Boolean)?await indoorRead(win,twoBoxes,{flat:true}):{on:[]};
+  const twoUnlike=twoBoxes.map((_,i)=>changed(twoLive.on[i]||[],twoFlat.on[i]||[]));await win.screenshot(shotJpeg(`${interiorDirectory}/hall-two-views.jpg`));
+  check('From the hall near the entry spot with the door open, the door and the living window are both live and both show more than the flat glass',
+    (await indoorsState(win)).room==='entry hall'&&['door','living'].every(id=>twoLive.ids.includes(id))&&twoUnlike.every(c=>c.of>0&&c.n>c.of/3),{ids:twoLive.ids,boxes:twoBoxes,unlike:twoUnlike,pose:twoPose});
+
+  // 45. Rain: streaks fall in the living window's pane and none in the wall beside it (the same wall, to its left, clamped to the screen).
+  await studyLight(win,'rain');const rainPose={place:'cabin',floor:0,position:[4.2,3],yaw:Math.PI,pitch:0};await moveTo(win,rainPose);await win.waitForTimeout(1500);
+  const rainBox=await paneBox(win,living,rainPose,.1),paneFull=await paneBox(win,living,rainPose,0),paneW=paneFull[2]-paneFull[0];
+  const wallBox=[Math.max(0,paneFull[0]-Math.round(1.25*paneW)),paneFull[1],Math.max(0,paneFull[0]-Math.round(.25*paneW)),paneFull[3]].map((v,i)=>Math.min(i%2?viewport.height:viewport.width,v));
+  const rainy=await indoorRead(win,[rainBox,wallBox],{hide:['rain']}),streaksIn=changed(rainy.on[0],rainy.off[0]),streaksWall=changed(rainy.on[1],rainy.off[1]),wallSeen=varied(rainy.on[1]);
+  await win.screenshot(shotJpeg(`${interiorDirectory}/living-rain.jpg`));
+  const streakMin=Math.round(streaksIn.of/2000);
+  check('Under the rain study streaks fall in the living window\'s pane (at least 1 pixel in 2000 of it) and none in the wall beside it, which is on screen and not blank',
+    rainy.ids.includes('living')&&wallBox[2]>wallBox[0]&&wallBox[3]>wallBox[1]&&wallSeen.n>wallSeen.of*.2&&streaksIn.n>=streakMin&&streaksWall.n===0,{pane:streaksIn,streakMin,wall:streaksWall,wallVaries:wallSeen,wallBox,rainBox});
+
+  // 46. Night: the living pane is darker than by day.
+  await studyLight(win,'day');await moveTo(win,rainPose);await win.waitForTimeout(800);const dayPane=await indoorRead(win,[rainBox]);
+  await studyLight(win,'night');await moveTo(win,rainPose);await win.waitForTimeout(800);const nightPane=await indoorRead(win,[rainBox]);
+  await win.screenshot(shotJpeg(`${interiorDirectory}/living-night.jpg`));
+  const dayLum=luminance(meanRgb(dayPane.on[0])),nightLum=luminance(meanRgb(nightPane.on[0]));
+  check('At night the living window\'s pane is darker than by day',dayPane.ids.includes('living')&&nightPane.ids.includes('living')&&nightLum<dayLum*.7,{dayLum:+dayLum.toFixed(3),nightLum:+nightLum.toFixed(3)});
+
+  // 47. The casement: with the casement open the living window, captured from inside, differs from the same view with it shut.
+  await studyLight(win,'day');await moveTo(win,rainPose);const caseBox=await paneBox(win,living,rainPose,0),caseFrames={};
+  for(const [label,open] of [['shut',0],['open',1]]){await setFixture(win,{cottagePose:{main:0,second:0,open}});await win.waitForTimeout(1200);caseFrames[label]=(await indoorRead(win,[caseBox])).on[0];
+    if(open)await win.screenshot(shotJpeg(`${interiorDirectory}/casement-open.jpg`));}
+  await setFixture(win,null);const caseDiff=changed(caseFrames.open,caseFrames.shut);
+  check('With the casement open, the living window seen from inside differs from the same view with it shut',caseDiff.n>=200,{caseBox,caseDiff});
+
+  // 48. On &tier=plain the living window is live and not flat.
+  const lowTier=await visitor();await lowTier.goto(`${base}/?check&interior=1&tier=plain`);await ready(lowTier);await studyLight(lowTier,'day');
+  await setPose(lowTier,atDoor(.6));await lowTier.waitForTimeout(1500);await hold(lowTier,['KeyW'],900);await lowTier.waitForTimeout(900);
+  const plainPose={place:'cabin',floor:0,position:[4.2,3],yaw:Math.PI,pitch:0};await moveTo(lowTier,plainPose);
+  const plainPane=await paneLive(lowTier,living,plainPose),plainTier=await lowTier.evaluate(()=>window.__space.tier);
+  check('On &tier=plain the living window is live and not flat',plainTier==='plain'&&plainPane.live,{plainTier,plainPane});
+  const plainQuiet=!lowTier.consoleErrors.length&&!lowTier.own.length;await lowTier.context().close();
+
+  // 49. The yard from outdoors at the arrival pose is unchanged by ?interior=1. What moved between two loads was the view's frozen motion
+  // clock: under reduced motion it freezes at the seconds-since-epoch of the first frame, which differs per load and moves the wind, the
+  // clouds and the water. Each load pins it (frozenMotion) to the same value, under the day study, so two loads of one configuration
+  // draw the same picture. Two loads without the flag are the control; the flagged load must differ from the first of them in at most
+  // 2% of a dense grid over the whole frame and of a dense grid over a crop tight on the cabin's door and front windows, and so must
+  // the control pair (a noisy control fails the check rather than hiding a change).
+  const STILL=.02,gridPoints=(x0,y0,x1,y1,nx,ny)=>{const q=[];for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)q.push([x0+(i+.5)*(x1-x0)/nx,y0+(j+.5)*(y1-y0)/ny]);return q;};
+  const wholeFrame=gridPoints(0,0,viewport.width,viewport.height,96,54);let cabinCrop=null,cabinBox=null;const yardFrames=[];
+  for(const query of ['?check','?check','?check&interior=1']){const y=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});await y.goto(`${base}/${query}`);await ready(y);await studyLight(y,'day');
+    await y.evaluate(async()=>{const {LAKESIDE_SPACE}=await import('/shared/lakeside-space.js'),s=window.__space;s.state=structuredClone(LAKESIDE_SPACE.arrival);s.frozenMotion=1234;});await y.waitForTimeout(2000);
+    if(!cabinCrop){const at=await project(y,['door','window-front-left','window-front-right'].map(n=>openingCentre(S,D,n))),xs=at.map(q=>q[0]),ys=at.map(q=>q[1]),m=40;
+      cabinBox=[Math.max(0,Math.min(...xs)-m),Math.max(0,Math.min(...ys)-m),Math.min(viewport.width,Math.max(...xs)+m),Math.min(viewport.height,Math.max(...ys)+m)].map(Math.round);cabinCrop=gridPoints(...cabinBox,64,32);}
+    const frame=await drawAndRead(y,[...wholeFrame,...cabinCrop]);
+    yardFrames.push({quiet:!y.consoleErrors.length&&!y.own.length,whole:frame.pixels.slice(0,wholeFrame.length),cabin:frame.pixels.slice(wholeFrame.length)});await y.context().close();}
+  const share=(f,g,part)=>f[part].filter((p,i)=>differ(p,g[part][i])).length/f[part].length,fig=n=>+n.toFixed(4);
+  const yardShares={controlWhole:fig(share(yardFrames[0],yardFrames[1],'whole')),controlCabin:fig(share(yardFrames[0],yardFrames[1],'cabin')),
+    flaggedWhole:fig(share(yardFrames[0],yardFrames[2],'whole')),flaggedCabin:fig(share(yardFrames[0],yardFrames[2],'cabin'))};
+  check('The yard from outdoors at the arrival pose is the same with and without ?interior=1: with the world held still, two loads without it differ in at most 2% of the points, and the flagged load differs from one in at most 2%, over the whole frame and over the cabin\'s door and windows',
+    cabinBox[2]-cabinBox[0]>40&&cabinBox[3]-cabinBox[1]>40&&Object.values(yardShares).every(v=>v<=STILL)&&yardFrames.every(f=>f.quiet),
+    {...yardShares,limit:STILL,wholePoints:wholeFrame.length,cabinPoints:cabinCrop.length,cabinBox,pinned:'frozenMotion = 1234, reduced motion, day study, arrival pose'});
+
+  // 50. Speed, on &tier=full: the synchronous time of one whole frame forced to finish with readPixels (as check 30 measures it), the
+  // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (SpaceView's
+  // own indoor draw, drawIndoors, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
+  const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&interior=1&tier=full`);await ready(speed);await studyLight(speed,'day');
+  const median=a=>[...a].sort((p,q)=>p-q)[a.length>>1];
+  const timeFrames=(page,indoors)=>page.evaluate(indoors=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
+    const draw=()=>{if(indoors)s.drawIndoors();
+      else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});
+      g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
+    draw();draw();const times=[];for(let k=0;k<20;k++){const t0=performance.now();draw();times.push(performance.now()-t0);}return {times,live:[...s.live],tier:s.tier,passMode:s.passMode};},indoors);
+  // Six rounds of yard then room on the one warmed page (each switch given time to settle), the first round discarded: each place's
+  // figure is the median of its rounds' medians, so a slow patch of the machine falls on both places alike.
+  const roomSpot=rainPose,rounds=[];
+  await speed.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
+  await setPose(speed,atDoor(.6));await speed.waitForTimeout(1500);await hold(speed,['KeyW'],900);await speed.waitForTimeout(900);
+  for(let k=0;k<6;k++){
+    await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await speed.waitForTimeout(700);const y=await timeFrames(speed,false);
+    await moveTo(speed,roomSpot);await speed.waitForTimeout(400);const r=await timeFrames(speed,true);
+    rounds.push({yardMs:+median(y.times).toFixed(2),roomMs:+median(r.times).toFixed(2),yardTier:y.tier,roomLive:r.live});}
+  const kept=rounds.slice(1),yardMs=+median(kept.map(r=>r.yardMs)).toFixed(2),roomMs=+median(kept.map(r=>r.roomMs)).toFixed(2),costRatio=+(roomMs/yardMs).toFixed(3);
+  const roundRatios=kept.map(r=>+(r.roomMs/r.yardMs).toFixed(3));
+  await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+median(hallTime.times).toFixed(2);
+  const speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  check('Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose (median of rounds, yard and room alternating)',
+    kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open'});
+  console.log(`  speed (full): yard ${yardMs} ms, living room ${roomMs} ms (${costRatio}x), hall with the door open ${hallMs} ms (${hallTime.live.length} live)`);
+  const speedQuiet=!speed.consoleErrors.length&&!speed.own.length;await speed.context().close();
+
+  // 51. No page or console errors in any of these visitors.
+  check('No page or console errors in the windows\' visitors',!win.consoleErrors.length&&!win.own.length&&plainQuiet&&speedQuiet,{windows:{consoleErrors:win.consoleErrors,pageErrors:win.own},plainQuiet,speedQuiet});
+  await win.context().close();
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');
   if(interiorFrom!==null)await writeFile(`${interiorDirectory}/browser-results.json`,JSON.stringify({results:results.slice(interiorFrom),errors},null,2)+'\n');}

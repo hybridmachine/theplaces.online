@@ -1,5 +1,6 @@
-// The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose(options)};
-// one that throws, while being built or while updating, is given up (disposed with no options) and never run again, and the rest
+// The yard's living things behind one entry. Each presenter is create<Name>(THREE, ctx) → {update(frame) → active, dispose(options)},
+// and may offer aim(camera) to turn what faces or follows the camera toward another without advancing anything. One that throws,
+// while being built, updating or aiming, is given up (disposed with no options) and never run again, and the rest
 // carry on. Disposing the life disposes each with {final: true}: the scene is going too.
 // three.js is handed in, so this runs in Node.
 import {createCottage} from './cottage.js';
@@ -39,6 +40,15 @@ export function createLife(THREE, ctx, makers = PRESENTERS) {
         catch (error) { fail(name, error); }
       }
     },
+    // Re-aims what faces or follows the camera at `camera` (another eye drawing the yard this frame); nothing moves on.
+    aim(camera) {
+      if (disposed) return;
+      for (const [name, presenter] of [...live]) {
+        if (typeof presenter.aim !== 'function') continue;
+        try { presenter.aim(camera); }
+        catch (error) { fail(name, error); }
+      }
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -49,9 +59,10 @@ export function createLife(THREE, ctx, makers = PRESENTERS) {
 }
 
 // What a presenter is given each frame. Absent parts of the world are the presenters' to tolerate; nothing is read here.
-export function lifeFrame({snapshot, now, study = null, motion, motionSeconds, realSeconds, camera, conditions, fixture = null}) {
+// rainAt, a three Vector3 or null, is where the rain falls round instead of the camera.
+export function lifeFrame({snapshot, now, study = null, motion, motionSeconds, realSeconds, camera, conditions, fixture = null, rainAt = null}) {
   return {
     snapshot, now, epoch: snapshot.world.epoch, calendar: conditions.calendar, weather: conditions.weather,
-    study, motion, motionSeconds, realSeconds, camera, fixture,
+    study, motion, motionSeconds, realSeconds, camera, fixture, rainAt,
   };
 }

@@ -121,3 +121,18 @@ test('stepping indoors or out starts a new window after settling, so neither pla
   t = run(m, 15, 1.4, t); assert.equal(m.tier, 'full');
   run(m, 15, 3.5, t); assert.equal(m.tier, 'light');
 });
+// A view with more than one live opening is far dearer than the rooms: its frames say nothing of the tier (hold).
+const runHeld = (meter, fps, seconds, from = 0) => { let t = from; for (; t < from + seconds * 1000; t += 1000 / fps) meter.frame(t, {indoors: true, hold: true}); return t; };
+test('held frames are not measured: a slow held stretch indoors leaves the tier alone', () => {
+  const m = createTierMeter(); runHeld(m, 10, 30);
+  assert.equal(m.tier, 'full'); assert.equal(m.locked, false);
+});
+test('once the hold ends, a slow window with one opening live steps the tier down as before', () => {
+  const m = createTierMeter(); let t = runHeld(m, 10, 5);
+  t = runIndoors(m, 15, 1.4, t); assert.equal(m.tier, 'full', 'settles afresh after the hold');
+  runIndoors(m, 15, 4, t); assert.equal(m.tier, 'light');
+});
+test('a locked full tier is untouched by anything indoors', () => {
+  const m = createTierMeter(); let t = run(m, 30, 10); assert.equal(m.locked, true);
+  t = runIndoors(m, 5, 30, t); runHeld(m, 5, 30, t); assert.equal(m.tier, 'full');
+});

@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.1721199999332428
+            1.176180000066757
           ],
           "yaw": 0,
           "pitch": 0,
@@ -30,8 +30,8 @@
           "cameraY": 1.6,
           "opacity": "1"
         },
-        "darkestOpacity": 0,
-        "samples": 74,
+        "darkestOpacity": 0.109333,
+        "samples": 71,
         "yardMask": 1,
         "hallMask": 0
       }
@@ -59,7 +59,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.4798600001335105
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -80,7 +80,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.4798600001335105
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -94,7 +94,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.4798600001335105
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
@@ -108,11 +108,11 @@
           "floor": 1,
           "position": [
             10.3,
-            5.4798600001335105
+            5.479440000200271
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1794977016485
+          "savedAt": 1795065070137
         }
       }
     },
@@ -186,21 +186,586 @@
         "stuck": {
           "place": "yard",
           "position": [
-            17.790958357623868,
-            5.87496019596045
+            17.795160351813195,
+            5.8633604176459535
           ],
           "yaw": 1.2217304763960306,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.3851838347610266,
+          "cameraY": 3.382732965548279,
           "opacity": "1",
           "door": 0,
           "insideFailed": true
         },
         "warnings": [
-          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:164:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:157:25)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:220:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:232:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:218:59)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:173:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:281:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:293:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
         ],
         "pageErrors": []
+      }
+    },
+    {
+      "n": 40,
+      "name": "Each of the six windows by day, from its room and facing it, is live and shows more than the flat horizon colour",
+      "pass": true,
+      "detail": {
+        "panes": {
+          "living": {
+            "pose": {
+              "floor": 0,
+              "position": [
+                4.2,
+                3
+              ],
+              "yaw": 3.142,
+              "pitch": 0
+            },
+            "box": [
+              724,
+              362,
+              948,
+              602
+            ],
+            "ids": [
+              "living"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 52858,
+              "of": 53760
+            },
+            "varied": {
+              "n": 53326,
+              "of": 53760
+            },
+            "mean": [
+              115,
+              111,
+              81
+            ],
+            "room": "living room"
+          },
+          "study": {
+            "pose": {
+              "floor": 0,
+              "position": [
+                13.8,
+                2.2
+              ],
+              "yaw": 3.142,
+              "pitch": 0
+            },
+            "box": [
+              685,
+              324,
+              987,
+              648
+            ],
+            "ids": [
+              "study"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 92938,
+              "of": 97848
+            },
+            "varied": {
+              "n": 96946,
+              "of": 97848
+            },
+            "mean": [
+              143,
+              141,
+              108
+            ],
+            "room": "study"
+          },
+          "dining": {
+            "pose": {
+              "floor": 0,
+              "position": [
+                10,
+                9
+              ],
+              "yaw": 0,
+              "pitch": 0
+            },
+            "box": [
+              724,
+              362,
+              948,
+              602
+            ],
+            "ids": [
+              "dining"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 52646,
+              "of": 53760
+            },
+            "varied": {
+              "n": 53744,
+              "of": 53760
+            },
+            "mean": [
+              81,
+              78,
+              43
+            ],
+            "room": "dining room"
+          },
+          "bedroom-2": {
+            "pose": {
+              "floor": 1,
+              "position": [
+                3.5,
+                5
+              ],
+              "yaw": 3.142,
+              "pitch": 0.486
+            },
+            "box": [
+              718,
+              343,
+              954,
+              541
+            ],
+            "ids": [
+              "bedroom-2"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 46018,
+              "of": 46728
+            },
+            "varied": {
+              "n": 46702,
+              "of": 46728
+            },
+            "mean": [
+              98,
+              102,
+              72
+            ],
+            "room": "second bedroom"
+          },
+          "bedroom-3": {
+            "pose": {
+              "floor": 1,
+              "position": [
+                14.5,
+                5
+              ],
+              "yaw": 3.142,
+              "pitch": 0.486
+            },
+            "box": [
+              718,
+              343,
+              954,
+              541
+            ],
+            "ids": [
+              "bedroom-3"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 45998,
+              "of": 46728
+            },
+            "varied": {
+              "n": 46703,
+              "of": 46728
+            },
+            "mean": [
+              145,
+              160,
+              160
+            ],
+            "room": "third bedroom"
+          },
+          "sky-room": {
+            "pose": {
+              "floor": 1,
+              "position": [
+                3.5,
+                7.6
+              ],
+              "yaw": 0,
+              "pitch": 0.547
+            },
+            "box": [
+              465,
+              238,
+              1207,
+              568
+            ],
+            "ids": [
+              "sky-room"
+            ],
+            "live": true,
+            "unlike": {
+              "n": 237966,
+              "of": 244860
+            },
+            "varied": {
+              "n": 244846,
+              "of": 244860
+            },
+            "mean": [
+              159,
+              177,
+              187
+            ],
+            "room": "sky room"
+          }
+        }
+      }
+    },
+    {
+      "n": 41,
+      "name": "The open door from the hall is live; from 3 m back in the hall with the leaf shut it is not",
+      "pass": true,
+      "detail": {
+        "doorOpen": {
+          "box": [
+            728,
+            410,
+            944,
+            847
+          ],
+          "ids": [
+            "door"
+          ],
+          "live": true,
+          "unlike": {
+            "n": 94089,
+            "of": 94392
+          },
+          "varied": {
+            "n": 93564,
+            "of": 94392
+          },
+          "mean": [
+            141,
+            132,
+            93
+          ]
+        },
+        "backIds": [
+          "living"
+        ],
+        "leafAngle": 0
+      }
+    },
+    {
+      "n": 42,
+      "name": "The living window from [3.2, 3] and from [5.2, 3] shows different yard (more than a tenth of its pane differs; the same spot twice agrees)",
+      "pass": true,
+      "detail": {
+        "left": [
+          480,
+          345,
+          736,
+          619
+        ],
+        "right": [
+          936,
+          345,
+          1192,
+          619
+        ],
+        "parallaxDiff": {
+          "n": 241,
+          "of": 288
+        },
+        "parallaxControl": {
+          "n": 81,
+          "of": 288
+        }
+      }
+    },
+    {
+      "n": 43,
+      "name": "From the kitchen, looking along the wall at the dining window, the pane is live and shows yard or sky, not one flat colour",
+      "pass": true,
+      "detail": {
+        "side": {
+          "box": [
+            820,
+            419,
+            848,
+            533
+          ],
+          "ids": [
+            "dining"
+          ],
+          "live": true,
+          "unlike": {
+            "n": 2331,
+            "of": 3192
+          },
+          "varied": {
+            "n": 3160,
+            "of": 3192
+          },
+          "mean": [
+            171,
+            170,
+            153
+          ]
+        },
+        "sideRoom": "kitchen"
+      }
+    },
+    {
+      "n": 44,
+      "name": "From the hall near the entry spot with the door open, the door and the living window are both live and both show more than the flat glass",
+      "pass": true,
+      "detail": {
+        "ids": [
+          "door",
+          "living"
+        ],
+        "boxes": [
+          [
+            239,
+            419,
+            452,
+            828
+          ],
+          [
+            1249,
+            383,
+            1379,
+            576
+          ]
+        ],
+        "unlike": [
+          {
+            "n": 49646,
+            "of": 87117
+          },
+          {
+            "n": 24884,
+            "of": 25090
+          }
+        ],
+        "pose": {
+          "place": "cabin",
+          "floor": 0,
+          "position": [
+            8,
+            3
+          ],
+          "yaw": -2.853568320637768,
+          "pitch": 0
+        }
+      }
+    },
+    {
+      "n": 45,
+      "name": "Under the rain study streaks fall in the living window's pane (at least 1 pixel in 2000 of it) and none in the wall beside it, which is on screen and not blank",
+      "pass": true,
+      "detail": {
+        "pane": {
+          "n": 2611,
+          "of": 70144
+        },
+        "streakMin": 35,
+        "wall": {
+          "n": 0,
+          "of": 109440
+        },
+        "wallVaries": {
+          "n": 106584,
+          "of": 109440
+        },
+        "wallBox": [
+          276,
+          311,
+          596,
+          653
+        ],
+        "rainBox": [
+          708,
+          345,
+          964,
+          619
+        ]
+      }
+    },
+    {
+      "n": 46,
+      "name": "At night the living window's pane is darker than by day",
+      "pass": true,
+      "detail": {
+        "dayLum": 0.437,
+        "nightLum": 0.215
+      }
+    },
+    {
+      "n": 47,
+      "name": "With the casement open, the living window seen from inside differs from the same view with it shut",
+      "pass": true,
+      "detail": {
+        "caseBox": [
+          676,
+          311,
+          996,
+          653
+        ],
+        "caseDiff": {
+          "n": 35832,
+          "of": 109440
+        }
+      }
+    },
+    {
+      "n": 48,
+      "name": "On &tier=plain the living window is live and not flat",
+      "pass": true,
+      "detail": {
+        "plainTier": "plain",
+        "plainPane": {
+          "box": [
+            724,
+            362,
+            948,
+            602
+          ],
+          "ids": [
+            "living"
+          ],
+          "live": true,
+          "unlike": {
+            "n": 50352,
+            "of": 53760
+          },
+          "varied": {
+            "n": 53308,
+            "of": 53760
+          },
+          "mean": [
+            115,
+            111,
+            81
+          ]
+        }
+      }
+    },
+    {
+      "n": 49,
+      "name": "The yard from outdoors at the arrival pose is the same with and without ?interior=1: with the world held still, two loads without it differ in at most 2% of the points, and the flagged load differs from one in at most 2%, over the whole frame and over the cabin's door and windows",
+      "pass": true,
+      "detail": {
+        "controlWhole": 0,
+        "controlCabin": 0,
+        "flaggedWhole": 0,
+        "flaggedCabin": 0,
+        "limit": 0.02,
+        "wholePoints": 5184,
+        "cabinPoints": 2048,
+        "cabinBox": [
+          462,
+          439,
+          738,
+          537
+        ],
+        "pinned": "frozenMotion = 1234, reduced motion, day study, arrival pose"
+      }
+    },
+    {
+      "n": 50,
+      "name": "Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose (median of rounds, yard and room alternating)",
+      "pass": true,
+      "detail": {
+        "yardMs": 26.1,
+        "roomMs": 27.6,
+        "ratio": 1.057,
+        "limit": 1.1,
+        "roundRatios": [
+          1.054,
+          1.011,
+          1.104,
+          1.015,
+          1.118
+        ],
+        "ratioSpread": [
+          1.011,
+          1.118
+        ],
+        "rounds": [
+          {
+            "yardMs": 27.9,
+            "roomMs": 27.5,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 26.1,
+            "roomMs": 27.5,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.3,
+            "roomMs": 27.6,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 25.1,
+            "roomMs": 27.7,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 27.5,
+            "roomMs": 27.9,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          },
+          {
+            "yardMs": 24.6,
+            "roomMs": 27.5,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ]
+          }
+        ],
+        "discardedFirstRound": true,
+        "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
+        "hallDoorOpenMs": 29.9,
+        "hallLive": [
+          "door",
+          "living"
+        ],
+        "hallNote": "recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open"
+      }
+    },
+    {
+      "n": 51,
+      "name": "No page or console errors in the windows' visitors",
+      "pass": true,
+      "detail": {
+        "windows": {
+          "consoleErrors": [],
+          "pageErrors": []
+        },
+        "plainQuiet": true,
+        "speedQuiet": true
       }
     }
   ],

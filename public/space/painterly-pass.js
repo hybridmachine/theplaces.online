@@ -11,6 +11,11 @@
 // Sky: the dome, sun, moon, stars and clouds never write depth, so untouched depth is sky. Sky is left as drawn (its clouds
 // keep their own brushwork and the stars their points), land is filtered from land alone (no sky bleeds into a silhouette),
 // and the impasto stays off a band round every silhouette, so no rim follows the oak or the roof against the sky.
+//
+// Views: indoors the yard is drawn into the scene target a second time through each live pane (window-views.js), after the
+// rooms and before the filter, so room and view are brushed as one picture. Its sky writes no depth, so it is sky here too.
+// Within a view's rectangle on screen a pixel's place in the world is read from that view's eye, so the lake seen through
+// glass is found as water (no marks swim over it) as it is outdoors.
 
 import {LAKE_LEVEL} from './geometry.js'; // the lake's height in three's y: no marks on the water
 
@@ -27,6 +32,7 @@ const DISTANT = [300, .55];   // by this distance (m), this share of the drawn f
 const RELIEF = .8;       // how much of the surfaces' own finest strokes is raised in the impasto, near by
 const WEAVE_LAND = .045, WEAVE_SKY = .006, THREAD = 2.6; // linen weave depth over paint and over sky; thread pitch, CSS px
 const SKY_DEPTH = '.9999995'; // cleared depth is 1; the farthest hills (under 1 km) are well below this
+const VIEWS = 3;          // at most this many views through the panes in one frame (LIVE_CAP's largest)
 
 const QUAD_VERTEX = `varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
 // The frame at the filter's size, with land (1) or sky (0) in alpha.
@@ -89,7 +95,7 @@ void main(){
   gl_FragColor=vec4(o.w>1e-9?o.rgb/o.w:centre.rgb,1.);
 }`;
 // Impasto light from the upper left on the painted strokes' edges, then the linen.
-const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel,waterMask;uniform mat4 unproject,eye;uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
+const CANVAS = `uniform sampler2D paint,scene,depth,structure;uniform float bristle,waterLevel,waterMask;uniform mat4 unproject,eye;uniform int viewCount;uniform vec4 viewRect[${VIEWS}];uniform mat4 viewEye[${VIEWS}];uniform vec2 grainReach,distant,texel,paintSize,sceneTexel,reach;uniform float dpr,impasto,relief,thread;uniform vec2 weave,steps,detail,lift;varying vec2 vUv;
 float h1(float x){return fract(sin(x*91.37)*43758.55);}
 float h2(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.55);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -98,10 +104,19 @@ float L(vec4 c){return dot(c.rgb,vec3(.3,.59,.11));}
 void main(){
   float d=texture(depth,vUv).r,land=d<${SKY_DEPTH}?1.:0.;
   // Where this pixel lies in the world: its distance, and whether it is the lake (the only surface at the water's level). Indoors
-  // there is no lake (the downstairs floor lies at its height), and waterMask is 0.
+  // there is no lake (the downstairs floor lies at its height), and waterMask is 0; but a pixel within a view through a pane
+  // (the first whose rectangle holds it) is placed by that view's eye and tested for water as outdoors. The rectangle also holds
+  // some of the room round the pane (frame, sill, wall); placed by the view's eye those land where the room would stand in the
+  // yard, a carried turn and shift of it, with the ground floor at least 1.5 m above the lake and the upper floor higher, so none is
+  // taken for water and the room keeps its marks.
   vec4 view=unproject*vec4(vUv*2.-1.,d*2.-1.,1.);view/=view.w;
   float z=length(view.xyz),near=1.-smoothstep(reach.x,reach.y,z);
-  float water=waterMask*land*(1.-smoothstep(.01+z*2e-4,.03+z*4e-4,abs((eye*view).y-waterLevel)));
+  mat4 seen=eye;float through=0.;
+  for(int k=0;k<${VIEWS};k++){
+    if(k>=viewCount)break;
+    if(all(greaterThanEqual(vUv,viewRect[k].xy))&&all(lessThanEqual(vUv,viewRect[k].zw))){seen=viewEye[k];through=1.;break;}
+  }
+  float water=max(waterMask,through)*land*(1.-smoothstep(.01+z*2e-4,.03+z*4e-4,abs((seen*view).y-waterLevel)));
   // The marks laid over the paint (impasto, bristle, the weave's full depth) belong to the near and middle distance. Seen from
   // farther off, or on the water, they would stay fixed to the screen while the land moved under them, so they fade out there.
   float grain=(1.-smoothstep(grainReach.x,grainReach.y,z))*(1.-water);
@@ -160,12 +175,20 @@ export function canPaint(gl) {
 }
 
 export class PainterlyPass {
-  constructor(THREE, renderer) {
+  // `stencil` (only with the cabin's interior on, and only where its views can be drawn) gives the scene target a stencil.
+  constructor(THREE, renderer, {stencil = false} = {}) {
     this.renderer = renderer; this.scale = 1; this.pixelRatio = 1; this.width = 1; this.height = 1;
     // The scene target is marked as an XR target so three shades into it as it would into the canvas (tone mapping and the
-    // sRGB output transfer in the shaders, not linear), and its storage is plain RGBA8 so the values are kept as encoded.
-    this.depth = new THREE.DepthTexture(1, 1);
-    this.sceneTarget = new THREE.WebGLRenderTarget(1, 1, {samples: 4, depthBuffer: true, depthTexture: this.depth, colorSpace: THREE.SRGBColorSpace});
+    // sRGB output transfer in the shaders, not linear), and its storage is plain RGBA8 so the values are kept as encoded. With
+    // `stencil` its depth carries a stencil, which the cabin's live panes mark for the views through them (multisampled, as a 24/8
+    // depth-stencil renderbuffer whose depth alone is resolved into the depth texture of the same format: nothing reads the
+    // stencil after the draw); without it the target is the plain depth one it always was.
+    const target = {samples: 4, depthBuffer: true, colorSpace: THREE.SRGBColorSpace};
+    if (stencil) {
+      this.depth = new THREE.DepthTexture(1, 1, THREE.UnsignedInt248Type, undefined, undefined, undefined, undefined, undefined, undefined, THREE.DepthStencilFormat);
+      Object.assign(target, {stencilBuffer: true, resolveStencilBuffer: false});
+    } else this.depth = new THREE.DepthTexture(1, 1);
+    this.sceneTarget = new THREE.WebGLRenderTarget(1, 1, {...target, depthTexture: this.depth});
     this.sceneTarget.texture.internalFormat = 'RGBA8'; this.sceneTarget.isXRRenderTarget = true;
     const flat = {depthBuffer: false, colorSpace: THREE.NoColorSpace};
     this.prepared = new THREE.WebGLRenderTarget(1, 1, flat);
@@ -181,6 +204,7 @@ export class PainterlyPass {
       texel: {value: new THREE.Vector2()}, clip, reach,
       radius: {value: RADIUS}, sharpness: {value: SHARPNESS}});
     this.canvas = material(CANVAS, {waterLevel: {value: LAKE_LEVEL}, waterMask: {value: 1}, unproject: {value: new THREE.Matrix4()}, eye: {value: new THREE.Matrix4()},
+      viewCount: {value: 0}, viewRect: {value: Array.from({length: VIEWS}, () => new THREE.Vector4())}, viewEye: {value: Array.from({length: VIEWS}, () => new THREE.Matrix4())},
       grainReach: {value: new THREE.Vector2(...GRAIN_REACH)}, distant: {value: new THREE.Vector2(...DISTANT)}, paint: {value: this.painted.texture}, structure: {value: this.structure.texture}, bristle: {value: BRISTLE}, scene: {value: this.sceneTarget.texture}, depth: {value: this.depth},
       texel: {value: new THREE.Vector2()}, paintSize: {value: new THREE.Vector2(1, 1)}, sceneTexel: {value: new THREE.Vector2()}, reach, dpr: {value: 1}, impasto: {value: IMPASTO}, relief: {value: RELIEF}, thread: {value: THREAD},
       weave: {value: new THREE.Vector2(WEAVE_LAND, WEAVE_SKY)}, detail: {value: new THREE.Vector2(...DETAIL)}, steps: {value: new THREE.Vector2(...IMPASTO_STEP)}, lift: {value: new THREE.Vector2(...IMPASTO_CLAMP)}});
@@ -211,14 +235,22 @@ export class PainterlyPass {
     this.canvas.uniforms.detail.value.y = this.scale < 1 ? LIGHT_NEAR_DETAIL : DETAIL[1];
     this.canvas.uniforms.dpr.value = this.pixelRatio;
   }
-  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water.
-  render(scene, camera, {water = true} = {}) {
-    const {renderer} = this;
-    this.canvas.uniforms.waterMask.value = water ? 1 : 0;
+  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water. `views` (window-views.js),
+  // if given, draws the yard through the live panes into the scene target after the scene; its prepared views (each with the
+  // visitor's projection) tell the filter where they lie on screen and from which eye.
+  render(scene, camera, {water = true, views = null} = {}) {
+    const {renderer} = this, u = this.canvas.uniforms;
+    u.waterMask.value = water ? 1 : 0;
     this.kuwahara.uniforms.clip.value.set(camera.near, camera.far);
     camera.updateMatrixWorld();
-    this.canvas.uniforms.unproject.value.copy(camera.projectionMatrixInverse); this.canvas.uniforms.eye.value.copy(camera.matrixWorld);
+    u.unproject.value.copy(camera.projectionMatrixInverse); u.eye.value.copy(camera.matrixWorld);
     renderer.setRenderTarget(this.sceneTarget); renderer.render(scene, camera);
+    // A draw that reports failure (false) drew no view this frame: the filter is told of none. Where rectangles overlap the
+    // filter takes the first that holds a pixel, so they are given smallest first and the tighter one wins.
+    const drawn = views ? views.draw(renderer) !== false : false, area = r => (r[2] - r[0]) * (r[3] - r[1]);
+    const list = drawn ? [...views.prepared].sort((a, b) => area(a.rect) - area(b.rect)).slice(0, VIEWS) : [];
+    u.viewCount.value = list.length;
+    list.forEach((v, k) => { u.viewRect.value[k].set(...v.rect); u.viewEye.value[k].copy(v.eye); });
     this.draw(this.prepare, this.prepared); this.draw(this.tensor, this.structure); this.draw(this.kuwahara, this.painted);
     this.draw(this.canvas, null);
   }

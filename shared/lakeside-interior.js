@@ -9,7 +9,7 @@ const roofWindow = (id, room, a, width, d) => ({id, room, kind: 'roof', a, width
 
 export const LAKESIDE_INTERIOR = deep({
   version: 1, size: [18, 12], wall: .15, eyeClear: .25,
-  floorRise: 3.0, groundCeiling: 2.7, eaveCeiling: 1.9, ridgeCeiling: 3.6, ridgeAt: 6, doorHead: 2.1,
+  floorRise: 3.0, groundCeiling: 2.7, eaveCeiling: 1.9, ridgeCeiling: 3.6, ridgeAt: 6, doorHead: 2.1, roofReveal: .15,
   rooms: [
     room('living', 'living room', 0, [0, 7], [0, 7]),
     room('hall', 'entry hall', 0, [7, 11], [0, 7]),
@@ -52,6 +52,8 @@ export const LAKESIDE_INTERIOR = deep({
   // Foot at d = 1.5 on the ground floor, top at d = 5.4 on the upper floor.
   stair: {a: [9.6, 11], d: [1.5, 5.4]},
   door: {a: 9, width: 1},
+  // The front door's leaf, fully open: hinged on the living-room edge of the doorway (a = door.a - width/2) and standing into the hall.
+  doorLeaf: {a: 8.5, d: [0, 1], thick: .05},
   windows: [
     wallWindow('living', 'living', 'front', 4.2),
     wallWindow('study', 'study', 'front', 13.8),

@@ -88,3 +88,18 @@ test('camera-free sky bodies agree with the projected pose', () => {
     assert.ok(Math.abs(Math.hypot(...sky.moon.direction) - 1) < 1e-9);
   }
 });
+
+import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
+import { SkyDome } from '../public/space/sky-dome.js';
+test('centring the dome moves it and changes no uniform', () => {
+  const sky = new SkyDome(THREE, config), now = 4e7, c = calendar(0, now), w = weather(0, now);
+  sky.update({calendar: c, weather: w, bodies: skyBodies(c), clouds: sample(now / 1000), cameraPosition: new THREE.Vector3(1, 2, 3)});
+  const materials = [sky.domeMaterial, sky.starMaterial, sky.sun.material, sky.moon.material, sky.cloudMaterial];
+  const state = () => JSON.stringify([materials.map(m => Object.fromEntries(Object.entries(m.uniforms).map(([k, u]) => [k, u.value?.toArray?.() ?? u.value]))),
+    [sky.sun, sky.moon].map(o => [o.position.toArray(), o.quaternion.toArray(), o.visible])]);
+  const before = state(), to = new THREE.Vector3(-40, 1.7, 12);
+  sky.centreOn(to);
+  assert.deepEqual(sky.object3d.position.toArray(), to.toArray());
+  assert.equal(state(), before);
+  sky.dispose();
+});

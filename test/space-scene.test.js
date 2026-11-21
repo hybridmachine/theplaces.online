@@ -460,3 +460,51 @@ test('the front door stays in sight through its swing, over a dark recess cut in
   }
   scene.dispose();
 });
+
+test('hiding the cabin hides its walls, roof, chimney, panels and door, and leaves its shrubs and everything else', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), cabin = scene.parts.cabin, before = new Map();
+  for (const name of ['walls', 'roof', 'eaves', 'chimney', 'door', 'openings', 'casement', 'dabs', 'shrubs']) assert.ok(cabin.getObjectByName(name), name);
+  // Drawn only if it and every group above it are visible.
+  const drawn = o => { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; };
+  scene.group.traverse(o => before.set(o, drawn(o)));
+  scene.setCabinShown(false);
+  for (const name of ['walls', 'roof', 'eaves', 'chimney', 'door', 'openings', 'casement', 'dabs']) assert.equal(drawn(cabin.getObjectByName(name)), false, name);
+  // The bushes at its foot stand out past the walls, in the yard: seen sideways through a front window or the doorway.
+  assert.equal(drawn(cabin.getObjectByName('shrubs')), true, 'shrubs');
+  const building = new Set(); cabin.getObjectByName('building').traverse(o => building.add(o));
+  scene.group.traverse(o => { if (!building.has(o)) assert.equal(drawn(o), before.get(o), o.name); });
+  scene.setCabinShown(true);
+  scene.group.traverse(o => assert.equal(drawn(o), before.get(o), o.name));
+  scene.dispose();
+});
+
+test('the yard remembers the cottage pose it was last given', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()});
+  assert.deepEqual(scene.cottage, {main: 0, second: 0, open: 0});
+  scene.setCottage({main: .7, second: .2, open: .4}); assert.deepEqual(scene.cottage, {main: .7, second: .2, open: .4});
+  scene.setCottage({main: 1}); assert.deepEqual(scene.cottage, {main: 1, second: 0, open: 0});
+  scene.dispose();
+});
+
+import {PRESENTERS} from '../public/space/life/index.js';
+import {SkyDome} from '../public/space/sky-dome.js';
+import {SCENES} from '../shared/world.js';
+test('the lake, the halos and the smoke are clipped by a global plane; the sky is not', () => {
+  const scene = buildScene(THREE, {space: S, dressing: D, art: stubArt()}), yard = new THREE.Scene();
+  const smoke = PRESENTERS.smoke(THREE, {scene: yard, layout: lifeLayout()});
+  const clipped = [scene.parts.lake.material, scene.parts.lights.getObjectByName('halos').material, ...yard.getObjectByName('hearth-smoke').children.map(m => m.material)];
+  for (const chunk of ['clipping_planes_pars_vertex', 'clipping_planes_vertex', 'clipping_planes_pars_fragment', 'clipping_planes_fragment']) assert.ok(THREE.ShaderChunk[chunk], chunk);
+  for (const m of clipped) {
+    assert.equal(m.clipping, true);
+    for (const chunk of ['clipping_planes_pars_vertex', 'clipping_planes_vertex']) assert.ok(m.vertexShader.includes(`#include <${chunk}>`), chunk);
+    for (const chunk of ['clipping_planes_pars_fragment', 'clipping_planes_fragment']) assert.ok(m.fragmentShader.includes(`#include <${chunk}>`), chunk);
+    // the vertex chunk reads mvPosition, so it comes after mvPosition is set; the fragment chunk discards before any work
+    assert.ok(m.vertexShader.indexOf('#include <clipping_planes_vertex>') > m.vertexShader.search(/mvPosition\s*=/));
+    assert.match(m.fragmentShader, /void main\s*\(\s*\)\s*\{\s*#include <clipping_planes_fragment>/);
+  }
+  const sky = new SkyDome(THREE, SCENES[0].sky);
+  for (const m of [sky.domeMaterial, sky.starMaterial, sky.sun.material, sky.moon.material, sky.cloudMaterial]) {
+    assert.equal(m.clipping, false); assert.ok(!/clipping_planes/.test(m.vertexShader + m.fragmentShader));
+  }
+  sky.dispose(); smoke.dispose(); scene.dispose();
+});
