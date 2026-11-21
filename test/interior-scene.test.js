@@ -161,7 +161,7 @@ test('nothing solid stands in an opening, the doorway or the stair foot', () => 
 const LIT = ['floors', 'ceilings', 'walls', 'stair', 'frames', 'casement', 'door-leaf'];
 // A vertex in the interior frame, and its surface's normal there, from three's axes (x = a, y = up, z = −d).
 const vertex = (g, i) => { const p = g.getAttribute('position'), n = g.getAttribute('normal'); return [[p.getX(i), -p.getZ(i), p.getY(i)], [n.getX(i), -n.getZ(i), n.getY(i)]]; };
-const weightsOf = (g, i) => { const l = g.getAttribute('light'); return {day: l.getX(i), lamp: l.getY(i), fire: l.getZ(i), room: l.getW(i)}; };
+const weightsOf = (g, i) => { const l = g.getAttribute('light'), q = g.getAttribute('spill'); return {day: l.getX(i), lamp: l.getY(i), fire: l.getZ(i), room: l.getW(i), spill: q.getX(i), spillRoom: q.getY(i)}; };
 const night = () => interiorDials({interior: I, calendar: {light: 0, elevation: -1, hour: 0}, weather: {cloud: 0}, sky: {zenith: [.1, .1, .2], horizon: [.1, .1, .2]},
   cottage: null, pose: {main: .8, second: .4}, now: 0, seconds: 0, motion: false});
 
@@ -171,6 +171,7 @@ test('every surface vertex carries its light weights, and they are the field\'s'
   for (const name of LIT) {
     const g = scene.getObjectByName(name).geometry, l = g.getAttribute('light');
     assert.ok(l && l.itemSize === 4 && l.count === g.getAttribute('position').count, name);
+    const q = g.getAttribute('spill'); assert.ok(q && q.itemSize === 2 && q.count === l.count, `${name} spill`);
     for (let i = 0; i < l.count; i++) {
       const w = weightsOf(g, i);
       assert.ok([w.day, w.lamp, w.fire, w.room].every(Number.isFinite), `${name} ${i}`);
@@ -192,7 +193,7 @@ test('every surface vertex carries its light weights, and they are the field\'s'
   assert.ok(inner.length > 100);
   for (let k = 0; k < 10; k++) {
     const i = inner[Math.floor(k * inner.length / 10)], [p, n] = vertex(g, i), want = field.weigh(p[2] > 1 ? 1 : 0, p, n), got = weightsOf(g, i);
-    for (const key of ['day', 'lamp', 'fire', 'room']) assert.ok(Math.abs(got[key] - want[key]) < 1e-6, `${p} ${key}: ${got[key]} against ${want[key]}`);
+    for (const key of ['day', 'lamp', 'fire', 'room', 'spill', 'spillRoom']) assert.ok(Math.abs(got[key] - want[key]) < 1e-6, `${p} ${key}: ${got[key]} against ${want[key]}`);
   }
   // The field handed back is the blueprint's.
   const own = createLightField(I, openings);

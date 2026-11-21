@@ -14,9 +14,10 @@ const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v 
 // `hop` the share of the best light a neighbour takes at its own openings that it passes on through one more, and `behind` how far
 // past the opening the light is taken to come from, for the facing;
 // `cap` the most daylight any point takes, so that the light by the glass, strong enough to fill the room, never clips. A lamp
-// reaches the far walls of its own room (a wall 4 m off takes more than the floor); the fire's `face` is the share of its light a
+// reaches the far walls of its own room (a wall 4 m off takes more than the floor), and `spill` of that through an opening into a
+// joined room, never through a wall; the fire's `face` is the share of its light a
 // surface takes whichever way it faces, so the wall beside the chimney breast, which sees the fire only edgewise, is warmed too; `door` the front door's strength against a window's; `floor` the least.
-export const LIGHT = deep({day: {reach: 10, face: .4, borrow: .9, through: 14, aside: .2, door: .5, floor: .1, cap: .55, hop: .75, behind: 2}, lamp: {reach: 8, floor: .15}, fire: {reach: 6, face: .5}});
+export const LIGHT = deep({day: {reach: 10, face: .4, borrow: .9, through: 14, aside: .2, door: .5, floor: .1, cap: .55, hop: .75, behind: 2}, lamp: {reach: 8, floor: .15, spill: .85}, fire: {reach: 6, face: .5}});
 
 const UP = [0, 0, 1], OFF = .02, SHORT = .05;   // metres a sight line starts off the surface and stops short of its target
 const falloff = (dist, reach) => 1 / (1 + (dist / reach * 3) ** 2);
@@ -43,6 +44,11 @@ export function createLightField(interior, openings) {
     return {floor: r.floor, room: r.id, other, mid: op.line === 'a' ? [op.at, m] : [m, op.at], into, across, direct: null, share: null};
   }));
 
+  // The rooms joined to each room by an opening (on its floor) that have a fitting, by index.
+  const joined = I.rooms.map(r => [...new Set(I.openings.filter(op => op.floor === r.floor && op.rooms.includes(r.id)).map(op => op.rooms.find(x => x !== r.id)))]
+    .filter(x => lamps.has(x)).map(x => ids.get(x)));
+  // A lamp's light at a point: by how squarely the surface faces it and its distance.
+  const lampWeight = (point, normal, q) => { const v = toward(point, q); return (along(normal, v.u) * .6 + .4) * falloff(v.d, LIGHT.lamp.reach); };
   // Whether the plan line from `p` to `q` on that floor crosses no solid interior wall run, stopping SHORT before q.
   const clear = (floor, p, q) => {
     const len = Math.hypot(q[0] - p[0], q[1] - p[1]), k = len > SHORT ? 1 - SHORT / len : 0, end = [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k];
@@ -94,11 +100,18 @@ export function createLightField(interior, openings) {
       dayW = Math.max(dayW, LIGHT.day.borrow * share * (along(normal, u) * (1 - LIGHT.day.aside) + LIGHT.day.aside) * falloff(d, LIGHT.day.through));
     }
     dayW = Math.max(LIGHT.day.floor, dayW);
-    // lamp: the room's own fitting only
-    let lamp = 0;
-    if (at && lamps.has(id)) {
-      const v = toward(point, lamps.get(id));
-      lamp = Math.max(LIGHT.lamp.floor, (along(normal, v.u) * .6 + .4) * falloff(v.d, LIGHT.lamp.reach));
+    // lamp: the room's own fitting, never less than the floor; and the spill of the stronger of the neighbours' fittings in plain
+    // sight through an opening (the plan line to it crosses no solid wall), by the same rule times LIGHT.lamp.spill
+    let lamp = 0, spill = 0, spillRoom = -1;
+    if (at && lamps.has(id)) lamp = Math.max(LIGHT.lamp.floor, lampWeight(point, normal, lamps.get(id)));
+    if (at) {
+      const from = [point[0] + normal[0] * OFF, point[1] + normal[1] * OFF];
+      for (const k of joined[index]) {
+        const q = lamps.get(I.rooms[k].id);
+        if (!clear(floor, from, q)) continue;
+        const w = LIGHT.lamp.spill * lampWeight(point, normal, q);
+        if (w > spill) { spill = w; spillRoom = k; }
+      }
     }
     // fire: ground floor only, and only where the mouth is in sight
     let fire = 0;
@@ -106,7 +119,7 @@ export function createLightField(interior, openings) {
       const v = toward(point, mouth);
       fire = (along(normal, v.u) * (1 - LIGHT.fire.face) + LIGHT.fire.face) * falloff(v.d, LIGHT.fire.reach);
     }
-    return {day: Math.min(LIGHT.day.cap, dayW), lamp: Math.min(1, lamp), fire: Math.min(1, fire), room: index};
+    return {day: Math.min(LIGHT.day.cap, dayW), lamp: Math.min(1, lamp), fire: Math.min(1, fire), room: index, spill: Math.min(1, spill), spillRoom};
   }
   return {weigh, roomIndex: id => ids.has(id) ? ids.get(id) : -1};
 }
@@ -190,8 +203,15 @@ export function interiorDials({interior, calendar, weather, sky, cottage, pose, 
     fire: flame.fire * DIALS.fire * flicker(finite(seconds), motion), flame: flame.fire, embers: flame.embers, doorway: hall};
 }
 
+// One channel `c` of the light a surface with weights `w` shows under `dials`: daylight, the night fill, its room's lamp and the spill of
+// its neighbour's, and the fire. The one sum in JS (lightAt, and the lamps' glasses); light.js's shader line is pinned to it by a test.
+export function lightSum(dials, w, c) {
+  const lamp = (w.room >= 0 ? dials.lamps[w.room] * w.lamp : 0) + (w.spillRoom >= 0 ? dials.lamps[w.spillRoom] * w.spill : 0);
+  return dials.day[c] * w.day + dials.fill[c] + DIALS.warm[c] * lamp + DIALS.fireWarm[c] * dials.fire * w.fire;
+}
+
 // The light a point shows: the sum the shader computes from the same dials and weights.
 export function lightAt(field, dials, floor, point, normal) {
-  const w = field.weigh(floor, point, normal), lamp = w.room >= 0 ? dials.lamps[w.room] * w.lamp : 0;
-  return [0, 1, 2].map(i => dials.day[i] * w.day + dials.fill[i] + DIALS.warm[i] * lamp + DIALS.fireWarm[i] * dials.fire * w.fire);
+  const w = field.weigh(floor, point, normal);
+  return [0, 1, 2].map(c => lightSum(dials, w, c));
 }

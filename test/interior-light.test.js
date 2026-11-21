@@ -132,6 +132,53 @@ test('a lamp lights its own room and not the far side of its walls', () => {
   assert.equal(din.lamp, noKitchen.weigh(0, [7 + I.wall / 2, 9.5, 1.5], [1, 0, 0]).lamp);
 });
 
+// The lamp's part of the light a point shows (its red channel; warm's red is 1) with only the rooms named lit, at full.
+const lampPart = (f, p, n, lit) => lightAt(F, {day: [0, 0, 0], fill: [0, 0, 0], fire: 0, lamps: I.rooms.map(r => lit.includes(r.id) ? DIALS.lamp : 0)}, f, p, n)[0];
+
+test('a lamp\'s light passes through a wide opening onto the floor beyond with no step', () => {
+  // along the floor straight through the kitchen-dining opening (a = 7, d 7.5-11.5) and the hall-living one (a = 7, d 2-5)
+  for (const [lit, d] of [['kitchen', 9.5], ['dining', 9.5], ['living', 3.5], ['hall', 3.5]]) {
+    let prev = null, worst = 0;
+    for (let a = 5.5; a <= 8.5 + 1e-9; a += .1) {
+      const v = lampPart(0, [a, d, 0], UP, [lit]);
+      if (prev !== null) { worst = Math.max(worst, Math.abs(v - prev)); assert.ok(Math.abs(v - prev) <= .1, `${lit} lit, at a = ${a.toFixed(2)}: ${prev} -> ${v}`); }
+      prev = v;
+    }
+  }
+  // and it does reach past the opening: 1 m into the dining room the kitchen's lamp gives light
+  assert.ok(lampPart(0, [8, 9.5, 0], UP, ['kitchen']) > .1);
+  const w = F.weigh(0, [8, 9.5, 0], UP);
+  assert.equal(w.spillRoom, F.roomIndex('kitchen')); assert.ok(w.spill > 0 && w.spill <= LIGHT.lamp.spill);
+});
+
+test('a lamp spills only through openings: none behind the solid part of a wall, none to a room it is not joined to, none two openings away', () => {
+  const kitchen = F.roomIndex('kitchen'), half = I.wall / 2 + .02;
+  // the dining face of the kitchen-dining wall beyond the opening's jambs (d 7.5-11.5), facing the dining room
+  for (const d of [7.05, 7.2, 7.35, 11.65, 11.8, 11.95]) for (const z of [.3, 1.2, 2.4]) {
+    const w = F.weigh(0, [7 + half, d, z], [1, 0, 0]);
+    assert.equal(w.room, F.roomIndex('dining'));
+    assert.ok(w.spillRoom !== kitchen || w.spill === 0, `${d}, ${z}: ${JSON.stringify(w)}`);
+  }
+  // the kitchen's lamp reaches no room it shares no opening with (the hall is two openings off, through the dining or living room)
+  const joined = new Set(I.openings.filter(o => o.rooms.includes('kitchen')).flatMap(o => o.rooms));
+  for (const r of I.rooms.filter(q => q.floor === 0 && !joined.has(q.id))) for (let a = r.a[0] + .2; a < r.a[1]; a += .5) for (let d = r.d[0] + .2; d < r.d[1]; d += .5) {
+    const w = F.weigh(0, [a, d, 0], UP);
+    assert.ok(w.spillRoom !== kitchen, `${r.id} at ${a}, ${d}`);
+  }
+  // nothing spills between floors, and a point outside every room takes none
+  for (const r of I.rooms.filter(q => q.floor === 1)) { const w = F.weigh(1, [...centre(r.id).slice(0, 2), 3], UP); assert.ok(w.spillRoom === -1 || I.rooms[w.spillRoom].floor === 1); }
+  assert.deepEqual([F.weigh(0, [-3, -3, 0], UP).spill, F.weigh(0, [-3, -3, 0], UP).spillRoom], [0, -1]);
+});
+
+test('a spill is the neighbour\'s lamp by the lamp\'s own rule, times LIGHT.lamp.spill, and the stronger neighbour wins', () => {
+  const p = [8, 9.5, 0], at = I.fittings.find(f => f.room === 'kitchen').at, t = at.map((x, i) => x - p[i]), L = Math.hypot(...t);
+  const want = LIGHT.lamp.spill * (Math.max(0, t[2] / L) * .6 + .4) / (1 + (L / LIGHT.lamp.reach * 3) ** 2);
+  assert.ok(Math.abs(F.weigh(0, p, UP).spill - want) < 1e-9);
+  // the hall, joined to the living room, study, passage and dining room: by the living room's opening the living room's lamp spills
+  assert.equal(F.weigh(0, [7.3, 3.5, 0], UP).spillRoom, F.roomIndex('living'));
+  assert.equal(F.weigh(0, [7.3, 9, 0], UP).spillRoom, F.roomIndex('kitchen'));   // and in the dining room, the kitchen's
+});
+
 test('inside a doorway each face takes the lamp of the room it faces', () => {
   const a = F.weigh(0, [7, 9.5, 1.2], [-1, 0, 0]);   // kitchen-dining opening a = 7, d 7.5-11.5: jamb faces are in the doorway's thickness
   const b = F.weigh(0, [7, 9.5, 1.2], [1, 0, 0]);

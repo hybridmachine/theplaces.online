@@ -1,12 +1,12 @@
 import {ceilingHeight} from '../../../shared/interior.js';
 import {mergeGeometries, toThree, tube} from '../geometry.js';
 import {haloMaterial} from '../scene/lights.js';
-import {DIALS} from '../../../shared/interior-light.js';
+import {lightSum} from '../../../shared/interior-light.js';
 
 // The lamp in every room (the blueprint's interior.fittings, one per room, `at` the glass's centre [a, d, z], z above the ground
 // floor). A hanging lamp is a thin dark rod from the ceiling over its place down to a small shade over the glass; a wall lamp is a
 // short dark bracket from its room's nearest wall line to a cup holding the glass. The ironwork is built here from tubes, weighed
-// by the light field at the glass (so a lit surface takes only its own room's lamp) and tinted dark through the shell's boards tint;
+// by the light field at the glass (so it takes its own room's lamp and a neighbour's spill, as a wall there would) and tinted dark through the shell's boards tint;
 // it draws with the shell's surface material, lit or the Lambert fallback. The glasses are one instanced mesh and the halos one
 // merged mesh, both emitted and none of it a light source: each glass takes its colour from its room's level, set per instance, and
 // each halo ball carries its room's index to read that level from a small uniform array, so a frame sets a number per room and
@@ -56,9 +56,9 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
   };
   // Each vertex's light: the field at the glass (inside the room) and the vertex's own normal.
   const weighed = (g, [a, d, z]) => {
-    const nrm = g.getAttribute('normal'), out = new Float32Array(nrm.count * 4), floor = z >= rise - 1e-6 ? 1 : 0;
-    for (let i = 0; i < nrm.count; i++) { const w = field.weigh(floor, [a, d, z], [nrm.getX(i), -nrm.getZ(i), nrm.getY(i)]); out.set([w.day, w.lamp, w.fire, w.room], i * 4); }
-    g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4));
+    const nrm = g.getAttribute('normal'), out = new Float32Array(nrm.count * 4), spill = new Float32Array(nrm.count * 2), floor = z >= rise - 1e-6 ? 1 : 0;
+    for (let i = 0; i < nrm.count; i++) { const w = field.weigh(floor, [a, d, z], [nrm.getX(i), -nrm.getZ(i), nrm.getY(i)]); out.set([w.day, w.lamp, w.fire, w.room], i * 4); spill.set([w.spill, w.spillRoom], i * 2); }
+    g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4)); g.setAttribute('spill', new THREE.Float32BufferAttribute(spill, 2));
     return g;
   };
   for (const f of I.fittings) {
@@ -85,11 +85,13 @@ export function buildFittings(THREE, {interior: I, light, field, tints, material
   });
   const levels = new Float32Array(Math.max(1, I.rooms.length));
   let first = true;   // the glasses' colours are written the first time whatever the levels
-  // The room's light where each glass hangs, but for its own lamp: its day and fire weights, weighed once at the glass and averaged
-  // over four sideways facings, and the frame's sum of them (setLight), by which an unlit glass is lit like any pale surface.
-  const sideways = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
+  // The room's light where each glass hangs, but for its own lamp: its day, fire and spill weights, weighed once at the glass and
+  // averaged over four sideways facings (the spill as the neighbour that gives the most gives it), and the frame's sum of them
+  // (setLight, by lightSum, the one sum), by which an unlit glass is lit like any pale surface.
+  const sideways = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]], mean = (ws, k) => ws.reduce((t, w) => t + w[k], 0) / ws.length;
   const atGlass = I.fittings.map(f => { const ws = sideways.map(nrm => field.weigh(f.at[2] >= rise - 1e-6 ? 1 : 0, f.at, nrm));
-    return {day: ws.reduce((t, w) => t + w.day, 0) / 4, fire: ws.reduce((t, w) => t + w.fire, 0) / 4}; });
+    const spillRoom = ws.reduce((b, w) => w.spill > b.spill ? w : b).spillRoom;
+    return {day: mean(ws, 'day'), fire: mean(ws, 'fire'), lamp: 0, room: -1, spillRoom, spill: mean(ws.map(w => w.spillRoom === spillRoom ? w : {spill: 0}), 'spill')}; });
   const ambient = new Float32Array(n * 3).fill(1); let ambientChanged = false;
   const finite = v => Number.isFinite(v) ? v : 0;
   const haloMat = haloMaterial(THREE); haloMat.uniforms.opacity.value = HALO.opacity; haloMat.uniforms.levels = {value: levels};
@@ -121,9 +123,13 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
   }
   // A frame's dials (interiorDials): the room's light at each glass (daylight, the night fill and the fire, not its own lamp), then the
   // lamps. Nothing is allocated.
+  // The dials as lightSum reads them, every value finite (a missing one is 0): refilled each frame, nothing allocated.
+  const safe = {day: [0, 0, 0], fill: [0, 0, 0], fire: 0, lamps: new Float64Array(I.rooms.length)};
   function setLight(dials) {
+    for (let c = 0; c < 3; c++) { safe.day[c] = finite(dials?.day?.[c]); safe.fill[c] = finite(dials?.fill?.[c]); }
+    safe.fire = finite(dials?.fire); for (let i = 0; i < safe.lamps.length; i++) safe.lamps[i] = finite(dials?.lamps?.[i]);
     for (let k = 0; k < n; k++) for (let c = 0; c < 3; c++) {
-      const v = Math.fround(finite(dials?.day?.[c]) * atGlass[k].day + finite(dials?.fill?.[c]) + DIALS.fireWarm[c] * finite(dials?.fire) * atGlass[k].fire);
+      const v = Math.fround(lightSum(safe, atGlass[k], c));
       if (v !== ambient[k * 3 + c]) { ambient[k * 3 + c] = v; ambientChanged = true; }
     }
     setLamps(dials?.lamps);

@@ -19,11 +19,12 @@ test('the lit material sums the dials by a vertex\'s weights, as lightAt does', 
   const light = createInteriorLight(THREE, {rooms: I.rooms.length}), u = light.uniforms;
   light.set(DIALS_NOW);
   const samples = [[0, [4.2, .6, 1], [0, 1, 0]], [0, [1.2, 3.5, .4], [1, 0, 0]], [0, [9, 3, 0], [0, 0, 1]], [0, [14, 9, 2.7], [0, 0, -1]],
-    [0, [3, 10, 0], [0, 0, 1]], [1, [3, 3, 3], [0, 0, 1]], [1, [16, 11, 4], [-1, 0, 0]], [0, [-1, -1, 0], [0, 0, 1]]];
+    [0, [3, 10, 0], [0, 0, 1]], [1, [3, 3, 3], [0, 0, 1]], [1, [16, 11, 4], [-1, 0, 0]], [0, [-1, -1, 0], [0, 0, 1]], [0, [8, 9.5, 0], [0, 0, 1]], [0, [7.4, 3.5, 1], [1, 0, 0]]];
+  assert.ok(samples.some(([f, p, n]) => field.weigh(f, p, n).spill > 0), 'some sample takes a neighbour\'s spill');
   for (const [floor, p, n] of samples) {
-    const w = field.weigh(floor, p, n), lamp = w.room < 0 ? 0 : u.lamps.value[w.room];
-    // the vertex shader's sum, term for term
-    const shaded = [0, 1, 2].map(i => rgb(u.day)[i] * w.day + rgb(u.fill)[i] + rgb(u.warm)[i] * lamp * w.lamp + rgb(u.fireWarm)[i] * u.fire.value * w.fire);
+    const w = field.weigh(floor, p, n), lamp = w.room < 0 ? 0 : u.lamps.value[w.room], spilt = w.spillRoom < 0 ? 0 : u.lamps.value[w.spillRoom];
+    // the vertex shader's sum (the line pinned below), term for term
+    const shaded = [0, 1, 2].map(i => rgb(u.day)[i] * w.day + rgb(u.fill)[i] + rgb(u.warm)[i] * (lamp * w.lamp + spilt * w.spill) + rgb(u.fireWarm)[i] * u.fire.value * w.fire);
     const want = lightAt(field, DIALS_NOW, floor, p, n);
     shaded.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 1e-6, `${p} channel ${i}: ${v} against ${want[i]}`));
   }
@@ -45,6 +46,16 @@ test('every lit material shares one set of uniforms, and set(dials) fills them',
   assert.deepEqual([...light.uniforms.lamps.value].map(v => +v.toFixed(6)), DIALS_NOW.lamps);
   assert.ok(Math.abs(light.uniforms.fire.value - DIALS_NOW.fire) < 1e-12);
   light.dispose();
+});
+
+test('the shader\'s sum is the one lightSum makes: this exact line, which the test above follows term for term', () => {
+  // If either changes, change both: shared/interior-light.js's lightSum and this line in light.js.
+  const s = compile(createInteriorLight(THREE, {rooms: I.rooms.length}).material({})), n = I.rooms.length - 1;
+  const lines = s.vertexShader.split('\n').map(l => l.trim()).filter(l => /^(float roomLamp|float spillLamp|if \( (light\.w|spill\.y)|vLight =)/.test(l));
+  assert.deepEqual(lines, ['float roomLamp = 0.0;', `if ( light.w > -0.5 ) roomLamp = lamps[ int( clamp( light.w, 0.0, ${n}.0 ) + 0.5 ) ];`,
+    'float spillLamp = 0.0;', `if ( spill.y > -0.5 ) spillLamp = lamps[ int( clamp( spill.y, 0.0, ${n}.0 ) + 0.5 ) ];`,
+    'vLight = day * light.x + fill + warm * ( roomLamp * light.y + spillLamp * spill.x ) + fireWarm * ( fire * light.z );']);
+  assert.ok(s.vertexShader.includes('attribute vec2 spill;'));
 });
 
 test('the shader patch declares the light attribute and a lamp array sized to the rooms', () => {

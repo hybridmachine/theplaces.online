@@ -88,12 +88,12 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const into = r => r ? p => [within(p[0], r.a), within(p[1], r.d), p[2]] : p => p;
   const roomOf = id => I.rooms.find(r => r.id === id);
   const weighed = (g, place, floorOf) => {
-    const p = g.getAttribute('position'), n = g.getAttribute('normal'), out = new Float32Array(p.count * 4);
+    const p = g.getAttribute('position'), n = g.getAttribute('normal'), out = new Float32Array(p.count * 4), spill = new Float32Array(p.count * 2);
     for (let i = 0; i < p.count; i++) {
       const at = [p.getX(i), -p.getZ(i), p.getY(i)], w = field.weigh(floorOf(at[2]), place(at), [n.getX(i), -n.getZ(i), n.getY(i)]);
-      out.set([w.day, w.lamp, w.fire, w.room], i * 4);
+      out.set([w.day, w.lamp, w.fire, w.room], i * 4); spill.set([w.spill, w.spillRoom], i * 2);
     }
-    g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4));
+    g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4)); g.setAttribute('spill', new THREE.Float32BufferAttribute(spill, 2));
     return g;
   };
   // A sheet over (s, t), sized by the lengths it spans along each, carrying its light.
