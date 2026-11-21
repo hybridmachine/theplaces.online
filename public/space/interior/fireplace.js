@@ -95,7 +95,10 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
   card.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)); card.setAttribute('color', new THREE.Float32BufferAttribute(colours, 4)); card.setIndex(index);
   const flameMaterial = new THREE.MeshBasicMaterial({vertexColors: true, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, fog: false,
     blending: THREE.AdditiveBlending});
-  const flames = new THREE.Group(); flames.name = 'flames'; group.add(flames);
+  // The flames and the glow are added light: they go in `overlay`, which the view draws after the yard seen through the live panes
+  // (a pane drawn after them would cut them along its edge), still depth-tested against the rooms.
+  const overlay = new THREE.Group(); overlay.name = 'fire-light';
+  const flames = new THREE.Group(); flames.name = 'flames'; overlay.add(flames);
   const cards = CARDS.map(c => {
     const m = mesh(`flame-${flames.children.length}`, card, flameMaterial, flames);
     m.rotation.order = 'YXZ'; m.rotation.y = Math.PI / 2;   // so rotation.z leans a card sideways in its own plane
@@ -103,7 +106,7 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
     return {m, ...c};
   });
   // The halo: a flattened ball at the mouth, mostly inside it, so only its soft rim spills a little into the room.
-  const glow = mesh('fire-glow', new THREE.IcosahedronGeometry(1, 3), haloMaterial(THREE));
+  const glow = mesh('fire-glow', new THREE.IcosahedronGeometry(1, 3), haloMaterial(THREE), overlay);
   glow.position.set(...toThree([GLOW_AT - .15, fp.d, mouth.z0 + .45])); glow.scale.set(GLOW_RADII[0], GLOW_RADII[1], GLOW_RADII[2]);
 
   // The fire's dials: `fire` and `embers` 0–1 (interiorDials) and the world's `seconds`; the flames sway only with `motion`.
@@ -130,7 +133,7 @@ export function buildFireplace(THREE, {interior: I, art, light, face, tint, tint
     for (const name of ['breast', 'slab']) group.getObjectByName(name).material = stoneMaterial;
     group.getObjectByName('mantel').material = flat.surface; group.getObjectByName('breast-upper').material = flat.plastered;
   }
-  return {object: group, setFire, fallBack, dispose() {
-    group.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
+  return {object: group, overlay, setFire, fallBack, dispose() {
+    group.traverse(o => o.geometry?.dispose()); overlay.traverse(o => o.geometry?.dispose()); flameMaterial.dispose(); embers.material.dispose(); glow.material.dispose(); stoneMaterial.dispose();
   }};
 }

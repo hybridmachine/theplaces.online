@@ -162,7 +162,7 @@ const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I
   const renderer = {log, clippingPlanes: [], autoClear: true, extensions: {has: name => extensions.includes(name)},
     getContext: () => ({isContextLost: () => false, getContextAttributes: () => ({stencil})}),
     setRenderTarget(target) { log.push(['target', target]); },
-    render(scene, camera) { log.push(['render', scene, camera, {...stencilState}]); if (failing.yard && scene === view.scene) throw new Error('lost'); },
+    render(scene, camera) { log.push(['render', scene, camera, {...stencilState, autoClear: renderer.autoClear}]); if (failing.yard && scene === view.scene) throw new Error('lost'); },
     state: {buffers: {stencil: {setTest(on) { if (!stencilState.locked) stencilState.test = on; log.push(['setTest', on]); }, setMask() {},
       setFunc(f, ref) { stencilState.func = ref; log.push(['setFunc', f, ref]); }, setOp() {}, setLocked(lock) { stencilState.locked = lock; }}}}};
   const view = Object.create(SpaceView.prototype), camera = new THREE.PerspectiveCamera(verticalFov(16 / 9), 16 / 9, .1, 4000);
@@ -217,6 +217,26 @@ test('indoors facing the living room window, its pane is live and the yard is dr
   assert.deepEqual(plain.view.liveViews, ['living']); assert.equal(plain.yardDraws().length, 1);
   const plainLog = plain.log, at = plainLog.findIndex(e => e[0] === 'render' && e[1] === plain.view.inside.scene);
   assert.equal(plainLog.indexOf(plain.yardDraws()[0]), plainLog.findIndex((e, i) => i > at && e[0] === 'render'));
+});
+
+test('the rooms\' added light (halos, flames, the fire\'s glow) is drawn over the views, before the filter, with no stencil and no clear', async () => {
+  const overlaid = ['halos', 'flames', 'fire-glow'];
+  for (const [tier, state] of [['full'], ['plain'], ['full', {place: 'cabin', floor: 0, position: [4.2, 3], yaw: 0, pitch: 0}], ['plain', {place: 'cabin', floor: 0, position: [4.2, 3], yaw: 0, pitch: 0}]]) {
+    const {view, frame, log, yardDraws} = await rig({tier, ...(state ? {state} : {})}), {overlay, scene} = view.inside;
+    for (const name of overlaid) { assert.ok(overlay.getObjectByName(name), `${name} in the overlay`); assert.equal(scene.getObjectByName(name), undefined, `${name} not in the rooms`); }
+    frame();
+    const rooms = log.findIndex(e => e[0] === 'render' && e[1] === scene), over = log.findIndex(e => e[0] === 'render' && e[1] === overlay);
+    const lastYard = yardDraws().length ? log.indexOf(yardDraws().at(-1)) : -1, filter = view.pass ? log.findIndex((e, i) => i > rooms && e[0] === 'target' && e[1] !== view.pass.sceneTarget) : log.length;
+    const where = `${tier}, ${state ? 'facing away' : 'facing the window'}`;
+    assert.equal(yardDraws().length, state ? 0 : 1, where);
+    assert.ok(rooms >= 0 && over > rooms && over > lastYard && over < filter, `${where}: rooms ${rooms}, last yard ${lastYard}, overlay ${over}, filter ${filter}`);
+    if (view.pass) assert.ok(!log.slice(rooms, over).some(e => e[0] === 'target' && e[1] !== view.pass.sceneTarget), `${where}: into the scene target`);
+    assert.deepEqual([log[over][3].test, log[over][3].autoClear], [false, false], `${where}: no stencil test, no clear`);
+    assert.equal(log[over][2], view.camera, `${where}: from the visitor's eye`);
+    assert.equal(view.renderer.autoClear, true, `${where}: autoClear given back`);
+    // the filter is still told of the views alone
+    if (view.pass) assert.equal(view.pass.canvas.uniforms.viewCount.value, state ? 0 : 1);
+  }
 });
 
 test('render draws indoors through drawIndoors, the one indoor draw the browser checks call too, and its ids are the live ones', async () => {
@@ -468,7 +488,7 @@ test('a lit program that fails to compile at the first indoor draw falls back to
   // the glasses and the fire carry on, and nothing more is warned of
   assert.doesNotThrow(() => frame(3, {study: 'night'}));
   assert.equal(warnings.length, 1); assert.equal(seen.light.length, 5); assert.equal(seen.fire.length, 5);
-  assert.ok(view.inside.scene.getObjectByName('flames').visible);
+  assert.ok(view.inside.overlay.getObjectByName('flames').visible);
   // a program that compiled keeps the rooms lit
   const good = await rig(); good.renderer.info = {programs: [{cacheKey: `basic,x,interior-light-${I.rooms.length}`}]}; good.frame(2);
   assert.equal(good.view.inside.lit, true); assert.equal(good.view.lightChecked, true); assert.equal(warnings.length, 1);

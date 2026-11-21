@@ -227,12 +227,23 @@ export class SpaceView {
   // Indoors, one frame: the openings chosen and prepared (openWindows), then the rooms drawn and the yard through each live pane
   // into the same frame, through the pass or straight to the canvas. With `flat` (for the browser checks' comparisons) no pane is
   // live and the shell's flat glass is drawn. Returns the live ids.
+  // After the views the rooms' added light (the halos, flames and the fire's glow: inside.overlay) is drawn over them, from the
+  // visitor's eye into the same target without clearing it and with the stencil test off, still depth-tested against the rooms;
+  // it is drawn whether any pane is live or not. Through the pass all of it goes into the scene target before the filter: the pass's
+  // `views` hook is given both, and told by its result whether any view was drawn.
   drawIndoors({flat = false} = {}) {
     let ids = [];
     if (flat) this.inside.setLive([]); else ids = this.openWindows();
-    const views = ids.length ? this.viewDraw : null;
-    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, this.camera); views?.draw(this.renderer); }
-    else this.pass.render(this.inside.scene, this.camera, {water: false, views});
+    const views = ids.length ? this.viewDraw : null, overlay = this.inside.overlay, camera = this.camera;
+    const over = {get prepared() { return views ? views.prepared : []; },
+      draw: renderer => {
+        const drawn = views ? views.draw(renderer) !== false : false, autoClear = renderer.autoClear;
+        renderer.state.buffers.stencil.setTest(false); renderer.autoClear = false;
+        try { renderer.render(overlay, camera); } finally { renderer.autoClear = autoClear; }
+        return drawn;
+      }};
+    if (this.passMode === 'off' || !this.pass) { this.renderer.render(this.inside.scene, camera); over.draw(this.renderer); }
+    else this.pass.render(this.inside.scene, camera, {water: false, views: over});
     this.checkLight();
     return ids;
   }

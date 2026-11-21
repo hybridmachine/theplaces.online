@@ -10,8 +10,9 @@ import {viewOpenings} from '../shared/window-views.js';
 import {stubArt} from './space-scene.test.js';
 
 const openings = viewOpenings(I, LAKESIDE_SPACE, LAKESIDE_DRESSING);
-const build = () => buildInterior(THREE, {interior: I, art: stubArt(), openings});
-const part = (scene, name) => scene.getObjectByName('fireplace').getObjectByName(name);
+// (the flames and the glow are drawn over the live views, so they stand in the interior's overlay, not its scene)
+const overlays = new WeakMap(), build = () => { const out = buildInterior(THREE, {interior: I, art: stubArt(), openings}); overlays.set(out.scene, out.overlay); return out; };
+const part = (scene, name) => scene.getObjectByName('fireplace').getObjectByName(name) ?? overlays.get(scene).getObjectByName('fire-light').getObjectByName(name);
 // A mesh's box in the interior frame [a, d, z]: three x = a, y = z, z = −d.
 const frame = m => { m.updateWorldMatrix(true, false); const b = new THREE.Box3().setFromObject(m); return {a: [b.min.x, b.max.x], d: [-b.max.z, -b.min.z], z: [b.min.y, b.max.y]}; };
 const near = (x, y, msg) => assert.ok(Math.abs(x - y) < 1e-6, `${msg}: ${x} against ${y}`);
@@ -41,8 +42,9 @@ test('the fireplace stands on the living room\'s gable wall where the blueprint 
 
 test('the breasts fill the blueprint\'s obstacles and nothing of the fireplace stands beyond them where a visitor walks', () => {
   const {scene, dispose} = build(), GROW = .12, SLAB = .05;
-  scene.getObjectByName('fireplace').updateWorldMatrix(true, true);
-  scene.getObjectByName('fireplace').traverse(o => {
+  const parts = [scene.getObjectByName('fireplace'), overlays.get(scene).getObjectByName('fire-light')];
+  for (const g of parts) g.updateWorldMatrix(true, true);
+  for (const g of parts) g.traverse(o => {
     if (!o.isMesh) return;
     const p = o.geometry.getAttribute('position'), v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) {
@@ -110,7 +112,7 @@ test('the fireplace builds as well when the lit materials could not be made, wit
   const warn = console.warn; console.warn = () => {};
   // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
   class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
-  let built; try { built = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings}); } finally { console.warn = warn; }
+  let built; try { built = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings}); } finally { console.warn = warn; } overlays.set(built.scene, built.overlay);
   const {scene, setFire, lit, dispose} = built;
   assert.equal(lit, false);
   for (const n of ['breast', 'slab', 'mantel', 'breast-upper']) assert.ok(part(scene, n).material.isMeshLambertMaterial, n);

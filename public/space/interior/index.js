@@ -327,13 +327,17 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   // A lamp in every room, built from the same tints and materials, weighed by the same field.
   const fittings = buildFittings(THREE, {interior: I, light, field, tints: {plaster, boards}, materials: {surface, plastered}});
   scene.add(fittings.object);
+  // The added light (the lamps' halos, the flames and the fire's glow), a scene of its own that the view draws after the yard seen
+  // through the live panes, into the same target, depth-tested against the rooms and with no stencil: drawn with the rooms it would
+  // lie under the views, and a halo in front of a live pane would be cut along the pane's edge.
+  const overlay = new THREE.Scene(); overlay.name = 'interior-overlay'; overlay.add(fittings.overlay, fireplace.overlay);
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
   const daytime = interiorDials({interior: I, ...DAYTIME}); fittings.setLight(daytime);
   if (light) light.set(daytime); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
   const clamp01 = x => Math.min(1, Math.max(0, x));
   // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
-  return {scene, field, get lit() { return !!light; },
+  return {scene, overlay, field, get lit() { return !!light; },
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
     setLight(dials) { light?.set(dials); fittings.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on

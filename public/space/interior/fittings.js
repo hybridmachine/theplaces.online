@@ -102,7 +102,9 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
     shader.fragmentShader = patched(patched(shader.fragmentShader, 'varying vec3 vNormal, vView;', 'varying vec3 vNormal, vView; varying float vLevel;'), 'vec4( glow, opacity *', 'vec4( glow, opacity * vLevel *');
   };
   haloMat.customProgramCacheKey = () => `fitting-halos-${levels.length}`;
-  const halos = new THREE.Mesh(merged(balls), haloMat); halos.name = 'halos'; halos.frustumCulled = false; object.add(halos);
+  // Added light, so in `overlay`, which the view draws after the yard seen through the live panes (see buildInterior).
+  const overlay = new THREE.Group(); overlay.name = 'lamp-light';
+  const halos = new THREE.Mesh(merged(balls), haloMat); halos.name = 'halos'; halos.frustumCulled = false; overlay.add(halos);
 
   // A frame's lamp levels, a number per room in interior.rooms order (a fully lit room is about 1.1; 1 and over is fully lit); a
   // room not named is out. Writes into the existing arrays: nothing is allocated, and nothing is uploaded when no level changed.
@@ -129,7 +131,7 @@ attribute float lampRoom; uniform float levels[${levels.length}];`),
   setLamps();
   // The lit surfaces given up (buildInterior's fallBack): the ironwork takes the shell's flat surface; glasses and halos carry on.
   function fallBack(flat) { object.traverse(o => { if (o.name === 'ironwork') o.material = flat.surface; }); }
-  return {object, setLamps, setLight, fallBack, dispose() {
-    object.traverse(o => o.geometry?.dispose()); glassMaterial.dispose(); haloMat.dispose(); glasses.dispose();
+  return {object, overlay, setLamps, setLight, fallBack, dispose() {
+    object.traverse(o => o.geometry?.dispose()); halos.geometry.dispose(); glassMaterial.dispose(); haloMat.dispose(); glasses.dispose();
   }};
 }

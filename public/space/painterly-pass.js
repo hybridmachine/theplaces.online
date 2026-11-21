@@ -235,9 +235,10 @@ export class PainterlyPass {
     this.canvas.uniforms.detail.value.y = this.scale < 1 ? LIGHT_NEAR_DETAIL : DETAIL[1];
     this.canvas.uniforms.dpr.value = this.pixelRatio;
   }
-  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water. `views` (window-views.js),
-  // if given, draws the yard through the live panes into the scene target after the scene; its prepared views (each with the
-  // visitor's projection) tell the filter where they lie on screen and from which eye.
+  // `water` false paints a scene without the lake (the cabin's rooms): no surface is masked as water. `views` (window-views.js, as
+  // SpaceView wraps it), if given, draws into the scene target after the scene and before the filter: the yard through the live
+  // panes and then the rooms' added light over them. Its result says whether any view was drawn, and its prepared views (each with
+  // the visitor's projection) tell the filter where they lie on screen and from which eye.
   render(scene, camera, {water = true, views = null} = {}) {
     const {renderer} = this, u = this.canvas.uniforms;
     u.waterMask.value = water ? 1 : 0;

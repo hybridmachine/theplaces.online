@@ -10,8 +10,10 @@ import {viewOpenings} from '../shared/window-views.js';
 import {stubArt} from './space-scene.test.js';
 
 const openings = viewOpenings(I, LAKESIDE_SPACE, LAKESIDE_DRESSING);
-const build = () => buildInterior(THREE, {interior: I, art: stubArt(), openings});
-const lamps = scene => scene.getObjectByName('fittings');
+// (the halos are drawn over the live views, so they stand in the interior's overlay, not its scene)
+const overlays = new WeakMap(), kept = out => { overlays.set(out.scene, out.overlay); return out; };
+const build = () => kept(buildInterior(THREE, {interior: I, art: stubArt(), openings}));
+const lamps = scene => scene.getObjectByName('fittings'), halosOf = scene => overlays.get(scene).getObjectByName('halos');
 const roomOf = id => I.rooms.find(r => r.id === id), indexOf = id => I.rooms.findIndex(r => r.id === id);
 const slot = id => I.fittings.findIndex(f => f.room === id);
 const near = (x, y, msg) => assert.ok(Math.abs(x - y) < 1e-6, `${msg}: ${x} against ${y}`);
@@ -25,7 +27,7 @@ const vertices = group => {
 const glassAt = (scene, k) => { const g = lamps(scene).getObjectByName('glasses'), m = new THREE.Matrix4().fromArray(g.instanceMatrix.array, k * 16); const v = new THREE.Vector3().setFromMatrixPosition(m); return [v.x, -v.z, v.y]; };
 const glassColour = (scene, k) => Array.from(lamps(scene).getObjectByName('glasses').instanceColor.array.slice(k * 3, k * 3 + 3));
 // the halos' level for a fitting's room (the uniform array runs in interior.rooms order)
-const haloLevel = (scene, k) => lamps(scene).getObjectByName('halos').material.uniforms.levels.value[indexOf(I.fittings[k].room)];
+const haloLevel = (scene, k) => halosOf(scene).material.uniforms.levels.value[indexOf(I.fittings[k].room)];
 const levels = on => I.rooms.map((r, i) => on.includes(r.id) ? 1.1 : 0);
 
 test('every room has its lamp where the blueprint puts it', () => {
@@ -59,7 +61,7 @@ const wholeFitting = (scene, k) => {
   const f = I.fittings[k], out = vertices(lamps(scene).getObjectByName(`lamp-${f.room}`)), glasses = lamps(scene).getObjectByName('glasses');
   const g = glasses.geometry.getAttribute('position'), m = new THREE.Matrix4().fromArray(glasses.instanceMatrix.array, k * 16), v = new THREE.Vector3();
   for (let i = 0; i < g.count; i++) { v.fromBufferAttribute(g, i).applyMatrix4(m); out.push([v.x, -v.z, v.y]); }
-  const halo = lamps(scene).getObjectByName('halos').geometry, p = halo.getAttribute('position'), room = halo.getAttribute('lampRoom');
+  const halo = halosOf(scene).geometry, p = halo.getAttribute('position'), room = halo.getAttribute('lampRoom');
   for (let i = 0; i < p.count; i++) if (Math.round(room.getX(i)) === indexOf(f.room)) out.push([p.getX(i), -p.getZ(i), p.getY(i)]);
   return out;
 };
@@ -80,7 +82,7 @@ test('no part of a fitting, its halo included, hangs lower than 1.95 m or stands
 });
 
 test('the halo patch scales each ball by its room\'s level, and refuses to pass when the shader is not the one it knows', () => {
-  const {scene, dispose} = build(), m = lamps(scene).getObjectByName('halos').material;
+  const {scene, dispose} = build(), m = halosOf(scene).material;
   const stub = {vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, uniforms: m.uniforms};
   m.onBeforeCompile(stub);
   assert.notEqual(stub.vertexShader, m.vertexShader); assert.notEqual(stub.fragmentShader, m.fragmentShader);
@@ -92,7 +94,7 @@ test('the halo patch scales each ball by its room\'s level, and refuses to pass 
 });
 
 test('a glass is pale when out and warm when lit, by its own room\'s level only', () => {
-  const {scene, setLamps, dispose} = build(), halos = lamps(scene).getObjectByName('halos');
+  const {scene, setLamps, dispose} = build(), halos = halosOf(scene);
   const pale = glassColour(scene, 0), out = I.fittings.map((_, k) => glassColour(scene, k));
   // every glass starts out: pale (taking the plain daytime the rooms are built with), none warm
   assert.ok(out.every(c => c[0] / c[2] < 1.6 && c[0] < 2), `every glass starts pale: ${out.map(c => c.map(v => v.toFixed(2)))}`);
@@ -126,7 +128,7 @@ test('the lamps are built without the lit materials too', t => {
   // (the lit surfaces' materials: vertex-coloured basic materials over a painted map; the fire's own vertex-coloured flames and embers have none)
   class Failing extends THREE.MeshBasicMaterial { constructor(o) { if (o?.vertexColors && o?.map) throw new Error('no lit material'); super(o); } }
   t.mock.method(console, 'warn', () => {});
-  const out = buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings});
+  const out = kept(buildInterior({...THREE, MeshBasicMaterial: Failing}, {interior: I, art: stubArt(), openings}));
   assert.equal(out.lit, false);
   for (const f of I.fittings) assert.ok(lamps(out.scene).getObjectByName(`lamp-${f.room}`), f.room);
   out.setLight({day: [0, 0, 0], fill: [0, 0, 0], lamps: levels(['living']), fire: 0});
