@@ -1,5 +1,7 @@
 // The cabin's interior in metres: `a` 0-18 along the front wall from the chimney end, `d` 0-12 back from the front wall, z up
 // from the ground floor. Authored data only; the rules that say it is valid live in interior.js.
+import {obstaclesOf} from './furniture.js';
+
 const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v === 'object' ? Object.freeze(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]))) : v;
 const room = (id, name, floor, a, d) => ({id, name, floor, a, d});
 // An opening in the wall on the line `line` = `at` between two rooms of one floor; `span` is its range along that wall.
@@ -7,8 +9,52 @@ const opening = (floor, rooms, line, at, span) => ({id: rooms.join('-'), floor, 
 const wallWindow = (id, room, wall, a, d) => ({id, room, kind: 'wall', wall, a, width: 1.4, sill: .8, height: 1.5});
 const fitting = (room, kind, at) => ({room, kind, at});
 const roofWindow = (id, room, a, width, d) => ({id, room, kind: 'roof', a, width, d});
+// Furniture: a piece standing on the floor at `at` turned by `turn` (radians, anticlockwise seen from above; a piece faces its local −deep side,
+// so turn 0 faces −d, π/2 faces +a, π faces +d and −π/2 faces −a); one hung on the wall line `line` of axis `wall`, over `along` at height `z`;
+// or one set on another piece (or the mantel).
+const standing = (id, kind, room, at, turn = 0, size) => ({id, kind, room, at, turn, ...(size ? {size} : {})});
+const hung = (id, kind, room, wall, line, along, z) => ({id, kind, room, wall, line, along, z});
+const setOn = (id, kind, room, on) => ({id, kind, room, on});
+const many = (n, id, kind, room, on) => Array.from({length: n}, (_, i) => setOn(`${id}-${i + 1}`, kind, room, on));
 
-export const LAKESIDE_INTERIOR = deep({
+// The two chimney breasts as solid rectangles of their floors.
+const BREASTS = [{floor: 0, a: [0, .5], d: [2.5, 4.5]}, {floor: 1, a: [0, .4], d: [2.9, 4.1]}];
+// The stair's newel at its foot corner, and its handrail: `height` above the treads, the newel `newelHeight` tall, ending at d = `ends`.
+const STAIR_RAIL = {newel: [9.55, 1.42], height: .9, newelHeight: 1.1, ends: 3.84};
+const FURNITURE = [
+  // The living room: the fire group on the hearth rug, the casement's window seat, the bookshelf on the kitchen wall.
+  standing('hearth-rug', 'rug', 'living', [2.6, 3.5], .03, [2.34, 1.93]),
+  standing('low-table', 'low-table', 'living', [2.6, 3.5], Math.PI / 2),
+  standing('sofa', 'sofa', 'living', [4.95, 3.5], -Math.PI / 2),                  // facing the fire
+  standing('console', 'console', 'living', [5.575, 3.5], Math.PI / 2),            // against the sofa's back
+  standing('armchair-front', 'armchair', 'living', [2.2, 1.7], Math.PI + .61),    // facing into the room, turned 35° toward the hearth
+  standing('armchair-back', 'armchair', 'living', [2.3, 5.25], -.52),              // facing the front wall, turned 30° toward the hearth
+  standing('side-table', 'side-table', 'living', [3.225, 1.525]),
+  standing('window-seat', 'window-seat', 'living', [4.2, .315], Math.PI),
+  standing('bookshelf', 'bookshelf', 'living', [1.8, 6.75]),
+  standing('standing-lamp', 'standing-lamp', 'living', [3.3, 6.7]),
+  standing('log-basket', 'log-basket', 'living', [.85, 5]),
+  standing('fire-irons', 'fire-irons', 'living', [.65, 2.25]),
+  hung('picture-1', 'picture', 'living', 'd', 0, [1.2, 2], 1.5),
+  hung('picture-2', 'picture', 'living', 'a', 7, [5.6, 6.4], 1.5),
+  hung('picture-3', 'picture', 'living', 'a', 0, [5.2, 6], 1.5),
+  setOn('table-lamp', 'table-lamp', 'living', 'side-table'),
+  setOn('clock', 'clock', 'living', 'mantel'), setOn('jug', 'jug', 'living', 'mantel'), ...many(2, 'candlestick', 'candlestick', 'living', 'mantel'),
+  ...many(3, 'cushion-sofa', 'cushion', 'living', 'sofa'), setOn('cushion-armchair-front', 'cushion', 'living', 'armchair-front'),
+  setOn('cushion-armchair-back', 'cushion', 'living', 'armchair-back'), ...many(2, 'cushion-window-seat', 'cushion', 'living', 'window-seat'),
+  setOn('throw', 'throw', 'living', 'sofa'), setOn('book', 'book', 'living', 'low-table'), setOn('cup', 'cup', 'living', 'low-table'),
+  // The hall: the bench and hooks behind the open leaf, the umbrella stand in its pocket, the runner to the dining room, the newel.
+  standing('boot-bench', 'boot-bench', 'hall', [7.265, .975], Math.PI / 2),
+  standing('umbrella-stand', 'umbrella-stand', 'hall', [8.05, .3]),
+  standing('runner', 'runner', 'hall', [8.7, 3.9], .02, [.908, 4.58]),
+  standing('doormat', 'doormat', 'hall', [9, .45], 0, [.9, .5]),
+  standing('newel', 'newel', 'hall', STAIR_RAIL.newel),
+  hung('hooks', 'hooks', 'hall', 'a', 7, [.35, 1.6], 1.6),
+  hung('mirror', 'mirror', 'hall', 'a', 7, [5.6, 6.2], 1.5),
+  ...many(3, 'coat', 'coat', 'hall', 'hooks'), setOn('hat', 'hat', 'hall', 'hooks'), setOn('boots', 'boots', 'hall', 'boot-bench')
+];
+
+const BLUEPRINT = {
   version: 1, size: [18, 12], wall: .15, eyeClear: .25,
   floorRise: 3.0, groundCeiling: 2.7, eaveCeiling: 1.9, ridgeCeiling: 3.6, ridgeAt: 6, doorHead: 2.1, roofReveal: .15,
   rooms: [
@@ -67,8 +113,12 @@ export const LAKESIDE_INTERIOR = deep({
   // The fireplace on the living room's chimney wall (a = 0), centred at d: the breast it stands in, the opening of its fire, the hearth
   // slab reaching into the room, the mantel shelf's height above the floor, and the narrower breast that continues upstairs.
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
-  // The two chimney breasts as solid rectangles of their floors.
-  obstacles: [{floor: 0, a: [0, .5], d: [2.5, 4.5]}, {floor: 1, a: [0, .4], d: [2.9, 4.1]}],
+  breasts: BREASTS,
+  furniture: FURNITURE,
+  stairRail: STAIR_RAIL,
+  // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, and the two
+  // spots the frame cost is measured from.
+  spots: {hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1], speed: [[4.2, 3], [3.8, 5.5]]},
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
     fitting('living', 'hanging', [3.8, 3.5, 2.15]), fitting('study', 'hanging', [14.5, 2, 2.15]), fitting('kitchen', 'hanging', [4.75, 9.5, 2.15]),
@@ -81,4 +131,6 @@ export const LAKESIDE_INTERIOR = deep({
     fitting('linen', 'wall', [17.8, 10.75, 4.6])
   ],
   lightSeed: 20261120
-});
+};
+// What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
+export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});

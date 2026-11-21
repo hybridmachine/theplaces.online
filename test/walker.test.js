@@ -117,7 +117,7 @@ test('from the landing one cannot walk into the stairwell', () => {
 });
 
 test('holding W into the open door leaf from either side never crosses it', () => {
-  for (const [start, yaw, side] of [[[9, .8], -Math.PI / 2, 1], [[8, .6], Math.PI / 2, -1]]) {
+  for (const [start, yaw, side] of [[[9, .8], -Math.PI / 2, 1], [[8, .8], Math.PI / 2, -1]]) {   // (the second clear of the umbrella stand)
     let s = {...entry, position: start, yaw};
     for (let i = 0; i < 150; i++) {
       s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
@@ -143,7 +143,26 @@ test('holding W into the chimney breast from any side never enters it', () => {
     for (let i = 0; i < 240; i++) {
       s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
       assert.ok(standable(s) && s.floor === floor, `${floor} ${start} entered at ${s.position}`);
-      for (const o of I.obstacles) if (o.floor === floor) assert.ok(!(s.position[0] < o.a[1] && s.position[1] > o.d[0] && s.position[1] < o.d[1]), `inside the breast at ${s.position}`);
+      for (const o of I.breasts) if (o.floor === floor) assert.ok(!(s.position[0] < o.a[1] && s.position[1] > o.d[0] && s.position[1] < o.d[1]), `inside the breast at ${s.position}`);
     }
   }
+});
+
+test('held into the sofa\'s front the walker stops 0.25 m short, and slides along it on a diagonal', () => {
+  const sofa = I.obstacles.find(o => o.id === 'sofa'), inside = p => p[0] > sofa.a[0] && p[0] < sofa.a[1] && p[1] > sofa.d[0] && p[1] < sofa.d[1];
+  const start = {...entry, position: [4.2, 3.5]};
+  assert.ok(standable(start));
+  let s = {...start, yaw: Math.PI / 2};
+  for (let i = 0; i < 120; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && s.floor === 0 && !inside(s.position), `entered at ${s.position}`);
+  }
+  assert.ok(s.position[0] <= sofa.a[0] - .25 + 1e-9, `stopped at ${s.position}`);
+  assert.ok(s.position[0] > sofa.a[0] - .35, `pressed close: ${s.position}`);
+  let g = {...start, yaw: Math.PI / 4};
+  for (let i = 0; i < 30; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inside(g.position), `entered at ${g.position}`);
+  }
+  assert.ok(g.position[0] <= sofa.a[0] - .25 + 1e-9 && g.position[1] > start.position[1] + .5, `slid along it to ${g.position}`);
 });

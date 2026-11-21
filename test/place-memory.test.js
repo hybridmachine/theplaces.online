@@ -92,5 +92,12 @@ test('a remembered place in a chimney breast or against it falls back to the arr
   // (just clear of each breast, within the eye's clearance of it but not of the gable wall: only the obstacle rule refuses these)
   assert.equal(at(0, [.6, 3.5]), null);
   assert.equal(at(1, [.5, 3.5]), null);
-  assert.deepEqual(at(0, [3, 3.5]).position, [3, 3.5]);
+  assert.deepEqual(at(0, [3.5, 3.5]).position, [3.5, 3.5]);   // (clear of the low table)
+});
+
+test('a remembered place inside the sofa falls back to the arrival pose; one on the hearth rug loads', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 0, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  const sofa = I.obstacles.find(o => o.id === 'sofa');
+  assert.equal(at([(sofa.a[0] + sofa.a[1]) / 2, (sofa.d[0] + sofa.d[1]) / 2]), null);
+  assert.deepEqual(at([...I.spots.hearth]).position, [...I.spots.hearth]);
 });
