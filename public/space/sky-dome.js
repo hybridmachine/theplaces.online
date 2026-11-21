@@ -1,5 +1,6 @@
 import {toThree} from './geometry.js';
-import {skyLighting} from '../../shared/sky.js';
+import {skyLighting, overcast} from '../../shared/sky.js';
+export {overcast};
 
 // The shared sky drawn round the camera: clear-sky gradient, stars, sun and moon, then two cloud layers.
 // Every part ignores depth and draws before the yard (low renderOrder, opaque queue), so geometry covers it.
@@ -21,8 +22,6 @@ export function skyColours(calendar, dusk) {
   const tone = rgb => mix(rgb.map((v, i) => v / 255 * NIGHT[i]), rgb.map(v => v / 255), clamp(calendar.light));
   return {zenith: warm(tone(DAY_TOP), dusk, .5), horizon: warm(tone(DAY_HORIZON), dusk, 1.5)};
 }
-// How far the sky is overcast: nothing up to the thin cloud of clear skies (0.2), all of it at 0.9 and above.
-export const overcast = weather => clamp((weather.cloud - .2) / .7);
 // Rain greys and darkens the sky's colours, so the far ridges, lake and fog that fade toward them sit under the grey cloud.
 export function weatherSky({zenith, horizon}, weather) {
   const k = overcast(weather), dull = rgb => {

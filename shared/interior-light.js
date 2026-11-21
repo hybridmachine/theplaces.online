@@ -2,6 +2,9 @@
 // reaches a surface point. Painted into the surfaces' colours, so no light source exists in the scene. Pure: no three.js.
 import {roomAt} from './interior.js';
 import {crossing, hidingRuns} from './window-views.js';
+import {sampleCottage, cottageFixture, validCottageState} from './cottage.js';
+import {pathLightLevel} from './path-lights.js';
+import {overcast} from './sky.js';
 
 const deep = v => Array.isArray(v) ? Object.freeze(v.map(deep)) : v && typeof v === 'object' ? Object.freeze(Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)]))) : v;
 // Starting values, tuned by eye. Reaches are metres at which a source's share has fallen to a tenth; `borrow` is the share of a
@@ -75,4 +78,75 @@ export function createLightField(interior, openings) {
     return {day: Math.min(1, dayW), lamp: Math.min(1, lamp), fire: Math.min(1, fire), room: index};
   }
   return {weigh, roomIndex: id => ids.has(id) ? ids.get(id) : -1};
+}
+
+// The dials: what a frame's light is made of, from the shared world's state and clock alone. Colours are linear; times are world milliseconds.
+export const DIALS = deep({fill: [.10, .13, .22], warm: [1, .71, .38], fireWarm: [1, .55, .22], day: 1.15, lamp: 1.1, fire: .9, night: .35, hallLow: .35,
+  fade: 2000, delay: [5000, 90000], threshold: [.3, .9], fireRise: 20000, emberFall: 1800000, flicker: .06, floor: .07});
+
+const clamp = x => Math.max(0, Math.min(1, x));
+const ramp = (x, a, b) => clamp((x - a) / (b - a));
+const smooth = (x, a, b) => { const t = ramp(x, a, b); return t * t * (3 - 2 * t); };
+// A number in [0, 1) fixed by the seed, a room and a lane (integer hash, no state).
+const seeded = (seed, index, lane) => { let h = Math.imul(seed | 0, 374761393) + Math.imul(index + 1, 668265263) + Math.imul(lane + 1, 2246822519); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const within = ([lo, hi], t) => lo + (hi - lo) * t;
+const NIGHT_LAMP = ['hall', 'landing'];
+
+// Awake while either of the world's two lights is lit. It woke at the earliest `lastLightAt` of the lights now lit (a second light does
+// not wake it again) and, asleep, fell asleep at the later of the two. An unreadable state is asleep since forever.
+export function houseAwake(cottage) {
+  if (!validCottageState(cottage)) return {on: false, since: -Infinity};
+  const {rooms: r, lastLightAt: t} = cottage, lit = ['main', 'second'].filter(k => r[k]);
+  return lit.length ? {on: true, since: Math.min(...lit.map(k => t[k]))} : {on: false, since: Math.max(t.main, t.second)};
+}
+
+// One level 0–1 per room, in `interior.rooms` order. `dark` is the path lights' level, `pose` the world's lights sampled, `awake` from houseAwake.
+export function roomLamps(interior, {dark, pose, awake, now, settled = false}) {
+  const seed = interior.lightSeed, low = DIALS.hallLow;
+  return interior.rooms.map((room, i) => {
+    if (room.id === 'living') return pose ? pose.main : 0;
+    if (room.id === 'study') return pose ? pose.second : 0;
+    const delay = NIGHT_LAMP.includes(room.id) ? 0 : within(DIALS.delay, seeded(seed, i, 0));
+    const progress = settled ? 1 : smooth(now - awake.since - delay, 0, DIALS.fade), wake = awake.on ? progress : 1 - progress;
+    if (NIGHT_LAMP.includes(room.id)) return clamp(dark) * (low + (1 - low) * wake);
+    const at = within(DIALS.threshold, seeded(seed, i, 1));
+    return smooth(dark, at, at + .1) * wake;
+  });
+}
+
+// The fire rises linearly while it burns; its embers glow while it does and die away after it goes out. Unreadable is cold.
+export function fireLevel(hearth, now, {settled = false} = {}) {
+  if (!hearth || typeof hearth.on !== 'boolean') return {fire: 0, embers: 0};
+  if (hearth.on) return {fire: settled ? 1 : ramp(now - hearth.since, 0, DIALS.fireRise), embers: 1};
+  const end = hearth.lastBurn?.end;
+  return {fire: 0, embers: Number.isFinite(end) ? 1 - ramp(now - end, 0, DIALS.emberFall) : 0};
+}
+
+// Near 1: three slow sines of the world's seconds, so every visitor sees the same flame. Steady under reduced motion.
+export const flicker = (seconds, motion) => motion ? 1 + DIALS.flicker * (Math.sin(seconds * 7.3) + Math.sin(seconds * 11.9 + 1.7) + Math.sin(seconds * 3.1 + 4.2)) / 3 : 1;
+
+const toLinear = rgb => rgb.map(v => Math.max(0, v) ** 2.2);
+
+// The frame's dials. A `study` fixes the lights to its fixture, the house awake if it lights either room, every fade finished, and the fire
+// lit in the night and dusk studies; the calendar and weather given are then the study's own.
+export function interiorDials({interior, calendar, weather, sky, cottage, pose, now, seconds, motion, study}) {
+  const light = clamp(calendar.light), dark = pathLightLevel(calendar);
+  const mean = toLinear([0, 1, 2].map(i => (sky.zenith[i] + sky.horizon[i]) / 2)), top = Math.max(...mean) || 1;
+  const strength = DIALS.day * light * (1 - .35 * overcast(weather));
+  const fill = DIALS.fill.map(v => v * DIALS.night * Math.max(1 - .7 * light, .3));
+  let lit = pose, awake = houseAwake(cottage), settled = false, flame = fireLevel(cottage?.hearth, now);
+  if (study) {
+    lit = cottageFixture(study); settled = true; awake = {on: lit.main > 0 || lit.second > 0, since: -Infinity};
+    flame = study === 'night' || study === 'dusk' ? {fire: 1, embers: 1} : {fire: 0, embers: 0};
+  }
+  const levels = roomLamps(interior, {dark, pose: lit, awake, now, settled});
+  const hall = levels[interior.rooms.findIndex(r => r.id === 'hall')];
+  return {day: mean.map(v => v / top * strength), fill, lamps: levels.map(v => v * DIALS.lamp),
+    fire: flame.fire * DIALS.fire * flicker(seconds, motion), embers: flame.embers, doorway: hall};
+}
+
+// The light a point shows: the sum the shader computes from the same dials and weights.
+export function lightAt(field, dials, floor, point, normal) {
+  const w = field.weigh(floor, point, normal), lamp = w.room >= 0 ? dials.lamps[w.room] * w.lamp : 0;
+  return [0, 1, 2].map(i => dials.day[i] * w.day + dials.fill[i] + DIALS.warm[i] * lamp + DIALS.fireWarm[i] * dials.fire * w.fire);
 }

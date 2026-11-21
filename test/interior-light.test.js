@@ -5,7 +5,11 @@ import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING as D} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
 import {ceilingHeight} from '../shared/interior.js';
-import {createLightField, LIGHT} from '../shared/interior-light.js';
+import {floorArea} from '../shared/interior.js';
+import {createLightField, LIGHT, DIALS, houseAwake, roomLamps, fireLevel, flicker, interiorDials, lightAt} from '../shared/interior-light.js';
+import {createCottageState, sampleCottage} from '../shared/cottage.js';
+import {overcast} from '../shared/sky.js';
+import {overcast as reexported} from '../public/space/sky-dome.js';
 
 const O = viewOpenings(I, S, D), F = createLightField(I, O), UP = [0, 0, 1];
 const day = (p, n = UP, f = 0, field = F) => field.weigh(f, p, n).day;
@@ -109,4 +113,169 @@ test('a sweep of 20,000 points is fast', () => {
   const ms = Number(process.hrtime.bigint() - t) / 1e6;
   console.log(`# 20000 weigh() calls: ${ms.toFixed(0)} ms`);
   assert.ok(ms < 1000);
+});
+
+// ---- the dials ----
+const T0 = 1e9, ids = I.rooms.map(r => r.id), idx = id => ids.indexOf(id);
+const OTHERS = ids.filter(id => !['living', 'study', 'hall', 'landing'].includes(id));
+const cot = (rooms, lastLightAt, hearth = {on: false, since: 0, lastBurn: null}) => ({...createCottageState(0, 0), rooms, lastLightAt, hearth});
+const lamps = (o) => roomLamps(I, {dark: 1, pose: {main: 0, second: 0}, awake: {on: true, since: T0}, now: T0, ...o});
+const level = (arr, id) => arr[idx(id)];
+
+test('the overcast helper moved to shared and is still exported by the sky dome', () => {
+  assert.equal(reexported, overcast);
+  assert.equal(overcast({cloud: .2}), 0);
+  assert.equal(overcast({cloud: .9}), 1);
+});
+
+test('the house wakes at the first light and sleeps at the last; a second light does not wake it again', () => {
+  assert.deepEqual(houseAwake(cot({main: true, second: false}, {main: 5000, second: 1000})), {on: true, since: 5000});
+  assert.deepEqual(houseAwake(cot({main: true, second: true}, {main: 5000, second: 9000})), {on: true, since: 5000});
+  assert.deepEqual(houseAwake(cot({main: false, second: true}, {main: 5000, second: 9000})), {on: true, since: 9000});
+  assert.deepEqual(houseAwake(cot({main: false, second: false}, {main: 5000, second: 9000})), {on: false, since: 9000});
+  assert.deepEqual(houseAwake(null), {on: false, since: -Infinity});
+});
+
+test("the living room and the study follow the world's two lights, with their fades", () => {
+  const c = cot({main: false, second: false}, {main: 0, second: 0});
+  c.pending = {id: 'x', actor: c.residentId, kind: 'light', room: 'main', from: 0, target: true, start: 1000, motionStart: 2000, end: 4000};
+  c.nextDecisionAt = 30000;
+  const at = now => { const pose = sampleCottage(c, now); return lamps({pose, now}); };
+  assert.equal(level(at(1500), 'living'), 0);
+  const mid = level(at(3000), 'living');
+  assert.ok(mid > 0 && mid < 1, `${mid}`);
+  assert.equal(level(at(4000), 'living'), 1);
+  assert.equal(level(lamps({pose: {main: 0, second: .65}}), 'study'), .65);
+});
+
+test('the hall and landing burn low from dusk to dawn and fully while the house is awake', () => {
+  const asleep = {on: false, since: T0 - 1e7}, awake = {on: true, since: T0 - 1e7};
+  for (const id of ['hall', 'landing']) {
+    assert.equal(level(lamps({awake: asleep}), id), DIALS.hallLow);
+    assert.equal(level(lamps({awake}), id), 1);
+    assert.equal(level(lamps({awake, dark: 0}), id), 0);
+    assert.equal(level(lamps({awake: asleep, dark: .5}), id), .5 * DIALS.hallLow);
+  }
+});
+
+test('the other rooms need the dark and a waking house, each after its own delay', () => {
+  const at = ms => OTHERS.map(id => level(lamps({now: T0 + ms}), id));
+  assert.ok(at(4000).every(v => v === 0));
+  assert.ok(at(95000).every(v => v === 1));
+  const between = [at(10000), at(30000), at(60000)].flat();
+  assert.ok(new Set(between).size > 3);
+  assert.ok(OTHERS.some((id, i) => at(30000)[i] !== at(30000)[0]));
+  // each room's delay lies within DIALS.delay: it is still 0 at the least, and 1 by the greatest plus the fade
+  assert.ok(at(DIALS.delay[0] - 1).every(v => v === 0));
+  assert.ok(at(DIALS.delay[1] + DIALS.fade).every(v => v === 1));
+});
+
+test('a visitor arriving hours after the house woke finds every room already lit', () => {
+  const l = lamps({now: T0 + 3 * 3600e3});
+  assert.ok(OTHERS.every(id => level(l, id) === 1));
+  assert.deepEqual(l, lamps({now: T0 + 3 * 3600e3}));
+});
+
+test('each room answers the dusk at its own point', () => {
+  const settled = {settled: true};
+  assert.ok(OTHERS.every(id => level(lamps({dark: .25, ...settled}), id) === 0));
+  assert.ok(OTHERS.every(id => level(lamps({dark: 1, ...settled}), id) === 1));
+  const ts = OTHERS.map(id => { let lo = 0, hi = 1; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; level(lamps({dark: m, ...settled}), id) > 0 ? hi = m : lo = m; } return hi; });
+  assert.ok(ts.every(t => t >= DIALS.threshold[0] - 1e-6 && t <= DIALS.threshold[1] + 1e-6), `${ts}`);
+  assert.ok(new Set(ts.map(t => t.toFixed(4))).size > 1);
+});
+
+test('when the house sleeps the rooms go out apart, and the hall falls back to low', () => {
+  const since = T0, asleep = ms => lamps({awake: {on: false, since}, now: since + ms});
+  assert.ok(OTHERS.every(id => level(asleep(0), id) === 1));
+  assert.ok(OTHERS.every(id => level(asleep(DIALS.delay[1] + DIALS.fade), id) === 0));
+  assert.ok(new Set(OTHERS.map(id => level(asleep(30000), id))).size > 1);
+  assert.equal(level(asleep(0), 'hall'), 1);
+  assert.equal(level(asleep(5000), 'hall'), DIALS.hallLow);
+});
+
+test('the delays and thresholds are the same on every call and for every visitor', () => {
+  const a = lamps({now: T0 + 40000, dark: .8}), b = lamps({now: T0 + 40000, dark: .8});
+  assert.deepEqual(a, b);
+  assert.notDeepEqual(roomLamps({...I, lightSeed: 7}, {dark: .8, pose: {main: 0, second: 0}, awake: {on: true, since: T0}, now: T0 + 40000}), a);
+});
+
+test('the fire rises over twenty seconds, and its embers die away over half an hour', () => {
+  const on = {on: true, since: 1000, lastBurn: null}, out = {on: false, since: 9000, lastBurn: {start: 1000, end: 9000}};
+  assert.deepEqual(fireLevel(on, 1000), {fire: 0, embers: 1});
+  assert.deepEqual(fireLevel(on, 1000 + DIALS.fireRise / 2), {fire: .5, embers: 1});
+  assert.deepEqual(fireLevel(on, 1000 + DIALS.fireRise * 3), {fire: 1, embers: 1});
+  assert.deepEqual(fireLevel(on, 5, {settled: true}), {fire: 1, embers: 1});
+  assert.deepEqual(fireLevel(out, 9000), {fire: 0, embers: 1});
+  assert.equal(fireLevel(out, 9000 + DIALS.emberFall / 2).embers, .5);
+  assert.equal(fireLevel(out, 9000 + DIALS.emberFall * 2).embers, 0);
+});
+
+test('a hearth that never burned is cold; an unreadable one is cold', () => {
+  assert.deepEqual(fireLevel({on: false, since: 0, lastBurn: null}, 1e6), {fire: 0, embers: 0});
+  assert.deepEqual(fireLevel(null, 1e6), {fire: 0, embers: 0});
+  assert.deepEqual(fireLevel({}, 1e6), {fire: 0, embers: 0});
+});
+
+test('the fire flickers by a few per cent, and not at all under reduced motion', () => {
+  const v = Array.from({length: 1000}, (_, i) => flicker(i * .137, true));
+  assert.ok(v.every(x => Math.abs(x - 1) <= DIALS.flicker + 1e-12));
+  assert.ok(new Set(v).size > 100);
+  assert.ok(Array.from({length: 100}, (_, i) => flicker(i * .5, false)).every(x => x === 1));
+  const mean = Array.from({length: 6000}, (_, i) => flicker(i * .01, true)).reduce((a, b) => a + b) / 6000;
+  assert.ok(Math.abs(mean - 1) < .01, `${mean}`);
+});
+
+const cal = (light, elevation, hour = 20) => ({light, elevation, hour});
+const SKY = {zenith: [.62, .70, .76], horizon: [.83, .83, .75]}, NIGHT_SKY = {zenith: [.1, .14, .2], horizon: [.1, .14, .2]};
+const base = {interior: I, sky: SKY, cottage: null, pose: {main: 0, second: 0}, now: T0, seconds: 10, motion: false};
+
+test('daylight follows the sky: strong at noon, dim under overcast, gone at night', () => {
+  const noon = interiorDials({...base, calendar: cal(1, 1, 12), weather: {cloud: 0}}), grey = interiorDials({...base, calendar: cal(1, 1, 12), weather: {cloud: 1}});
+  const night = interiorDials({...base, sky: NIGHT_SKY, calendar: cal(0, -1, 0), weather: {cloud: 0}});
+  assert.equal(Math.max(...noon.day), DIALS.day);
+  assert.ok(Math.abs(Math.max(...grey.day) - DIALS.day * .65) < 1e-9);
+  assert.deepEqual(night.day, [0, 0, 0]);
+  assert.ok(noon.fill.every((v, i) => Math.abs(v - DIALS.fill[i] * DIALS.night * .3) < 1e-12));
+  assert.ok(night.fill.every((v, i) => v === DIALS.fill[i] * DIALS.night));
+});
+
+test('a study shows the settled picture, with the fire lit at night and dusk', () => {
+  const d = name => interiorDials({...base, study: name, calendar: cal(0, -1, 0), weather: {cloud: 0}, now: 0});
+  assert.equal(d('night').fire, DIALS.fire);
+  assert.equal(d('night').embers, 1);
+  assert.equal(d('dusk').fire, DIALS.fire);
+  assert.equal(d('day').fire, 0);
+  assert.equal(d('day').embers, 0);
+  assert.equal(level(d('night').lamps, 'living'), DIALS.lamp);
+  assert.ok(OTHERS.every(id => level(d('night').lamps, id) === DIALS.lamp));
+  assert.ok(OTHERS.every(id => level(d('day').lamps, id) === 0));
+  assert.equal(level(d('day').lamps, 'hall'), DIALS.hallLow * DIALS.lamp);
+  assert.equal(d('night').doorway, 1);
+});
+
+test('a world with no readable cottage still lights the way: fill and the hall and landing lamps', () => {
+  const d = interiorDials({...base, pose: null, calendar: cal(0, -1, 0), weather: {cloud: 0}});
+  assert.equal(d.fire, 0);
+  assert.equal(d.embers, 0);
+  assert.equal(level(d.lamps, 'hall'), DIALS.hallLow * DIALS.lamp);
+  assert.equal(level(d.lamps, 'landing'), DIALS.hallLow * DIALS.lamp);
+  assert.equal(d.doorway, DIALS.hallLow);
+  assert.ok([...OTHERS, 'living', 'study'].every(id => level(d.lamps, id) === 0));
+});
+
+test('no standable spot is dark at midnight under full overcast with every lamp out', () => {
+  const dials = interiorDials({...base, calendar: cal(0, -1, 0), weather: {cloud: 1}, cottage: cot({main: false, second: false}, {main: 0, second: 0}), pose: {main: 0, second: 0}, now: 1e12});
+  let n = 0, worst = Infinity;
+  for (const f of [0, 1]) for (let a = 0; a <= 18; a += .4) for (let d = 0; d <= 12; d += .4) {
+    if (!floorArea(I, f, [a, d])) continue;
+    const z = f * I.floorRise;
+    for (const [pt, nrm] of [[[a, d, z], [0, 0, 1]], [[a, d, z + 1.5], [0, 1, 0]], [[a, d, z + 1.5], [0, -1, 0]]]) {
+      const m = Math.max(...lightAt(F, dials, f, pt, nrm)); n++;
+      worst = Math.min(worst, m);
+      assert.ok(m >= DIALS.floor, `floor ${f} at ${a}, ${d}: ${m}`);
+    }
+  }
+  assert.ok(n > 500);
+  console.log(`# darkest standable point: ${worst.toFixed(4)} over ${n} samples`);
 });
