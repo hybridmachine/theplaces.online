@@ -1,6 +1,6 @@
 # Cabin interior, part 3: light — design
 
-Status: proposed, November 20, 2026. Awaiting approval. Nothing is built.
+Status: built behind `?interior=1`, awaiting owner review; run only on desktop Chromium on one Mac.
 
 This is part 3 of `2026-11-17-cabin-interior-design.md` (the parent). The parent's intent, goals, non-goals and anti-goals still hold, and its "Light" section is the brief; this document settles what that section left open and records two changes to it. Part 2 (`2026-11-17-cabin-interior-part-2-windows-design.md`) is built and merged.
 
@@ -145,3 +145,62 @@ With every lamp out at midnight under full overcast, every standable spot on bot
 - The exact shapes, sizes and colours of the fireplace and the fittings, and each fitting's exact place.
 - How the flames and embers are drawn.
 - The wording of the description.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open. Constants named here are in `shared/interior-light.js` (`LIGHT`, `DIALS`) as they stand after the final fix wave.
+
+### The dials
+
+- **Each room follows each of the world's two lights on its own**, replacing *awake since*. A room fades toward a light's state from that light's `lastLightAt` plus the room's delay, over `DIALS.fade` (2 s), and takes the greater of its two follows. This relies on the cottage never changing one light twice within `LIGHT_REST_MS` (180 s), longer than the longest delay and fade (92 s), so each follow finishes before that light can change again and the greater-of never jumps. A light off since the cottage's `introducedAt` was never lit.
+- **The fire rises over `DIALS.fireRise` (20 s) and falls over `DIALS.fireFall` (25 s)** from the level it had reached when it went out (a fire put out mid-rise does not jump up). **Its embers die over `DIALS.emberFall` (30 minutes) from the moment the hearth went out.** Both count from `hearth.since`, not `lastBurn.end`: the world clears `lastBurn` at the first decision more than 64 s after a burn ends, long before the embers are cold. A hearth whose `since` is the cottage's `introducedAt` never burned and is cold.
+- **Daylight's colour is the sky's mixed toward a warm white**: the mean of the frame's zenith and horizon, normalised and mixed `dayMix` (0.6) of the way to `dayWhite` [1, 0.91, 0.76], then scaled to `DIALS.day` (2.3) × `calendar.light` × (1 − 0.35 × overcast). So plaster keeps its cream by day and still cools under a cold sky. The night fill is `fill` [0.12, 0.155, 0.26] × `night` (0.35), at least 0.3 of it by day.
+- The hall and landing lamps burn at `hallLow` (0.35) from dusk to dawn and fully while either light of the house is on.
+
+### The light a surface takes
+
+- **Daylight** (`LIGHT.day`): from each pane in plan sight, `face` (0.4) whichever way the surface faces and the rest as it faces the pane, falling to a tenth at `reach` (10 m); the front door counts in the hall's weights only, at `door` (0.5); summed, capped at `cap` (0.55), never under `floor` (0.1). **Borrowed daylight goes on from room to room**: an opening's share is the larger of the panes' light just inside the neighbour and `hop` (0.75) of the best share the neighbour takes at its other openings, settled for the whole house at build time, so a room two or more rooms from any pane (the passage, the ground bath, laundry, pantry, master bedroom, upper bath and linen) is brighter toward the doorway its light comes through than at its far wall. A point takes `borrow` (0.9) of an opening's share, falling over `through` (14 m) from the opening, and **weighted by facing** the light as it comes down through the opening from `behind` (2 m) past its head: the floor and the far wall take it, a jamb or head in the doorway takes little, and `aside` (0.2) whichever way. Every opening of the room counts; the best one gives the light.
+- **Lamp light passes through openings, never through walls**, replacing "a point takes light only from fittings of the room it belongs to". A point takes its own room's fitting (never under `LIGHT.lamp.floor`, 0.15) and a spill from the fitting of a neighbouring room joined to its own by an opening when the plan line to that fitting crosses no solid wall run: the neighbour's weight by the same distance and facing rule, times `LIGHT.lamp.spill`, the stronger neighbour winning. The fix brief gave 0.7 as the spill; at 0.7 the kitchen-dining floor stepped by 0.124 at the wall line with the kitchen lamp full, over the brief's own 0.1 margin, so it is 0.85 (worst step 0.078). It falls only on a surface facing that fitting (fading in over the first few degrees of turn), so the far face of the wall beside the opening, which looks away from the lamp, takes none even right at the jamb where it could see the lamp past the corner. The floor beside a jamb still shows the edge of the spill blurred over one vertex cell (0.4 m): at the foot of the dining face of the kitchen-dining wall the floor is about 8% brighter with the kitchen lamp lit 0.25 m from the jamb, nothing at the corner. The spill is a second room index and weight per vertex (the `spill` attribute) read against the same `lamps` uniform array, so a frame costs the same however many rooms are lit.
+- **Each reveal face takes the room it faces**, weighed in the room on its own side of the wall's centre line; **floors and ceilings are built room by room** and wall faces cut where rooms meet, so no vertex is weighed in the wrong room.
+- `lightAt` returns light only, and the one JS sum is `lightSum` (used by `lightAt` and the unlit glasses); the shader's line in `public/space/interior/light.js` is pinned to it by a test that asserts the exact GLSL.
+
+### How it is drawn
+
+- **A patched `MeshBasicMaterial`** (`public/space/interior/light.js`): its diffuse colour (map × vertex tint, plus plaster's pale base, which is surface colour and not light) times the per-vertex sum of the dials and weights, before three's tone mapping, so the painterly pass sees what it always has. Every lit material shares one set of uniforms.
+- **The compile check and `fallBack()`**: after the first indoor draw SpaceView reads the lit programs' diagnostics; a program that would not run makes the interior call `fallBack()`, which puts every lit surface (shell, fireplace, fittings' ironwork) back on the flat Lambert materials under one hemisphere light, with one warning. A browser check calls `fallBack()` with a live window and finds the room drawn, `inside.lit` false, the hemisphere light present and the window still live.
+- **The glasses' halos, the flames and the fire's glow are drawn after the live views**: they are added light and write no depth, so drawn with the rooms the yard drawn into a live pane afterwards cut them along the pane's edge. They are a scene of their own (`inside.overlay`) drawn, from the visitor's eye, into the same target after the views with the stencil test off and no clear, depth-tested against the rooms so the walls still hide them; through the painterly pass this happens in the pass's `views` hook (`over`, after its `draw`), before the filter. Each draw into the pass's multisampled target is resolved in full at its end by three (about 0.7 ms for depth and about as much for colour at 1440 × 810), so: the overlay is drawn after the views only when some lit part of it (each taken as its bounding sphere's square on screen) lies over a live pane's rectangle, and otherwise it is put back with the rooms and drawn with them; and only the last draw before the filter resolves its depth (the rooms and views resolve colour alone). Without both, the overlay's extra draw took the speed ratio from about 1.03 to 1.10 by day and 1.13 at night. The glasses themselves are opaque and stay with the rooms.
+- **Fittings**: an unlit glass is a pale surface, `PALE` times the room's light at the glass (its day, fill, fire and spill, not its own lamp); lit it glows `WARM` and its halo (a ball of radius 0.18 m, opacity 0.55; a wall lamp's ends within 0.24 m of the wall's face, so a walking eye 0.25 m off is never inside it) is scaled by its room's level from a small uniform array.
+- **The doorway's tone** (still the weakest of the yard captures: at full the shading by height is faint and it reads mostly as a warm panel): from the yard the open doorway is the dark `DOORWAY` tone warming toward `WARM_DOORWAY` by the hall lamp's level squared (so the low night lamp gives a dim warm tone and full is no brighter than the lit front windows), and, with the interior on only, shaded by height: warmest at the recess floor, darker toward its head, so it reads as a lit space and not a card. Without `?interior=1` it is the one flat tone it always was.
+
+### The description
+
+- A room's lamp counts as lit above 0.15 of full (`LAMP_SEEN`), so the hall's night lamp burning low is lit; the fire counts as burning above 0.05 of its level (`FIRE_SEEN`, by its level, not its flickering light) and its embers as glowing above 0.1.
+
+### Never dark
+
+- Never dark rests on the night fill alone: with every lamp out at midnight under full overcast the darkest standable sample is about 0.091 against the floor `DIALS.floor` (0.07), on 6,261 samples.
+
+### Measured
+
+- Speed (check 50 by day, 63 under the night study; forced frames, 1440 × 810, tier full, headless Chrome through ANGLE on an Apple M1): in two runs after the final fix wave, by day 1.038 and 1.053 times a yard frame, at night 1.053 and 1.016 (limit 1.1). In a pose not checked, at night from [3.8, 5.5] facing the living window with the lit lamp in view (its halo not over the pane, so drawn with the rooms), a probe measured 1.10: the lit interior's margin is thin wherever a lamp is in view.
+- A yard frame alone costs about 12.5 ms by day or night. Part 2's figure of about 26 ms for a day yard frame was contention from another page left open and drawing during the measurement; that page is now closed first.
+- Interior build (the first `buildInside`): 107 to 110 ms in headless Chrome (81 to 89 ms before the fix wave: weighing every opening for borrowed daylight and the spill costs about 20 ms more); the first indoor draw, where the lit programs compile, about 100 ms.
+
+### Checks
+
+- The browser script has 70 checks. Its cabin-light checks force lights with a check-only fixture (`?check` only): `lamps` (a level per room), `hearth` ({fire, embers}) and `cottagePose`; a `lamps` fixture also gives the yard's cottage windows the living room's and the study's levels, so a capture with those lamps out shows no window glow on the grass outside. For a true clear noon (no study gives one) the script starts a second server on a free port (`NOON_PORT` names one) with a fresh database and its `Date.now` moved to the next clear noon, and stops it on every way out.
+
+### The contract for part 4
+
+- `lightAt` returns light only (an RGB sum); it does not shade, tint or place anything.
+- Furniture is to be built through `buildInterior`'s `face` (so its vertices carry the light and spill weights) with the lit materials, and must take part in `fallBack()`.
+- Obstacles are height-less plan rectangles; they stop the walker and do not block light. Hanging fittings may hang over obstacles (a table under the dining lamp); wall fittings may not stand in one.
+
+### Known weak points
+
+- Dusk is nearly as bright as noon in the living room.
+- The lit lamp's glass clips to white at its centre; its warmth shows only at its rim and in its halo.
+- A 0.25 m strip of the hall wall past the hall-living jamb takes about +0.10 daylight from the living room's panes.
+- Up to about 9% red overshoot on the brightest brushwork at noon or by a lamp, more with a daytime fire.
+- Borrowed daylight two or more rooms from a pane is faint (about 0.19 to 0.29 on the floor by the doorway against the 0.1 floor); the far walls of those rooms still sit on the floor.
+
