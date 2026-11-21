@@ -86,3 +86,10 @@ test('a remembered place inside the door leaf falls back to the arrival pose', (
   assert.equal(at([8.5, .5]), null);
   assert.deepEqual(at([9, .8]).position, [9, .8]);
 });
+
+test('a remembered place inside a chimney breast falls back to the arrival pose', () => {
+  const at = (floor, position) => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at(0, [.25, 3.5]), null);
+  assert.equal(at(1, [.2, 3.5]), null);
+  assert.deepEqual(at(0, [3, 3.5]).position, [3, 3.5]);
+});
