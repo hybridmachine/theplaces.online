@@ -8,6 +8,7 @@ import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
+import {bareInterior, withoutPieces} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
 import {createWindowViews} from './window-views.js';
@@ -46,7 +47,11 @@ const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 // these the fire counts as out (by its level, not its flickering light) and its embers as cold.
 const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
-const interiorSwitch = () => new URLSearchParams(location.search).get('interior') === '1' ? LAKESIDE_INTERIOR : null;
+// With ?check, &bare=1 builds the view from the bare blueprint (no furniture), to compare captures; without ?check it is ignored.
+const interiorSwitch = () => {
+  const params = new URLSearchParams(location.search);
+  return params.get('interior') !== '1' ? null : params.has('check') && params.get('bare') === '1' ? bareInterior(LAKESIDE_INTERIOR) : LAKESIDE_INTERIOR;
+};
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 // The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
@@ -300,6 +305,17 @@ export class SpaceView {
   }
   // The ids of the openings drawn live in the last frame.
   get liveViews() { return [...this.live]; }
+  // The blueprint the visitor walks by: the furnished one; without the pieces passed over (and what is set on them) when some could not be
+  // drawn; or, once the furniture's build has failed, the bare one (the chimney breasts alone). A blueprint that never had furniture is
+  // walked as it is. Place memory and the passage keep the furnished blueprint.
+  get walkPlan() {
+    const I = this.interior, inside = this.inside;
+    if (!inside || !Array.isArray(I?.furniture) || !I.furniture.length) return I;
+    if (!inside.furnished) return this.bareWalk ??= bareInterior(I);
+    return inside.skipped?.length ? this.partWalk ??= withoutPieces(I, inside.skipped) : I;
+  }
+  // Whether the rooms' furniture is built and drawn.
+  get furnished() { return !!this.inside?.furnished; }
   // The name of the room the visitor is in, or null in the yard (or without the interior).
   get room() { return this.interior && this.state.place === 'cabin' ? roomAt(this.interior, this.state.floor, this.state.position)?.name ?? null : null; }
   // What is lit in the room the visitor is in: {room (its name), lamp (its level above LAMP_SEEN of full), fire ('burning', 'embers' or 'cold' in
@@ -357,7 +373,7 @@ export class SpaceView {
     const crossing = this.passage?.busy ?? false;
     if (walking) this.glideFrom = null;
     if (crossing) { /* held where they are */ }
-    else if (this.state.place === 'cabin') this.state = stepIndoors(this.interior, this.state, {...keys, look}, dt);
+    else if (this.state.place === 'cabin') this.state = stepIndoors(this.walkPlan, this.state, {...keys, look}, dt);
     else if (this.glideFrom) {
       const k = (t - this.glideStart) / (WALK.glideSeconds * 1000);
       this.state = pose(glide(this.glideFrom, this.space.arrival, k));

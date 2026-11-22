@@ -4,7 +4,7 @@ import {cottageDescription} from '../shared/cottage.js';
 import {birdDescription} from '../shared/bird.js';
 import {sampleCoincidence} from '../shared/coincidences.js';
 
-export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false, coincidenceActive = false, room = null, lit = null } = {}) {
+export function sceneText(snapshot, now, { study = null, paused = false, disconnected = false, staticCottage = false, reducedMotion = false, birdUnavailable = false, coincidenceActive = false, room = null, lit = null, furnished = false } = {}) {
   const { calendar, weather } = viewConditions(snapshot.world.epoch, now, study);
   const nest = snapshot.world.nest.stage === 'built'
     ? 'A completed nest rests in the oak.'
@@ -18,11 +18,15 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
   const ripple=!study&&!reducedMotion&&coincidenceActive&&sampleCoincidence(snapshot.world.coincidences,now)?' A small ripple is spreading on the lake.':'';
   return {
     // Indoors the room comes first, then what is lit in it; the announcement keeps to the world's conditions.
-    description: `${room ? `Inside the cabin, in the ${room}. ${litText(lit)}` : ''}${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${ripple}${paused ? ' This view is paused.' : ''}`,
+    description: `${room ? `Inside the cabin, in the ${room}. ${furnished ? furnishedText(room) : ''}${litText(lit)}` : ''}${prefix}Year ${calendar.year}, day ${calendar.dayOfYear + 1}, ${clockLabel(calendar.hour)}. ${conditions}${surface ? ` ${surface}` : ''}${cottageText}${bird?` ${bird}`:''}${ripple}${paused ? ' This view is paused.' : ''}`,
     // Keep the exact clock available for inspection without announcing every minute.
     announcement: `${prefix}${conditions}${disconnected ? ' Connection lost; holding the last consistent view.' : ''}`,
   };
 }
+
+// What the furniture adds to the room's description (SpaceView.furnished): a fixed clause for the two furnished rooms, nothing elsewhere.
+const FURNISHED_TEXT = {'living room': 'A sofa and two armchairs are drawn up to the fire. ', 'entry hall': 'Coats hang by the door and the stair climbs ahead. '};
+const furnishedText = room => FURNISHED_TEXT[room] ?? '';
 
 // What is lit in the room (SpaceView.lit): its lamp, and in the living room the fire.
 const FIRE_TEXT = {burning: 'the fire is burning', embers: 'the fire\'s embers are glowing', cold: 'the hearth is cold'};

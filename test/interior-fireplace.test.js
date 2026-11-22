@@ -40,7 +40,7 @@ test('the fireplace stands on the living room\'s gable wall where the blueprint 
   dispose();
 });
 
-test('the breasts fill the blueprint\'s obstacles and nothing of the fireplace stands beyond them where a visitor walks', () => {
+test('nothing of the fireplace stands beyond the chimney breast where a visitor walks', () => {
   const {scene, dispose} = build(), GROW = .12, SLAB = .05;
   const parts = [scene.getObjectByName('fireplace'), overlays.get(scene).getObjectByName('fire-light')];
   for (const g of parts) g.updateWorldMatrix(true, true);
@@ -51,7 +51,7 @@ test('the breasts fill the blueprint\'s obstacles and nothing of the fireplace s
       v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
       const a = v.x, d = -v.z, z = v.y;
       if (z <= .1 || z >= 2.0 + 1e-9 || z <= SLAB + 1e-9) continue;
-      assert.ok(I.obstacles.some(ob => ob.floor === 0 && a >= ob.a[0] - GROW - 1e-6 && a <= ob.a[1] + GROW + 1e-6 && d >= ob.d[0] - GROW - 1e-6 && d <= ob.d[1] + GROW + 1e-6),
+      assert.ok(I.breasts.some(ob => ob.floor === 0 && a >= ob.a[0] - GROW - 1e-6 && a <= ob.a[1] + GROW + 1e-6 && d >= ob.d[0] - GROW - 1e-6 && d <= ob.d[1] + GROW + 1e-6),
         `${o.name} vertex ${[a, d, z].map(x => x.toFixed(3))} stands where a visitor walks`);
     }
   });

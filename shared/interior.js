@@ -1,4 +1,6 @@
 // The rules that say a cabin interior is valid, and the plain questions asked of it. Pure: no three.js.
+import {KINDS, footprint, obstaclesOf} from './furniture.js';
+
 const numbers = v => typeof v === 'number' ? Number.isFinite(v) : Array.isArray(v) ? v.every(numbers) : v && typeof v === 'object' ? Object.values(v).every(numbers) : true;
 const inside = (r, [a, d]) => a > r.a[0] && a < r.a[1] && d > r.d[0] && d < r.d[1];
 
@@ -36,7 +38,7 @@ export function validInterior(I) {
   const hall = byId.get('hall'), [a, d] = I.entry.position, leaf = I.doorLeaf;
   if (!hall || !inside(hall, [a, d]) || a < hall.a[0] + I.wall / 2 + I.eyeClear || d < hall.d[0] + I.wall / 2 + I.eyeClear) return false;
   if (!leaf || !Array.isArray(leaf.d) || !(leaf.d[0] < leaf.d[1]) || !(leaf.thick > 0) || Math.abs(leaf.a - (I.door.a - I.door.width / 2)) > 1e-9) return false;
-  return leafLeavesWayOpen(I) && obstaclesFit(I) && fittingsFit(I, byId);
+  return leafLeavesWayOpen(I) && obstaclesFit(I) && fittingsFit(I, byId) && (!I.furniture || furnitureFit(I, byId));
 }
 
 // Each obstacle stands inside one room of its floor and leaves that room's openings reachable (floor 0 flooded from the entry spot, floor 1
@@ -68,21 +70,137 @@ function fittingsFit(I, byId) {
   });
 }
 
-// A flood over a 0.1 m grid of that floor's standable points from `start`: null when the start itself is not standable, else a test
-// of whether any reached point lies in an opening's doorway (the wall's thickness across, its span along).
-function flood(I, floor, start) {
-  const N = 10, nA = I.size[0] * N, nD = I.size[1] * N, id = (i, j) => i * (nD + 1) + j;
-  const at = (i, j) => [i / N, j / N], ok = (i, j) => i >= 0 && j >= 0 && i <= nA && j <= nD && floorArea(I, floor, at(i, j));
-  const i0 = Math.round(start[0] * N), j0 = Math.round(start[1] * N);
-  if (!ok(i0, j0)) return null;
-  const reached = new Set([id(i0, j0)]), todo = [[i0, j0]];
-  while (todo.length) {
-    const [i, j] = todo.pop();
-    for (const [x, y] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (!reached.has(id(x, y)) && ok(x, y)) { reached.add(id(x, y)); todo.push([x, y]); }
+// The furniture of the blueprint, rule by rule (each numbered as in the plan): every piece known and in a room that exists (1); a footprint
+// inside its room (2); a solid one clear of the others, the breasts, the leaf's sweep, the doorways' passages and the stair, the newel apart (3),
+// of the wall lamps and of the fire's mouth (4); a hung piece on a wall of its room clear of openings, the front door, windows and wall lamps (5);
+// a set-on piece on something that holds it, in that piece's room (on the mantel, in the fireplace's room) (6); the ground floor's openings, the named spots and the stair foot within reach of the arrival spot (7), and the hall's
+// openings, the stair foot and the kitchen opening within reach of a walker 0.9 m wide walking through the hall and living room (8).
+const WIDE_CLEAR = .45;
+const overlaps = (x, y) => x.a[0] < y.a[1] - EPS && y.a[0] < x.a[1] - EPS && x.d[0] < y.d[1] - EPS && y.d[0] < x.d[1] - EPS;
+const within = (f, r) => f.a[0] >= r.a[0] - EPS && f.a[1] <= r.a[1] + EPS && f.d[0] >= r.d[0] - EPS && f.d[1] <= r.d[1] + EPS;
+const holds = (f, [a, d]) => a >= f.a[0] - EPS && a <= f.a[1] + EPS && d >= f.d[0] - EPS && d <= f.d[1] + EPS;
+// Whether the rectangle meets the quarter disc the open leaf swings through: radius door.width about the hinge, on the doorway's side of it.
+function inSweep(I, f) {
+  const hinge = I.doorLeaf.a, r = I.door.width, side = Math.sign(I.door.a - hinge);
+  const a = side > 0 ? [Math.max(f.a[0], hinge), f.a[1]] : [f.a[0], Math.min(f.a[1], hinge)], d = [Math.max(f.d[0], 0), f.d[1]];
+  if (a[0] >= a[1] || d[0] >= d[1]) return false;
+  return Math.hypot(Math.min(Math.max(hinge, a[0]), a[1]) - hinge, d[0]) < r - EPS;
+}
+// The newel's one allowance: its centre within 0.2 m of the stair's foot corner and outside the stair's box.
+const newelAtFoot = (I, e) => Math.hypot(e.at[0] - I.stair.a[0], e.at[1] - I.stair.d[0]) <= .2 + EPS
+  && !(e.at[0] > I.stair.a[0] && e.at[0] < I.stair.a[1] && e.at[1] > I.stair.d[0] && e.at[1] < I.stair.d[1]);
+
+function furnitureFit(I, byId) {
+  if (!Array.isArray(I.furniture) || !Array.isArray(I.breasts) || !I.spots || !Array.isArray(I.spots.speed)) return false;
+  // (the walker's obstacles are the breasts and the solid pieces, as obstaclesOf derives them: the same rectangles in the same order)
+  const same = (x, y) => x.floor === y.floor && x.a[0] === y.a[0] && x.a[1] === y.a[1] && x.d[0] === y.d[0] && x.d[1] === y.d[1], want = obstaclesOf(I);
+  if (!Array.isArray(I.obstacles) || I.obstacles.length !== want.length || !want.every((o, k) => same(o, I.obstacles[k]))) return false;
+  const pieces = new Map();
+  for (const e of I.furniture) {   // 1
+    if (!e || typeof e.id !== 'string' || pieces.has(e.id) || !Object.hasOwn(KINDS, e.kind) || !byId.has(e.room)) return false;
+    pieces.set(e.id, e);
   }
-  const hit = fn => { for (const k of reached) if (fn(at(Math.floor(k / (nD + 1)), k % (nD + 1)))) return true; return false; };
+  const solids = [], standingOf = e => KINDS[e.kind].standing, fp = I.fireplace;
+  // (the mantel's room: the one the fireplace's breast faces into on the ground floor)
+  const hearthRoom = fp && fp.breast ? roomAt(I, 0, [fp.a + fp.breast.depth, fp.d])?.id : null;
+  for (const e of I.furniture) {
+    const room = byId.get(e.room), standing = standingOf(e);
+    if (standing === 'solid' || standing === 'walk-over') {
+      const f = footprint(e);
+      if (!f || !within(f, room)) return false;   // 2
+      if (standing === 'solid') solids.push({e, f, floor: room.floor});
+    } else if (standing === 'wall-hung') {
+      if (!wallHungFits(I, e, room)) return false;   // 5
+    } else if (e.on === 'mantel' ? e.room !== hearthRoom
+      : !(pieces.has(e.on) && ['solid', 'wall-hung'].includes(standingOf(pieces.get(e.on))) && pieces.get(e.on).room === e.room)) return false;   // 6
+  }
+  const stair = {a: I.stair.a, d: I.stair.d};
+  const mouth = fp && {a: [fp.a + fp.breast.depth, fp.a + fp.breast.depth + .6], d: [fp.d - fp.mouth.width / 2, fp.d + fp.mouth.width / 2]};
+  for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4
+    if (solids.some((o, j) => j > k && o.floor === floor && overlaps(o.f, f))) return false;
+    if (I.breasts.some(b => b.floor === floor && overlaps(b, f))) return false;
+    if (I.openings.some(o => o.floor === floor && overlaps(f, o.line === 'a' ? {a: [o.at - .5, o.at + .5], d: o.span} : {a: o.span, d: [o.at - .5, o.at + .5]}))) return false;
+    if (e.kind === 'newel' ? !newelAtFoot(I, e) : overlaps(f, stair)) return false;
+    if (floor === 0 && inSweep(I, f)) return false;
+    if (I.fittings.some(l => l.kind === 'wall' && byId.get(l.room) && byId.get(l.room).floor === floor && holds(f, l.at))) return false;
+    if (floor === 0 && mouth && overlaps(f, mouth)) return false;
+  }
+  const {hearth, casement, bookshelf, speed} = I.spots, from = I.entry.position, foot = stairFoot(I);   // 7
+  const near = flood(I, 0, from);
+  if (!near || !I.openings.filter(o => o.floor === 0).every(o => near(doorway(I, o)))) return false;
+  if (![hearth, casement, bookshelf, ...speed, foot].every(p => reachable(I, 0, from, p))) return false;
+  const hallAndLiving = furnishedWay(I);
+  return wideTargets(I).every(p => reachable(hallAndLiving, 0, from, p, WIDE_CLEAR));   // 8
+}
+
+// Rule 8's walk is through the furnished rooms: the ground floor cut down to the hall and the living room, with the openings out of them
+// (so each doorway point is still standable but the way does not go round through the kitchen or the dining room).
+const FURNISHED = ['hall', 'living'];
+export const furnishedWay = I => ({...I, rooms: I.rooms.filter(r => r.floor !== 0 || FURNISHED.includes(r.id)),
+  openings: I.openings.filter(o => o.floor !== 0 || o.rooms.some(id => FURNISHED.includes(id)))});
+// What a walker 0.9 m wide must reach from the arrival spot: each hall opening's doorway point, the living-kitchen one and the stair foot.
+export const wideTargets = I => [...I.openings.filter(o => o.floor === 0 && (o.rooms.includes('hall') || o.rooms.includes('living') && o.rooms.includes('kitchen')))
+  .map(doorwayPoint), stairFoot(I)];
+
+// A hung piece lies on one of its room's wall lines, within the room along it, and clear of that line's openings, the front door and windows
+// and of wall lamps.
+function wallHungFits(I, e, room) {
+  const across = e.wall, along = across === 'a' ? 'd' : 'a';
+  if (!(across === 'a' || across === 'd') || !room[across].includes(e.line) || !Array.isArray(e.along) || !(e.along[0] < e.along[1]) || typeof e.z !== 'number') return false;
+  if (e.along[0] < room[along][0] - EPS || e.along[1] > room[along][1] + EPS) return false;
+  const apart = (lo, hi) => e.along[1] <= lo + EPS || e.along[0] >= hi - EPS;
+  if (I.openings.some(o => o.floor === room.floor && o.line === across && o.at === e.line && !apart(...o.span))) return false;
+  // (the front door, in the ground floor's front wall, is not one of the openings between rooms)
+  if (room.floor === 0 && across === 'd' && e.line === 0 && I.door && !apart(I.door.a - I.door.width / 2, I.door.a + I.door.width / 2)) return false;
+  const wallLine = w => w.wall === 'front' ? 0 : w.wall === 'back' ? I.size[1] : null;
+  if (across === 'd' && I.windows.some(w => w.kind === 'wall' && I.rooms.some(r => r.id === w.room && r.floor === room.floor) && wallLine(w) === e.line
+    && !apart(w.a - w.width / 2, w.a + w.width / 2))) return false;
+  return !I.fittings.some(l => {
+    const r = I.rooms.find(x => x.id === l.room);
+    if (l.kind !== 'wall' || !r || r.floor !== room.floor) return false;
+    const p = {a: l.at[0], d: l.at[1]}, off = p[along] < e.along[0] ? e.along[0] - p[along] : p[along] > e.along[1] ? p[along] - e.along[1] : 0;
+    return Math.hypot(p[across] - e.line, off) <= .3 + EPS;
+  });
+}
+
+// A flood over a 0.1 m grid of that floor's standable points from `start`, keeping `clear` off walls and obstacles: null when the start itself
+// is not standable, else a test of whether any reached point satisfies `fn`, with `.reaches(p)` for whether the grid point nearest p was reached.
+// A deep-frozen blueprint's floods are remembered, since they cannot change.
+// (This relies on the blueprint being deep-frozen: a top-level-only freeze with mutable rooms would give stale floods.)
+const floods = new WeakMap();
+const fixed = I => Object.isFrozen(I) && [I.obstacles, I.rooms, I.openings, I.stair, I.doorLeaf].every(v => v == null || Object.isFrozen(v));
+function flood(I, floor, start, clear = I.eyeClear) {
+  const key = `${floor}|${start}|${clear}`, memo = fixed(I) ? floods.get(I) || floods.set(I, new Map()).get(I) : null;
+  if (memo && memo.has(key)) return memo.get(key);
+  const N = 10, nA = I.size[0] * N, nD = I.size[1] * N, id = (i, j) => i * (nD + 1) + j;
+  const at = (i, j) => [i / N, j / N], ok = (i, j) => i >= 0 && j >= 0 && i <= nA && j <= nD && floorArea(I, floor, at(i, j), clear);
+  const i0 = Math.round(start[0] * N), j0 = Math.round(start[1] * N);
+  let hit = null;
+  if (ok(i0, j0)) {
+    const reached = new Uint8Array((nA + 1) * (nD + 1)), todo = [[i0, j0]];
+    reached[id(i0, j0)] = 1;
+    while (todo.length) {
+      const [i, j] = todo.pop();
+      for (const [x, y] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) if (x >= 0 && y >= 0 && x <= nA && y <= nD && !reached[id(x, y)] && ok(x, y)) { reached[id(x, y)] = 1; todo.push([x, y]); }
+    }
+    hit = fn => { for (let k = 0; k < reached.length; k++) if (reached[k] && fn(at(Math.floor(k / (nD + 1)), k % (nD + 1)))) return true; return false; };
+    hit.reaches = ([a, d]) => { const i = Math.round(a * N), j = Math.round(d * N); return i >= 0 && j >= 0 && i <= nA && j <= nD && reached[id(i, j)] === 1; };
+  }
+  if (memo) memo.set(key, hit);
   return hit;
 }
+
+// Whether `to` is standable and can be walked to from `from` on that floor, keeping `clear` off walls and obstacles (0.45 is a 0.9 m walker).
+export function reachable(I, floor, from, to, clear = I.eyeClear) {
+  if (!floorArea(I, floor, to, clear)) return false;
+  const hit = flood(I, floor, from, clear);
+  return !!hit && hit.reaches(to);
+}
+// The middle of an opening, on its wall line.
+export const doorwayPoint = o => { const mid = (o.span[0] + o.span[1]) / 2; return o.line === 'a' ? [o.at, mid] : [mid, o.at]; };
+// The point a step in front of the flight's foot, midway across its walkable strip.
+export const stairFoot = I => [(I.stair.a[0] + I.stair.a[1] - I.wall / 2) / 2, I.stair.d[0] - .1];
+
 const doorway = (I, o) => ([a, d]) => {
   const [across, along] = o.line === 'a' ? [a, d] : [d, a];
   return Math.abs(across - o.at) <= I.wall / 2 && along >= o.span[0] && along <= o.span[1];
@@ -102,17 +220,17 @@ const EPS = 1e-9;   // rounding slack for points sitting exactly on a boundary v
 export const onStair = (I, [a, d]) => a >= I.stair.a[0] + I.eyeClear - EPS && a <= I.stair.a[1] - I.wall / 2 - I.eyeClear + EPS
   && d >= I.stair.d[0] - EPS && d <= I.stair.d[1] + EPS;
 
-// Standable floor of that storey: a room less the eye's clearance from its lines, or an opening's passage; the stair's shut-off box, the open door
-// leaf (ground floor) and the obstacles' rectangles with the eye's clearance around them excluded.
-export function floorArea(I, floor, [a, d]) {
-  const c = I.wall / 2 + I.eyeClear, [d0, d1] = I.stair.d, leaf = I.doorLeaf;
-  if (floor === 0 && leaf && Math.hypot(a - leaf.a, d - Math.min(Math.max(d, leaf.d[0]), leaf.d[1])) <= leaf.thick / 2 + I.eyeClear + EPS) return false;   // the open door leaf
-  if (I.obstacles && I.obstacles.some(o => o.floor === floor && Math.hypot(a - Math.min(Math.max(a, o.a[0]), o.a[1]), d - Math.min(Math.max(d, o.d[0]), o.d[1])) <= I.eyeClear + EPS)) return false;   // a chimney breast
-  if (a >= I.stair.a[0] - I.eyeClear - EPS && a <= I.stair.a[1] + EPS && (floor === 0 ? d >= d0 - EPS && d <= d1 + I.eyeClear + EPS : d >= d0 - I.eyeClear - EPS && d <= d1 + EPS)) return false;
+// Standable floor of that storey: a room less the clearance (the eye's, unless given) from its lines, or an opening's passage; the stair's shut-off
+// box, the open door leaf (ground floor) and the obstacles' rectangles with the clearance around them excluded.
+export function floorArea(I, floor, [a, d], clear = I.eyeClear) {
+  const c = I.wall / 2 + clear, [d0, d1] = I.stair.d, leaf = I.doorLeaf;
+  if (floor === 0 && leaf && Math.hypot(a - leaf.a, d - Math.min(Math.max(d, leaf.d[0]), leaf.d[1])) <= leaf.thick / 2 + clear + EPS) return false;   // the open door leaf
+  if (I.obstacles && I.obstacles.some(o => o.floor === floor && Math.hypot(a - Math.min(Math.max(a, o.a[0]), o.a[1]), d - Math.min(Math.max(d, o.d[0]), o.d[1])) <= clear + EPS)) return false;   // a chimney breast or a solid piece
+  if (a >= I.stair.a[0] - clear - EPS && a <= I.stair.a[1] + EPS && (floor === 0 ? d >= d0 - EPS && d <= d1 + clear + EPS : d >= d0 - clear - EPS && d <= d1 + EPS)) return false;
   if (I.rooms.some(r => r.floor === floor && a >= r.a[0] + c - EPS && a <= r.a[1] - c + EPS && d >= r.d[0] + c - EPS && d <= r.d[1] - c + EPS)) return true;
   return I.openings.some(o => {
     const [across, along] = o.line === 'a' ? [a, d] : [d, a];
-    return o.floor === floor && Math.abs(across - o.at) <= c + EPS && along >= o.span[0] + I.eyeClear - EPS && along <= o.span[1] - I.eyeClear + EPS;
+    return o.floor === floor && Math.abs(across - o.at) <= c + EPS && along >= o.span[0] + clear - EPS && along <= o.span[1] - clear + EPS;
   });
 }
 

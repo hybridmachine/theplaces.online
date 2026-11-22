@@ -6,6 +6,7 @@ import {CASEMENT} from '../../../shared/lakeside-dressing.js';
 import {createInteriorLight} from './light.js';
 import {buildFireplace} from './fireplace.js';
 import {buildFittings} from './fittings.js';
+import {buildFurniture} from './furniture.js';
 
 // The cabin's interior as a plain shell, its own scene: plastered walls with their openings, board floors, plaster ceilings
 // (flat downstairs, following the roof's two slopes upstairs), the stair in its shut-off box, and flat glass in every window
@@ -33,6 +34,13 @@ const BRUSH_TILE = 1.6, STEP = .4, PLASTER = [1.35, 1.2, 1.05], PLASTER_BASE = [
 const LIT_PLASTER = [.6, .54, .47], LIT_PLASTER_BASE = [.45, .405, .315], LIT_BOARDS = [1.25, .86, .58];
 // How far inside its room a face's light is weighed past the wall's face, metres.
 const INTO = .03;
+// The furniture's light is weighed once a cell of this lattice (metres) and a facing rounded to this, so its many small faces cost no more
+// to light than a few walls. The lattice is finer than the shell's own vertices (STEP, 0.4 m), between which a wall's or a floor's light is
+// only interpolated. At 0.12 m and 0.25 the furniture added about 88 ms to a first build in the browser, against the 60 ms it has. Rounding a
+// normal to 0.5 can turn it about 35° (the worst vertex is .29 off the exact field, on rail caps and the runner); a turn of 0.25 with this
+// lattice drew the sofa's cushions and arm rolls no differently in the captures and cost about 8 ms more, so 0.5 stands, and the sofa's soft
+// parts are pinned within 0.1 of the exact field (test/interior-furniture.test.js).
+const WEIGH_GRID = .3, WEIGH_TURN = .5;
 // Reveal depth of a roof window, the rail's height and thickness, and the stair's treads.
 const RAIL = .9, RAIL_THICK = .04, TREADS = 15;
 // The painted joinery: frame width, bar width, how far a sill board stands into the room, how far frames and bars stand off the
@@ -47,8 +55,9 @@ const steps = length => Math.max(1, Math.ceil(length / STEP - 1e-9));
 // A plain daytime, the light the rooms show until a frame sets its own: full daylight from a pale sky, every lamp and the fire out.
 const DAYTIME = {calendar: {light: 1, elevation: 1, hour: 12}, weather: {cloud: 0}, sky: {zenith: [.62, .70, .76], horizon: [.83, .83, .75]},
   cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false};
+// `recipes` replaces the furniture's recipes by kind (buildFurniture's; its RECIPES unless given), as a test does to make one fail.
 
-export function buildInterior(THREE, {interior: I, art, openings}) {
+export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   const W = I.wall, half = W / 2, rise = I.floorRise, [SA, SD] = I.size;
   const base = floor => floor * rise;
   // The ceiling's height above the ground floor at depth d on that storey.
@@ -88,20 +97,35 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   const within = (x, [lo, hi]) => lo + inset > hi - inset ? (lo + hi) / 2 : Math.min(hi - inset, Math.max(lo + inset, x));
   const into = r => r ? p => [within(p[0], r.a), within(p[1], r.d), p[2]] : p => p;
   const roomOf = id => I.rooms.find(r => r.id === id);
-  const weighed = (g, place, floorOf) => {
+  const weighed = (g, place, floorOf, weigh = field.weigh) => {
     const p = g.getAttribute('position'), n = g.getAttribute('normal'), out = new Float32Array(p.count * 4), spill = new Float32Array(p.count * 2);
     for (let i = 0; i < p.count; i++) {
-      const at = [p.getX(i), -p.getZ(i), p.getY(i)], w = field.weigh(floorOf(at[2]), place(at), [n.getX(i), -n.getZ(i), n.getY(i)]);
+      const at = [p.getX(i), -p.getZ(i), p.getY(i)], w = weigh(floorOf(at[2]), place(at), [n.getX(i), -n.getZ(i), n.getY(i)]);
       out.set([w.day, w.lamp, w.fire, w.room], i * 4); spill.set([w.spill, w.spillRoom], i * 2);
     }
     g.setAttribute('light', new THREE.Float32BufferAttribute(out, 4)); g.setAttribute('spill', new THREE.Float32BufferAttribute(spill, 2));
     return g;
   };
-  // A sheet over (s, t), sized by the lengths it spans along each, carrying its light.
-  const face = (f, across, up, outward, colour, {place, floorOf = storey, tile = BRUSH_TILE, rows = steps(up)} = {}) => {
-    const g = sheet(THREE, f, {ns: steps(across), nt: rows, tile, outward, colour});
+  // A sheet over (s, t), sized by the lengths it spans along each, carrying its light; cut into `cols` × `rows` cells, by default
+  // as finely as STEP.
+  const face = (f, across, up, outward, colour, {place, floorOf = storey, tile = BRUSH_TILE, cols = steps(across), rows = steps(up), weigh} = {}) => {
+    const g = sheet(THREE, f, {ns: cols, nt: rows, tile, outward, colour});
     if (!place) { const mid = f(.5, .5), u = V.norm(outward); place = into(roomAt(I, floorOf(mid[2]), [mid[0] + u[0] * .05, mid[1] + u[1] * .05])); }
-    return weighed(g, place, floorOf);
+    return weighed(g, place, floorOf, weigh);
+  };
+  // The field's weights at the middle of the cell of a WEIGH_GRID lattice holding the point (kept inside the point's room), for the
+  // normal rounded to WEIGH_TURN, each worked out once: for the many small faces of the furniture, whose light varies over metres while
+  // its vertices lie centimetres apart.
+  const coarseWeigh = () => {
+    const known = new Map(), cell = x => Math.floor(x / WEIGH_GRID), turn = x => Math.round(x / WEIGH_TURN);
+    return (floor, p, n) => {
+      const r = roomAt(I, floor, p), c = p.map(cell), q = n.map(turn);
+      // (one number: the floor, the room, the cell (each index under 256 inside the cabin) and the facing (each −2 to 2, in nine slots))
+      const key = ((((((floor * 64 + I.rooms.indexOf(r) + 1) * 256 + c[0]) * 256 + c[1]) * 256 + c[2]) * 9 + q[0] + 4) * 9 + q[1] + 4) * 9 + q[2] + 4;
+      let w = known.get(key);
+      if (!w) { w = field.weigh(floor, into(r)(c.map(k => (k + .5) * WEIGH_GRID)), V.norm(q)); known.set(key, w); }
+      return w;
+    };
   };
 
   // ── walls ──
@@ -329,6 +353,20 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   // A lamp in every room, built from the same tints and materials, weighed by the same field.
   const fittings = buildFittings(THREE, {interior: I, light, field, tints: {plaster, boards}, materials: {surface, plastered}});
   scene.add(fittings.object);
+  // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
+  // room it names, as a face is. If it cannot be built the rooms stay bare.
+  let furniture = null;
+  try {
+    const weigh = coarseWeigh();
+    furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
+      lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint,
+      materials: {surface, leafed}, treads: TREADS, recipes,
+      weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
+    scene.add(furniture.object);
+  } catch (error) {
+    console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
+    furniture = null;
+  }
   // The added light (the lamps' halos, the flames and the fire's glow), a scene of its own that the view draws after the yard seen
   // through the live panes, into the same target, depth-tested against the rooms and with no stencil: drawn with the rooms it would
   // lie under the views, and a halo in front of a live pane would be cut along the pane's edge. When none of it lies over a live
@@ -367,16 +405,20 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   let withRooms = false;
   const overlayWithRooms = on => { if (on === withRooms) return; withRooms = on; (on ? scene : overlay).add(fittings.overlay, fireplace.overlay); };
   return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
+    // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
+    furnished: !!furniture && I.furniture.length > 0, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
+    // The ids of the pieces passed over (each, and everything set on it; empty when none, or when no furniture was built).
+    skipped: furniture?.skipped ?? [],
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
-    setLight(dials) { light?.set(dials); fittings.setLight(dials); },
+    setLight(dials) { light?.set(dials); fittings.setLight(dials); furniture?.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on
-    // this device, found only once it is first drawn): every lit surface of the shell, the fireplace and the fittings takes the
+    // this device, found only once it is first drawn): every lit surface of the shell, the fireplace, the fittings and the furniture takes the
     // Lambert materials and the hemisphere light comes in. The glasses, halos and fire carry on. Once only; nothing when unlit.
     fallBack() {
       if (!light) return;
       const ratio = (unlit, lit) => unlit.map((c, i) => c / lit[i]), flat = lambert({plasterK: ratio(PLASTER, LIT_PLASTER), boardsK: ratio(BOARDS, LIT_BOARDS)});
       for (const [name, kind] of Object.entries(FLAT)) { const m = scene.getObjectByName(name); if (m) m.material = flat[kind]; }
-      fireplace.fallBack(flat); fittings.fallBack(flat);
+      fireplace.fallBack(flat); fittings.fallBack(flat); furniture?.fallBack(flat);
       light.dispose(); light = null;
       scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
     },
@@ -401,6 +443,6 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
       const materials = new Set(markers.values());
       scene.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
       for (const m of materials) m.dispose();
-      fireplace.dispose(); fittings.dispose();
+      fireplace.dispose(); fittings.dispose(); furniture?.dispose();
     }};
 }

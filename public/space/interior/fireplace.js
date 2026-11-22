@@ -15,7 +15,9 @@ import {haloMaterial} from '../scene/lights.js';
 
 const STONE_TILE = SPACE_ART.surfaces.stone.metres;
 const LIT_STONE = [1.2, 1.1, .95], STONE = [1.5, 1.4, 1.2];   // linear tints: lit, the unlit one times the flat light on a wall (about .8)
-const MOUTH_DEEP = .35, SLAB_HIGH = .05, MANTEL = {width: 2.2, depth: .2, thick: .08, into: .08};
+const MOUTH_DEEP = .35, SLAB_HIGH = .05;
+// The mantel shelf: its width along the breast, its depth into the room, its thickness, and how far it is set into the breast.
+export const MANTEL = {width: 2.2, depth: .2, thick: .08, into: .08};
 // Flames: where each tongue stands across the mouth (metres from its middle) and back from its front (a), its width and height, and its
 // sway phase; they overlap, the tall ones in the middle.
 const CARDS = [{x: -.27, w: .26, h: .34, a: .27, phase: 0}, {x: -.12, w: .3, h: .55, a: .23, phase: 2.1}, {x: .02, w: .32, h: .62, a: .26, phase: 4.2},

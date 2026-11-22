@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {bareInterior, obstaclesOf, solidObstacles} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
@@ -113,6 +114,8 @@ test('a leaf hinged on the stair side, or shutting the cabin in two, is invalid'
 
 // The fireplace, the lamps and the solid chimney breasts.
 const variant = f => { const c = structuredClone(I); f(c); return validInterior(c); };
+// A free-standing solid piece added in a room, the walker's obstacles derived from the furniture again (obstacles must match it).
+const solid = (room, at) => variant(c => { c.furniture.push({id: 'extra', kind: 'side-table', room, at, turn: 0}); c.obstacles = obstaclesOf(c); });
 const fit = (c, room) => c.fittings.find(f => f.room === room);
 test('the blueprint has a fireplace, one fitting for every room, and is still valid', () => {
   assert.equal(validInterior(I), true);
@@ -120,7 +123,7 @@ test('the blueprint has a fireplace, one fitting for every room, and is still va
   for (const r of I.rooms) assert.equal(I.fittings.filter(f => f.room === r.id).length, 1, r.id);
   assert.equal(I.lightSeed, 20261120);
   const {fireplace: f} = I;
-  assert.deepEqual(I.obstacles, [{floor: 0, a: [0, f.breast.depth], d: [f.d - f.breast.width / 2, f.d + f.breast.width / 2]}, {floor: 1, a: [0, f.upper.depth], d: [f.d - f.upper.width / 2, f.d + f.upper.width / 2]}]);
+  assert.deepEqual(I.breasts, [{floor: 0, a: [0, f.breast.depth], d: [f.d - f.breast.width / 2, f.d + f.breast.width / 2]}, {floor: 1, a: [0, f.upper.depth], d: [f.d - f.upper.width / 2, f.d + f.upper.width / 2]}]);
 });
 test('the chimney breasts are solid on both floors and the hearth slab is not', () => {
   assert.equal(floorArea(I, 0, [.3, 3.5]), false);
@@ -144,10 +147,15 @@ test('a wall lamp away from its room\'s walls, a fitting in the wrong room, or a
   assert.equal(variant(c => { delete c.fittings; }), false);
 });
 test('an obstacle that shuts a room off, or sits across two rooms, is invalid', () => {
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6.5, 7.5], d: [2, 5]}); }), false, 'across the hall-living opening');
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [6, 8], d: [5.5, 6.5]}); }), false, 'in two rooms');
-  assert.equal(variant(c => { c.obstacles.push({floor: 1, a: [6.2, 7], d: [3, 4]}); }), false, 'shuts the landing off bedroom-2');
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [1.5, 2.5], d: [5, 6]}); }), true, 'a free-standing one is fine');
+  // On the blueprint without its furniture (the breasts alone), so the obstacle's own rules decide: with furniture present a raw
+  // obstacle is refused first for not matching the pieces, which would prove nothing about these.
+  const lone = extra => variant(c => { delete c.furniture; c.obstacles = [...c.breasts, ...extra]; });
+  assert.equal(lone([]), true, 'the breasts alone are valid');
+  assert.equal(lone([{floor: 0, a: [6.5, 7.5], d: [2, 5]}]), false, 'across the hall-living opening');
+  assert.equal(lone([{floor: 0, a: [6, 8], d: [5.5, 6.5]}]), false, 'in two rooms');
+  assert.equal(lone([{floor: 1, a: [6.2, 7], d: [3, 4]}]), false, 'shuts the landing off bedroom-2');
+  assert.equal(lone([{floor: 0, a: [9.5, 10.5], d: [10, 11]}]), true, 'a free-standing one is fine');
+  assert.equal(solid('dining', [10, 10.5]), true, 'a free-standing one is fine');
 });
 test('no wall fitting sits inside an obstacle; a hanging one may hang over one', () => {
   // a wall lamp on the living room's gable wall: clear of the chimney breast it is fine, on it it is not
@@ -155,5 +163,117 @@ test('no wall fitting sits inside an obstacle; a hanging one may hang over one',
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
   assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
   // a table under the dining room's lamp leaves the blueprint valid
-  assert.equal(variant(c => { c.obstacles.push({floor: 0, a: [8.4, 9.6], d: [8.9, 10.1]}); }), true);
+  assert.equal(solid('dining', [9, 9.5]), true);
+});
+
+// The living room's and hall's furniture, and the rules that keep it walkable.
+import {doorwayPoint, furnishedWay, reachable, wideTargets} from '../shared/interior.js';
+
+const piece = (c, id) => c.furniture.find(e => e.id === id);
+// A copy of the blueprint with its furniture changed, the walker's obstacles derived again.
+const withFurniture = change => { const c = structuredClone(I); change(c.furniture, c); c.obstacles = obstaclesOf(c); return validInterior(c); };
+
+test('the furnished blueprint is valid', () => assert.equal(validInterior(I), true));
+test('the bare blueprint is valid and a 0.9 m walker already gets everywhere rule 8 names', () => {
+  const bare = bareInterior(I);
+  assert.equal(validInterior(bare), true);
+  assert.equal(wideTargets(bare).length, 6, 'four hall openings, the kitchen opening, the stair foot');
+  for (const target of wideTargets(bare)) assert.ok(reachable(furnishedWay(bare), 0, I.entry.position, target, .45), `${target}`);
+});
+test('a 0.9 m walker gets everywhere rule 8 names in the furnished blueprint too', () => {
+  for (const target of wideTargets(I)) assert.ok(reachable(furnishedWay(I), 0, I.entry.position, target, .45), `${target}`);
+});
+test('the walker\'s obstacles are the breasts and one rectangle per solid piece', () =>
+  assert.deepEqual(I.obstacles, [...I.breasts, ...solidObstacles(I)]));
+test('the speed spots and the named spots are standable', () => {
+  for (const p of [...I.spots.speed, I.spots.hearth, I.spots.casement, I.spots.bookshelf]) assert.ok(floorArea(I, 0, p), `${p}`);
+});
+test('no standable pocket: every standable grid point of the living room and hall is reachable from the arrival spot', () => {
+  for (let i = 0; i <= 110; i++) for (let j = 0; j <= 70; j++) {
+    const p = [i / 10, j / 10];
+    if (floorArea(I, 0, p)) assert.ok(reachable(I, 0, I.entry.position, p), `${p}`);
+  }
+});
+test('the narrower clearance shrinks the standable floor', () => {
+  assert.equal(floorArea(I, 0, [6.6, 5.5]), true);
+  assert.equal(floorArea(I, 0, [6.6, 5.5], .45), false, 'within 0.525 m of the hall wall');
+  assert.equal(reachable(I, 0, I.entry.position, [-1, 3]), false, 'outside the cabin');
+});
+test('rule 1: a duplicate id, an unknown kind or an unknown room is invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').id = 'book'; }), false, 'duplicate id');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').kind = 'piano'; }), false, 'unknown kind');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').room = 'attic'; }), false, 'unknown room');
+});
+test('rule 2: a piece straddling a wall is invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'sofa').at[0] = 7; }), false, 'sofa across a = 7');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'doormat').at[1] = 0; }), false, 'doormat through the front wall');
+});
+test('rule 3: solid pieces overlapping each other, a doorway, the leaf\'s sweep or the stair are invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'sofa').at = [...piece({furniture: f}, 'low-table').at]; }), false, 'sofa over the low table');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'console', room: 'living', at: [6.6, 3.5], turn: Math.PI / 2}); }), false, 'console across the hall-living doorway');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'boot-bench', room: 'hall', at: [9.1, .5], turn: 0}); }), false, 'bench in the leaf\'s sweep');
+  // (clear of the leaf itself and of every route: only the sweep forbids it)
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'umbrella-stand', room: 'hall', at: [9.3, .16], turn: 0}); }), false, 'umbrella stand in the leaf\'s sweep');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'side-table', room: 'hall', at: [10.3, 1.6], turn: 0}); }), false, 'table on the stair foot');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'side-table', room: 'hall', at: [10.3, 3], turn: 0}); }), false, 'table on the flight');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'side-table', room: 'living', at: [.3, 3.5], turn: 0}); }), false, 'table in the chimney breast');
+});
+test('rule 3: the newel stands just outside the stair\'s foot corner and nowhere else', () => {
+  const corner = [I.stair.a[0], I.stair.d[0]];
+  assert.ok(Math.hypot(piece(I, 'newel').at[0] - corner[0], piece(I, 'newel').at[1] - corner[1]) <= .2);
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'newel').at = [corner[0], corner[1] + .5]; }), false, 'a newel 0.5 m up the flight\'s side');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'newel').at = [corner[0] - .5, corner[1]]; }), false, 'a newel 0.5 m out into the hall');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'newel').at = [corner[0] + .3, corner[1] + .3]; }), false, 'a newel on the flight');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'newel', room: 'hall', at: [9.3, 3], turn: 0}); }), false, 'a second newel away from the corner');
+});
+test('rule 4: a piece in front of the fire\'s mouth or over a wall lamp is invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'log-basket').at = [.85, I.fireplace.d]; }), false, 'basket in front of the mouth');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'boot-bench', room: 'hall', at: [10.2, .7], turn: Math.PI / 2}); }), false, 'bench under the hall lamp');
+});
+test('rule 5: a wall-hung piece across an opening, a window, near a wall lamp or off its room\'s walls is invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'picture-2').along = [4.6, 5.4]; }), false, 'picture across the hall-living opening');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'picture-1').along = [3.2, 3.8]; }), false, 'picture over the living window');
+  assert.equal(withFurniture(f => { f.push({id: 'x', kind: 'picture', room: 'hall', wall: 'd', line: 0, along: [9.6, 10.0], z: 1.5}); }), false, 'picture beside the hall lamp');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'picture-3').line = 3; }), false, 'picture on no wall');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'hooks').line = 11; }), false, 'hooks on a wall of another room');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'mirror').along = [6.6, 7.4]; }), false, 'mirror past the room\'s end');
+});
+test('rule 5: a wall-hung piece across the front door is invalid, and one on the front wall clear of the door and the windows is valid', () => {
+  assert.equal(withFurniture(f => { Object.assign(piece({furniture: f}, 'mirror'), {wall: 'd', line: 0, along: [8.7, 9.3]}); }), false, 'mirror across the front doorway');
+  assert.equal(withFurniture(f => { Object.assign(piece({furniture: f}, 'mirror'), {wall: 'd', line: 0, along: [7.3, 7.9]}); }), true, 'mirror on the front wall beside the door');
+});
+test('rule 6: a piece set on another shares its room; a mantel piece is in the fireplace\'s room', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').room = 'hall'; }), false, 'a cup in the hall on the living room\'s low table');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'clock').room = 'hall'; }), false, 'a mantel clock in the hall');
+  assert.equal(validInterior(I), true);
+});
+test('rule 6: a piece set on nothing is invalid', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'table-lamp').on = 'nothing'; }), false, 'lamp on nothing');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').on = 'book'; }), false, 'cup on a set-on piece');
+});
+test('rule 7: a ring of benches closing the hearth spot off is invalid', () => {
+  const bench = (at, turn = 0) => ({id: `ring-${at}`, kind: 'boot-bench', room: 'living', at, turn});
+  assert.equal(withFurniture(f => { f.push(bench([1.25, 2.68]), bench([2.5, 2.68]), bench([1.25, 4.32]), bench([2.5, 4.32])); }), false);
+});
+test('rule 8: a console narrowing the hall-dining way to 0.6 m is invalid, though a 0.5 m walker still passes', () => {
+  // (the console's east end 0.6 m short of the stair, just north of the flight's top; its west end 0.2 m off the hall's wall)
+  const c = structuredClone(I);
+  c.furniture.push({id: 'x', kind: 'console', room: 'hall', at: [I.stair.a[0] - .6 - .9, 5.675], turn: 0}); c.obstacles = obstaclesOf(c);
+  const dining = doorwayPoint(I.openings.find(o => o.id === 'hall-dining'));
+  assert.ok(reachable(furnishedWay(c), 0, I.entry.position, dining), 'the usual walker passes');
+  assert.equal(reachable(furnishedWay(c), 0, I.entry.position, dining, .45), false);
+  assert.ok(reachable(c, 0, I.entry.position, dining, .45), 'though round through the kitchen and the dining room it could');
+  assert.equal(validInterior(c), false);
+});
+test('a blueprint without furniture or breasts is judged as before', () => {
+  const {furniture, breasts, spots, stairRail, ...old} = structuredClone(I);
+  assert.equal(validInterior({...old, obstacles: breasts}), true);
+  assert.equal(validInterior({...structuredClone(I), spots: undefined}), false, 'furniture without its spots');
+});
+test('a blueprint whose obstacles omit a solid piece, or reorder them, is invalid', () => {
+  const omit = structuredClone(I); omit.obstacles = omit.obstacles.filter((o, k) => k !== omit.obstacles.length - 1);
+  assert.equal(validInterior(omit), false, 'a solid piece\'s rectangle is missing');
+  const swapped = structuredClone(I); swapped.obstacles.reverse();
+  assert.equal(validInterior(swapped), false, 'the same rectangles in another order');
+  assert.equal(validInterior(bareInterior(I)), true);
 });
