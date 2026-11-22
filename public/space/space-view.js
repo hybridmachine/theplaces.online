@@ -8,7 +8,7 @@ import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
-import {bareInterior, withoutPieces} from '../../shared/furniture.js';
+import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
 import {createWindowViews} from './window-views.js';
@@ -47,11 +47,16 @@ const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 // these the fire counts as out (by its level, not its flickering light) and its embers as cold.
 const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
-// With ?check, &bare=1 builds the view from the bare blueprint (no furniture), to compare captures; without ?check it is ignored.
-const interiorSwitch = () => {
-  const params = new URLSearchParams(location.search);
-  return params.get('interior') !== '1' ? null : params.has('check') && params.get('bare') === '1' ? bareInterior(LAKESIDE_INTERIOR) : LAKESIDE_INTERIOR;
-};
+// With ?check, &bare=1 builds the view from the bare blueprint (no furniture) and &furnish=first strips the queued rooms,
+// to compare captures; without ?check both are ignored. &bare=1 wins over &furnish=first.
+export function interiorSwitch(search = typeof location !== 'undefined' ? location.search : '') {
+  const params = new URLSearchParams(search);
+  if (params.get('interior') !== '1') return null;
+  if (!params.has('check')) return LAKESIDE_INTERIOR;
+  if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
+  if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, LAKESIDE_INTERIOR.furnishLater);
+  return LAKESIDE_INTERIOR;
+}
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 // The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
@@ -183,12 +188,13 @@ export class SpaceView {
   // Asked every frame, so a view stepped down to plain opens its windows, and one set back to the pass shuts them.
   viewsBarred() { return this.passMode !== 'off' && !!this.pass && this.targetUnsure(this.renderer); }
   // The cabin's rooms, built once. A build that throws is logged once and leaves the door shut for good; a visitor
-  // remembered indoors is then set down at the arrival pose.
+  // remembered indoors is then set down at the arrival pose. A visitor who starts indoors gets every queued room at once.
   buildInside() {
     if (this.inside || this.insideFailed || !this.interior) return;
     try {
       this.openings = viewOpenings(this.interior, this.space, this.dressing);
       this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: this.openings});
+      if (this.state.place === 'cabin') this.inside.buildRest();
     }
     catch (error) {
       this.insideFailed = true; console.warn("The cabin's interior could not be built; its door stays shut.", error);
@@ -312,10 +318,19 @@ export class SpaceView {
     const I = this.interior, inside = this.inside;
     if (!inside || !Array.isArray(I?.furniture) || !I.furniture.length) return I;
     if (!inside.furnished) return this.bareWalk ??= bareInterior(I);
-    return inside.skipped?.length ? this.partWalk ??= withoutPieces(I, inside.skipped) : I;
+    const n = inside.skipped?.length ?? 0;
+    if (!n) return I;
+    if (this.partWalkInside !== inside || this.partWalkCount !== n) {
+      this.partWalk = withoutPieces(I, inside.skipped); this.partWalkInside = inside; this.partWalkCount = n;
+    }
+    return this.partWalk;
   }
-  // Whether the rooms' furniture is built and drawn.
-  get furnished() { return !!this.inside?.furnished; }
+  // Whether the room the visitor is in has its furniture built and drawn.
+  get furnished() {
+    if (!this.inside?.furnished || !this.interior || this.state.place !== 'cabin') return false;
+    const r = roomAt(this.interior, this.state.floor, this.state.position);
+    return !!r && (this.inside.furnishedRooms?.includes(r.id) ?? false);
+  }
   // The name of the room the visitor is in, or null in the yard (or without the interior).
   get room() { return this.interior && this.state.place === 'cabin' ? roomAt(this.interior, this.state.floor, this.state.position)?.name ?? null : null; }
   // What is lit in the room the visitor is in: {room (its name), lamp (its level above LAMP_SEEN of full), fire ('burning', 'embers' or 'cold' in
@@ -381,9 +396,12 @@ export class SpaceView {
     } else this.state = pose(stepWalker(this.space, this.state, {...keys, look}, dt));
     let moved = false;
     if (this.passage) {
+      const hadInside = !!this.inside;
       if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
       const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
       if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
+      if (this.state.place === 'cabin' && this.inside?.pending.length) this.inside.buildRest();
+      else if (hadInside && this.inside?.pending.length) this.inside.buildNext();
       this.door = this.inside ? door : 0; this.yard.setDoor(this.door);
       this.canvas.style.opacity = String(1 - veil);
     }

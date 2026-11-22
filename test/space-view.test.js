@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SpaceView, lightLevels, verticalFov} from '../public/space/space-view.js';
+import {SpaceView, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
@@ -12,8 +12,8 @@ import {viewConditions} from '../shared/world.js';
 import {WorldStore} from '../src/store.js';
 import {sceneText} from '../public/scene-description.js';
 import {stepIndoors} from '../shared/walker.js';
-import {bareInterior} from '../shared/furniture.js';
-import {floorArea} from '../shared/interior.js';
+import {bareInterior, withoutRooms} from '../shared/furniture.js';
+import {canStep, floorArea} from '../shared/interior.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -602,4 +602,163 @@ test('the fire\'s flicker does not flip the description between burning and embe
   // the same world moment each frame, the flicker's clock moved on by shifting the epoch it counts from
   for (let k = 0; k < 60; k++) { frame(1, {snapshot: {...snapshot, world: {...snapshot.world, epoch: EPOCH - k * 137}}, now: midnight}); seen.add(view.lit.fire); }
   assert.deepEqual([...seen], ['burning']);
+});
+
+// ── Furniture queue driven from SpaceView (Task 5) ──
+const doorRig = async ({motion = true, interior = I, start = null} = {}) => {
+  const {createPassage} = await import('../public/space/passage.js');
+  const {doorPosition} = await import('../shared/lakeside-dressing.js');
+  const {doorOutward} = await import('../shared/threshold.js');
+  const out = doorOutward(S), [dx, dy] = doorPosition(S, (await import('../shared/lakeside-dressing.js')).LAKESIDE_DRESSING);
+  const atDoor = start ?? {place: 'yard', position: [dx + out[0] * .6, dy + out[1] * .6], yaw: Math.atan2(-out[0], -out[1]), pitch: 0};
+  const base = await rig({interior, state: atDoor});
+  const {view, D} = base;
+  // Reset inside so the test drives buildInside from step() (unless starting indoors).
+  if (atDoor.place === 'yard') { view.inside?.dispose(); view.inside = null; }
+  view.motion = motion;
+  view.passage = createPassage({space: S, dressing: D, interior, motion: () => view.motion});
+  view.canvas = {style: {opacity: '1'}};
+  view.yard.setDoor = () => {};
+  view.look = [0, 0]; view.looked = false; view.glideFrom = null; view.lastStep = null;
+  view.memory = {note() {}};
+  const input = {forward: 0, strafe: 0, turn: 0, tilt: 0, fast: false};
+  view.keys = {input: () => ({...input}), moving: () => input.forward !== 0 || input.strafe !== 0};
+  view.step = SpaceView.prototype.step;
+  return {...base, input};
+};
+
+test('after the door is wanted, each later frame builds one queued room, the first frame none', async t => {
+  let clock = 1000;
+  t.mock.method(performance, 'now', () => clock);
+  const {view, frame} = await doorRig();
+  assert.equal(view.inside, null);
+  frame(1); // frame 1: door wanted -> buildInside() runs, no queued room built on this frame
+  assert.ok(view.inside);
+  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  assert.equal(view.inside.pieceBox('kitchen-table'), null);
+  clock += 33;
+  frame(1); // frame 2: builds kitchen
+  assert.deepEqual(view.inside.pending, ['dining']);
+  assert.ok(view.inside.pieceBox('kitchen-table'));
+  assert.equal(view.inside.pieceBox('dining-table'), null);
+  clock += 33;
+  frame(1); // frame 3: builds dining
+  assert.deepEqual(view.inside.pending, []);
+  assert.ok(view.inside.pieceBox('dining-table'));
+  view.inside.dispose();
+});
+
+test('the visitor handed indoors with rooms still queued finds every room built before that frame is drawn', async t => {
+  let clock = 1000;
+  t.mock.method(performance, 'now', () => clock);
+  const {view, frame, input} = await doorRig({motion: true});
+  const drawnPending = [];
+  const origDraw = view.drawIndoors;
+  view.drawIndoors = function (...args) {
+    drawnPending.push({pending: [...this.inside.pending], rooms: [...this.inside.furnishedRooms]});
+    return origDraw.apply(this, args);
+  };
+  input.forward = 1;
+  frame(1); // t=1000: buildInside(), pending=['kitchen', 'dining']
+  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  clock = 2000; // slow frame: door swings fully open and fade starts; buildNext builds kitchen -> pending=['dining']
+  frame(1);
+  assert.equal(view.state.place, 'yard');
+  assert.deepEqual(view.inside.pending, ['dining']);
+  clock = 2500; // fade midpoint reached while 'dining' is still queued -> hands visitor indoors and drains queue before drawIndoors
+  frame(1);
+  assert.equal(view.state.place, 'cabin');
+  assert.equal(drawnPending.length, 1);
+  assert.deepEqual(drawnPending[0].pending, []);
+  assert.ok(drawnPending[0].rooms.includes('kitchen') && drawnPending[0].rooms.includes('dining'));
+  view.inside.dispose();
+});
+
+test('the same with reduced motion', async t => {
+  let clock = 1000;
+  t.mock.method(performance, 'now', () => clock);
+  const {view, frame, input} = await doorRig({motion: false});
+  const drawnPending = [];
+  const origDraw = view.drawIndoors;
+  view.drawIndoors = function (...args) {
+    drawnPending.push({pending: [...this.inside.pending], rooms: [...this.inside.furnishedRooms]});
+    return origDraw.apply(this, args);
+  };
+  input.forward = 1;
+  frame(1); // t=1000: buildInside(), pending=['kitchen', 'dining']
+  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  clock = 2000; // door opens to 1 and reduced-motion cut moves visitor indoors immediately with both rooms still queued
+  frame(1);
+  assert.equal(view.state.place, 'cabin');
+  assert.equal(drawnPending.length, 1);
+  assert.deepEqual(drawnPending[0].pending, []);
+  assert.ok(drawnPending[0].rooms.includes('kitchen') && drawnPending[0].rooms.includes('dining'));
+  view.inside.dispose();
+});
+
+test('a view that starts in the cabin has every room built at once', async () => {
+  const {view} = await rig({state: {place: 'cabin', floor: 0, position: [4.4, 10.9], yaw: 0, pitch: 0}});
+  assert.deepEqual(view.inside.pending, []);
+  assert.ok(view.inside.pieceBox('kitchen-table'));
+  assert.ok(view.inside.pieceBox('dining-table'));
+  assert.equal(view.furnished, true);
+  view.inside.dispose();
+});
+
+test('a queued room that fails is dropped from the walk plan, even after a walk plan was already read', async t => {
+  const warnings = quietWarnings(t);
+  const {view, THREE} = await rig({state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
+  const {buildInterior} = await import('../public/space/interior/index.js');
+  const {RECIPES} = await import('../public/space/interior/furniture.js');
+  view.inside.dispose();
+  let failDining = false;
+  const badRecipes = new Proxy({...RECIPES}, {
+    getOwnPropertyDescriptor(target, prop) {
+      if (failDining && prop === 'dining-table') throw new Error('dining table failed');
+      return Object.getOwnPropertyDescriptor(target, prop);
+    },
+  });
+  view.inside = buildInterior(THREE, {interior: I, art: view.art, openings: view.openings, recipes: badRecipes});
+  // Read walkPlan before queued rooms build: dining-table blocks [9, 9.5].
+  const before = view.walkPlan;
+  assert.equal(canStep(before, {floor: 0, position: [9, 8.8]}, [9, 9.5]), false);
+  view.inside.buildNext(); // kitchen builds fine
+  failDining = true;
+  view.inside.buildNext(); // dining throws -> dining pieces added to skipped
+  assert.equal(warnings.length, 1);
+  assert.ok(view.inside.skipped.includes('dining-table'));
+  // walkPlan re-derives because skipped grew, so [9, 9.5] is now walkable.
+  assert.notEqual(view.walkPlan, before);
+  assert.equal(canStep(view.walkPlan, {floor: 0, position: [9, 9.2]}, [9, 9.5]), true);
+  view.inside.dispose();
+});
+
+test('&furnish=first with ?check furnishes only the first rooms and walks without the others\' pieces; without ?check it is ignored', async () => {
+  const first = interiorSwitch('?interior=1&check&furnish=first');
+  assert.deepEqual(first.furnishLater, []);
+  assert.equal(first.furniture.some(e => e.room === 'kitchen' || e.room === 'dining'), false);
+  assert.equal(floorArea(first, 0, [4.75, 9.5]), true, 'kitchen table absent from walk plan');
+  assert.equal(floorArea(first, 0, [9, 9.5]), true, 'dining table absent from walk plan');
+  assert.equal(floorArea(first, 0, [4.95, 3.5]), false, 'living room sofa still blocks');
+  assert.equal(interiorSwitch('?interior=1&furnish=first'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=first');
+  assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=first');
+  const {view} = await rig({interior: first, state: {place: 'cabin', floor: 0, position: [4.4, 10.9], yaw: 0, pitch: 0}});
+  assert.deepEqual(view.inside.pending, []);
+  assert.equal(view.furnished, false, 'kitchen is bare under &furnish=first');
+  view.inside.dispose();
+});
+
+test('furnished is false in a room still queued and true once it is built', async () => {
+  const {view} = await rig({state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
+  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  view.state = {place: 'cabin', floor: 0, position: [4.4, 10.9], yaw: 0, pitch: 0}; // in kitchen, still queued
+  assert.equal(view.furnished, false);
+  view.inside.buildNext(); // builds kitchen
+  assert.equal(view.furnished, true);
+  view.state = {place: 'cabin', floor: 0, position: [10, 11.4], yaw: 0, pitch: 0}; // in dining room, still queued
+  assert.equal(view.furnished, false);
+  view.inside.buildNext(); // builds dining
+  assert.equal(view.furnished, true);
+  view.inside.dispose();
 });
