@@ -151,7 +151,7 @@ Intended arrangement (front wall at the bottom; not to scale):
 
 - The limit stays 1.1 times a yard frame at part 3's checked pose, by day and under the `night` study.
 - A second pose is measured and recorded: at night from [3.8, 5.5] facing the window with the lamp in view (1.10 before furniture). It must not cost more than 0.05 above what it measures unfurnished on the same run. **(call)**
-- Budget for the two rooms' furniture **(call)**: at most 6 added draw calls with no halo over a pane, and at most 60 ms added to the interior's first build. The builder reports the vertex count.
+- Budget for the two rooms' furniture **(call)**: at most 6 added draw calls with no halo over a pane, and at most 60 ms added to the interior's first build (raised to 80 ms by the owner after the build; see As built). The builder reports the vertex count.
 - If the limit is missed, the remedies in order: fewer cuts in kit faces, coarser sculpted forms, fewer dressing pieces. Then come back to the owner. Dropping a must-have is the owner's decision.
 
 ### Failure, as built
@@ -286,11 +286,11 @@ The full browser script (`scripts/check-space-browser.mjs`): headless Chrome thr
   - The bare figure is the noisier of the two; its first round read 1.195. In part 4a's task 7 runs the difference was +0.010 to +0.024.
 - **Draw calls:** +5 (47 against 42) at the living capture pose. Limit 6.
 - **Vertices:** 12,092 in 5 meshes (wood, cloth, stone, shades, grounding).
-- **First build:** the furniture adds **63.7 ms** to the interior's first build (median of three fresh loads each, furnished against `&bare=1`), against the **60 ms budget**.
-  - Check 73 records and reports this figure; it does not assert it.
+- **First build:** the furniture adds **63.7 ms** to the interior's first build (median of three fresh loads each, furnished against `&bare=1`), against the budget (**60 ms** when measured, **80 ms** now).
+  - The owner raised the budget to **80 ms** after review of the pull request (November 21, 2026), and check 73 now asserts it. Before that the check recorded the figure without asserting it.
   - On this machine the figure moves with the machine's other load: 60.5 to 69 ms in part 4a's task 7, and 61 to 79 ms in this task's runs.
   - Two interleaved runs of nine loads each, on a quiet machine, gave 61.0 ms both for this build and for the build before this task's tuning. So the tuning costs about nothing measurable. It adds about 170 distinct weighings (3,290 to about 3,460), mostly for the full book runs and the window seat's cushions.
-  - **Whether 60 ms is the right budget is the owner's to decide.**
+  - A busy machine has read 79 ms and once 118 ms, with the bare build slowing too, so check 73, like the speed checks, is to be measured with nothing else drawing or building.
 - Interior first build in all (check 64): 186 ms. First indoor draw: 100 ms.
 
 ### Cut for speed

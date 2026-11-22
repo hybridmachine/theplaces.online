@@ -1051,16 +1051,16 @@ try{
     floorArea(I,0,sofaFrom)&&furnishedLook.atSofa.room==='living room'&&Math.abs(stopAt-sofaStop)<=STOP_NEAR&&Math.abs(furnishedLook.atSofa.position[1]-sofaFrom[1])<=.1&&bareStop>sofaStop+.3&&kitchenEnd.room==='kitchen',
     {from:sofaFrom,stoppedAt:furnishedLook.atSofa.position,sofaFront:sofaFront72,expectedStop:+sofaStop.toFixed(3),tolerance:STOP_NEAR,eyeClear:I.eyeClear,bareWentTo:bareLook.atSofa.position,bareRoom:bareLook.atSofa.room,toKitchen:furnishedLook.toKitchen,
       moved:'until now walked from the hall opening at the sofa\'s back, where the console stopped the walker first'});
-  const med3=a=>median(a),buildAdded=+(med3(loads.furnished)-med3(loads.bare)).toFixed(1),callsAdded=furnishedLook.draw.calls-bareLook.draw.calls,BUILD_BUDGET=60,CALLS_BUDGET=6;
-  // The build time is recorded and reported, not asserted: after the plan's reductions (a coarser weighing lattice, fewer cuts, lighter book runs)
-  // it measured 60.5 to 68.9 ms on mains power over runs of seven to nine loads each, the spread being the machine's other work (the bare build
-  // itself moved between 127 and 147 ms); it sits at the 60 ms budget, not safely under it, so asserting it would fail at random. The owner decides.
-  check(`Furniture adds at most ${CALLS_BUDGET} draw calls at the living room's capture pose; the ms it adds to the interior's first build (median of three loads each, furnished and &bare=1, budget ${BUILD_BUDGET} ms) and its vertices are recorded and reported, not asserted`,
-    callsAdded<=CALLS_BUDGET&&loadsQuiet,
+  const med3=a=>median(a),buildAdded=+(med3(loads.furnished)-med3(loads.bare)).toFixed(1),callsAdded=furnishedLook.draw.calls-bareLook.draw.calls,BUILD_BUDGET=80,CALLS_BUDGET=6;
+  // The build time is asserted against the owner's budget of 80 ms (raised from the design's first 60 ms): on a quiet machine on mains power
+  // the furniture adds 61 to 69 ms; under other load it has read 79 and once 118 ms, the bare build slowing with it. Like the speed checks,
+  // this one is to be measured with nothing else drawing or building on the machine.
+  check(`Furniture adds at most ${CALLS_BUDGET} draw calls at the living room's capture pose; and at most ${BUILD_BUDGET} ms to the interior's first build (median of three loads each, furnished and &bare=1); its vertices are recorded`,
+    callsAdded<=CALLS_BUDGET&&buildAdded<=BUILD_BUDGET&&loadsQuiet,
     {callsAdded,limitCalls:CALLS_BUDGET,calls:{furnished:furnishedLook.draw.calls,bare:bareLook.draw.calls},triangles:{furnished:furnishedLook.draw.triangles,bare:bareLook.draw.triangles},
       buildAddedMs:buildAdded,budgetMs:BUILD_BUDGET,withinBudget:buildAdded<=BUILD_BUDGET,buildMs:loads,vertices:furnishedLook.counts.vertices,meshes:furnishedLook.counts.meshes,pose:livingShot,
       note:'each load is a fresh page whose first buildInside is timed: a cold build, as a visitor meets it'});
-  console.log(`  furniture: +${callsAdded} draw calls, +${buildAdded} ms first build${buildAdded<=BUILD_BUDGET?'':` (over the ${BUILD_BUDGET} ms budget: reported, not failed)`} (furnished ${loads.furnished.join(', ')}; bare ${loads.bare.join(', ')}), ${furnishedLook.counts.vertices} vertices in ${furnishedLook.counts.meshes} meshes`);
+  console.log(`  furniture: +${callsAdded} draw calls, +${buildAdded} ms first build${buildAdded<=BUILD_BUDGET?'':` (over the ${BUILD_BUDGET} ms budget)`} (furnished ${loads.furnished.join(', ')}; bare ${loads.bare.join(', ')}), ${furnishedLook.counts.vertices} vertices in ${furnishedLook.counts.meshes} meshes`);
 
   // 74–75. On one visitor, by day: the low floor view under the sofa's front edge, then at night the table lamp's shade, then the captures.
   const fur=await visitor({width:1440,height:810});await fur.goto(`${base}/?check&interior=1&tier=full`);await ready(fur);await studyLight(fur,'day');await walkIn(fur);
