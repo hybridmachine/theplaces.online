@@ -1,6 +1,6 @@
 # Cabin interior, part 4b: furnishing the kitchen and dining room — design
 
-Status: design, awaiting owner approval (November 21, 2026).
+Status: built behind `?interior=1`, awaiting owner review (November 21, 2026). See As built at the end.
 
 This is the second slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). Its first slice, `2026-11-21-cabin-interior-part-4a-living-hall-furnishing-design.md` (4a), is built and merged, and its design and As built sections are the starting point: everything there about how a piece is described, made, lit, grounded, checked and allowed to fail holds here unless this document says otherwise.
 
@@ -180,3 +180,62 @@ The captures. Two questions: is each room's layout right when seen built; and is
 - How the queue is driven, and how the "all built before the fade-in" rule is enforced.
 - The count and exact choice of dressing pieces within the budget.
 - The wording of the description clauses.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open. New kinds, `piecesIn` and `withoutRooms` live in `shared/furniture.js`; widened rule 8 (`FURNISHED`, `furnishedWay`, `wideTargets`, `throughWays`), rule 9 (wall-window sill clearance) and any-named-spot rule 7 live in `shared/interior.js`; `furnishLater: ['kitchen', 'dining']`, the new pieces and the new spots live in `shared/lakeside-interior.js`. `SURFACES`, `COLOURS` additions (`iron`, `copper`, `china`, `enamel`), `pal.surface` and the new recipes live in `public/space/interior/furniture.js`; per-room queued building (`pending`, `buildNext`, `buildRest`, `furnishedRooms`, per-set counts/timings) lives in `public/space/interior/index.js`; frame-by-frame queue driving, `&furnish=first` and per-room `furnished` live in `public/space/space-view.js`; the kitchen and dining clauses live in `public/scene-description.js`.
+
+### Placements
+
+- Every kitchen and dining piece stands where the plan's tables put it, with two small adjustments settled during testing and capture review:
+  - **`pan-rail`** moved from `along: [4.0, 6.2]` to `along: [4.65, 6.45]` (still on wall `d = 12` at `z = 1.75`). At `[4.0, 6.2]` the rail cut straight through the range's flue pipe at `a = 4.4`. Starting at `4.65` leaves the flue cleanly clear while keeping all five pans over the range and worktop.
+  - **`chair-dining-1..4`** moved 2 cm inward from `a = 8.28 / 9.72` to `8.30 / 9.70` (still clear of the dining table's `a = 8.55 / 9.45` edges). That gives the `a = 11` side-wall corridor to `[10.44, 11.2]` full 0.9 m clearance on the 0.1 m flood grid (pinned in `test/interior.test.js`).
+- The **dining table** stayed centred under its lamp at `[9, 9.5]` (no shift toward the window was needed; the 0.9 m way through to the hall passes on row `d = 7.6`).
+- The **`sink-unit`** counter top sits at `z = 0.82` m (basin floor at `0.66` m) so the copper tap arches to `z = 0.90` m and stays within `KINDS['sink-unit'].height` (`0.9` m).
+- **Named spots** added: `spots.range = [4.4, 10.9]`, `spots.dresser = [3.5, 9.5]`, `spots.diningWindow = [10, 11.4]`, and `spots.speed[2] = [5.2, 7.9]`. None of the three speed spots moved.
+
+### Which pieces are sculpted
+
+- **Sculpted** (`turned`, `roll`, `drape`, then weighed coarsely per vertex): chair legs, back stiles and back spindles; the five hanging pans, the kettle (body, spout, arched handle), the sideboard's full-width jug, the kitchen and dining bowls, the dresser's display and stacked plates, the sideboard's plate stack, the dresser's two cups, the dining candlesticks; the cob loaf; the tea towel draped over the range's rail; the range's flue pipe and front towel rail; the sink's tap.
+- **Kit** (through `face`): sink unit carcass/deck/basin, range body/doors/hotplates, worktop, dresser carcass/cupboard/shelves, kitchen table, dining table, sideboard, pan rail bar and brackets, the three worktop storage jars, the breadboard, the dining rug, and the two dining room framed pictures.
+- Every new recipe picks its tints through `pal.surface(name, ...)` and emits geometry under `SURFACES[name].mesh` (`wood`, `cloth` or `stone`). 4a's recipes were left unchanged.
+
+### Check spots and checks changed
+
+| Check | Was | Now | Why |
+|---|---|---|---|
+| 40, pane spot `dining` | `[10, 9]` | `[10.45, 11]` (asserted standable) | `[10, 9]` is within `chair-dining-3`'s clearance |
+| 43, dining window from kitchen | `[3.2, 10]` | `[3.5, 10]` (asserted standable) | `[3.2, 10]` is within the dresser's clearance; `[3.4, 10.6]` clipped too much of the pane behind the `d = 11.5` jamb |
+| 59, kitchen–dining light leak | default load | loaded with `&furnish=first` | tests the shell's wall strip and floor patch behind the dining sideboard and table |
+| 66, kitchen–dining floor line | default load | loaded with `&furnish=first` | tests the bare floor line across the opening, now under the dining rug and chairs |
+| 71, furniture mesh count | at most 5 meshes total | at most 5 in `sets[0]` and at most 4 in each queued set | per-room mesh sets |
+| 73, living capture draw calls & first-build time | furnished vs `&bare=1` (≤ 6 calls, ≤ 80 ms) | `&furnish=first` vs `&bare=1` (≤ 6 calls, ≤ 80 ms; full first build also ≤ 80 ms); all-furnished living calls recorded (≤ 4 more) | the door-time build is 4a's rooms only |
+| `test/window-views.test.js`, outer wall dining eye | `0.5` m off the back wall (`[8.8, 11.575]`) | `0.9` m off the back wall (`[8.8, 11.175]`, asserted standable) | `[8.8, 11.575]` falls inside the sideboard |
+
+### Measured
+
+Full browser check suite (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on Apple Silicon, 1440 × 810, tier `full`, on a quiet machine. **89 of 89 checks passed**, 0 page or console errors. `docs/interior-validation/browser-results.json` holds checks 32–89 (58 entries, all passing).
+
+- **First build at the door (check 73):** `&furnish=first` adds **+64.5 ms** over `&bare=1` (full load's first build **+65.0 ms**; medians: first `188.4 ms`, full `188.9 ms`, bare `123.9 ms`) against the **80 ms** budget. Draw calls at the living capture pose: **+5** (`&furnish=first` vs `&bare=1`, limit `6`), and **+0** more with all four rooms furnished (limit `4`).
+- **Queued per-room builds (check 83, median of 3 loads, limit 40 ms):**
+  - `kitchen`: **31.0 ms** (`31.0, 30.7, 31.6` ms), `5,501` vertices in `4` meshes (`furniture-wood` 4,173, `furniture-cloth` 90, `furniture-stone` 1,126, `grounding` 112).
+  - `dining`: **26.9 ms** (`26.9, 26.9, 26.9` ms), `5,192` vertices in `4` meshes (`furniture-wood` 4,061, `furniture-cloth` 232, `furniture-stone` 771, `grounding` 128).
+  - `sets[0]` (`living`, `hall`): `12,092` vertices in `5` meshes (`64.7` ms).
+  - Total across all four furnished rooms: **22,785 vertices in 13 meshes**.
+- **Speed at `[5.2, 7.9]` facing the dining window (check 81, limits ≤ 1.1x yard and ≤ +0.05 over `&furnish=first`):**
+  - Day: **1.086x** yard (`12.6 ms` vs `11.6 ms`), against `&furnish=first` `1.042x` (**+0.044**).
+  - Night (kitchen and dining lamps lit by fixture): **1.042x** yard (`12.3 ms` vs `11.8 ms`), against `&furnish=first` `1.061x` (**−0.019**).
+- **Draw calls at `[5.2, 7.9]` (check 82):** **+7** (`41` all furnished vs `34` `&furnish=first`, limit `8`).
+- **4a speed poses (checks 50, 63, 78, 79):** `[4.2, 3]` day **1.034x**, night **1.059x** (limit `1.1`); `[3.8, 5.5]` night **1.095x** vs bare `1.059x` (**+0.036**, limit `+0.05`).
+- **Queue and entry checks (checks 84–88):** entering through the door with normal and reduced motion both report `pending: []` with both queued sets in the scene on the first indoor frame; starting indoors in the kitchen reports `pending: []`, `furnished: true` and includes the kitchen's description clause; kitchen 3-load determinism reads `0` difference (`&furnish=first` differs by `43.4%`); after `inside.fallBack()` kitchen mean luminance is `0.575` and dining `0.613` with all meshes present.
+
+### Cut for speed
+
+- Nothing was cut: every planned piece, chair and dressing item built and drew within budget.
+
+### Known weak points, as the captures show them
+
+- **Brushwork weight (inherited from 4a, out of scope here):** wood cabinetry, iron, copper pans, china plates/jars and the tea towel carry the strong `hills` / `stone` brushwork, so small pieces (jars, plates, breadboard, cups) read with heavy strokes and will benefit from the planned texture pass (`SURFACES` is in place for it).
+- **Grounding patches are subtle by day:** visible under the dining table and chair legs in `furnish-low-dining-floor.jpg`, faint at standing height.
+- **Sink counter step:** `sink-unit`'s counter sits at `0.82` m (8 cm below the adjacent range and worktop at `0.90` m) so the arched tap stays within the kind's `0.9` m height.
+- **Thin daytime margin at `[5.2, 7.9]`:** `+0.044` against the `+0.05` allowance (in an earlier run on the same machine it read `+0.026`), sensitive to background load during timing.

@@ -60,7 +60,7 @@ const FURNITURE = [
   standing('kitchen-table', 'kitchen-table', 'kitchen', [4.75, 9.5]),
   standing('chair-kitchen-1', 'chair', 'kitchen', [4.35, 8.82], Math.PI + .06),
   standing('chair-kitchen-2', 'chair', 'kitchen', [5.15, 8.82], Math.PI - .1),
-  hung('pan-rail', 'pan-rail', 'kitchen', 'd', 12, [4.0, 6.2], 1.75),
+  hung('pan-rail', 'pan-rail', 'kitchen', 'd', 12, [4.65, 6.45], 1.75),
   ...many(5, 'pan', 'pan', 'kitchen', 'pan-rail'),
   setOn('kettle', 'kettle', 'kitchen', 'range'), setOn('cloth', 'cloth', 'kitchen', 'range'),
   ...many(3, 'jar', 'jar', 'kitchen', 'worktop'), setOn('breadboard', 'breadboard', 'kitchen', 'worktop'),
