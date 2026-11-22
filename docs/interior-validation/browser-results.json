@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.1284399998664856
+            1.1263399998664856
           ],
           "yaw": 0,
           "pitch": 0,
@@ -30,7 +30,7 @@
           "cameraY": 1.6,
           "opacity": "1"
         },
-        "darkestOpacity": 0,
+        "darkestOpacity": 0.11,
         "samples": 70,
         "yardMask": 1,
         "hallMask": 0
@@ -59,7 +59,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479299999999997
+            5.433240000200267
           ],
           "yaw": 0,
           "pitch": 0,
@@ -80,7 +80,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479299999999997
+            5.433240000200267
           ],
           "yaw": 0,
           "pitch": 0,
@@ -94,7 +94,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479299999999997
+            5.433240000200267
           ],
           "yaw": 0,
           "pitch": 0,
@@ -108,11 +108,11 @@
           "floor": 1,
           "position": [
             10.3,
-            5.479299999999997
+            5.433240000200267
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1795302090564
+          "savedAt": 1795316120177
         }
       }
     },
@@ -186,19 +186,19 @@
         "stuck": {
           "place": "yard",
           "position": [
-            17.792241472383267,
-            5.871739115278275
+            17.795512240740845,
+            5.863320828654929
           ],
           "yaw": 1.2217304763960306,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.3844928650587196,
+          "cameraY": 3.3826944097517617,
           "opacity": "1",
           "door": 0,
           "insideFailed": true
         },
         "warnings": [
-          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:67:19)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:191:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:378:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:390:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:68:19)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:191:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:384:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:396:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
         ],
         "pageErrors": []
       }
@@ -230,11 +230,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52857,
+              "n": 52899,
               "of": 53760
             },
             "varied": {
-              "n": 53316,
+              "n": 53289,
               "of": 53760
             },
             "mean": [
@@ -265,11 +265,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 93216,
+              "n": 93234,
               "of": 97848
             },
             "varied": {
-              "n": 97329,
+              "n": 96658,
               "of": 97848
             },
             "mean": [
@@ -300,11 +300,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52732,
+              "n": 52778,
               "of": 53760
             },
             "varied": {
-              "n": 53673,
+              "n": 53724,
               "of": 53760
             },
             "mean": [
@@ -339,13 +339,13 @@
               "of": 46728
             },
             "varied": {
-              "n": 46701,
+              "n": 46704,
               "of": 46728
             },
             "mean": [
-              99,
+              100,
               103,
-              72
+              73
             ],
             "room": "second bedroom"
           },
@@ -370,11 +370,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46024,
+              "n": 46026,
               "of": 46728
             },
             "varied": {
-              "n": 46705,
+              "n": 46706,
               "of": 46728
             },
             "mean": [
@@ -405,7 +405,7 @@
             ],
             "live": true,
             "unlike": {
-              "n": 238067,
+              "n": 238078,
               "of": 244860
             },
             "varied": {
@@ -413,9 +413,9 @@
               "of": 244860
             },
             "mean": [
-              160,
+              159,
               178,
-              187
+              188
             ],
             "room": "sky room"
           }
@@ -443,7 +443,7 @@
             "of": 94392
           },
           "varied": {
-            "n": 93546,
+            "n": 93647,
             "of": 94392
           },
           "mean": [
@@ -460,7 +460,7 @@
     },
     {
       "n": 42,
-      "name": "The living window from [3.2,3] and from [4.25,3] shows different yard (more than a tenth of its pane differs; the same spot twice agrees)",
+      "name": "The living window from [3.2,3] and from [4.2,3], both standable, shows different yard (more than a tenth of its pane differs; the same spot twice agrees)",
       "pass": true,
       "detail": {
         "spots": [
@@ -469,10 +469,11 @@
             3
           ],
           [
-            4.25,
+            4.2,
             3
           ]
         ],
+        "standable": true,
         "left": [
           480,
           345,
@@ -480,13 +481,13 @@
           619
         ],
         "right": [
-          720,
+          708,
           345,
-          975,
+          964,
           619
         ],
         "parallaxDiff": {
-          "n": 226,
+          "n": 227,
           "of": 288
         },
         "parallaxControl": {
@@ -500,12 +501,12 @@
               3
             ],
             [
-              4.25,
+              4.2,
               3
             ]
           ],
           "diff": {
-            "n": 226,
+            "n": 227,
             "of": 288
           },
           "control": {
@@ -533,7 +534,7 @@
           ],
           "live": true,
           "unlike": {
-            "n": 2318,
+            "n": 2319,
             "of": 3192
           },
           "varied": {
@@ -574,11 +575,11 @@
         ],
         "unlike": [
           {
-            "n": 49675,
+            "n": 49669,
             "of": 87117
           },
           {
-            "n": 24920,
+            "n": 24922,
             "of": 25090
           }
         ],
@@ -600,7 +601,7 @@
       "pass": true,
       "detail": {
         "pane": {
-          "n": 2339,
+          "n": 3077,
           "of": 70144
         },
         "streakMin": 35,
@@ -632,7 +633,7 @@
       "pass": true,
       "detail": {
         "dayLum": 0.446,
-        "nightLum": 0.196
+        "nightLum": 0.2
       }
     },
     {
@@ -647,7 +648,7 @@
           653
         ],
         "caseDiff": {
-          "n": 36337,
+          "n": 37760,
           "of": 109440
         }
       }
@@ -674,7 +675,7 @@
             "of": 53760
           },
           "varied": {
-            "n": 53324,
+            "n": 53371,
             "of": 53760
           },
           "mean": [
@@ -711,25 +712,25 @@
       "name": "Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose (median of rounds, yard and room alternating)",
       "pass": true,
       "detail": {
-        "yardMs": 12.6,
-        "roomMs": 13.1,
-        "ratio": 1.04,
+        "yardMs": 10.3,
+        "roomMs": 10.9,
+        "ratio": 1.058,
         "limit": 1.1,
         "roundRatios": [
-          1.048,
-          1.023,
-          1.085,
-          1.031,
-          1.048
+          1.069,
+          1.039,
+          0.991,
+          1.28,
+          1.064
         ],
         "ratioSpread": [
-          1.023,
-          1.085
+          0.991,
+          1.28
         ],
         "rounds": [
           {
-            "yardMs": 12.3,
-            "roomMs": 13.1,
+            "yardMs": 10.3,
+            "roomMs": 12.2,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -741,8 +742,8 @@
             }
           },
           {
-            "yardMs": 12.6,
-            "roomMs": 13.2,
+            "yardMs": 10.2,
+            "roomMs": 10.9,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -754,8 +755,8 @@
             }
           },
           {
-            "yardMs": 12.8,
-            "roomMs": 13.1,
+            "yardMs": 10.3,
+            "roomMs": 10.7,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -767,7 +768,20 @@
             }
           },
           {
-            "yardMs": 11.8,
+            "yardMs": 10.6,
+            "roomMs": 10.5,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": false,
+              "fire": "cold"
+            }
+          },
+          {
+            "yardMs": 10,
             "roomMs": 12.8,
             "yardTier": "full",
             "roomLive": [
@@ -780,21 +794,8 @@
             }
           },
           {
-            "yardMs": 12.7,
-            "roomMs": 13.1,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": false,
-              "fire": "cold"
-            }
-          },
-          {
-            "yardMs": 12.4,
-            "roomMs": 13,
+            "yardMs": 12.5,
+            "roomMs": 13.3,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -808,7 +809,7 @@
         ],
         "discardedFirstRound": true,
         "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
-        "hallDoorOpenMs": 15.9,
+        "hallDoorOpenMs": 16,
         "hallLive": [
           "door",
           "living"
@@ -868,14 +869,14 @@
           ]
         ],
         "clock": {
-          "time": "11:39",
+          "time": "11:40",
           "weather": "Clear skies",
           "study": null
         },
         "server": {
-          "epoch": 1795302198462,
-          "shiftedBy": 5961998,
-          "port": 55999,
+          "epoch": 1795316250290,
+          "shiftedBy": 5961999,
+          "port": 59316,
           "worldHourAimed": 11.677
         },
         "note": "the on-screen clock and the drawn scene are the same moment: the server's Date.now is moved, no study is used"
@@ -908,18 +909,18 @@
       "pass": true,
       "detail": {
         "glow": [
-          242,
-          202,
-          148
+          243,
+          203,
+          149
         ],
         "glowOut": [
-          149,
-          130,
-          109
+          150,
+          131,
+          110
         ],
-        "glowWarmth": 1.635,
+        "glowWarmth": 1.631,
         "limitGlow": 1.3,
-        "ringBrighter": 1.559,
+        "ringBrighter": 1.555,
         "limitRingBrighter": 1.15,
         "ringWarmer": 1.196,
         "limitRingWarmer": 1.05,
@@ -935,7 +936,7 @@
         ],
         "glassBrighter": 1.482,
         "limitGlassBrighter": 1.1,
-        "glassOverRing": 1.225,
+        "glassOverRing": 1.219,
         "glassPatch": [
           254,
           254,
@@ -1002,30 +1003,30 @@
         "flameShare": 1,
         "limitFlames": 0.25,
         "mouthLit": [
-          219,
-          170,
-          92
+          220,
+          173,
+          93
         ],
         "mouthOut": [
           81,
           58,
           32
         ],
-        "mouthRatio": 2.876,
+        "mouthRatio": 2.91,
         "limitMouth": 1.3,
         "slab": [
-          172,
+          173,
           116,
           61
         ],
         "floor": [
           141,
-          105,
+          106,
           72
         ],
-        "slabWarmth": 2.82,
+        "slabWarmth": 2.836,
         "floorWarmth": 1.958,
-        "ratio": 1.44,
+        "ratio": 1.448,
         "limitSlab": 1.05,
         "slabAt": [
           0.75,
@@ -1050,7 +1051,7 @@
       "pass": true,
       "detail": {
         "frameOut": 0.163,
-        "frameLit": 0.436,
+        "frameLit": 0.435,
         "limitDim": 0.25,
         "wayBox": [
           719,
@@ -1342,51 +1343,25 @@
       "name": "Speed on &tier=full under the night study (the living room's lamp and fire lit): a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose, measured as check 50 measures it",
       "pass": true,
       "detail": {
-        "yardMs": 12.6,
-        "roomMs": 13.1,
-        "ratio": 1.04,
+        "yardMs": 10.9,
+        "roomMs": 11.7,
+        "ratio": 1.073,
         "limit": 1.1,
         "roundRatios": [
-          1.048,
-          1.056,
-          1.055,
-          1.015,
-          1.04
+          0.929,
+          0.936,
+          1.092,
+          1.065,
+          1.057
         ],
         "ratioSpread": [
-          1.015,
-          1.056
+          0.929,
+          1.092
         ],
         "rounds": [
           {
-            "yardMs": 10.3,
-            "roomMs": 11.3,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": true,
-              "fire": "burning"
-            }
-          },
-          {
-            "yardMs": 12.5,
-            "roomMs": 13.1,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": true,
-              "fire": "burning"
-            }
-          },
-          {
-            "yardMs": 12.4,
-            "roomMs": 13.1,
+            "yardMs": 13,
+            "roomMs": 13.7,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1399,7 +1374,7 @@
           },
           {
             "yardMs": 12.7,
-            "roomMs": 13.4,
+            "roomMs": 11.8,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1411,8 +1386,8 @@
             }
           },
           {
-            "yardMs": 13.1,
-            "roomMs": 13.3,
+            "yardMs": 12.5,
+            "roomMs": 11.7,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1424,8 +1399,34 @@
             }
           },
           {
-            "yardMs": 12.6,
-            "roomMs": 13.1,
+            "yardMs": 10.9,
+            "roomMs": 11.9,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": true,
+              "fire": "burning"
+            }
+          },
+          {
+            "yardMs": 10.7,
+            "roomMs": 11.4,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": true,
+              "fire": "burning"
+            }
+          },
+          {
+            "yardMs": 10.6,
+            "roomMs": 11.2,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1440,10 +1441,10 @@
         "discardedFirstRound": true,
         "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
         "litInTheRoom": true,
-        "dayRatio": 1.04,
-        "dayYardMs": 12.6,
+        "dayRatio": 1.058,
+        "dayYardMs": 10.3,
         "nightYardNote": "a yard frame costs the same by night as by day when timed alone (12.5 ms by day, 12.1 ms by night: 44 against 47 draw calls, 330,704 against 333,404 triangles, no shadow pass in either); an earlier day figure of 26 ms was measured while the windows' visitor was still open and drawing, which halves the GPU. The ratio compares the same page's room frame with its yard frame under one study: the room frame is drawIndoors, the cabin's own scene plus the live views of this very yard through its panes, so it shows that the lit interior costs no more than the yard it looks onto; it does not show what a night yard costs against a day one, which is the same.",
-        "hallDoorOpenMs": 15.5,
+        "hallDoorOpenMs": 14.8,
         "hallLive": [
           "door",
           "living"
@@ -1455,8 +1456,8 @@
       "name": "The interior's build time (the first buildInside) and its first indoor draw, in milliseconds (recorded, not asserted)",
       "pass": true,
       "detail": {
-        "buildMs": 185.9,
-        "firstIndoorDrawMs": 100.3,
+        "buildMs": 211.1,
+        "firstIndoorDrawMs": 116.6,
         "note": "headless Chrome on the machine's GPU through ANGLE; one load, the page's first build after a cold start"
       }
     },
@@ -1731,8 +1732,8 @@
         "lit": [
           [
             84,
-            90,
-            99
+            89,
+            97
           ],
           [
             83,
@@ -1740,54 +1741,54 @@
             98
           ],
           [
-            80,
-            74,
-            47
-          ],
-          [
             86,
             80,
-            54
+            51
           ],
           [
-            90,
             95,
-            101
+            89,
+            60
+          ],
+          [
+            89,
+            94,
+            99
           ]
         ],
         "out": [
           [
             39,
-            58,
-            82
+            57,
+            80
           ],
           [
-            38,
+            39,
             57,
             81
           ],
           [
-            34,
             41,
-            30
+            48,
+            34
+          ],
+          [
+            49,
+            58,
+            44
           ],
           [
             40,
-            50,
-            38
-          ],
-          [
-            41,
-            60,
-            83
+            59,
+            81
           ]
         ],
         "ratios": [
-          1.604,
-          1.614,
-          1.87,
-          1.698,
-          1.636
+          1.612,
+          1.612,
+          1.742,
+          1.595,
+          1.647
         ],
         "limit": 1.15,
         "live": {
@@ -1802,17 +1803,17 @@
           ],
           "live": true,
           "unlike": {
-            "n": 10330,
+            "n": 10291,
             "of": 13916
           },
           "varied": {
-            "n": 13910,
+            "n": 13911,
             "of": 13916
           },
           "mean": [
-            131,
-            130,
-            121
+            134,
+            132,
+            122
           ]
         },
         "pose": {
@@ -1845,11 +1846,11 @@
           ],
           "live": true,
           "unlike": {
-            "n": 52868,
+            "n": 52887,
             "of": 53760
           },
           "varied": {
-            "n": 53351,
+            "n": 53338,
             "of": 53760
           },
           "mean": [
@@ -1868,7 +1869,7 @@
             179,
             156
           ],
-          "lum": 0.7046795339733116
+          "lum": 0.7047717864923748
         },
         "after": {
           "box": [
@@ -1882,11 +1883,11 @@
           ],
           "live": true,
           "unlike": {
-            "n": 52829,
+            "n": 52846,
             "of": 53760
           },
           "varied": {
-            "n": 53337,
+            "n": 53340,
             "of": 53760
           },
           "mean": [
@@ -1961,22 +1962,24 @@
     },
     {
       "n": 72,
-      "name": "Walking from the hall opening straight at the sofa stops short of it (and with &bare=1 the same walk goes on past where it stands); walking from the door to the kitchen opening by W and turns arrives in the kitchen",
+      "name": "Walking from the standable spot [3.25,3] on the hearth side straight at the sofa's front stops within 0.03 m either side of the eye's clearance short of it (the sofa's own obstacle, nothing else, stops it), and with &bare=1 the same walk goes on past that point; walking from the door to the kitchen opening by W and turns arrives in the kitchen",
       "pass": true,
       "detail": {
         "from": [
-          7.4,
-          3.5
+          3.25,
+          3
         ],
         "stoppedAt": [
-          6.000026422990693,
-          3.472154043925228
+          4.249897188596891,
+          3.0678427970233693
         ],
-        "sofaEdge": 5.4,
+        "sofaFront": 4.5,
+        "expectedStop": 4.25,
+        "tolerance": 0.03,
         "eyeClear": 0.25,
         "bareWentTo": [
-          3.757900000000004,
-          3.5
+          6.049999999999996,
+          3
         ],
         "bareRoom": "living room",
         "toKitchen": [
@@ -1987,7 +1990,7 @@
             ],
             "end": [
               7.894,
-              4.56
+              4.561
             ],
             "room": "entry hall"
           },
@@ -1998,7 +2001,7 @@
             ],
             "end": [
               6.003,
-              4.099
+              4.098
             ],
             "room": "living room"
           },
@@ -2009,7 +2012,7 @@
             ],
             "end": [
               5.999,
-              6.338
+              6.385
             ],
             "room": "living room"
           },
@@ -2019,12 +2022,13 @@
               7.8
             ],
             "end": [
-              5.067,
-              8.023
+              5.087,
+              7.953
             ],
             "room": "kitchen"
           }
-        ]
+        ],
+        "moved": "until now walked from the hall opening at the sofa's back, where the console stopped the walker first"
       }
     },
     {
@@ -2039,22 +2043,22 @@
           "bare": 42
         },
         "triangles": {
-          "furnished": 359130,
-          "bare": 348660
+          "furnished": 359078,
+          "bare": 348608
         },
-        "buildAddedMs": 63.7,
+        "buildAddedMs": 118.4,
         "budgetMs": 60,
         "withinBudget": false,
         "buildMs": {
           "furnished": [
-            188.6,
-            197.3,
-            184
+            270.5,
+            268.1,
+            222.5
           ],
           "bare": [
-            131.3,
-            123.5,
-            124.9
+            139.1,
+            149.7,
+            179.3
           ]
         },
         "vertices": 12092,
@@ -2074,20 +2078,20 @@
     },
     {
       "n": 74,
-      "name": "The low floor view: the floor just under the sofa's front edge is at most 0.85 of the open floor 0.6 m in front of it, under the same light",
+      "name": "The low floor view from a standable spot: the floor just under the sofa's front edge is at most 0.85 of the open floor 0.6 m in front of it, under the same light",
       "pass": true,
       "detail": {
         "under": [
-          103,
-          90,
-          73
+          101,
+          88,
+          71
         ],
         "open": [
-          138,
+          139,
           122,
-          101
+          102
         ],
-        "ratio": 0.739,
+        "ratio": 0.721,
         "limit": 0.85,
         "underAt": [
           4.46,
@@ -2101,40 +2105,48 @@
         ],
         "screen": [
           [
-            777,
-            424
+            782,
+            425
           ],
           [
-            624,
-            463
+            616,
+            465
           ]
         ],
-        "eyeHeight": 0.45
+        "eyeHeight": 0.45,
+        "spot": [
+          3.1,
+          2.3
+        ]
       }
     },
     {
       "n": 75,
-      "name": "At night with the living lamp lit by fixture the table lamp's shade is warmer (red over blue) and brighter than with the lamp out",
+      "name": "At night with the living lamp lit by fixture the table lamp's shade, seen from a standable spot, is warmer (red over blue) and brighter than with the lamp out",
       "pass": true,
       "detail": {
         "lit": [
-          232,
-          189,
-          136
+          231,
+          188,
+          135
         ],
         "out": [
           54,
-          61,
-          78
+          60,
+          77
         ],
-        "warmthLit": 1.706,
-        "warmthOut": 0.692,
-        "lumLit": 0.762,
-        "lumOut": 0.238,
+        "warmthLit": 1.711,
+        "warmthOut": 0.701,
+        "lumLit": 0.758,
+        "lumOut": 0.235,
         "shadeAt": [
           3.185,
           1.575,
           0.91
+        ],
+        "spot": [
+          4.185,
+          2.675
         ],
         "screen": [
           [
@@ -2156,7 +2168,7 @@
             162,
             138
           ],
-          "lum": 0.6405681406590413
+          "lum": 0.6405819764433551
         },
         "hall": {
           "rgb": [
@@ -2164,7 +2176,7 @@
             156,
             132
           ],
-          "lum": 0.6182759800517429
+          "lum": 0.6182826654411764
         },
         "meshes": [
           {
@@ -2225,30 +2237,30 @@
       "pass": true,
       "detail": {
         "furnished": {
-          "ratio": 1.039,
-          "yardMs": 12.9,
-          "roomMs": 13.4,
+          "ratio": 1,
+          "yardMs": 11.8,
+          "roomMs": 11.8,
           "roundRatios": [
-            1.047,
-            1.039,
-            1.038,
-            1.047,
-            1.031
+            0.983,
+            0.855,
+            1.514,
+            1.158,
+            1.056
           ]
         },
         "bare": {
-          "ratio": 1.065,
-          "yardMs": 12.4,
-          "roomMs": 13.2,
+          "ratio": 1.25,
+          "yardMs": 10.8,
+          "roomMs": 13.5,
           "roundRatios": [
-            1.195,
-            0.944,
-            1.047,
-            1.056,
-            1.031
+            1.046,
+            1.148,
+            1.205,
+            1.308,
+            1.055
           ]
         },
-        "added": -0.026,
+        "added": -0.25,
         "limit": 0.05,
         "lit": true,
         "pose": {
@@ -2269,8 +2281,8 @@
       "name": "Speed at [4.2, 3] furnished, by day and under the night study, is at most 1.1 times a yard frame (checks 50 and 63, gathered)",
       "pass": true,
       "detail": {
-        "day": 1.04,
-        "night": 1.04,
+        "day": 1.058,
+        "night": 1.073,
         "limit": 1.1,
         "checks": [
           50,
