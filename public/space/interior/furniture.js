@@ -1,4 +1,4 @@
-import {KINDS} from '../../../shared/furniture.js';
+import {KINDS, withDependents} from '../../../shared/furniture.js';
 import {lightSum} from '../../../shared/interior-light.js';
 import {roomAt} from '../../../shared/interior.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
@@ -14,8 +14,8 @@ import {MANTEL} from './fireplace.js';
 // room's lamp) and the grounding (a soft dark patch on the floor under each solid piece).
 // Where a piece stands comes from its entry: standing pieces at their `at` and `turn`, wall-hung ones on the face of their wall line,
 // set-on ones on their parent (on a seat at the parent kind's `seat`, otherwise on its top) or on the fireplace's mantel. A piece
-// whose kind has no recipe, whose parent cannot be found, or whose recipe throws, is passed over, with one warning for the whole
-// build naming each and why. Every irregularity comes from a seed of the entry's id.
+// whose kind has no recipe, whose parent cannot be found, or whose recipe throws, is passed over, and every piece set on it with it,
+// with one warning for the whole build naming each and why. Every irregularity comes from a seed of the entry's id.
 
 // Linear tints, lit; the flat light's (built unlit) is each divided by the flat light's irradiance on a floor, as the shell's boards are.
 // (the reds and blues faded toward grey, as the painting's are: nothing saturated; `walnut` is the stair's joinery, darker than its treads;
@@ -269,12 +269,14 @@ export const RECIPES = {
       ...kit.roll(at, [-.03, .02, .04], [-.07, .05, .58], .012, pal.darkOak(1, .06), {sides: 6}),
       ...kit.roll(at, [.03, -.02, .04], [.05, -.06, .575], .026, pal.rugRed(2, .08, .6), {sides: 7, ends: pal.darkOak(3, .06)})]};
   },
-  // A blue-glazed jug on the mantel toward its front-wall end, with a handle.
+  // A blue-glazed jug on the mantel toward its front-wall end, with a handle; on a shelf shallower than its belly (the mantel's exposed
+  // `deep`), drawn narrower to fit it, its handle drawn in with it.
   jug(kit, e, pal) {
     const at = kit.moved(kit.placed(e), [-.8, 0, 0]), glaze = pal.blue(0, .06, 1.15);   // (blue, so it does not sink into the breast's stone)
-    return {stone: [...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [.07, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]],
+    const belly = .07, s = Math.min(1, ((e.parent?.deep ?? 2 * belly) / 2 - .002) / belly), r = ([x, z]) => [x * s, z];
+    return {stone: [...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [belly, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]].map(r),
       lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
-      ...kit.roll(at, [.06, 0, .2], [.1, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}), ...kit.roll(at, [.1, 0, .17], [.066, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE})]};
+      ...kit.roll(at, [.06 * s, 0, .2], [.1 * s, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}), ...kit.roll(at, [.1 * s, 0, .17], [.066 * s, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE})]};
   },
   // A brass candlestick with its candle, either side of the clock.
   candlestick(kit, e, pal) {
@@ -349,7 +351,8 @@ export const RECIPES = {
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.
 // `weightsAt(point, normal, roomId)` is the light field's weights at a point of the interior frame, in that room.
-export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, materials, treads, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
+// `recipes` (RECIPES unless given) are the recipes by kind; `skipped` in the result names every piece passed over (empty when none).
+export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, materials, treads, recipes = RECIPES, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
   const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
   const colours = light ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),
@@ -371,8 +374,9 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     }
     const siblings = I.furniture.filter(x => x.on === entry.on && x.kind === entry.kind), place = {index: siblings.indexOf(entry), count: siblings.length};
     if (entry.on === 'mantel') {
-      const fp = I.fireplace;
-      return {...entry, ...place, at: [fp.a + fp.breast.depth - MANTEL.into + MANTEL.depth / 2, fp.d], turn: Math.PI / 2, lift: floor + fp.mantel, parent: {kind: 'mantel'}};
+      // (centred on the part of the shelf in front of the breast's face, `deep` from it to the shelf's front edge: the rest is in the stone)
+      const fp = I.fireplace, face = fp.a + fp.breast.depth, deep = MANTEL.depth - MANTEL.into;
+      return {...entry, ...place, at: [face + deep / 2, fp.d], turn: Math.PI / 2, lift: floor + fp.mantel, parent: {kind: 'mantel', deep}};
     }
     const parent = resolve(byId.get(entry.on), depth + 1);
     if (!parent) return null;
@@ -381,17 +385,25 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   };
 
   // Every piece's geometries by mesh, and the range of vertices each piece has in each.
-  const lists = {wood: [], cloth: [], stone: [], shades: []}, counts = {wood: 0, cloth: 0, stone: 0, shades: 0}, ranges = new Map(), skipped = [], scene = {interior: I, treads, plain};
+  // (each piece made first; one that fails takes every piece set on it, directly or through a chain, with it, so nothing is drawn
+  // standing on a piece that is not there and the walker's plan can leave them all out: withoutPieces)
+  const lists = {wood: [], cloth: [], stone: [], shades: []}, counts = {wood: 0, cloth: 0, stone: 0, shades: 0}, ranges = new Map(), scene = {interior: I, treads, plain};
+  const why = new Map(), makes = [];
   for (const entry of I.furniture) {
-    const recipe = Object.hasOwn(RECIPES, entry?.kind) ? RECIPES[entry.kind] : null;
-    if (!recipe) { skipped.push(`${entry?.id} (no recipe for ${entry?.kind})`); continue; }
-    let made;
+    const recipe = Object.hasOwn(recipes, entry?.kind) ? recipes[entry.kind] : null;
+    if (!recipe) { why.set(entry?.id, `no recipe for ${entry?.kind}`); continue; }
     try {
       const where = resolve(entry);
       if (!where) throw new Error('it cannot be placed');
-      made = recipe(kit, where, paletteFor(idSeed(entry.id)), scene);
+      const made = recipe(kit, where, paletteFor(idSeed(entry.id)), scene);
       for (const k of Object.keys(made)) if (!lists[k]) throw new Error(`no mesh for ${k}`);
-    } catch (error) { skipped.push(`${entry.id} (${error?.message ?? error})`); continue; }
+      makes.push([entry, made]);
+    } catch (error) { why.set(entry.id, error?.message ?? String(error)); }
+  }
+  const skipped = [...withDependents(I.furniture, [...why.keys()])];
+  for (const id of skipped) if (!why.has(id)) why.set(id, `set on ${byId.get(id).on}, which was passed over`);
+  for (const [entry, made] of makes) {
+    if (why.has(entry.id)) { for (const list of Object.values(made)) for (const g of list) g.dispose(); continue; }
     const own = [];
     for (const [k, list] of Object.entries(made)) {
       const count = list.reduce((t, g) => t + g.getAttribute('position').count, 0);
@@ -399,7 +411,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     }
     ranges.set(entry.id, own);
   }
-  if (skipped.length) console.warn(`The cabin's furniture passed over ${skipped.length} piece(s) it could not draw: ${skipped.join(', ')}.`);
+  if (skipped.length) console.warn(`The cabin's furniture passed over ${skipped.length} piece(s) it could not draw: ${skipped.map(id => `${id} (${why.get(id)})`).join(', ')}.`);
 
   const object = new THREE.Group(); object.name = 'furniture'; object.userData.pieces = ranges;
   // The stone's own material, as the fireplace's: lit over the stone brushwork (plain where the art has none), or Lambert when built unlit.
@@ -502,7 +514,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   }
   setLight();
   const vertices = object.children.reduce((t, m) => t + m.geometry.getAttribute('position').count, 0);
-  return {object, counts: {vertices, meshes: object.children.length}, pieceBox,
+  return {object, counts: {vertices, meshes: object.children.length}, pieceBox, skipped,
     // The frame's dials: the lit surfaces follow them through the shell's materials; the shades' colour is set here, from the living room's
     // lamp and the light at the shades without it.
     setLight,

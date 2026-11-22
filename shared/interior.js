@@ -72,8 +72,8 @@ function fittingsFit(I, byId) {
 
 // The furniture of the blueprint, rule by rule (each numbered as in the plan): every piece known and in a room that exists (1); a footprint
 // inside its room (2); a solid one clear of the others, the breasts, the leaf's sweep, the doorways' passages and the stair, the newel apart (3),
-// of the wall lamps and of the fire's mouth (4); a hung piece on a wall of its room clear of openings, windows and wall lamps (5); a set-on
-// piece on something that holds it (6); the ground floor's openings, the named spots and the stair foot within reach of the arrival spot (7), and the hall's
+// of the wall lamps and of the fire's mouth (4); a hung piece on a wall of its room clear of openings, the front door, windows and wall lamps (5);
+// a set-on piece on something that holds it, in that piece's room (on the mantel, in the fireplace's room) (6); the ground floor's openings, the named spots and the stair foot within reach of the arrival spot (7), and the hall's
 // openings, the stair foot and the kitchen opening within reach of a walker 0.9 m wide walking through the hall and living room (8).
 const WIDE_CLEAR = .45;
 const overlaps = (x, y) => x.a[0] < y.a[1] - EPS && y.a[0] < x.a[1] - EPS && x.d[0] < y.d[1] - EPS && y.d[0] < x.d[1] - EPS;
@@ -100,7 +100,9 @@ function furnitureFit(I, byId) {
     if (!e || typeof e.id !== 'string' || pieces.has(e.id) || !Object.hasOwn(KINDS, e.kind) || !byId.has(e.room)) return false;
     pieces.set(e.id, e);
   }
-  const solids = [], standingOf = e => KINDS[e.kind].standing;
+  const solids = [], standingOf = e => KINDS[e.kind].standing, fp = I.fireplace;
+  // (the mantel's room: the one the fireplace's breast faces into on the ground floor)
+  const hearthRoom = fp && fp.breast ? roomAt(I, 0, [fp.a + fp.breast.depth, fp.d])?.id : null;
   for (const e of I.furniture) {
     const room = byId.get(e.room), standing = standingOf(e);
     if (standing === 'solid' || standing === 'walk-over') {
@@ -109,9 +111,10 @@ function furnitureFit(I, byId) {
       if (standing === 'solid') solids.push({e, f, floor: room.floor});
     } else if (standing === 'wall-hung') {
       if (!wallHungFits(I, e, room)) return false;   // 5
-    } else if (e.on !== 'mantel' && !(pieces.has(e.on) && ['solid', 'wall-hung'].includes(standingOf(pieces.get(e.on))))) return false;   // 6
+    } else if (e.on === 'mantel' ? e.room !== hearthRoom
+      : !(pieces.has(e.on) && ['solid', 'wall-hung'].includes(standingOf(pieces.get(e.on))) && pieces.get(e.on).room === e.room)) return false;   // 6
   }
-  const stair = {a: I.stair.a, d: I.stair.d}, fp = I.fireplace;
+  const stair = {a: I.stair.a, d: I.stair.d};
   const mouth = fp && {a: [fp.a + fp.breast.depth, fp.a + fp.breast.depth + .6], d: [fp.d - fp.mouth.width / 2, fp.d + fp.mouth.width / 2]};
   for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4
     if (solids.some((o, j) => j > k && o.floor === floor && overlaps(o.f, f))) return false;
@@ -139,13 +142,16 @@ export const furnishedWay = I => ({...I, rooms: I.rooms.filter(r => r.floor !== 
 export const wideTargets = I => [...I.openings.filter(o => o.floor === 0 && (o.rooms.includes('hall') || o.rooms.includes('living') && o.rooms.includes('kitchen')))
   .map(doorwayPoint), stairFoot(I)];
 
-// A hung piece lies on one of its room's wall lines, within the room along it, and clear of that line's openings and windows and of wall lamps.
+// A hung piece lies on one of its room's wall lines, within the room along it, and clear of that line's openings, the front door and windows
+// and of wall lamps.
 function wallHungFits(I, e, room) {
   const across = e.wall, along = across === 'a' ? 'd' : 'a';
   if (!(across === 'a' || across === 'd') || !room[across].includes(e.line) || !Array.isArray(e.along) || !(e.along[0] < e.along[1]) || typeof e.z !== 'number') return false;
   if (e.along[0] < room[along][0] - EPS || e.along[1] > room[along][1] + EPS) return false;
   const apart = (lo, hi) => e.along[1] <= lo + EPS || e.along[0] >= hi - EPS;
   if (I.openings.some(o => o.floor === room.floor && o.line === across && o.at === e.line && !apart(...o.span))) return false;
+  // (the front door, in the ground floor's front wall, is not one of the openings between rooms)
+  if (room.floor === 0 && across === 'd' && e.line === 0 && I.door && !apart(I.door.a - I.door.width / 2, I.door.a + I.door.width / 2)) return false;
   const wallLine = w => w.wall === 'front' ? 0 : w.wall === 'back' ? I.size[1] : null;
   if (across === 'd' && I.windows.some(w => w.kind === 'wall' && I.rooms.some(r => r.id === w.room && r.floor === room.floor) && wallLine(w) === e.line
     && !apart(w.a - w.width / 2, w.a + w.width / 2))) return false;

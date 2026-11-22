@@ -55,8 +55,9 @@ const steps = length => Math.max(1, Math.ceil(length / STEP - 1e-9));
 // A plain daytime, the light the rooms show until a frame sets its own: full daylight from a pale sky, every lamp and the fire out.
 const DAYTIME = {calendar: {light: 1, elevation: 1, hour: 12}, weather: {cloud: 0}, sky: {zenith: [.62, .70, .76], horizon: [.83, .83, .75]},
   cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false};
+// `recipes` replaces the furniture's recipes by kind (buildFurniture's; its RECIPES unless given), as a test does to make one fail.
 
-export function buildInterior(THREE, {interior: I, art, openings}) {
+export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   const W = I.wall, half = W / 2, rise = I.floorRise, [SA, SD] = I.size;
   const base = floor => floor * rise;
   // The ceiling's height above the ground floor at depth d on that storey.
@@ -359,7 +360,7 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
     const weigh = coarseWeigh();
     furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
       lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint,
-      materials: {surface, leafed}, treads: TREADS,
+      materials: {surface, leafed}, treads: TREADS, recipes,
       weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
     scene.add(furniture.object);
   } catch (error) {
@@ -406,6 +407,8 @@ export function buildInterior(THREE, {interior: I, art, openings}) {
   return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
     // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
     furnished: !!furniture && I.furniture.length > 0, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
+    // The ids of the pieces passed over (each, and everything set on it; empty when none, or when no furniture was built).
+    skipped: furniture?.skipped ?? [],
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
     setLight(dials) { light?.set(dials); fittings.setLight(dials); furniture?.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on

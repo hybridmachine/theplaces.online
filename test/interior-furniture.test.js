@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {KINDS, footprint, corners, bareInterior} from '../shared/furniture.js';
+import {KINDS, footprint, corners, bareInterior, withoutPieces} from '../shared/furniture.js';
+import {MANTEL} from '../public/space/interior/fireplace.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
@@ -138,6 +139,40 @@ test('a recipe that throws is skipped, with one warning, and the rest are drawn'
     assert.equal(inside.pieceBox('hearth-rug'), null); assert.ok(inside.pieceBox('bookshelf'));
     inside.dispose();
   } finally { RECIPES.rug = kept; }
+});
+
+test('a solid piece whose recipe throws takes everything set on it with it: none drawn, no patch, all named once', () => {
+  const recipes = {...RECIPES, sofa: () => { throw new Error('a broken sofa'); }};
+  const [inside, warnings] = warned(() => buildInterior(THREE, {interior: I, art: stubArt(), openings, recipes}));
+  const gone = ['sofa', 'cushion-sofa-1', 'cushion-sofa-2', 'cushion-sofa-3', 'throw'];
+  assert.equal(inside.furnished, true);
+  for (const id of gone) assert.equal(inside.pieceBox(id), null, `${id} is not drawn`);
+  assert.ok(inside.pieceBox('console') && inside.pieceBox('cushion-armchair-front'), 'the rest are drawn');
+  assert.equal(furniture(inside.scene).userData.grounding.has('sofa'), false, 'no patch under the sofa');
+  assert.ok(furniture(inside.scene).userData.grounding.has('console'));
+  assert.deepEqual([...inside.skipped].sort(), [...gone].sort());
+  assert.equal(warnings.length, 1);
+  const text = String(warnings[0][0]);
+  for (const id of gone) assert.equal(text.split(new RegExp(`(?<![\\w-])${id} \\(`)).length - 1, 1, `${id} named once: ${text}`);
+  assert.match(text, /sofa \(a broken sofa\)/);
+  // the walker's plan without them: the sofa's floor is open, the console and the armchairs still stop it
+  const plan = withoutPieces(I, inside.skipped);
+  assert.equal(floorArea(plan, 0, [4.95, 3.5]), true);
+  for (const id of ['console', 'armchair-front', 'armchair-back']) assert.equal(floorArea(plan, 0, I.furniture.find(e => e.id === id).at), false, id);
+  inside.dispose();
+  const [whole] = warned(() => build()); assert.deepEqual(whole.skipped, [], 'nothing skipped on the real blueprint'); whole.dispose();
+});
+
+test('the mantel\'s pieces stand on its shelf in front of the breast, none of them in the stone or past the shelf\'s edge', () => {
+  const inside = build(), fp = I.fireplace, face = fp.a + fp.breast.depth, front = face - MANTEL.into + MANTEL.depth, top = fp.mantel;
+  for (const id of ['clock', 'jug', 'candlestick-1', 'candlestick-2']) {
+    const box = inside.pieceBox(id);
+    assert.ok(box.a[0] >= face - .001, `${id} reaches back to ${box.a[0]}, the breast's face is at ${face}`);
+    assert.ok(box.a[1] <= front + .001, `${id} reaches out to ${box.a[1]}, the shelf's front is at ${front}`);
+    assert.ok(Math.abs(box.z[0] - top) <= .001, `${id} stands on the shelf's top: ${box.z[0]}`);
+    assert.ok(box.d[0] >= fp.d - MANTEL.width / 2 && box.d[1] <= fp.d + MANTEL.width / 2, `${id} along the shelf`);
+  }
+  inside.dispose();
 });
 
 test('a furniture build that throws leaves the rooms built and bare', () => {

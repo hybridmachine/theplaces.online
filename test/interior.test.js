@@ -238,6 +238,15 @@ test('rule 5: a wall-hung piece across an opening, a window, near a wall lamp or
   assert.equal(withFurniture(f => { piece({furniture: f}, 'hooks').line = 11; }), false, 'hooks on a wall of another room');
   assert.equal(withFurniture(f => { piece({furniture: f}, 'mirror').along = [6.6, 7.4]; }), false, 'mirror past the room\'s end');
 });
+test('rule 5: a wall-hung piece across the front door is invalid, and one on the front wall clear of the door and the windows is valid', () => {
+  assert.equal(withFurniture(f => { Object.assign(piece({furniture: f}, 'mirror'), {wall: 'd', line: 0, along: [8.7, 9.3]}); }), false, 'mirror across the front doorway');
+  assert.equal(withFurniture(f => { Object.assign(piece({furniture: f}, 'mirror'), {wall: 'd', line: 0, along: [7.3, 7.9]}); }), true, 'mirror on the front wall beside the door');
+});
+test('rule 6: a piece set on another shares its room; a mantel piece is in the fireplace\'s room', () => {
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').room = 'hall'; }), false, 'a cup in the hall on the living room\'s low table');
+  assert.equal(withFurniture(f => { piece({furniture: f}, 'clock').room = 'hall'; }), false, 'a mantel clock in the hall');
+  assert.equal(validInterior(I), true);
+});
 test('rule 6: a piece set on nothing is invalid', () => {
   assert.equal(withFurniture(f => { piece({furniture: f}, 'table-lamp').on = 'nothing'; }), false, 'lamp on nothing');
   assert.equal(withFurniture(f => { piece({furniture: f}, 'cup').on = 'book'; }), false, 'cup on a set-on piece');

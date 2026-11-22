@@ -156,7 +156,7 @@ Intended arrangement (front wall at the bottom; not to scale):
 
 ### Failure, as built
 
-- If a single piece's recipe throws, that piece is skipped and warned about, but its obstacle still stops the walker, so the walker and the drawing then disagree for that piece. The real blueprint is tested to skip nothing. Carrying this to the next furnishing plan.
+- If a single piece's recipe throws (or it cannot be placed, or its kind has no recipe), that piece is skipped, and so is everything set on it, directly or through a chain of `on`. One warning names them all. The skipped ids are in `buildInterior`'s `skipped`, and the walker walks by `withoutPieces` of them (`shared/furniture.js`), so a skipped piece takes its obstacle with it and no grounding patch is drawn under it. Place memory and the passage keep the furnished blueprint. The real blueprint is tested to skip nothing.
 
 ### One validity rule added
 
@@ -209,6 +209,15 @@ Where the build departs from the design above, or settles what it left open. The
 - Every piece stands where the plan's table put it, with these differences, all settled when the blueprint was first laid out and kept since: the back armchair is at [2.3, 5.25], not [2.3, 5.4]; the newel is at [9.55, 1.42], not [9.5, 1.42], just outside the flight's foot corner; the runner is 0.91 m wide (a 8.25 to 9.15), a little narrower than the plan's metre. No piece moved in the tuning.
 - The hall's day and night captures now stand a step inside the front door ([9, 1], looking down the runner toward the dining opening) rather than in the doorway, where a third of the frame was the open door leaf. They show the hall as a visitor meets it: the runner, the stair with its rail, the mirror, and the living room through its opening. The hooks and bench are in their own capture, in the pocket behind the leaf.
 
+### Two validity rules added in review
+
+- A set-on piece's `room` is its parent's room. A piece on the mantel is in the room the fireplace's breast faces into on the ground floor (the living room here, found from the blueprint, not named).
+- A wall-hung piece on the ground floor's front wall (d = 0) may not overlap the front door's span (`door.a` ± half `door.width`). The front door is not one of `openings`, which are the passages between rooms.
+
+### The mantel's pieces
+
+- The clock, jug and candlesticks stand on the part of the shelf in front of the breast's face: from the face (`fireplace.breast.depth`) to the shelf's front edge, 0.12 m (`MANTEL.depth` less `MANTEL.into`, from `fireplace.js`). They are centred there. The jug's belly (0.14 m across) is deeper than that, so it is drawn narrower, handle included, to fit. No vertex lies in the stone or past the shelf's edge.
+
 ### Rule 8, as read
 
 - The 0.9 m walker's route (rule 8) is the usual flood run keeping 0.45 m off walls, the leaf and every solid piece, over **the hall and the living room only**: the ground floor is cut down to those two rooms and their openings (`furnishedWay`), so the route cannot go round through the kitchen or the dining room. Its targets are each hall opening's doorway point, the living-kitchen one and the stair foot. The pocket behind the door leaf and the way in among the fire group are held to the ordinary 0.25 m (rule 7).
@@ -247,7 +256,9 @@ Where the build departs from the design above, or settles what it left open. The
 
 | Check | Was | Now | Why |
 |---|---|---|---|
-| 42, parallax | [3.2, 3] and [5.2, 3] | [3.2, 3] and [4.25, 3] | [5.2, 3] is inside the sofa |
+| 42, parallax | [3.2, 3] and [5.2, 3] | [3.2, 3] and [4.2, 3]; if those differ too little, [3.2, 2.1] and [5.2, 2.1] | [5.2, 3] is inside the sofa; [4.25, 3] and the old fallback's [3.4, 1.2] were inside the clearance of the sofa and the side table. The check asserts both spots used are standable |
+| 74, the low floor reading | [3.0, 2.3] | [3.1, 2.3] | within the front armchair's clearance |
+| 75, the table lamp's shade | 1.3 m toward the sofa and 1.1 m out from the shade | 1.0 m and 1.1 m | at the sofa's front edge |
 | 52–54, the dusk pose | [5.9, 3.5] | [6.2, 5.2], same target | the console stands there |
 | living-room.jpg | [6.4, 3.5] | [6.2, 5.2] | against the console |
 | 56, midnight, the way into the hall | [1.6, 3.5], edges at 0.3 and 0.9 m | [4.4, 1.0], edges at 0.3 and 0.6 m | see below |
@@ -255,6 +266,8 @@ Where the build departs from the design above, or settles what it left open. The
 
 - Floor samples at [4.2, 1], [4.2, 4.6], by the hearth and at [4.4, 5.9] did not move: none lies under a rug or a patch.
 - The speed spots [4.2, 3] and [3.8, 5.5] did not move, and stay standable.
+
+**Check 72, re-aimed.** It walked from the hall opening at the sofa's back, where the console stopped the walker first: it passed without the sofa's own obstacle. It now walks from [3.25, 3] on the hearth side, along the speed spot's line, straight (+a) at the sofa's exposed front. The stop must lie within 0.03 m either side of the sofa's front (from its derived obstacle) less the eye's clearance, and the same walk with `&bare=1` must go past that point. The kitchen walk is unchanged.
 
 **Check 56, re-aimed.**
 - From part 3's hearth pose ([1.6, 3.5]), the sofa and its console now hide the foot of the hall–living opening, so its right edge stepped only 0.017.

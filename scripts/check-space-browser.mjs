@@ -15,6 +15,7 @@ import {birdFixture,createBirdState,birdProgress} from '../shared/bird.js';
 import {coincidenceFixture} from '../shared/coincidences.js';
 import {doorOutward} from '../shared/threshold.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
+import {floorArea} from '../shared/interior.js';
 import {KINDS} from '../shared/furniture.js';
 import {viewOpenings,screenRect} from '../shared/window-views.js';
 import {roomLamps,DIALS} from '../shared/interior-light.js';
@@ -588,8 +589,9 @@ try{
   check('The open door from the hall is live; from 3 m back in the hall with the leaf shut it is not',doorOpen.live&&!doorBack.ids.includes('door')&&doorShutAngle<.05,{doorOpen,backIds:doorBack.ids,leafAngle:doorShutAngle});
 
   // 42. Parallax: the living window from two spots on one line, both facing the front wall, shows different yard. The second of part 2's
-  // pair, [5.2, 3], is inside the sofa now; the pair is [3.2, 3] and [4.25, 3], and, if less than a tenth of the pane then differs, the
-  // pair along d = 1.2 at a 3.4 and 5.2, where the floor is clear between the window seat and the fire group.
+  // pair, [5.2, 3], is inside the sofa now; the pair is [3.2, 3] and [4.2, 3], and, if less than a tenth of the pane then differs, the
+  // pair along d = 2.1 at a 3.2 and 5.2, between the side table and the sofa's end. Both spots of the pair used must be standable (floorArea):
+  // moveTo sets the pose directly, past the walking rule, so the check asks it.
   const living=opening('living'),resampled=({box,pixels})=>{const w=box[2]-box[0],h=box[3]-box[1],out=[];for(let j=0;j<12;j++)for(let i=0;i<24;i++){const x=Math.min(w-1,Math.floor((i+.5)*w/24)),y=Math.min(h-1,Math.floor((j+.5)*h/12)),q=((h-1-y)*w+x)*4;out.push(pixels[q],pixels[q+1],pixels[q+2],255);}return out;};
   // The two boxes differ in size and place, so each is read over the pane's own width and height: resampled to a 24 x 12 grid.
   const parallaxPair=async([leftSpot,rightSpot],shots)=>{const parallax={};
@@ -598,12 +600,13 @@ try{
       if(shots&&label!=='rightAgain')await win.screenshot(shotJpeg(`${interiorDirectory}/living-${label}.jpg`));}
     const gridL=resampled(parallax.left),gridR=resampled(parallax.right),gridR2=resampled(parallax.rightAgain);
     return {spots:[leftSpot,rightSpot],parallax,diff:changed(gridL,gridR),control:changed(gridR,gridR2)};};
-  let pair=await parallaxPair([[3.2,3],[4.25,3]],true);const firstPair=pair;
-  if(!(pair.diff.n>pair.diff.of/10))pair=await parallaxPair([[3.4,1.2],[5.2,1.2]],true);
+  let pair=await parallaxPair([[3.2,3],[4.2,3]],true);const firstPair=pair;
+  if(!(pair.diff.n>pair.diff.of/10))pair=await parallaxPair([[3.2,2.1],[5.2,2.1]],true);
+  const parallaxStandable=pair.spots.every(p=>floorArea(I,0,p));
   const {parallax,diff:parallaxDiff,control:parallaxControl}=pair;
-  check(`The living window from [${pair.spots[0]}] and from [${pair.spots[1]}] shows different yard (more than a tenth of its pane differs; the same spot twice agrees)`,
-    parallax.left.ids.includes('living')&&parallax.right.ids.includes('living')&&parallaxDiff.n>parallaxDiff.of/10&&parallaxControl.n<parallaxDiff.n/2,
-    {spots:pair.spots,left:parallax.left.box,right:parallax.right.box,parallaxDiff,parallaxControl,firstPair:{spots:firstPair.spots,diff:firstPair.diff,control:firstPair.control},moved:'part 2 measured from [3.2, 3] and [5.2, 3]; [5.2, 3] is inside the sofa'});
+  check(`The living window from [${pair.spots[0]}] and from [${pair.spots[1]}], both standable, shows different yard (more than a tenth of its pane differs; the same spot twice agrees)`,
+    parallaxStandable&&parallax.left.ids.includes('living')&&parallax.right.ids.includes('living')&&parallaxDiff.n>parallaxDiff.of/10&&parallaxControl.n<parallaxDiff.n/2,
+    {spots:pair.spots,standable:parallaxStandable,left:parallax.left.box,right:parallax.right.box,parallaxDiff,parallaxControl,firstPair:{spots:firstPair.spots,diff:firstPair.diff,control:firstPair.control},moved:'part 2 measured from [3.2, 3] and [5.2, 3]; [5.2, 3] is inside the sofa'});
 
   // 43. The sideways cut: from the kitchen, looking along the back wall through the kitchen-dining opening at the dining window.
   const dining=opening('dining'),sidePose=facing(dining,[3.2,10],true);await moveTo(win,sidePose);
@@ -1008,7 +1011,7 @@ try{
   // built bare with ?check&bare=1. Every pose, crop and piece is computed from the blueprint (its furniture and `spots`), never typed in pixels.
   const furnitureOf=page=>page.evaluate(()=>{const s=window.__space,f=s.inside?.scene.getObjectByName('furniture'),meshes=[];
     f?.traverse(o=>{if(o.isMesh)meshes.push({name:o.name,vertices:o.geometry.getAttribute('position').count,visible:o.visible});});
-    return {furnished:s.inside?.furnished,counts:s.inside?.furniture,meshes,walk:s.walkPlan===s.interior?'furnished':'bare'};});
+    return {furnished:s.inside?.furnished,counts:s.inside?.furniture,meshes,walk:s.walkPlan.furniture?.length?'furnished':'bare'};});
   // The draw calls of one indoor frame: three's counter is reset by each render, and an indoor frame through the pass is several.
   const drawCalls=page=>page.evaluate(()=>{const s=window.__space,info=s.renderer.info,was=info.autoReset;info.autoReset=false;info.reset();
     try{s.drawIndoors();return {calls:info.render.calls,triangles:info.render.triangles};}finally{info.reset();info.autoReset=was;}});
@@ -1020,15 +1023,17 @@ try{
   const sofa=I.furniture.find(e=>e.id==='sofa');
   // 71–73. Three loads furnished and three with &bare=1, alternating, each its page's first build timed (as check 64 times it); on the first of each,
   // the pieces reported and drawn, the draw calls at the living room's capture pose, and the walks.
-  const livingShot=rooms[0][1],hallOpeningSpot=[livingRoom.a[1]+.4,(hallOpening.span[0]+hallOpening.span[1])/2];
+  const livingShot=rooms[0][1];
+  // The sofa's front (its −a side, toward the fire) from its own obstacle, where the walker should stop (its eye clearance short of it), and the start.
+  const sofaFront72=I.obstacles.find(o=>o.id==='sofa').a[0],sofaStop=sofaFront72-I.eyeClear,sofaFrom=[+(sofaStop-1).toFixed(3),I.spots.speed[0][1]],STOP_NEAR=.03;
   const loads={furnished:[],bare:[]};let furnishedLook=null,bareLook=null,loadsQuiet=true;
   for(let k=0;k<3;k++)for(const [kind,query] of [['furnished',''],['bare','&bare=1']]){
     const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&interior=1&tier=full${query}`);await ready(p);await studyLight(p,'day');
     await p.evaluate(()=>{const s=window.__space,build=s.buildInside.bind(s);s.buildInside=()=>{if(s.inside||s.insideFailed||s.__buildMs!==undefined)return build();const t=performance.now();build();s.__buildMs=performance.now()-t;};});
     await walkIn(p);const buildMs=await p.evaluate(()=>window.__space.__buildMs);loads[kind].push(+buildMs.toFixed(1));
     if(k===0){const look={...await furnitureOf(p)};await stand(p,livingShot,1200);look.draw=await drawCalls(p);
-      // from just inside the hall opening, straight at the sofa (facing −a, along its middle)
-      await stand(p,{place:'cabin',floor:0,position:hallOpeningSpot,yaw:-Math.PI/2,pitch:0},600);await hold(p,['KeyW'],2600);await p.waitForTimeout(300);look.atSofa=await indoorsState(p);
+      // from the hearth side, straight at the sofa's exposed front (facing +a, along the speed spot's line, a metre short of where it should stop)
+      await stand(p,{place:'cabin',floor:0,position:sofaFrom,yaw:Math.PI/2,pitch:0},600);await hold(p,['KeyW'],2000);await p.waitForTimeout(300);look.atSofa=await indoorsState(p);
       if(kind==='furnished'){await stand(p,{...structuredClone(I.entry),place:'cabin',floor:0},600);
         const kitchenOpening=I.openings.find(o=>o.id==='living-kitchen');
         look.toKitchen=await walkTo(p,[[8,4.2],[livingRoom.a[1]-.8,4.2],[livingRoom.a[1]-1,kitchenOpening.at-1],[(kitchenOpening.span[0]+kitchenOpening.span[1])/2+.5,kitchenOpening.at+.8]]);}
@@ -1038,12 +1043,14 @@ try{
     furnishedLook.furnished===true&&furnishedLook.counts.meshes<=5&&furnishedLook.counts.meshes===furnishedLook.meshes.filter(m=>m.vertices>0).length&&furnishedLook.counts.vertices>0&&furnishedLook.walk==='furnished'&&
     bareLook.furnished===false&&bareLook.counts?.meshes===0&&bareLook.meshes.every(m=>m.vertices===0)&&bareLook.walk==='bare'&&!shutBuilt,
     {furnished:{furnished:furnishedLook.furnished,counts:furnishedLook.counts,meshes:furnishedLook.meshes,walk:furnishedLook.walk},bare:{furnished:bareLook.furnished,counts:bareLook.counts,meshes:bareLook.meshes,walk:bareLook.walk},withoutInteriorBuilt:shutBuilt});
-  // The sofa's edge toward the hall (its +a side) and the walker's eye clearance: walking at it from the hall stops at least that far off it.
-  const sofaNear=sofa.at[0]+KINDS.sofa.size[1]/2,stopAt=furnishedLook.atSofa.position[0],bareStop=bareLook.atSofa.position[0];
+  // Walking at the sofa's front from the hearth side (nothing else in the way) stops within STOP_NEAR either side of its eye clearance short of it,
+  // having slid along it no more than 0.1 m (the walker's slides, pressed square on, drift it a few centimetres in d).
+  const stopAt=furnishedLook.atSofa.position[0],bareStop=bareLook.atSofa.position[0];
   const kitchenEnd=furnishedLook.toKitchen.at(-1);
-  check('Walking from the hall opening straight at the sofa stops short of it (and with &bare=1 the same walk goes on past where it stands); walking from the door to the kitchen opening by W and turns arrives in the kitchen',
-    furnishedLook.atSofa.room==='living room'&&stopAt>=sofaNear+I.eyeClear-.02&&stopAt<hallOpeningSpot[0]-.5&&bareStop<sofaNear-.3&&kitchenEnd.room==='kitchen',
-    {from:hallOpeningSpot,stoppedAt:furnishedLook.atSofa.position,sofaEdge:+sofaNear.toFixed(3),eyeClear:I.eyeClear,bareWentTo:bareLook.atSofa.position,bareRoom:bareLook.atSofa.room,toKitchen:furnishedLook.toKitchen});
+  check(`Walking from the standable spot [${sofaFrom}] on the hearth side straight at the sofa's front stops within ${STOP_NEAR} m either side of the eye's clearance short of it (the sofa's own obstacle, nothing else, stops it), and with &bare=1 the same walk goes on past that point; walking from the door to the kitchen opening by W and turns arrives in the kitchen`,
+    floorArea(I,0,sofaFrom)&&furnishedLook.atSofa.room==='living room'&&Math.abs(stopAt-sofaStop)<=STOP_NEAR&&Math.abs(furnishedLook.atSofa.position[1]-sofaFrom[1])<=.1&&bareStop>sofaStop+.3&&kitchenEnd.room==='kitchen',
+    {from:sofaFrom,stoppedAt:furnishedLook.atSofa.position,sofaFront:sofaFront72,expectedStop:+sofaStop.toFixed(3),tolerance:STOP_NEAR,eyeClear:I.eyeClear,bareWentTo:bareLook.atSofa.position,bareRoom:bareLook.atSofa.room,toKitchen:furnishedLook.toKitchen,
+      moved:'until now walked from the hall opening at the sofa\'s back, where the console stopped the walker first'});
   const med3=a=>median(a),buildAdded=+(med3(loads.furnished)-med3(loads.bare)).toFixed(1),callsAdded=furnishedLook.draw.calls-bareLook.draw.calls,BUILD_BUDGET=60,CALLS_BUDGET=6;
   // The build time is recorded and reported, not asserted: after the plan's reductions (a coarser weighing lattice, fewer cuts, lighter book runs)
   // it measured 60.5 to 68.9 ms on mains power over runs of seven to nine loads each, the spread being the machine's other work (the bare build
@@ -1062,20 +1069,22 @@ try{
   const aimLow=(spot,target)=>{const r=[target[0]-spot[0],target[1]-spot[1],target[2]-LOW];return {place:'cabin',floor:0,position:[...spot],yaw:Math.atan2(r[0],r[1]),pitch:Math.atan2(r[2],Math.hypot(r[0],r[1]))};};
   // The sofa faces the fire (−a): its front edge is at a = sofaFront; the floor just under it, and the open floor 0.6 m in front, at the sofa's middle d.
   const sofaFront=sofa.at[0]-KINDS.sofa.size[1]/2,underEdge=[sofaFront-.04,sofa.at[1],0],openFloor=[sofaFront-.64,sofa.at[1],0];
-  await lowEye(true);await stand(fur,aimLow([sofaFront-1.5,sofa.at[1]-1.2],[sofaFront-.3,sofa.at[1],.1]),1200);
+  // (the reading spot 1.4 m short of the front and 1.2 m toward the window: standable, clear of the front armchair)
+  await lowEye(true);const lowSpot=[sofaFront-1.4,sofa.at[1]-1.2];await stand(fur,aimLow(lowSpot,[sofaFront-.3,sofa.at[1],.1]),1200);
   const lowRead=await patches(fur,[underEdge,openFloor],4),UNDER=.85,underRatio=lum(lowRead.rgb[0])/lum(lowRead.rgb[1]);
   // (and the capture: from the window's side, low, the sofa to the right and the back armchair to the left)
   await stand(fur,aimLow([sofaFront-.7,sofa.at[1]-2.2],[sofaFront-.6,sofa.at[1]+.9,.25]),1200);await furnishShot(fur,'low-floor');await lowEye(false);
-  check(`The low floor view: the floor just under the sofa's front edge is at most ${UNDER} of the open floor 0.6 m in front of it, under the same light`,
-    lowRead.seen&&underRatio<=UNDER,{under:lowRead.rgb[0],open:lowRead.rgb[1],ratio:r3(underRatio),limit:UNDER,underAt:underEdge,openAt:openFloor,screen:lowRead.at,eyeHeight:LOW});
+  check(`The low floor view from a standable spot: the floor just under the sofa's front edge is at most ${UNDER} of the open floor 0.6 m in front of it, under the same light`,
+    floorArea(I,0,lowSpot)&&lowRead.seen&&underRatio<=UNDER,{under:lowRead.rgb[0],open:lowRead.rgb[1],ratio:r3(underRatio),limit:UNDER,underAt:underEdge,openAt:openFloor,screen:lowRead.at,eyeHeight:LOW,spot:lowSpot});
   // 75. At night with the living lamp lit by fixture, the table lamp's shade is warmer (red over blue) and brighter than with the lamp out.
   await studyLight(fur,'night');const lampBox=await fur.evaluate(()=>window.__space.inside.pieceBox('table-lamp')),shadeAt=[(lampBox.a[0]+lampBox.a[1])/2,(lampBox.d[0]+lampBox.d[1])/2,lampBox.z[1]-.07];
-  await stand(fur,aim(0,[shadeAt[0]+1.3,shadeAt[1]+1.1],shadeAt),1000);
+  // (from 1.0 m toward the sofa and 1.1 m into the room: standable, short of the sofa's front)
+  const shadeSpot=[shadeAt[0]+1,shadeAt[1]+1.1];await stand(fur,aim(0,shadeSpot,shadeAt),1000);
   await setFixture(fur,{lamps:fixtureLamps({living:1}),hearth:{fire:0,embers:0}});await fur.waitForTimeout(800);const shadeLit=await patches(fur,[shadeAt],3);await furnishShot(fur,'table-lamp-night');
   await setFixture(fur,{lamps:fixtureLamps(),hearth:{fire:0,embers:0}});await fur.waitForTimeout(800);const shadeOut=await patches(fur,[shadeAt],3);await setFixture(fur,null);
-  check('At night with the living lamp lit by fixture the table lamp\'s shade is warmer (red over blue) and brighter than with the lamp out',
-    shadeLit.seen&&shadeOut.seen&&warmth(shadeLit.rgb[0])>warmth(shadeOut.rgb[0])&&lum(shadeLit.rgb[0])>lum(shadeOut.rgb[0]),
-    {lit:shadeLit.rgb[0],out:shadeOut.rgb[0],warmthLit:r3(warmth(shadeLit.rgb[0])),warmthOut:r3(warmth(shadeOut.rgb[0])),lumLit:r3(lum(shadeLit.rgb[0])),lumOut:r3(lum(shadeOut.rgb[0])),shadeAt:shadeAt.map(r3),screen:shadeLit.at});
+  check('At night with the living lamp lit by fixture the table lamp\'s shade, seen from a standable spot, is warmer (red over blue) and brighter than with the lamp out',
+    floorArea(I,0,shadeSpot)&&shadeLit.seen&&shadeOut.seen&&warmth(shadeLit.rgb[0])>warmth(shadeOut.rgb[0])&&lum(shadeLit.rgb[0])>lum(shadeOut.rgb[0]),
+    {lit:shadeLit.rgb[0],out:shadeOut.rgb[0],warmthLit:r3(warmth(shadeLit.rgb[0])),warmthOut:r3(warmth(shadeOut.rgb[0])),lumLit:r3(lum(shadeLit.rgb[0])),lumOut:r3(lum(shadeOut.rgb[0])),shadeAt:shadeAt.map(r3),spot:shadeSpot.map(r3),screen:shadeLit.at});
   // The captures, by day: from the hearth back at the sofa and casement, the window seat with the casement open, the bookshelf, the hall as a
   // visitor meets it a step in from the front door (past the open leaf: the runner, the stair with its rail, the mirror, the living room through
   // its opening), the stair's foot, the hooks and bench in the pocket behind the open door; then the hall at night under its low lamp.

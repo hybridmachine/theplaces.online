@@ -8,7 +8,7 @@ import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
-import {bareInterior} from '../../shared/furniture.js';
+import {bareInterior, withoutPieces} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
 import {createWindowViews} from './window-views.js';
@@ -305,9 +305,15 @@ export class SpaceView {
   }
   // The ids of the openings drawn live in the last frame.
   get liveViews() { return [...this.live]; }
-  // The blueprint the visitor walks by: the furnished one, or, once the furniture's build has failed, the bare one (the chimney breasts alone).
-  // Place memory and the passage keep the furnished blueprint.
-  get walkPlan() { return this.inside && !this.inside.furnished ? (this.bareWalk ??= bareInterior(this.interior)) : this.interior; }
+  // The blueprint the visitor walks by: the furnished one; without the pieces passed over (and what is set on them) when some could not be
+  // drawn; or, once the furniture's build has failed, the bare one (the chimney breasts alone). A blueprint that never had furniture is
+  // walked as it is. Place memory and the passage keep the furnished blueprint.
+  get walkPlan() {
+    const I = this.interior, inside = this.inside;
+    if (!inside || !Array.isArray(I?.furniture) || !I.furniture.length) return I;
+    if (!inside.furnished) return this.bareWalk ??= bareInterior(I);
+    return inside.skipped?.length ? this.partWalk ??= withoutPieces(I, inside.skipped) : I;
+  }
   // Whether the rooms' furniture is built and drawn.
   get furnished() { return !!this.inside?.furnished; }
   // The name of the room the visitor is in, or null in the yard (or without the interior).

@@ -13,6 +13,7 @@ import {WorldStore} from '../src/store.js';
 import {sceneText} from '../public/scene-description.js';
 import {stepIndoors} from '../shared/walker.js';
 import {bareInterior} from '../shared/furniture.js';
+import {floorArea} from '../shared/interior.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -188,6 +189,28 @@ test('a furnished view walks by the furnished blueprint, and one whose furniture
   assert.deepEqual(bare.view.walkPlan.obstacles, I.breasts); assert.equal(bare.view.interior, I, 'the place memory keeps the furnished blueprint');
   const x = walkWest(bare.view);
   assert.ok(x < sofa.at[0] && x >= breast.a[1] - 1e-6, `stops at the chimney breast, at ${x}`);
+});
+
+test('a view whose sofa could not be drawn walks through where the sofa stood, and is still stopped by the pieces drawn', async t => {
+  const warnings = quietWarnings(t), {view} = await rig(), {buildInterior} = await import('../public/space/interior/index.js');
+  const {RECIPES} = await import('../public/space/interior/furniture.js'), THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
+  view.inside.dispose();
+  view.inside = buildInterior(THREE, {interior: I, art: view.art, openings: view.openings, recipes: {...RECIPES, sofa: () => { throw new Error('a broken sofa'); }}});
+  assert.equal(warnings.length, 1); assert.equal(view.furnished, true);
+  assert.equal(floorArea(view.walkPlan, 0, [4.95, 3.5]), true, 'the sofa\'s floor is walkable');
+  assert.equal(view.walkPlan, view.walkPlan, 'made once');
+  for (const id of ['console', 'armchair-front', 'armchair-back']) assert.equal(floorArea(view.walkPlan, 0, I.furniture.find(e => e.id === id).at), false, `${id} still stops the walker`);
+  assert.equal(view.interior, I, 'the place memory keeps the furnished blueprint');
+});
+
+test('a blueprint from before the furniture (its breasts in its obstacles alone) keeps its chimneys solid in the walk plan', async t => {
+  const {furniture, breasts, spots, stairRail, obstacles, ...old} = structuredClone(I), legacy = {...old, obstacles: breasts};
+  assert.equal(floorArea(legacy, 0, [.4, 3.5]), false);
+  assert.equal(floorArea(bareInterior(legacy), 0, [.4, 3.5]), false, 'bareInterior keeps them');
+  quietWarnings(t);
+  const {view} = await rig({interior: legacy});
+  assert.equal(view.walkPlan, legacy, 'a blueprint that never had furniture is walked as it is');
+  assert.equal(floorArea(view.walkPlan, 0, [.4, 3.5]), false, 'inside the living-room chimney');
 });
 
 test('a view built from the bare blueprint is not furnished, so its description carries no clause', async () => {

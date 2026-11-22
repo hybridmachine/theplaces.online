@@ -76,5 +76,25 @@ export function solidObstacles(interior) {
 
 export const obstaclesOf = interior => [...(interior.breasts || []), ...solidObstacles(interior)];
 
+// The ids named and every piece set on one of them, directly or through a chain of `on`.
+export function withDependents(furniture, ids) {
+  const gone = new Set(ids);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const e of furniture || []) if (e && e.on != null && !gone.has(e.id) && gone.has(e.on)) { gone.add(e.id); grew = true; }
+  }
+  return gone;
+}
+
+const frozenRect = o => Object.freeze({...o, a: Object.freeze([...o.a]), d: Object.freeze([...o.d])});
+// The same interior without those pieces and whatever is set on them, its obstacles re-derived (obstaclesOf). A blueprint from before
+// the furniture (no `breasts` field, its breasts stored in `obstacles`) keeps its own obstacles, less any of a piece taken away.
+export function withoutPieces(interior, ids) {
+  const gone = withDependents(interior.furniture, ids), out = {...interior};
+  if (Array.isArray(interior.furniture)) out.furniture = Object.freeze(interior.furniture.filter(e => !gone.has(e?.id)));
+  const obstacles = has(interior, 'breasts') ? obstaclesOf(out) : (interior.obstacles || []).filter(o => !gone.has(o.id));
+  return Object.freeze({...out, obstacles: Object.freeze(obstacles.map(frozenRect))});
+}
+
 // The same interior with no furniture, walked by the chimney breasts alone.
-export const bareInterior = interior => Object.freeze({...interior, furniture: [], obstacles: interior.breasts});
+export const bareInterior = interior => withoutPieces(interior, (interior.furniture || []).map(e => e?.id));

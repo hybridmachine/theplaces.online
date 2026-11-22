@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {KINDS, footprint, corners, solidObstacles, obstaclesOf, bareInterior} from '../shared/furniture.js';
+import {KINDS, footprint, corners, solidObstacles, obstaclesOf, bareInterior, withoutPieces} from '../shared/furniture.js';
 
 const r2 = n => Math.round(n * 100) / 100;
 const round = f => f && {a: f.a.map(r2), d: f.d.map(r2)};
@@ -62,6 +62,23 @@ test('bareInterior keeps the breasts and drops the furniture', () => {
   assert.deepEqual(b.rooms, i.rooms);
   assert.ok(Object.isFrozen(b));
   assert.equal(i.furniture.length, 1);
+});
+test('bareInterior keeps a pre-furniture blueprint\'s own obstacles: its breasts stored there, with no breasts field', () => {
+  const {breasts, furniture, ...old} = interior, legacy = {...old, obstacles: breasts};
+  const b = bareInterior(legacy);
+  assert.deepEqual(b.obstacles, breasts);
+  assert.ok(Object.isFrozen(b));
+});
+test('withoutPieces drops the pieces named and everything set on them, and re-derives the obstacles', () => {
+  const i = {...interior, furniture: [{id: 's', kind: 'sofa', room: 'living', at: [4, 4]}, {id: 't', kind: 'side-table', room: 'living', at: [7, 1]},
+    {id: 'c', kind: 'cushion', room: 'living', on: 's'}, {id: 'l', kind: 'table-lamp', room: 'living', on: 't'}, {id: 'x', kind: 'cup', room: 'living', on: 'c'}]};
+  i.obstacles = obstaclesOf(i);
+  const w = withoutPieces(i, ['s']);
+  assert.deepEqual(w.furniture.map(e => e.id), ['t', 'l']);
+  assert.deepEqual(w.obstacles.map(o => o.id), [undefined, 't']);
+  assert.deepEqual(w.obstacles, obstaclesOf(w));
+  assert.ok(Object.isFrozen(w)); assert.equal(i.furniture.length, 5, 'the blueprint itself is untouched');
+  assert.deepEqual(withoutPieces(i, []).obstacles, i.obstacles);
 });
 test('footprint of an unknown kind is null and nothing throws', () => {
   assert.equal(footprint({id: 'q', kind: 'nope', room: 'living', at: [1, 1]}), null);
