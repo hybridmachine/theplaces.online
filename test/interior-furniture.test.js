@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {KINDS, footprint, corners, bareInterior, withoutPieces, obstaclesOf} from '../shared/furniture.js';
+import {KINDS, footprint, corners, bareInterior, withoutPieces, withoutRooms, obstaclesOf} from '../shared/furniture.js';
 import {MANTEL} from '../public/space/interior/fireplace.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
-import {RECIPES, GROUND, SHADE_PALE, SHADE_WARM} from '../public/space/interior/furniture.js';
+import {RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
 import {LAKESIDE_SPACE} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
@@ -19,10 +19,12 @@ const build = (interior = I) => buildInterior(THREE, {interior, art: stubArt(), 
 const warned = fn => { const warn = console.warn, got = []; console.warn = (...args) => got.push(args); try { return [fn(), got]; } finally { console.warn = warn; } };
 const MESHES = ['furniture-wood', 'furniture-cloth', 'furniture-stone', 'shades', 'grounding'];
 const furniture = scene => scene.getObjectByName('furniture');
+const groupFor = (scene, id) => scene.children.find(o => o.userData?.pieces?.has(id));
+const groundGroupFor = (scene, id) => scene.children.find(o => o.userData?.grounding?.has(id));
 // The vertices of one piece in one of the furniture's meshes, each as {a, d, z, n: [na, nd, nz], colour, light, spill} in the interior frame.
 const vertices = (scene, id, meshName) => {
-  const mesh = furniture(scene).getObjectByName(meshName), range = furniture(scene).userData.pieces.get(id)?.find(r => r.mesh === meshName);
-  if (!range) return [];
+  const grp = groupFor(scene, id), mesh = grp?.getObjectByName(meshName), range = grp?.userData.pieces.get(id)?.find(r => r.mesh === meshName);
+  if (!range || !mesh) return [];
   const g = mesh.geometry, p = g.getAttribute('position'), n = g.getAttribute('normal'), c = g.getAttribute('color'), l = g.getAttribute('light'), s = g.getAttribute('spill'), out = [];
   for (let i = range.first; i < range.first + range.count; i++) out.push({a: p.getX(i), d: -p.getZ(i), z: p.getY(i), n: [n.getX(i), -n.getZ(i), n.getY(i)],
     colour: [c.getX(i), c.getY(i), c.getZ(i)], light: l ? [l.getX(i), l.getY(i), l.getZ(i), l.getW(i)] : null, spill: s ? [s.getX(i), s.getY(i)] : null});
@@ -30,8 +32,9 @@ const vertices = (scene, id, meshName) => {
 };
 const mean = xs => xs.reduce((t, x) => t + x, 0) / xs.length;
 const room = id => I.rooms.find(r => r.id === id);
-// The solid pieces, each inside its own footprint; not the newel, which carries the stair's rail up the flight (its post is checked below).
-const DRAWN_SOLID = I.furniture.filter(e => KINDS[e.kind].standing === 'solid' && RECIPES[e.kind] && e.kind !== 'newel');
+const laterRooms = new Set(I.furnishLater || []);
+// The solid pieces of the first build, each inside its own footprint; not the newel, which carries the stair's rail up the flight.
+const DRAWN_SOLID = I.furniture.filter(e => !laterRooms.has(e.room) && KINDS[e.kind].standing === 'solid' && RECIPES[e.kind] && e.kind !== 'newel');
 // A standing piece's vertices (from every mesh) in its own frame: x across, y deep (it faces −y), z up from its floor; normals likewise.
 const local = (scene, id) => {
   const e = I.furniture.find(x => x.id === id), c = Math.cos(e.turn || 0), s = Math.sin(e.turn || 0), floor = room(e.room).floor * I.floorRise;
@@ -377,10 +380,11 @@ const shadeColour = (inside, dials) => {
   const c = furniture(inside.scene).getObjectByName('shades').material.color;
   return [c.r, c.g, c.b];
 };
-const SOLID = I.furniture.filter(e => KINDS[e.kind].standing === 'solid');
+const SOLID = I.furniture.filter(e => !laterRooms.has(e.room) && KINDS[e.kind].standing === 'solid');
 // A piece's patch: its vertices as {a, d, z, alpha}.
 const patch = (scene, id) => {
-  const range = furniture(scene).userData.grounding.get(id), g = furniture(scene).getObjectByName('grounding').geometry, p = g.getAttribute('position'), c = g.getAttribute('color'), out = [];
+  const grp = groundGroupFor(scene, id);
+  const range = grp.userData.grounding.get(id), g = grp.getObjectByName('grounding').geometry, p = g.getAttribute('position'), c = g.getAttribute('color'), out = [];
   for (let i = range.first; i < range.first + range.count; i++) out.push({a: p.getX(i), d: -p.getZ(i), z: p.getY(i), alpha: c.getW(i)});
   return out;
 };
@@ -551,7 +555,8 @@ test('a rug in another room over the same plan position does not lift a piece\'s
 
 // ── furniture built by room, from a queue ──
 const queuedBlueprint = () => {
-  const c = structuredClone(I);
+  const c = structuredClone(withoutRooms(I, ['kitchen', 'dining']));
+  c.furnishLater = ['kitchen', 'dining'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
     {id: 'q-dining-chair', kind: 'chair', room: 'dining', at: [9, 8.3], turn: 0},
@@ -686,5 +691,127 @@ test('a blueprint built bare has nothing pending', () => {
   const inside = build(bareInterior(I));
   assert.deepEqual(inside.pending, []);
   assert.equal(inside.buildNext(), null);
+  inside.dispose();
+});
+
+// ── kitchen furniture (Task 3) ──
+test('the real blueprint skips nothing once every room is built', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  inside.dispose();
+});
+
+test('every solid kitchen piece is drawn inside its footprint and stands on the floor; the flue alone rises above the range\'s height, to the ceiling', () => {
+  const inside = build();
+  inside.buildRest();
+  const kitchenSolids = I.furniture.filter(e => e.room === 'kitchen' && KINDS[e.kind].standing === 'solid');
+  assert.ok(kitchenSolids.length >= 7, `expected kitchen solids, got ${kitchenSolids.length}`);
+  for (const e of kitchenSolids) {
+    const box = inside.pieceBox(e.id), f = footprint(e), floor = room(e.room).floor * I.floorRise;
+    assert.ok(box, `${e.id} is drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0] - floor) <= .02, `${e.id} stands on its floor: ${box.z[0]}`);
+    if (e.kind === 'range') {
+      assert.ok(Math.abs(box.z[1] - I.groundCeiling) <= .02, `range flue reaches ceiling: ${box.z[1]}`);
+      // only the flue (narrow cylinder at the back of the range) rises above range's height
+      const high = MESHES.flatMap(m => vertices(inside.scene, e.id, m)).filter(v => v.z > KINDS.range.height + .02);
+      assert.ok(high.length > 10, 'flue has vertices above range height');
+      const aSpan = Math.max(...high.map(v => v.a)) - Math.min(...high.map(v => v.a));
+      assert.ok(aSpan <= .2, `flue is narrow: ${aSpan}`);
+    } else {
+      assert.ok(box.z[1] <= floor + KINDS[e.kind].height + .02, `${e.id} no taller than its kind: ${box.z[1]}`);
+    }
+  }
+  inside.dispose();
+});
+
+test('the kitchen is one queued set of at most four meshes', () => {
+  const inside = build();
+  inside.buildRest();
+  const set = inside.furniture.sets.find(s => s.rooms.includes('kitchen'));
+  assert.ok(set, 'kitchen set exists');
+  assert.deepEqual(set.rooms, ['kitchen']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 4, `${set.meshes} meshes`);
+  assert.ok(set.vertices > 0 && Number.isFinite(set.ms));
+  inside.dispose();
+});
+
+test('the pans hang below the rail and in front of the wall\'s face, none in the worktop or the range', () => {
+  const inside = build();
+  inside.buildRest();
+  const rail = I.furniture.find(e => e.id === 'pan-rail');
+  const pans = I.furniture.filter(e => e.on === 'pan-rail' && e.kind === 'pan');
+  assert.equal(pans.length, 5);
+  const wallFace = rail.line - I.wall / 2;
+  for (const p of pans) {
+    const box = inside.pieceBox(p.id);
+    assert.ok(box, `${p.id} drawn`);
+    assert.ok(box.z[1] <= rail.z + .02, `${p.id} top ${box.z[1]} below rail ${rail.z}`);
+    assert.ok(box.z[0] > KINDS.range.height + .05, `${p.id} bottom ${box.z[0]} clear of worktop/range`);
+    assert.ok(box.d[1] <= wallFace + .005, `${p.id} in front of wall face: ${box.d[1]} vs ${wallFace}`);
+  }
+  inside.dispose();
+});
+
+test('the plates stand within the dresser\'s box, above its cupboard', () => {
+  const inside = build();
+  inside.buildRest();
+  const dresserBox = inside.pieceBox('dresser');
+  const plates = I.furniture.filter(e => e.on === 'dresser' && e.kind === 'plates');
+  assert.equal(plates.length, 3);
+  for (const p of plates) {
+    const box = inside.pieceBox(p.id);
+    assert.ok(box, `${p.id} drawn`);
+    assert.ok(box.a[0] >= dresserBox.a[0] - .01 && box.a[1] <= dresserBox.a[1] + .01, `${p.id} a in dresser`);
+    assert.ok(box.d[0] >= dresserBox.d[0] - .01 && box.d[1] <= dresserBox.d[1] + .01, `${p.id} d in dresser`);
+    assert.ok(box.z[0] >= .85 && box.z[1] <= dresserBox.z[1] + .01, `${p.id} z ${box.z} above cupboard`);
+  }
+  inside.dispose();
+});
+
+test('the insides of the dresser\'s shelves are darker than its sides', () => {
+  const inside = build();
+  inside.buildRest();
+  const vs = vertices(inside.scene, 'dresser', 'furniture-wood'), box = inside.pieceBox('dresser');
+  const brightness = v => mean(v.colour), sideways = vs.filter(v => v.z > .86 && Math.abs(v.n[1]) > .9);
+  const outer = sideways.filter(v => v.d < box.d[0] + .015 || v.d > box.d[1] - .015);
+  const inner = sideways.filter(v => v.d > box.d[0] + .02 && v.d < box.d[1] - .02);
+  assert.ok(outer.length >= 8 && inner.length >= 8, `${outer.length} ${inner.length}`);
+  assert.ok(mean(inner.map(brightness)) <= TUCK * 1.1 * mean(outer.map(brightness)), `${mean(inner.map(brightness))} against ${mean(outer.map(brightness))}`);
+  inside.dispose();
+});
+
+test('nothing in the kitchen hangs lower than 2 m over a standable point', () => {
+  const inside = build();
+  inside.buildRest();
+  const hanging = I.furniture.filter(e => e.room === 'kitchen' && (e.kind === 'pan-rail' || e.kind === 'pan' || e.kind === 'range'));
+  for (const e of hanging) {
+    for (const v of MESHES.flatMap(m => vertices(inside.scene, e.id, m))) {
+      if (v.z < 2) assert.equal(floorArea(I, 0, [v.a, v.d]), false, `${e.id} vertex (${v.a.toFixed(2)}, ${v.d.toFixed(2)}, ${v.z.toFixed(2)}) over standable floor`);
+    }
+  }
+  inside.dispose();
+});
+
+test('every surface named in SURFACES maps to a mesh that exists and a colour in the palette', () => {
+  for (const name of ['wood', 'cloth', 'stone', 'iron', 'copper', 'china', 'enamel']) {
+    const s = SURFACES[name];
+    assert.ok(s, name);
+    assert.ok(['wood', 'cloth', 'stone'].includes(s.mesh), `${name} mesh ${s.mesh}`);
+    assert.ok(Object.hasOwn(COLOURS, s.colour), `${name} colour ${s.colour}`);
+  }
+});
+
+test('every kitchen solid has a grounding patch', () => {
+  const inside = build();
+  inside.buildRest();
+  const kitchenSolids = I.furniture.filter(e => e.room === 'kitchen' && KINDS[e.kind].standing === 'solid');
+  assert.ok(kitchenSolids.length >= 7);
+  for (const e of kitchenSolids) {
+    const p = patch(inside.scene, e.id);
+    assert.ok(p.length > 0, `${e.id} has a grounding patch`);
+    assert.ok(p.some(v => Math.abs(v.alpha - GROUND.dark) < 1e-6) && p.some(v => v.alpha === 0), e.id);
+  }
   inside.dispose();
 });

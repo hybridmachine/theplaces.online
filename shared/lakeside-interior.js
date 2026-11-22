@@ -51,7 +51,21 @@ const FURNITURE = [
   standing('newel', 'newel', 'hall', STAIR_RAIL.newel),
   hung('hooks', 'hooks', 'hall', 'a', 7, [.35, 1.6], 1.6),
   hung('mirror', 'mirror', 'hall', 'a', 7, [5.6, 6.2], 1.5),
-  ...many(3, 'coat', 'coat', 'hall', 'hooks'), setOn('hat', 'hat', 'hall', 'hooks'), setOn('boots', 'boots', 'hall', 'boot-bench')
+  ...many(3, 'coat', 'coat', 'hall', 'hooks'), setOn('hat', 'hat', 'hall', 'hooks'), setOn('boots', 'boots', 'hall', 'boot-bench'),
+  // The kitchen: back-wall sink, range and worktop under a pan rail, dresser between the west doors, farmhouse table and two chairs.
+  standing('sink-unit', 'sink-unit', 'kitchen', [3.25, 11.62]),
+  standing('range', 'range', 'kitchen', [4.4, 11.62]),
+  standing('worktop', 'worktop', 'kitchen', [5.7, 11.62]),
+  standing('dresser', 'dresser', 'kitchen', [2.8, 9.5], Math.PI / 2),
+  standing('kitchen-table', 'kitchen-table', 'kitchen', [4.75, 9.5]),
+  standing('chair-kitchen-1', 'chair', 'kitchen', [4.35, 8.82], Math.PI + .06),
+  standing('chair-kitchen-2', 'chair', 'kitchen', [5.15, 8.82], Math.PI - .1),
+  hung('pan-rail', 'pan-rail', 'kitchen', 'd', 12, [4.0, 6.2], 1.75),
+  ...many(5, 'pan', 'pan', 'kitchen', 'pan-rail'),
+  setOn('kettle', 'kettle', 'kitchen', 'range'), setOn('cloth', 'cloth', 'kitchen', 'range'),
+  ...many(3, 'jar', 'jar', 'kitchen', 'worktop'), setOn('breadboard', 'breadboard', 'kitchen', 'worktop'),
+  setOn('bowl-kitchen', 'bowl', 'kitchen', 'kitchen-table'), setOn('loaf', 'loaf', 'kitchen', 'kitchen-table'),
+  ...many(3, 'plates-dresser', 'plates', 'kitchen', 'dresser'), ...many(2, 'cup-dresser', 'cup', 'kitchen', 'dresser')
 ];
 
 const BLUEPRINT = {

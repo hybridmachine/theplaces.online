@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {bareInterior, obstaclesOf, solidObstacles} from '../shared/furniture.js';
+import {bareInterior, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
@@ -278,9 +278,9 @@ test('a blueprint whose obstacles omit a solid piece, or reorder them, is invali
   assert.equal(validInterior(bareInterior(I)), true);
 });
 
-// Kitchen and dining room rules, spots and ways through.
+// Kitchen and dining room rules, spots and ways through (synthetic cases start with kitchen and dining bare so they test each rule in isolation).
 const withPieces = (extra, spots) => {
-  const c = structuredClone(I);
+  const c = structuredClone(withoutRooms(I, ['kitchen', 'dining']));
   c.furniture.push(...extra);
   if (spots) c.spots = {...c.spots, ...spots};
   c.obstacles = obstaclesOf(c);
@@ -341,4 +341,10 @@ test('a kitchen table as planned leaves a 0.9 m way to the pantry and laundry do
     {id: 'dr-plan', kind: 'dresser', room: 'kitchen', at: [2.8, 9.5], turn: Math.PI / 2},
   ]);
   assert.equal(validInterior(c), true);
+});
+test('the real blueprint with the kitchen furnished is valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'range'));
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'kitchen-table'));
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'dresser'));
 });

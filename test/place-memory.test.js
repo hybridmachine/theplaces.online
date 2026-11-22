@@ -101,3 +101,9 @@ test('a remembered place inside the sofa falls back to the arrival pose; one on 
   assert.equal(at([(sofa.a[0] + sofa.a[1]) / 2, (sofa.d[0] + sofa.d[1]) / 2]), null);
   assert.deepEqual(at([...I.spots.hearth]).position, [...I.spots.hearth]);
 });
+
+test('a remembered place inside the kitchen table falls back', () => {
+  const storage = store();
+  storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 0, position: [4.75, 9.5], yaw: 0, pitch: 0}));
+  assert.equal(new PlaceMemory({storage, space: S, interior: I}).load(), null);
+});
