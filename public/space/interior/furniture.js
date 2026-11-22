@@ -351,10 +351,12 @@ export const RECIPES = {
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.
 // `weightsAt(point, normal, roomId)` is the light field's weights at a point of the interior frame, in that room.
-// `recipes` (RECIPES unless given) are the recipes by kind; `skipped` in the result names every piece passed over (empty when none).
-export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, materials, treads, recipes = RECIPES, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
-  const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
-  const colours = light ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
+// `recipes` (RECIPES unless given) are the recipes by kind; `only` (a Set of room ids, or null) limits what is made, grounded and reported;
+// `skipped` in the result names every piece passed over (empty when none).
+export function buildFurniture(THREE, {interior: I, art, light, flat = null, face, lit, tint, materials, treads, recipes = RECIPES, only = null, name = 'furniture', weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
+  const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => r.id ? [r.id, r] : [r, r]));
+  const entries = only ? I.furniture.filter(e => only.has(e?.room)) : I.furniture;
+  const colours = light || flat ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),
     // the shades' own: pale and neutral, not lit by the room's weights, so not taken back by the flat light's ratio
     shade: (k = 0, spread = .04) => tint([1, 1, 1], seed + k, spread),
@@ -389,7 +391,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   // standing on a piece that is not there and the walker's plan can leave them all out: withoutPieces)
   const lists = {wood: [], cloth: [], stone: [], shades: []}, counts = {wood: 0, cloth: 0, stone: 0, shades: 0}, ranges = new Map(), scene = {interior: I, treads, plain};
   const why = new Map(), makes = [];
-  for (const entry of I.furniture) {
+  for (const entry of entries) {
     const recipe = Object.hasOwn(recipes, entry?.kind) ? recipes[entry.kind] : null;
     if (!recipe) { why.set(entry?.id, `no recipe for ${entry?.kind}`); continue; }
     try {
@@ -400,7 +402,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
       makes.push([entry, made]);
     } catch (error) { why.set(entry.id, error?.message ?? String(error)); }
   }
-  const skipped = [...withDependents(I.furniture, [...why.keys()])];
+  const skipped = [...withDependents(entries, [...why.keys()])];
   for (const id of skipped) if (!why.has(id)) why.set(id, `set on ${byId.get(id).on}, which was passed over`);
   for (const [entry, made] of makes) {
     if (why.has(entry.id)) { for (const list of Object.values(made)) for (const g of list) g.dispose(); continue; }
@@ -413,10 +415,11 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   }
   if (skipped.length) console.warn(`The cabin's furniture passed over ${skipped.length} piece(s) it could not draw: ${skipped.map(id => `${id} (${why.get(id)})`).join(', ')}.`);
 
-  const object = new THREE.Group(); object.name = 'furniture'; object.userData.pieces = ranges;
+  const object = new THREE.Group(); object.name = name; object.userData.pieces = ranges;
   // The stone's own material, as the fireplace's: lit over the stone brushwork (plain where the art has none), or Lambert when built unlit.
   const stoneMap = art?.surfaces?.stone ? {map: art.surfaces.stone} : {};
-  let stone = lists.stone.length ? (light ? light.material(stoneMap) : new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true})) : null;
+  let stone = lists.stone.length ? (light ? light.material(stoneMap)
+    : new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true, ...(flat ? {color: new THREE.Color().setRGB(1 / FLAT, 1 / FLAT, 1 / FLAT, THREE.LinearSRGBColorSpace)} : {})})) : null;
   // The shades' own: one colour for the mesh, set by setLight; double-sided, as an open cone is seen inside and out.
   const shadeMaterial = lists.shades.length ? new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.DoubleSide, fog: false}) : null;
   const material = {wood: materials.surface, cloth: materials.leafed, stone, shades: shadeMaterial};
@@ -438,7 +441,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   };
   // ── the grounding: one patch a solid piece, merged into one mesh ──
   // A walk-over piece (a rug) the piece's middle stands on: the patch lies just over its top, not under it.
-  const rugs = I.furniture.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
+  const rugs = entries.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
   const under = e => {
     const rug = rugs.find(r => { if (r.room !== e.room) return false; const [w, h] = sizeOf(r), c = Math.cos(r.turn || 0), s = Math.sin(r.turn || 0), x = e.at[0] - r.at[0], y = e.at[1] - r.at[1];
       return Math.abs(x * c + y * s) <= w / 2 && Math.abs(-x * s + y * c) <= h / 2; });
@@ -476,7 +479,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     }
     grounded.set(e.id, {first, count: position.length / 3 - first});
   };
-  for (const e of I.furniture) if (KINDS[e.kind]?.standing === 'solid' && ranges.has(e.id)) patchOf(e);
+  for (const e of entries) if (KINDS[e.kind]?.standing === 'solid' && ranges.has(e.id)) patchOf(e);
   let ground = null;
   if (grounded.size) {
     const g = new THREE.BufferGeometry();

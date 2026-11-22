@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {KINDS, footprint, corners, bareInterior, withoutPieces} from '../shared/furniture.js';
+import {KINDS, footprint, corners, bareInterior, withoutPieces, obstaclesOf} from '../shared/furniture.js';
 import {MANTEL} from '../public/space/interior/fireplace.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
@@ -54,6 +54,7 @@ test('the furniture is built with the rooms, in at most five meshes', () => {
   assert.ok(group.children.length >= 1 && group.children.length <= 5, `${group.children.length} meshes`);
   for (const m of group.children) assert.ok(MESHES.includes(m.name), m.name);
   assert.ok(inside.furniture.vertices > 0); assert.equal(inside.furniture.meshes, group.children.length);
+  assert.ok(inside.furniture.sets[0].meshes >= 1 && inside.furniture.sets[0].meshes <= 5);
   assert.equal(group.getObjectByName('furniture-wood').material, inside.scene.getObjectByName('floors').material, 'wood takes the shell\'s surface material');
   assert.equal(group.getObjectByName('furniture-cloth').material.side, THREE.DoubleSide, 'cloth is double-sided');
   inside.dispose();
@@ -546,4 +547,144 @@ test('a rug in another room over the same plan position does not lift a piece\'s
   }
   assert.ok(lifts > 0, 'on its own room\'s rug a patch is lifted');
   lifted.dispose(); moved.dispose();
+});
+
+// ── furniture built by room, from a queue ──
+const queuedBlueprint = () => {
+  const c = structuredClone(I);
+  c.furniture.push(
+    {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
+    {id: 'q-dining-chair', kind: 'chair', room: 'dining', at: [9, 8.3], turn: 0},
+  );
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+const stubChair = (kit, e, pal) => ({wood: kit.box(kit.placed(e), [-.2, .2], [-.2, .2], [0, .8], pal.oak(0))});
+const buildQueued = (recipes = {...RECIPES, chair: stubChair}, interior = queuedBlueprint()) =>
+  buildInterior(THREE, {interior, art: stubArt(), openings, recipes});
+
+test('the first build draws only the rooms not queued; the queue is the blueprint\'s, in order', () => {
+  const inside = buildQueued();
+  assert.ok(inside.pieceBox('sofa'));
+  assert.equal(inside.pieceBox('q-kitchen-chair'), null);
+  assert.equal(inside.pieceBox('q-dining-chair'), null);
+  assert.deepEqual(inside.pending, ['kitchen', 'dining']);
+  assert.deepEqual([...inside.furnishedRooms].sort(), ['hall', 'living']);
+  inside.dispose();
+});
+
+test('buildNext builds one room and returns its id; buildRest empties the queue', () => {
+  const inside = buildQueued();
+  assert.equal(inside.buildNext(), 'kitchen');
+  assert.ok(inside.pieceBox('q-kitchen-chair'));
+  assert.equal(inside.pieceBox('q-dining-chair'), null);
+  assert.deepEqual(inside.pending, ['dining']);
+  assert.deepEqual([...inside.furnishedRooms].sort(), ['hall', 'kitchen', 'living']);
+  inside.buildRest();
+  assert.ok(inside.pieceBox('q-dining-chair'));
+  assert.deepEqual(inside.pending, []);
+  assert.equal(inside.buildNext(), null);
+  assert.deepEqual([...inside.furnishedRooms].sort(), ['dining', 'hall', 'kitchen', 'living']);
+  inside.dispose();
+});
+
+test('a queued set has at most four meshes and reports its own counts and time', () => {
+  const inside = buildQueued();
+  inside.buildRest();
+  assert.equal(inside.furniture.sets.length, 3);
+  assert.deepEqual(inside.furniture.sets[1].rooms, ['kitchen']);
+  assert.deepEqual(inside.furniture.sets[2].rooms, ['dining']);
+  for (const s of inside.furniture.sets.slice(1)) {
+    assert.ok(s.meshes >= 1 && s.meshes <= 4, `${s.rooms}: ${s.meshes} meshes`);
+    assert.ok(s.vertices > 0 && Number.isFinite(s.ms) && s.ms >= 0, `${s.rooms}: ${s.vertices}v ${s.ms}ms`);
+  }
+  assert.equal(inside.furniture.vertices, inside.furniture.sets.reduce((t, s) => t + s.vertices, 0));
+  assert.equal(inside.furniture.meshes, inside.furniture.sets.reduce((t, s) => t + s.meshes, 0));
+  inside.dispose();
+});
+
+test('a queued room whose recipe throws leaves the rest built, warns once and names its pieces in skipped', () => {
+  const [inside, warnings] = warned(() => {
+    const res = buildQueued({...RECIPES, chair: (kit, e, pal) => {
+      if (e.room === 'kitchen') throw new Error('broken kitchen chair');
+      return stubChair(kit, e, pal);
+    }});
+    res.buildRest();
+    return res;
+  });
+  assert.equal(warnings.length, 1);
+  assert.ok(inside.skipped.includes('q-kitchen-chair'));
+  assert.equal(inside.pieceBox('q-kitchen-chair'), null);
+  assert.equal(inside.furnishedRooms.includes('kitchen'), false);
+  assert.ok(inside.pieceBox('q-dining-chair'));
+  assert.equal(inside.furnishedRooms.includes('dining'), true);
+  inside.dispose();
+  // And when a queued room's build itself throws (outside per-piece catching), one warning names the room,
+  // every piece in that room is added to skipped, and the remaining room still builds.
+  let throwKitchen = false;
+  const badRecipes = new Proxy({...RECIPES, chair: stubChair}, {
+    getOwnPropertyDescriptor(target, prop) {
+      if (throwKitchen && prop === 'chair') throw new Error('kitchen exploded');
+      return Object.getOwnPropertyDescriptor(target, prop);
+    },
+  });
+  const [inside2, warnings2] = warned(() => {
+    const res = buildQueued(badRecipes);
+    throwKitchen = true;
+    res.buildNext();
+    throwKitchen = false;
+    res.buildNext();
+    return res;
+  });
+  assert.equal(warnings2.length, 1);
+  assert.match(String(warnings2[0][0]), /kitchen/);
+  assert.ok(inside2.skipped.includes('q-kitchen-chair'));
+  assert.equal(inside2.furnishedRooms.includes('kitchen'), false);
+  assert.ok(inside2.pieceBox('q-dining-chair'));
+  assert.equal(inside2.furnishedRooms.includes('dining'), true);
+  inside2.dispose();
+});
+
+test('given up for the flat light before a room is built, that room takes the flat materials when built', () => {
+  const inside = buildQueued();
+  inside.fallBack();
+  inside.buildRest();
+  const kitchenGroup = inside.scene.getObjectByName('furniture-kitchen');
+  assert.ok(kitchenGroup, 'kitchen group added to scene');
+  const wood = kitchenGroup.getObjectByName('furniture-wood');
+  assert.ok(wood && wood.material.isMeshLambertMaterial);
+  assert.equal(wood.material, inside.scene.getObjectByName('floors').material);
+  inside.dispose();
+});
+
+test('disposed with rooms queued, buildNext builds nothing and does not throw', () => {
+  const inside = buildQueued();
+  assert.deepEqual(inside.pending, ['kitchen', 'dining']);
+  inside.dispose();
+  assert.deepEqual(inside.pending, []);
+  assert.equal(inside.buildNext(), null);
+  assert.equal(inside.pieceBox('q-kitchen-chair'), null);
+});
+
+test('the same queued room twice: two builds give identical positions', () => {
+  const one = buildQueued(), two = buildQueued();
+  one.buildRest(); two.buildRest();
+  for (const roomName of ['furniture-kitchen', 'furniture-dining']) {
+    const a = one.scene.getObjectByName(roomName), b = two.scene.getObjectByName(roomName);
+    assert.ok(a && b, roomName);
+    for (const m of a.children) {
+      const n = b.getObjectByName(m.name);
+      assert.ok(n, `${roomName} ${m.name}`);
+      assert.deepEqual(m.geometry.getAttribute('position').array, n.geometry.getAttribute('position').array, `${roomName} ${m.name} pos`);
+      assert.deepEqual(m.geometry.getAttribute('color').array, n.geometry.getAttribute('color').array, `${roomName} ${m.name} col`);
+    }
+  }
+  one.dispose(); two.dispose();
+});
+
+test('a blueprint built bare has nothing pending', () => {
+  const inside = build(bareInterior(I));
+  assert.deepEqual(inside.pending, []);
+  assert.equal(inside.buildNext(), null);
+  inside.dispose();
 });
