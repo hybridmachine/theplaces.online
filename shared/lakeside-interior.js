@@ -115,10 +115,15 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
+  furnishLater: ['kitchen', 'dining'],
   stairRail: STAIR_RAIL,
-  // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, and the two
-  // spots the frame cost is measured from.
-  spots: {hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1], speed: [[4.2, 3], [3.8, 5.5]]},
+  // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
+  // before the dresser, at the dining window, and the three spots the frame cost is measured from.
+  spots: {
+    hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1],
+    range: [4.4, 10.9], dresser: [3.5, 9.5], diningWindow: [10, 11.4],
+    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9]],
+  },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
     fitting('living', 'hanging', [3.8, 3.5, 2.15]), fitting('study', 'hanging', [14.5, 2, 2.15]), fitting('kitchen', 'hanging', [4.75, 9.5, 2.15]),

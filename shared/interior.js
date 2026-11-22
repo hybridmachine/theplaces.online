@@ -116,7 +116,11 @@ function furnitureFit(I, byId) {
   }
   const stair = {a: I.stair.a, d: I.stair.d};
   const mouth = fp && {a: [fp.a + fp.breast.depth, fp.a + fp.breast.depth + .6], d: [fp.d - fp.mouth.width / 2, fp.d + fp.mouth.width / 2]};
-  for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4
+  const wallWindows = I.windows.filter(w => w.kind === 'wall').map(w => ({
+    room: w.room, sill: w.sill,
+    rect: {a: [w.a - w.width / 2, w.a + w.width / 2], d: w.wall === 'front' ? [0, .6] : [I.size[1] - .6, I.size[1]]},
+  }));
+  for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4, 9
     if (solids.some((o, j) => j > k && o.floor === floor && overlaps(o.f, f))) return false;
     if (I.breasts.some(b => b.floor === floor && overlaps(b, f))) return false;
     if (I.openings.some(o => o.floor === floor && overlaps(f, o.line === 'a' ? {a: [o.at - .5, o.at + .5], d: o.span} : {a: o.span, d: [o.at - .5, o.at + .5]}))) return false;
@@ -124,23 +128,45 @@ function furnitureFit(I, byId) {
     if (floor === 0 && inSweep(I, f)) return false;
     if (I.fittings.some(l => l.kind === 'wall' && byId.get(l.room) && byId.get(l.room).floor === floor && holds(f, l.at))) return false;
     if (floor === 0 && mouth && overlaps(f, mouth)) return false;
+    if (wallWindows.some(w => w.room === e.room && KINDS[e.kind].height > w.sill + EPS && overlaps(f, w.rect))) return false;
   }
-  const {hearth, casement, bookshelf, speed} = I.spots, from = I.entry.position, foot = stairFoot(I);   // 7
+  const named = Object.entries(I.spots).filter(([k]) => k !== 'speed').map(([, p]) => p), from = I.entry.position, foot = stairFoot(I);   // 7
   const near = flood(I, 0, from);
   if (!near || !I.openings.filter(o => o.floor === 0).every(o => near(doorway(I, o)))) return false;
-  if (![hearth, casement, bookshelf, ...speed, foot].every(p => reachable(I, 0, from, p))) return false;
+  if (![...named, ...I.spots.speed, foot].every(p => Array.isArray(p) && p.length === 2 && reachable(I, 0, from, p))) return false;
   const hallAndLiving = furnishedWay(I);
-  return wideTargets(I).every(p => reachable(hallAndLiving, 0, from, p, WIDE_CLEAR));   // 8
+  if (!wideTargets(I).every(p => reachable(hallAndLiving, 0, from, p, WIDE_CLEAR))) return false;   // 8a
+  const four = furnishedWay(I, FURNISHED);
+  if (!wideTargets(I, FURNISHED).every(p => reachable(four, 0, from, p, WIDE_CLEAR))) return false;   // 8b
+  return throughWays(I).every(({room, from: start, to}) => {
+    const one = furnishedWay(I, [room]);
+    return to.every(p => reachable(one, 0, start, p, WIDE_CLEAR));
+  });   // 8c
 }
 
-// Rule 8's walk is through the furnished rooms: the ground floor cut down to the hall and the living room, with the openings out of them
-// (so each doorway point is still standable but the way does not go round through the kitchen or the dining room).
-const FURNISHED = ['hall', 'living'];
-export const furnishedWay = I => ({...I, rooms: I.rooms.filter(r => r.floor !== 0 || FURNISHED.includes(r.id)),
-  openings: I.openings.filter(o => o.floor !== 0 || o.rooms.some(id => FURNISHED.includes(id)))});
-// What a walker 0.9 m wide must reach from the arrival spot: each hall opening's doorway point, the living-kitchen one and the stair foot.
-export const wideTargets = I => [...I.openings.filter(o => o.floor === 0 && (o.rooms.includes('hall') || o.rooms.includes('living') && o.rooms.includes('kitchen')))
+// Rule 8's walk is through the furnished rooms: the ground floor cut down to the rooms named, with the openings out of them
+// (so each doorway point is still standable but the way does not go round through rooms outside the set).
+export const FURNISHED = Object.freeze(['hall', 'living', 'kitchen', 'dining']);
+const FIRST_FURNISHED = ['hall', 'living'];
+export const furnishedWay = (I, rooms = FIRST_FURNISHED) => ({...I, rooms: I.rooms.filter(r => r.floor !== 0 || rooms.includes(r.id)),
+  openings: I.openings.filter(o => o.floor !== 0 || o.rooms.some(id => rooms.includes(id)))});
+// What a walker 0.9 m wide must reach from the arrival spot: each doorway point touching those rooms and the stair foot.
+export const wideTargets = (I, rooms = FIRST_FURNISHED) => [...I.openings.filter(o => o.floor === 0 && o.rooms.some(id => rooms.includes(id)))
   .map(doorwayPoint), stairFoot(I)];
+// The ways through the kitchen and dining room alone, each tested at 0.9 m clearance over that room cut down.
+export function throughWays(I) {
+  const at = (x, y) => {
+    const o = I.openings.find(o => o.floor === 0 && o.rooms.includes(x) && o.rooms.includes(y));
+    return o && doorwayPoint(o);
+  };
+  const kd = at('kitchen', 'dining'), hd = at('hall', 'dining'), lk = at('living', 'kitchen'),
+    kl = at('kitchen', 'laundry'), kp = at('kitchen', 'pantry');
+  const out = [];
+  if (kd && hd) out.push({room: 'dining', from: kd, to: [hd]});
+  const kTo = [kd, kl, kp].filter(Boolean);
+  if (lk && kTo.length) out.push({room: 'kitchen', from: lk, to: kTo});
+  return out;
+}
 
 // A hung piece lies on one of its room's wall lines, within the room along it, and clear of that line's openings, the front door and windows
 // and of wall lamps.

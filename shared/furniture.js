@@ -23,12 +23,21 @@ export const KINDS = Object.freeze({
   'boot-bench': solid([1.25, .38], .45),
   'umbrella-stand': solid([.3, .3], .6),
   newel: solid([.12, .12], 1.1),
+  'sink-unit': solid([1.3, .6], .9),
+  range: solid([1.0, .6], .9),
+  worktop: solid([1.6, .6], .9),
+  dresser: solid([1.2, .45], 2.0),
+  'kitchen-table': solid([1.5, .8], .75),
+  'dining-table': solid([1.8, .9], .75),
+  chair: solid([.45, .45], .9, {seat: .45}),
+  sideboard: solid([1.6, .45], .85),
   rug: walkOver(.02),
   runner: walkOver(.015),
   doormat: walkOver(.015),
   hooks: wallHung(.1),
   picture: wallHung(.6),
   mirror: wallHung(.9),
+  'pan-rail': wallHung(.05),
   'table-lamp': setOn(.45),
   cushion: setOn(.15),
   throw: setOn(.05),
@@ -40,6 +49,14 @@ export const KINDS = Object.freeze({
   coat: setOn(1.1),
   hat: setOn(.15),
   boots: setOn(.3),
+  pan: setOn(.3),
+  kettle: setOn(.22),
+  cloth: setOn(.05),
+  jar: setOn(.18),
+  breadboard: setOn(.03),
+  loaf: setOn(.1),
+  bowl: setOn(.1),
+  plates: setOn(.12),
 });
 
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -98,3 +115,15 @@ export function withoutPieces(interior, ids) {
 
 // The same interior with no furniture, walked by the chimney breasts alone.
 export const bareInterior = interior => withoutPieces(interior, (interior.furniture || []).map(e => e?.id));
+
+// Ids of the furniture entries whose room is one of roomIds.
+export function piecesIn(interior, roomIds) {
+  const rooms = new Set(roomIds || []);
+  return (interior?.furniture || []).filter(e => e && rooms.has(e.room)).map(e => e.id);
+}
+
+// The same interior without those rooms' pieces (and whatever is set on them), its queue emptied.
+export const withoutRooms = (interior, roomIds) => Object.freeze({
+  ...withoutPieces(interior, piecesIn(interior, roomIds)),
+  furnishLater: Object.freeze([]),
+});
