@@ -65,7 +65,21 @@ const FURNITURE = [
   setOn('kettle', 'kettle', 'kitchen', 'range'), setOn('cloth', 'cloth', 'kitchen', 'range'),
   ...many(3, 'jar', 'jar', 'kitchen', 'worktop'), setOn('breadboard', 'breadboard', 'kitchen', 'worktop'),
   setOn('bowl-kitchen', 'bowl', 'kitchen', 'kitchen-table'), setOn('loaf', 'loaf', 'kitchen', 'kitchen-table'),
-  ...many(3, 'plates-dresser', 'plates', 'kitchen', 'dresser'), ...many(2, 'cup-dresser', 'cup', 'kitchen', 'dresser')
+  ...many(3, 'plates-dresser', 'plates', 'kitchen', 'dresser'), ...many(2, 'cup-dresser', 'cup', 'kitchen', 'dresser'),
+  // The dining room: rug, table for six under the lamp, six chairs, sideboard left of the back window, two pictures on the east wall.
+  standing('dining-rug', 'rug', 'dining', [9, 9.5], .02, [2.9, 3.6]),
+  standing('dining-table', 'dining-table', 'dining', [9, 9.5], Math.PI / 2),
+  standing('chair-dining-1', 'chair', 'dining', [8.30, 9.05], Math.PI / 2 + .05),
+  standing('chair-dining-2', 'chair', 'dining', [8.30, 9.95], Math.PI / 2),
+  standing('chair-dining-3', 'chair', 'dining', [9.70, 9.05], -Math.PI / 2),
+  standing('chair-dining-4', 'chair', 'dining', [9.70, 9.95], -Math.PI / 2 - .08),
+  standing('chair-dining-5', 'chair', 'dining', [9, 8.33], Math.PI),
+  standing('chair-dining-6', 'chair', 'dining', [9, 10.67], 0),
+  standing('sideboard', 'sideboard', 'dining', [8.3, 11.7]),
+  hung('picture-4', 'picture', 'dining', 'a', 11, [8.2, 9.0], 1.5),
+  hung('picture-5', 'picture', 'dining', 'a', 11, [9.9, 10.7], 1.5),
+  setOn('jug-sideboard', 'jug', 'dining', 'sideboard'), setOn('plates-sideboard', 'plates', 'dining', 'sideboard'),
+  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table')
 ];
 
 const BLUEPRINT = {

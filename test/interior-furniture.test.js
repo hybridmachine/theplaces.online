@@ -815,3 +815,99 @@ test('every kitchen solid has a grounding patch', () => {
   }
   inside.dispose();
 });
+
+// ── dining room furniture (Task 4) ──
+test('every solid dining piece is drawn inside its footprint and stands on the floor', () => {
+  const inside = build();
+  inside.buildRest();
+  const diningSolids = I.furniture.filter(e => e.room === 'dining' && KINDS[e.kind].standing === 'solid');
+  assert.equal(diningSolids.length, 8, 'dining table, six chairs, sideboard');
+  for (const e of diningSolids) {
+    const box = inside.pieceBox(e.id), f = footprint(e), floor = room(e.room).floor * I.floorRise;
+    assert.ok(box, `${e.id} is drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0] - floor) <= .02, `${e.id} stands on its floor: ${box.z[0]}`);
+    assert.ok(box.z[1] <= floor + KINDS[e.kind].height + .02, `${e.id} no taller than its kind: ${box.z[1]}`);
+    const p = patch(inside.scene, e.id);
+    assert.ok(p.length > 0, `${e.id} has a grounding patch`);
+  }
+  inside.dispose();
+});
+
+test('the dining room is one queued set of at most four meshes', () => {
+  const inside = build();
+  inside.buildRest();
+  const set = inside.furniture.sets.find(s => s.rooms.includes('dining'));
+  assert.ok(set, 'dining set exists');
+  assert.deepEqual(set.rooms, ['dining']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 4, `${set.meshes} meshes`);
+  assert.ok(set.vertices > 0 && Number.isFinite(set.ms));
+  inside.dispose();
+});
+
+test('the six dining chairs face the table: each chair\'s back is on its side away from the table\'s middle', () => {
+  const inside = build();
+  inside.buildRest();
+  const table = I.furniture.find(e => e.id === 'dining-table');
+  const chairs = I.furniture.filter(e => e.room === 'dining' && e.kind === 'chair');
+  assert.equal(chairs.length, 6);
+  for (const ch of chairs) {
+    // Vertices above seat height belong to the chair's back.
+    const back = MESHES.flatMap(m => vertices(inside.scene, ch.id, m)).filter(v => v.z > KINDS.chair.seat + .1);
+    assert.ok(back.length > 10, `${ch.id} has back vertices`);
+    const ba = mean(back.map(v => v.a)), bd = mean(back.map(v => v.d));
+    const distBack = Math.hypot(ba - table.at[0], bd - table.at[1]);
+    const distCentre = Math.hypot(ch.at[0] - table.at[0], ch.at[1] - table.at[1]);
+    assert.ok(distBack > distCentre + .1, `${ch.id} back (${ba.toFixed(2)}, ${bd.toFixed(2)}) farther from table than centre`);
+  }
+  inside.dispose();
+});
+
+test('the chairs are not all alike: two are turned off square', () => {
+  const chairs = I.furniture.filter(e => e.room === 'dining' && e.kind === 'chair');
+  const offSquare = chairs.filter(ch => {
+    const r = Math.abs((ch.turn || 0) % (Math.PI / 2));
+    return Math.min(r, Math.PI / 2 - r) > .01;
+  });
+  assert.ok(offSquare.length >= 2, `only ${offSquare.length} chairs off square`);
+});
+
+test('the table\'s things stand on its top, and the lamp above it hangs clear of them', () => {
+  const inside = build();
+  inside.buildRest();
+  const top = KINDS['dining-table'].height;
+  const lampZ = I.fittings.find(f => f.room === 'dining').at[2];
+  const onTable = I.furniture.filter(e => e.on === 'dining-table');
+  assert.equal(onTable.length, 3, 'two candlesticks and a bowl');
+  for (const e of onTable) {
+    const box = inside.pieceBox(e.id);
+    assert.ok(box, `${e.id} drawn`);
+    assert.ok(Math.abs(box.z[0] - top) <= .01, `${e.id} stands on table top: ${box.z[0]} vs ${top}`);
+    assert.ok(box.z[1] < lampZ - .3, `${e.id} top ${box.z[1]} clear below lamp ${lampZ}`);
+  }
+  inside.dispose();
+});
+
+test('the sideboard and its things stay left of the window\'s span', () => {
+  const inside = build();
+  inside.buildRest();
+  const win = I.windows.find(w => w.id === 'dining'), winLeft = win.a - win.width / 2;
+  for (const e of [I.furniture.find(x => x.id === 'sideboard'), ...I.furniture.filter(x => x.on === 'sideboard')]) {
+    const box = inside.pieceBox(e.id);
+    assert.ok(box, `${e.id} drawn`);
+    assert.ok(box.a[1] < winLeft, `${e.id} reaches ${box.a[1]}, window starts at ${winLeft}`);
+  }
+  inside.dispose();
+});
+
+test('the jug on the sideboard is its full width; the one on the mantel is still narrowed', () => {
+  const inside = build();
+  inside.buildRest();
+  const mantelJug = inside.pieceBox('jug'), sideJug = inside.pieceBox('jug-sideboard');
+  assert.ok(mantelJug && sideJug);
+  const mantelDepth = mantelJug.a[1] - mantelJug.a[0];
+  const sideWidth = sideJug.a[1] - sideJug.a[0], sideDepth = sideJug.d[1] - sideJug.d[0];
+  assert.ok(mantelDepth < .125, `mantel jug narrowed: ${mantelDepth}`);
+  assert.ok(Math.min(sideWidth, sideDepth) >= .135, `sideboard jug full width: ${sideWidth} x ${sideDepth}`);
+  inside.dispose();
+});

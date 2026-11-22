@@ -166,3 +166,39 @@ test('held into the sofa\'s front the walker stops 0.25 m short, and slides alon
   }
   assert.ok(g.position[0] <= sofa.a[0] - .25 + 1e-9 && g.position[1] > start.position[1] + .5, `slid along it to ${g.position}`);
 });
+
+test('walking at a dining chair stops the eye\'s clearance short of it and slides along it', () => {
+  const ch = I.obstacles.find(o => o.id === 'chair-dining-5');
+  assert.ok(ch, 'chair-dining-5 obstacle exists');
+  const inside = p => p[0] > ch.a[0] && p[0] < ch.a[1] && p[1] > ch.d[0] && p[1] < ch.d[1];
+  const start = {...entry, position: [9, 7.5]};
+  assert.ok(standable(start));
+  let s = {...start, yaw: 0};   // straight +d toward chair-dining-5
+  for (let i = 0; i < 90; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inside(s.position), `entered at ${s.position}`);
+  }
+  assert.ok(s.position[1] <= ch.d[0] - I.eyeClear + 1e-9, `stopped at ${s.position}`);
+  assert.ok(s.position[1] > ch.d[0] - I.eyeClear - .1, `pressed close: ${s.position}`);
+  let g = {...start, yaw: Math.PI / 4};   // diagonal +a/+d, sliding east along the chair
+  for (let i = 0; i < 45; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inside(g.position), `entered at ${g.position}`);
+  }
+  assert.ok(g.position[0] > start.position[0] + .5, `slid along chair to ${g.position}`);
+});
+
+test('walking from the hall opening round the table to the dining window arrives', () => {
+  // From the hall-dining opening, east toward the side wall, north past the chairs, then west to the dining window spot.
+  let s = {...entry, position: [9, 7.4], yaw: Math.PI / 2};
+  assert.ok(standable(s));
+  for (let i = 0; i < 40 && s.position[0] < 10.42; i++) s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+  assert.ok(s.position[0] >= 10.35, `reached side wall: ${s.position}`);
+  s = {...s, yaw: 0};   // north (+d) past chairs 3 & 4 toward the back wall
+  for (let i = 0; i < 120 && s.position[1] < I.spots.diningWindow[1]; i++) s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+  assert.ok(s.position[1] >= I.spots.diningWindow[1] - .05, `reached back wall: ${s.position}`);
+  s = {...s, yaw: -Math.PI / 2};   // west (-a) to the dining window spot
+  for (let i = 0; i < 40 && s.position[0] > I.spots.diningWindow[0]; i++) s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+  assert.ok(Math.hypot(s.position[0] - I.spots.diningWindow[0], s.position[1] - I.spots.diningWindow[1]) < .15, `arrived at ${s.position}`);
+  assert.ok(standable(s));
+});

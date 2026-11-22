@@ -292,17 +292,34 @@ export const RECIPES = {
       ...kit.roll(at, [-.03, .02, .04], [-.07, .05, .58], .012, pal.darkOak(1, .06), {sides: 6}),
       ...kit.roll(at, [.03, -.02, .04], [.05, -.06, .575], .026, pal.rugRed(2, .08, .6), {sides: 7, ends: pal.darkOak(3, .06)})]};
   },
-  // A blue-glazed jug on the mantel toward its front-wall end, with a handle; on a shelf shallower than its belly (the mantel's exposed
-  // `deep`), drawn narrower to fit it, its handle drawn in with it.
+  // A jug: on the mantel toward its front-wall end, narrowed to fit the shelf's exposed depth; on any other piece (e.g. sideboard),
+  // standing full width on its top through pal.surface.
   jug(kit, e, pal) {
+    if (e.parent?.kind !== 'mantel') {
+      const at = kit.moved(kit.placed(e), [-.45, .02, 0], {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
+      put(out, 'china', [
+        ...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [.07, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]],
+          lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
+        ...kit.roll(at, [.06, 0, .2], [.1, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}),
+        ...kit.roll(at, [.1, 0, .17], [.066, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE}),
+      ]);
+      return out;
+    }
     const at = kit.moved(kit.placed(e), [-.8, 0, 0]), glaze = pal.blue(0, .06, 1.15);   // (blue, so it does not sink into the breast's stone)
     const belly = .07, s = Math.min(1, ((e.parent?.deep ?? 2 * belly) / 2 - .002) / belly), r = ([x, z]) => [x * s, z];
     return {stone: [...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [belly, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]].map(r),
       lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
       ...kit.roll(at, [.06 * s, 0, .2], [.1 * s, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}), ...kit.roll(at, [.1 * s, 0, .17], [.066 * s, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE})]};
   },
-  // A brass candlestick with its candle, either side of the clock.
+  // A candlestick with its candle: on the mantel either side of the clock; on a table either side of the centre bowl.
   candlestick(kit, e, pal) {
+    if (e.parent?.kind !== 'mantel') {
+      const at = kit.moved(kit.placed(e), [((e.index || 0) - ((e.count || 1) - 1) / 2) * .68, 0, 0]), out = {};
+      const brass = pal.surface('copper', 0, .06, .82), wax = pal.surface('china', 1, .04, .98);
+      put(out, 'copper', kit.turned(at, [0, 0], [[0, 0], [.045, 0], [.045, 0], [.045, .012], [.03, .02], [.014, .04], [.012, .15], [.026, .16], [.026, .17], [0, .17]], brass, {segments: 8}));
+      put(out, 'china', kit.turned(at, [0, 0], [[0, .17], [.01, .17], [.01, .25], [0, .25]], wax, {segments: 8, tile: STONE_TILE}));
+      return out;
+    }
     const at = kit.moved(kit.placed(e), [((e.index || 0) - ((e.count || 1) - 1) / 2) * .9, 0, 0]), brass = pal.ochre(0, .06, .8), wax = pal.linen(1, .04);
     const profile = [[0, 0], [.045, 0], [.045, 0], [.045, .012], [.03, .02], [.014, .04], [.012, .15], [.026, .16], [.026, .17], [.01, .17], [.01, .17], [.01, .25], [0, .25]];
     return {stone: kit.turned(at, [0, 0], profile, (p, k) => (k >= 10 ? wax : brass)(p), {segments: 8, tile: STONE_TILE})};
@@ -619,6 +636,46 @@ export const RECIPES = {
     }
     const base = kit.placed(e);
     for (let k = 0; k < 5; k++) put(out, 'china', dish(kit.moved(base, [.42, 0, k * .022]), .115, .022));
+    return out;
+  },
+  // ── dining room pieces: every tint through pal.surface, returned under SURFACES[name].mesh ──
+  // A dining table for six: darker oak top with tucked underside, apron and four square legs.
+  'dining-table'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const top = pal.surface('wood', 0, .06, .72), base = pal.surface('wood', 1, .06, .6);
+    const ix = hx - .08, iy = hy - .08;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], top, {tuck: ['under'], seed: pal.seed}),
+      ...kit.board(at, [-ix, ix], [-iy, -iy + .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [iy - .03, iy], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .03], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .03, ix], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'wood', kit.post(at, [x * ix, y * iy], [0, h - .04], .028, base));
+    return out;
+  },
+  // A dining sideboard: plinth, three upper drawers, three lower cupboard doors with iron pulls, overhanging top with tucked underside.
+  sideboard(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .06, .66), top = pal.surface('wood', 1, .06, .76), plinth = pal.surface('wood', 2, .05, .48);
+    const panel = pal.surface('wood', 3, .06, .72), pull = pal.surface('iron', 4, .04);
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .05, hy], [0, .09], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .01, hx - .01], [-hy + .02, hy], [.09, h - .035], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    const w = (2 * hx - .16) / 3;
+    for (let k = 0; k < 3; k++) {
+      const x0 = -hx + .05 + k * (w + .03), x1 = x0 + w, mid = (x0 + x1) / 2;
+      put(out, 'wood', [
+        ...kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [h - .19, h - .06], panel, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [.13, h - .22], panel, {skip: ['back']}),
+      ]);
+      put(out, 'iron', [
+        ...kit.board(at, [mid - .03, mid + .03], [-hy - .005, -hy + .005], [h - .135, h - .115], pull, {skip: ['back']}),
+        ...kit.board(at, [mid - .015, mid + .015], [-hy - .005, -hy + .005], [h - .32, h - .295], pull, {skip: ['back']}),
+      ]);
+    }
     return out;
   },
 };

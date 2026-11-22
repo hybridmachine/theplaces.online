@@ -162,8 +162,8 @@ test('no wall fitting sits inside an obstacle; a hanging one may hang over one',
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 1.5, 1.8]}); }), true);
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
   assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
-  // a table under the dining room's lamp leaves the blueprint valid
-  assert.equal(solid('dining', [9, 9.5]), true);
+  // a table under a room's hanging lamp leaves the blueprint valid (dining already has its table; test an unfurnished room too)
+  assert.equal(solid('master', [14.5, 9.5]), true);
 });
 
 // The living room's and hall's furniture, and the rules that keep it walkable.
@@ -347,4 +347,16 @@ test('the real blueprint with the kitchen furnished is valid', () => {
   assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'range'));
   assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'kitchen-table'));
   assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'dresser'));
+});
+test('the real blueprint with both rooms furnished is valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(I.furniture.some(e => e.room === 'dining' && e.kind === 'dining-table'));
+  assert.ok(I.furniture.some(e => e.room === 'dining' && e.kind === 'sideboard'));
+  assert.equal(I.furniture.filter(e => e.room === 'dining' && e.kind === 'chair').length, 6);
+});
+test('the dining window spot is reachable down the side wall', () => {
+  assert.equal(reachable(I, 0, I.entry.position, I.spots.diningWindow), true);
+});
+test('the way down the side wall to the window is 0.9 m wide', () => {
+  assert.equal(reachable(furnishedWay(I, ['dining']), 0, doorwayPoint(I.openings.find(o => o.id === 'hall-dining')), [10.44, 11.2], .45), true);
 });
