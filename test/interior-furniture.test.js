@@ -844,6 +844,84 @@ test('no table or malformed table: nothing hidden and one warning is logged', ()
   inside2.dispose();
 });
 
+function planesFrom({at, facing, fovH = 100 * Math.PI / 180, aspect = 1440 / 810, pitch = 0}) {
+  const [ea, ed, ez] = at;
+  const ha = facing[0] - ea, hd = facing[1] - ed, len = Math.hypot(ha, hd);
+  const fha = ha / len, fhd = hd / len;
+  const right = [fhd, -fha, 0];
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fwd = [fha * cp, fhd * cp, sp];
+  const up = [
+    right[1] * fwd[2] - right[2] * fwd[1],
+    right[2] * fwd[0] - right[0] * fwd[2],
+    right[0] * fwd[1] - right[1] * fwd[0],
+  ];
+  const hx = fovH / 2, hy = Math.atan(Math.tan(hx) / aspect);
+  const plane = n => {
+    const l = Math.hypot(...n);
+    const u = n.map(v => v / l);
+    return [u[0], u[1], u[2], -(u[0] * ea + u[1] * ed + u[2] * ez)];
+  };
+  const combine = (a, ca, b, cb) => [a[0] * ca + b[0] * cb, a[1] * ca + b[1] * cb, a[2] * ca + b[2] * cb];
+  return [
+    plane(combine(fwd, Math.sin(hx), right, Math.cos(hx))),
+    plane(combine(fwd, Math.sin(hx), right, -Math.cos(hx))),
+    plane(combine(fwd, Math.sin(hy), up, Math.cos(hy))),
+    plane(combine(fwd, Math.sin(hy), up, -Math.cos(hy))),
+  ];
+}
+
+test('a seen room whose door is out of view is hidden, and shown again when its door enters view', () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  const countsBefore = structuredClone(inside.furniture), roomsBefore = [...inside.furnishedRooms], skippedBefore = [...inside.skipped];
+  const eye = [...I.spots.dresser, 1.6];
+  inside.showFrom('kitchen', planesFrom({at: eye, facing: [7, 11.5]}));
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('dining'));
+  assert.equal(inside.shownRooms.includes('study'), false, 'study hidden when facing north-east into dining');
+  assert.deepEqual(inside.furniture, countsBefore);
+  assert.deepEqual(inside.furnishedRooms, roomsBefore);
+  assert.deepEqual(inside.skipped, skippedBefore);
+  inside.showFrom('kitchen', planesFrom({at: eye, facing: [11, .8]}));
+  assert.ok(inside.shownRooms.includes('study'), 'study shown when facing the hall-study door');
+  // no planes: table alone
+  inside.showFrom('kitchen');
+  assert.ok(inside.shownRooms.includes('study') && !inside.shownRooms.includes('master'));
+  // null room shows everything whatever the planes
+  inside.showFrom(null, planesFrom({at: eye, facing: [7, 11.5]}));
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  inside.dispose();
+});
+
+test("the visitor's own room is always shown, even facing away from its door", () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  inside.showFrom('master', planesFrom({at: [14.5, 10.0, 1.6], facing: [18, 11.5]}));
+  assert.ok(inside.shownRooms.includes('master'));
+  inside.dispose();
+});
+
+test('a room built after showFrom with planes takes the current answer at once', () => {
+  const inside = buildQueuedAll();
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]}));
+  inside.buildRest();
+  assert.equal(inside.shownRooms.includes('study'), false);
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('dining'));
+  inside.dispose();
+});
+
+test('no door boxes, nothing more hidden beyond the sight table', () => {
+  const [inside, warnings] = warned(() => buildQueuedAll({doors: () => { throw new Error('doors broken'); }}));
+  inside.buildRest();
+  assert.equal(warnings.length, 1);
+  const planes = planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]});
+  inside.showFrom('kitchen');
+  const tableOnly = [...inside.shownRooms];
+  inside.showFrom('kitchen', planes);
+  assert.deepEqual(inside.shownRooms, tableOnly);
+  inside.dispose();
+});
+
 // ── kitchen furniture (Task 3) ──
 test('the real blueprint skips nothing once every room is built', () => {
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });

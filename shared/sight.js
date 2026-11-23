@@ -248,8 +248,9 @@ export function doorInView(boxes, roomId, planes, seen = null) {
   const list = boxes?.[roomId];
   if (!list || !list.length) return true;
   const others = seen ? BOX_OTHERS.get(boxes)?.[roomId] : null;
+  const hasSeen = seen ? (typeof seen.has === 'function' ? id => seen.has(id) : id => seen.includes(id)) : null;
   for (let i = 0; i < list.length; i++) {
-    if (others && others[i] && !seen.includes(others[i])) continue;
+    if (others && others[i] && hasSeen && !hasSeen(others[i])) continue;
     if (boxInView(list[i], planes)) return true;
   }
   return false;

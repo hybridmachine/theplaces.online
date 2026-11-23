@@ -807,6 +807,35 @@ test('SpaceView hides unseen rooms indoors, shows all on the stair, in the yard,
   inPassage.view.inside.dispose();
 });
 
+test('SpaceView passes view planes to showFrom: hides rooms whose doors are out of view, updates on the same frame when paused, and falls back for a zero-size canvas', async () => {
+  const spot = I.spots.speed[2];
+  const yawTo = ([ta, td]) => Math.atan2(ta - spot[0], td - spot[1]);
+  const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [...spot], yaw: yawTo([10, 12]), pitch: 0}});
+  frame(1, {now: 1_000_000});
+  assert.equal(view.inside.shownRooms.includes('passage'), false, 'passage hidden facing dining window');
+  assert.equal(view.inside.shownRooms.includes('study'), false, 'study hidden facing dining window');
+  assert.ok(view.inside.shownRooms.includes('kitchen') && view.inside.shownRooms.includes('dining'));
+  // Turn to face [0, 3.5] through the living opening and draw once with the world paused (same `now`): shownRooms updates on that draw.
+  view.state = {...view.state, yaw: yawTo([0, 3.5]), pitch: 0};
+  frame(1, {now: 1_000_000});
+  assert.equal(view.inside.shownRooms.includes('dining'), false, 'dining hidden immediately on the turned draw');
+  assert.ok(view.inside.shownRooms.includes('kitchen'), 'own room stays shown');
+  // Zero-size canvas: viewPlanes returns null and nothing more is hidden beyond the sight table.
+  view.canvas = {width: 0, height: 0};
+  assert.equal(view.viewPlanes(), null);
+  frame(1, {now: 1_000_000});
+  assert.ok(view.inside.shownRooms.includes('dining') && view.inside.shownRooms.includes('study'), 'table alone when planes are null');
+  // On the stair, in the yard, and with hideUnseen: false, every built room is shown.
+  view.canvas = {width: 1440, height: 810};
+  view.state = {place: 'cabin', floor: 0, position: [10.3, 3.0], yaw: 0, pitch: 0};
+  frame(1, {now: 1_000_000});
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms);
+  view.state = {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch};
+  frame(1, {now: 1_000_000});
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms);
+  view.inside.dispose();
+});
+
 test('sceneText includes the furnished clause for study, closet passage and master bedroom only when furnished', () => {
   const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
   for (const [room, phrase] of [
