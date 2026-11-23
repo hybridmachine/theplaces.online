@@ -10,8 +10,8 @@ import {MANTEL} from './fireplace.js';
 // The furniture of the furnished rooms (the blueprint's interior.furniture), drawn from the kit (furniture-kit.js) by one recipe per
 // kind and merged into a few meshes by material: wood (the shell's lit `surface` material), cloth (its double-sided `leafed` one) and
 // stone (a lit material of its own over the stone brushwork, for the mantel's jug and candlesticks). Two more meshes are not lit by the
-// room's weights: the shades of the two lamps (`shades`, one colour for the mesh, set by setLight from the room's light and the living
-// room's lamp) and the grounding (a soft dark patch on the floor under each solid piece).
+// room's weights: the lamps' shades (`shades`, one colour for the mesh, set by setLight from the room's light and that room's lamp)
+// and the grounding (a soft dark patch on the floor under each solid piece).
 // Where a piece stands comes from its entry: standing pieces at their `at` and `turn`, wall-hung ones on the face of their wall line,
 // set-on ones on their parent (on a seat at the parent kind's `seat`, otherwise on its top) or on the fireplace's mantel. A piece
 // whose kind has no recipe, whose parent cannot be found, or whose recipe throws, is passed over, and every piece set on it with it,
@@ -42,7 +42,7 @@ const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furnit
 // standing lamp's foot take a round patch of radius `disc`.
 export const GROUND = {reach: .22, dark: .42, inner: .05, lift: .003, disc: .2};
 const ROUND = ['newel', 'standing-lamp'];
-// A lamp's shade, linear: pale (times the room's light there, without the lamp's own) with the lamp out, and glowing warm with the living
+// A lamp's shade, linear: pale (times the room's light there, without its lamp's own) with the lamp out, and glowing warm with its
 // room's lamp lit; between them by that lamp's level. Lit, it stays under 1 even at the shade's brightest band (SHADE_FORM), so its warmth
 // shows on the shade itself instead of clipping to a flat cream.
 export const SHADE_PALE = [1.12, 1.08, 1.05], SHADE_WARM = [.98, .62, .3];
@@ -50,7 +50,6 @@ export const SHADE_PALE = [1.12, 1.08, 1.05], SHADE_WARM = [.98, .62, .3];
 // (t 1), each with how much of the colour it keeps: a darker rim at the foot, brightest low where the bulb shines through, fading upward
 // to a darker top edge. And across it: the side away from the room's middle keeps `away` of it, so the cone reads round.
 const SHADE_FORM = {bands: [[0, .66], [.06, .92], [.3, 1], [.75, .86], [.93, .76], [1, .56]], away: .78};
-const SHADE_ROOM = 'living';
 const clamp01 = x => Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0;
 const finite = v => Number.isFinite(v) ? v : 0;
 // The stone's brushwork on the mantel's small pieces: finer than the breast's, so a jug shows a few strokes, not one stone.
@@ -750,6 +749,12 @@ export function buildFurniture(THREE, {interior: I, art, light, flat = null, fac
     ranges.set(entry.id, own);
   }
   if (skipped.length) console.warn(`The cabin's furniture passed over ${skipped.length} piece(s) it could not draw: ${skipped.map(id => `${id} (${why.get(id)})`).join(', ')}.`);
+  const shadeRooms = new Set();
+  for (const [id, own] of ranges) if (own.some(r => r.mesh === MESHES.shades)) shadeRooms.add(byId.get(id).room);
+  if (shadeRooms.size > 1) {
+    for (const list of Object.values(lists)) for (const g of list) g.dispose();
+    throw new Error(`shades in two rooms: ${[...shadeRooms].join(', ')}`);
+  }
 
   const object = new THREE.Group(); object.name = name; object.userData.pieces = ranges;
   // The stone's own material, as the fireplace's: lit over the stone brushwork (plain where the art has none), or Lambert when built unlit.
@@ -829,7 +834,7 @@ export function buildFurniture(THREE, {interior: I, art, light, flat = null, fac
 
   // ── the shades' colour ──
   // The room's light at each shade but for its own lamp, as an unlit glass takes it (fittings.js): weighed at the shade's middle over four
-  // sideways facings, and the frame's sum of them by lightSum. A neighbour's lamp is not in it: the shade follows the living room's lamp alone.
+  // sideways facings, and the frame's sum of them by lightSum. A neighbour's lamp is not in it: the shade follows its own room's lamp alone.
   const sideways = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]], mean = (ws, k) => ws.reduce((t, w) => t + w[k], 0) / ws.length;
   const atShades = (() => {
     const mesh = object.getObjectByName(MESHES.shades), ws = [];
@@ -843,18 +848,19 @@ export function buildFurniture(THREE, {interior: I, art, light, flat = null, fac
     return ws.length ? {day: mean(ws, 'day'), fire: mean(ws, 'fire'), lamp: 0, room: -1, spill: 0, spillRoom: -1} : null;
   })();
   // The dials as lightSum reads them, every value finite: refilled each frame, nothing allocated.
-  const livingAt = I.rooms.findIndex(r => r.id === SHADE_ROOM), safe = {day: [0, 0, 0], fill: [0, 0, 0], fire: 0, lamps: new Float64Array(I.rooms.length)};
+  const shadeAt = shadeRooms.size === 1 ? I.rooms.findIndex(r => r.id === [...shadeRooms][0]) : -1;
+  const safe = {day: [0, 0, 0], fill: [0, 0, 0], fire: 0, lamps: new Float64Array(I.rooms.length)};
   function setLight(dials) {
     if (!shadeMaterial || !atShades) return;
     for (let c = 0; c < 3; c++) { safe.day[c] = finite(dials?.day?.[c]); safe.fill[c] = finite(dials?.fill?.[c]); }
     safe.fire = finite(dials?.fire); for (let i = 0; i < safe.lamps.length; i++) safe.lamps[i] = finite(dials?.lamps?.[i]);
-    const level = clamp01(safe.lamps[livingAt] ?? 0), [r, g, b] = [0, 1, 2].map(c => SHADE_PALE[c] * lightSum(safe, atShades, c) * (1 - level) + SHADE_WARM[c] * level);
+    const level = clamp01(safe.lamps[shadeAt] ?? 0), [r, g, b] = [0, 1, 2].map(c => SHADE_PALE[c] * lightSum(safe, atShades, c) * (1 - level) + SHADE_WARM[c] * level);
     shadeMaterial.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
   }
   setLight();
   const vertices = object.children.reduce((t, m) => t + m.geometry.getAttribute('position').count, 0);
   return {object, counts: {vertices, meshes: object.children.length}, pieceBox, skipped,
-    // The frame's dials: the lit surfaces follow them through the shell's materials; the shades' colour is set here, from the living room's
+    // The frame's dials: the lit surfaces follow them through the shell's materials; the shades' colour is set here, from their room's
     // lamp and the light at the shades without it.
     setLight,
     // The lit surfaces given up (buildInterior's fallBack): wood and cloth take the shell's flat surface and its double-sided one, the

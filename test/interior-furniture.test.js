@@ -7,7 +7,7 @@ import {MANTEL} from '../public/space/interior/fireplace.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
-import {RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
+import {buildFurniture, RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
 import {LAKESIDE_SPACE} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
@@ -515,6 +515,91 @@ test('given up for the flat light with the lamp lit: furniture drawn, shades sti
   assert.ok(group.getObjectByName('furniture-wood').material.isMeshLambertMaterial);
   assert.ok(group.getObjectByName('shades').material.isMeshBasicMaterial);
   assert.ok(shadeColour(inside, dialsAt(0))[0] / shadeColour(inside, dialsAt(0))[2] < 1.4);
+  inside.dispose();
+});
+
+const studyIdx = I.rooms.findIndex(r => r.id === 'study');
+const dialsFor = (levels = {}) => ({
+  day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0,
+  lamps: I.rooms.map(r => levels[r.id] ?? 0),
+});
+const studyLampBlueprint = () => {
+  const c = structuredClone(I);
+  c.furnishLater = ['study'];
+  c.furniture.push(
+    {id: 'test-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
+    {id: 'test-study-lamp', kind: 'table-lamp', room: 'study', on: 'test-study-table'},
+  );
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+const groupShadeColour = (inside, groupName, dials) => {
+  inside.setLight(dials);
+  const c = inside.scene.getObjectByName(groupName).getObjectByName('shades').material.color;
+  return [c.r, c.g, c.b];
+};
+
+test('a study lamp\'s shade follows the study\'s lamp, not the living room\'s', () => {
+  const inside = build(studyLampBlueprint());
+  inside.buildRest();
+  const studyLit = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1, living: 0}));
+  assert.deepEqual(studyLit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)), 'study shade is warm when study lamp is lit');
+  const studyOut = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 1}));
+  assert.ok(studyOut[0] / studyOut[2] < 1.4, `study shade stays pale when only living lamp is lit: ${studyOut}`);
+  assert.notDeepEqual(studyOut.map(v => +v.toFixed(4)), SHADE_WARM.map(v => +v.toFixed(4)));
+  const studyOutNone = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 0}));
+  assert.deepEqual(studyOut, studyOutNone, 'living room lamp changes nothing on the study shade');
+  // the living room's shades still follow the living room's lamp
+  const livingLit = groupShadeColour(inside, 'furniture', dialsFor({study: 0, living: 1}));
+  assert.deepEqual(livingLit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const livingOut = groupShadeColour(inside, 'furniture', dialsFor({study: 1, living: 0}));
+  assert.ok(livingOut[0] / livingOut[2] < 1.4);
+  inside.dispose();
+});
+
+test('a missing or non-finite lamp level leaves the shade pale and finite, and after fallBack a later set still colours its shades', () => {
+  const inside = build(studyLampBlueprint());
+  inside.fallBack();
+  inside.buildRest();
+  const pale = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0}));
+  const missingLamps = groupShadeColour(inside, 'furniture-study', {day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0});
+  assert.deepEqual(missingLamps, pale, 'missing lamps keeps the pale colour');
+  const nanLamps = groupShadeColour(inside, 'furniture-study', {day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0, lamps: I.rooms.map(() => NaN)});
+  assert.deepEqual(nanLamps, pale, 'NaN lamps keeps the pale colour');
+  const empty = groupShadeColour(inside, 'furniture-study', {});
+  assert.ok(empty.every(Number.isFinite), 'empty dials give finite channels');
+  const warmAfterFallback = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1}));
+  assert.deepEqual(warmAfterFallback.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)), 'after fallBack a later set still warms its shade');
+  assert.ok(studyIdx >= 0);
+  inside.dispose();
+});
+
+test('shades in two rooms are refused', () => {
+  const c = structuredClone(I);
+  c.furniture.push(
+    {id: 'two-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
+    {id: 'two-study-lamp', kind: 'table-lamp', room: 'study', on: 'two-study-table'},
+    {id: 'two-master-table', kind: 'side-table', room: 'master', at: [13.4, 11.65], turn: 0},
+    {id: 'two-master-lamp', kind: 'table-lamp', room: 'master', on: 'two-master-table'},
+  );
+  c.obstacles = obstaclesOf(c);
+  const inside = build();
+  const mat = inside.scene.getObjectByName('floors').material;
+  const leafed = furniture(inside.scene).getObjectByName('furniture-cloth').material;
+  const dummyFace = (f, a, b, o, col) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute([1, 1, 1, 1, 1, 1, 1, 1, 1], 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2));
+    return g;
+  };
+  assert.throws(() => buildFurniture(THREE, {
+    interior: c, art: stubArt(), light: null, flat: null, face: dummyFace, lit: g => g,
+    tint: base => () => base, materials: {surface: mat, leafed}, treads: 15,
+    only: new Set(['study', 'master']), name: 'two',
+    weightsAt: () => ({day: .5, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1}),
+  }), /shades in two rooms/);
   inside.dispose();
 });
 
