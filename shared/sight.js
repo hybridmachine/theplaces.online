@@ -1,8 +1,8 @@
 // Which rooms of a cabin interior can be seen from which, worked out from the blueprint's rooms, openings and stair alone.
 // Pure: no three.js. Generous: furniture is ignored and each opening's span is widened by SIGHT.widen at each end.
-import {doorwayPoint, roomAt} from './interior.js';
+import {roomAt} from './interior.js';
 
-export const SIGHT = Object.freeze({grid: .5, widen: .1});
+export const SIGHT = Object.freeze({grid: .5, door: .1, widen: .1});
 
 const EPS = 1e-9;
 const NUDGE = 1e-3;
@@ -20,11 +20,12 @@ function samplesOf(I, room, ops) {
   };
   const pts = [];
   for (const a of axis(room.a)) for (const d of axis(room.d)) pts.push([a, d]);
+  // Each opening's own span, just inside the room, every SIGHT.door: any line of sight out of the room crosses one of its openings,
+  // and a sampled line within half a step of it still passes each doorway on the way, as their spans are widened by more than that.
   for (const o of ops) {
-    const [a, d] = doorwayPoint(o);
-    pts.push(o.line === 'a'
-      ? [Math.abs(o.at - room.a[0]) < EPS ? o.at + NUDGE : o.at - NUDGE, d]
-      : [a, Math.abs(o.at - room.d[0]) < EPS ? o.at + NUDGE : o.at - NUDGE]);
+    const [lo, hi] = o.span, n = Math.max(1, Math.ceil((hi - lo) / SIGHT.door - EPS));
+    const lines = o.line === 'a' ? room.a : room.d, across = Math.abs(o.at - lines[0]) < EPS ? o.at + NUDGE : o.at - NUDGE;
+    for (let k = 0; k <= n; k++) { const along = lo + (hi - lo) * k / n; pts.push(o.line === 'a' ? [across, along] : [along, across]); }
   }
   return pts;
 }

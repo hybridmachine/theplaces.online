@@ -6,7 +6,7 @@ import {SIGHT, seenFrom} from '../shared/sight.js';
 const S = seenFrom(I), sees = (a, b) => S[a].includes(b);
 
 test('SIGHT exports the sampling constants', () => {
-  assert.deepEqual(SIGHT, {grid: .5, widen: .1});
+  assert.deepEqual(SIGHT, {grid: .5, door: .1, widen: .1});
   assert.ok(Object.isFrozen(SIGHT));
 });
 
@@ -37,6 +37,11 @@ test('doors show: hall sees study and passage; passage sees master; kitchen sees
   assert.ok(sees('hall', 'passage'));
   assert.ok(sees('passage', 'master'));
   assert.ok(sees('kitchen', 'study'));
+});
+
+test('a narrow line through several doorways is found: the pantry and the study, the linen cupboard and the landing', () => {
+  assert.ok(sees('pantry', 'study'));
+  assert.ok(sees('linen', 'landing'));
 });
 
 test('the stair joins the floors: hall and landing see each other, and what each sees on its own floor', () => {

@@ -227,7 +227,7 @@ Where the build departs from the design above, or settles what it left open. The
 
 ### Out of sight (`shared/sight.js`)
 
-- `seenFrom(I)` samples standing eye points on a `0.5` m grid (`SIGHT.grid = 0.5`) inside every room (plus its centre and `0.25` m in from each opening's centre), tests segments against wall segments whose openings are widened by `0.1` m at each jamb (`SIGHT.widen = 0.1`, generous reading), keeps the table symmetric and reflexive, and joins the stair's ground and upper floors both ways. Running on `LAKESIDE_INTERIOR` takes ~15 ms at build time.
+- `seenFrom(I)` samples standing eye points on a `0.5` m grid (`SIGHT.grid = 0.5`) inside every room and, just inside each of the room's openings, every `0.1` m along the opening's span (`SIGHT.door = 0.1`: every line of sight out of a room crosses one of its openings, and the step is under the widening, so no line through true doorways is missed; the centre of each opening alone, as first built, missed `pantry`–`study` and `linen`–`landing`, which a `0.05` m grid finds), tests segments against wall segments whose openings are widened by `0.1` m at each jamb (`SIGHT.widen = 0.1`, generous reading), keeps the table symmetric and reflexive, and joins the stair's ground and upper floors both ways. Running on `LAKESIDE_INTERIOR` takes ~15 ms at build time.
 - Notice a consequence of the generous sight definition: from `living`, a diagonal sightline runs through three doorways (`living–hall`, `hall–passage`, `passage–master`), so `living` sees `master`, whereas `kitchen` does not see `master` (`shownRooms` drops `master` at `[5.2, 7.9]` and shows it again from `spots.wardrobes` and the yard).
 
 ### Check spots and checks changed
