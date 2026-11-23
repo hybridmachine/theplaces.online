@@ -136,3 +136,41 @@ test('withoutRooms drops those rooms\' pieces and what is set on them, re-derive
   assert.deepEqual(w.furnishLater, []);
   assert.ok(Object.isFrozen(w)); assert.ok(Object.isFrozen(w.furnishLater));
 });
+
+test('the study, passage and master kinds have the right standings, heights and footprints', () => {
+  for (const [k, size, h] of [
+    ['desk', [1.5, .7], .75], ['wardrobe', [1.0, .6], 2.0], ['double-bed', [1.6, 2.05], 1.1], ['chest', [1.2, .45], .5],
+  ]) {
+    assert.equal(KINDS[k].standing, 'solid', k);
+    assert.deepEqual(KINDS[k].size, size, k);
+    assert.equal(KINDS[k].height, h, k);
+  }
+  for (const [k, h] of [['pillow', .14], ['blanket', .1]]) {
+    assert.equal(KINDS[k].standing, 'set-on', k);
+    assert.equal(KINDS[k].height, h, k);
+  }
+  const b = footprint({id: 'b', kind: 'double-bed', room: 'master', at: [14.5, 10.9], turn: 0});
+  near(b.a[1] - b.a[0], 1.6); near(b.d[1] - b.d[0], 2.05);
+});
+test('a piece set on the bed sits at its mattress, not its headboard', () => {
+  assert.equal(KINDS['double-bed'].seat, .55);
+});
+test('withoutRooms with keepQueue keeps the other rooms queued', () => {
+  const i = {
+    rooms: [{id: 'living', floor: 0, a: [0, 7], d: [0, 7]}, {id: 'kitchen', floor: 0, a: [2.5, 7], d: [7, 12]}, {id: 'dining', floor: 0, a: [7, 11], d: [7, 12]}, {id: 'study', floor: 0, a: [11, 18], d: [0, 4]}],
+    breasts: [{floor: 0, a: [0, .5], d: [2.5, 4.5]}],
+    furnishLater: ['kitchen', 'dining', 'study'],
+    furniture: [
+      {id: 's', kind: 'sofa', room: 'living', at: [4, 4]},
+      {id: 'kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5]},
+      {id: 'dk', kind: 'desk', room: 'study', at: [13.8, .45]},
+    ],
+  };
+  i.obstacles = obstaclesOf(i);
+  const kept = withoutRooms(i, ['study'], {keepQueue: true});
+  assert.deepEqual(kept.furniture.map(e => e.id), ['s', 'kt']);
+  assert.deepEqual(kept.furnishLater, ['kitchen', 'dining']);
+  assert.ok(Object.isFrozen(kept) && Object.isFrozen(kept.furnishLater));
+  const emptied = withoutRooms(i, ['study']);
+  assert.deepEqual(emptied.furnishLater, []);
+});

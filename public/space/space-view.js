@@ -6,7 +6,7 @@ import {buildInterior} from './interior/index.js';
 import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
-import {LAKESIDE_INTERIOR} from '../../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR, SLICE_4C} from '../../shared/lakeside-interior.js';
 import {roomAt} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
@@ -47,14 +47,16 @@ const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 // these the fire counts as out (by its level, not its flickering light) and its embers as cold.
 const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
-// With ?check, &bare=1 builds the view from the bare blueprint (no furniture) and &furnish=first strips the queued rooms,
-// to compare captures; without ?check both are ignored. &bare=1 wins over &furnish=first.
+// With ?check, &bare=1 builds the view from the bare blueprint (no furniture), &furnish=first strips the queued rooms and
+// &furnish=4b strips part 4c's rooms while keeping kitchen and dining queued, to compare captures; without ?check all are ignored.
+// &bare=1 wins over &furnish=.
 export function interiorSwitch(search = typeof location !== 'undefined' ? location.search : '') {
   const params = new URLSearchParams(search);
   if (params.get('interior') !== '1') return null;
   if (!params.has('check')) return LAKESIDE_INTERIOR;
   if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
   if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, LAKESIDE_INTERIOR.furnishLater);
+  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4C, {keepQueue: true});
   return LAKESIDE_INTERIOR;
 }
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);

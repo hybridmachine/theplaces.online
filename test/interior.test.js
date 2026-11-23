@@ -286,13 +286,14 @@ const withPieces = (extra, spots) => {
   c.obstacles = obstaclesOf(c);
   return c;
 };
-test('the real blueprint is valid, with the new spots and the third speed spot', () => {
+test('the real blueprint is valid, with the new spots and the five speed spots', () => {
   assert.equal(validInterior(I), true);
-  assert.deepEqual(I.furnishLater, ['kitchen', 'dining']);
-  assert.equal(I.spots.speed.length, 3);
-  for (const k of ['range', 'dresser', 'diningWindow']) assert.ok(Array.isArray(I.spots[k]) && floorArea(I, 0, I.spots[k]), k);
-  assert.ok(floorArea(I, 0, I.spots.speed[2]));
-  assert.deepEqual(FURNISHED, ['hall', 'living', 'kitchen', 'dining']);
+  assert.equal(I.spots.speed.length, 5);
+  for (const k of ['range', 'dresser', 'diningWindow', 'desk', 'shelves', 'wardrobes', 'bedFoot', 'bedside']) {
+    assert.ok(Array.isArray(I.spots[k]) && floorArea(I, 0, I.spots[k]), k);
+  }
+  for (const p of I.spots.speed) assert.ok(floorArea(I, 0, p), `speed ${p}`);
+  assert.deepEqual(FURNISHED, ['hall', 'living', 'kitchen', 'dining', 'study', 'passage', 'master']);
 });
 test('a table across the kitchen blocks the way through it', () => {
   assert.equal(validInterior(withPieces([{id: 'kt-wide', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], size: [3.9, .8]}])), false);
@@ -329,11 +330,14 @@ test('a sideboard under the dining window makes the blueprint invalid; a low pie
   assert.equal(validInterior(withPieces([{id: 'sb-win', kind: 'sideboard', room: 'dining', at: [10, 11.7]}], clearSpot)), false);
   assert.equal(validInterior(withPieces([{id: 'ws-win', kind: 'window-seat', room: 'dining', at: [10, 11.7]}], clearSpot)), true);
 });
-test('throughWays names the dining room once and the kitchen once, by doorway points of the blueprint', () => {
+test('throughWays names the dining, kitchen, passage, study and master rooms, by doorway points and spots of the blueprint', () => {
   const ways = throughWays(I), op = id => doorwayPoint(I.openings.find(o => o.id === id));
-  assert.deepEqual(ways.map(w => w.room), ['dining', 'kitchen']);
+  assert.deepEqual(ways.map(w => w.room), ['dining', 'kitchen', 'passage', 'study', 'master']);
   assert.deepEqual(ways[0], {room: 'dining', from: op('kitchen-dining'), to: [op('hall-dining')]});
   assert.deepEqual(ways[1], {room: 'kitchen', from: op('living-kitchen'), to: [op('kitchen-dining'), op('kitchen-laundry'), op('kitchen-pantry')]});
+  assert.deepEqual(ways[2], {room: 'passage', from: op('hall-passage'), to: [op('passage-master'), op('passage-bath-ground')]});
+  assert.deepEqual(ways[3], {room: 'study', from: op('hall-study'), to: [I.spots.shelves]});
+  assert.deepEqual(ways[4], {room: 'master', from: op('passage-master'), to: [I.spots.bedFoot]});
 });
 test('a kitchen table as planned leaves a 0.9 m way to the pantry and laundry doors', () => {
   const c = withPieces([
@@ -359,4 +363,52 @@ test('the dining window spot is reachable down the side wall', () => {
 });
 test('the way down the side wall to the window is 0.9 m wide', () => {
   assert.equal(reachable(furnishedWay(I, ['dining']), 0, doorwayPoint(I.openings.find(o => o.id === 'hall-dining')), [10.44, 11.2], .45), true);
+});
+
+// Study, passage and master bedroom rules and spots (synthetic cases start with those three rooms bare).
+const withEastPieces = (extra, spots) => {
+  const c = structuredClone(withoutRooms(I, ['study', 'passage', 'master']));
+  c.furniture.push(...extra);
+  if (spots) c.spots = {...c.spots, ...spots};
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+test('rule 8: a blocked passage fails', () => {
+  const c = withEastPieces([{id: 'p-block', kind: 'chest', room: 'passage', at: [12.5, 5.9], turn: 0}]);
+  const hp = doorwayPoint(I.openings.find(o => o.id === 'hall-passage'));
+  const pm = doorwayPoint(I.openings.find(o => o.id === 'passage-master'));
+  assert.equal(reachable(furnishedWay(c, ['passage']), 0, hp, pm), true, 'the 0.25 m walker still passes');
+  assert.equal(reachable(furnishedWay(c, ['passage']), 0, hp, pm, .45), false, 'the 0.9 m walker is stopped');
+  assert.equal(validInterior(c), false);
+});
+test('rule 8: a blocked way into the study fails', () => {
+  const c = withEastPieces([{id: 's-block', kind: 'bookshelf', room: 'study', at: [12.6, 2.2], turn: Math.PI / 2}]);
+  const hs = doorwayPoint(I.openings.find(o => o.id === 'hall-study'));
+  assert.equal(reachable(furnishedWay(c, ['study']), 0, hs, c.spots.shelves), true, 'the 0.25 m walker still passes');
+  assert.equal(reachable(furnishedWay(c, ['study']), 0, hs, c.spots.shelves, .45), false, 'the 0.9 m walker is stopped');
+  assert.equal(validInterior(c), false);
+  // With the study's spot moved to the door side so throughWays passes, the same blocker is otherwise valid (proving rule 8 alone failed it).
+  const unblocked = withEastPieces([{id: 's-block', kind: 'bookshelf', room: 'study', at: [12.6, 2.2], turn: Math.PI / 2}], {shelves: [11.8, 2.0]});
+  assert.equal(validInterior(unblocked), true);
+});
+test('rule 8: a blocked way into the master bedroom fails', () => {
+  const blockers = [
+    {id: 'm-block-1', kind: 'wardrobe', room: 'master', at: [12.2, 8.5], turn: 0},
+    {id: 'm-block-2', kind: 'wardrobe', room: 'master', at: [13.2, 8.5], turn: 0},
+    {id: 'm-block-3', kind: 'wardrobe', room: 'master', at: [13.8, 7.6], turn: Math.PI / 2},
+  ];
+  const c = withEastPieces(blockers);
+  const pm = doorwayPoint(I.openings.find(o => o.id === 'passage-master'));
+  assert.equal(reachable(furnishedWay(c, ['master']), 0, pm, c.spots.bedFoot), true, 'the 0.25 m walker still passes');
+  assert.equal(reachable(furnishedWay(c, ['master']), 0, pm, c.spots.bedFoot, .45), false, 'the 0.9 m walker is stopped');
+  assert.equal(validInterior(c), false);
+  const unblocked = withEastPieces(blockers, {bedFoot: [12.5, 7.7]});
+  assert.equal(validInterior(unblocked), true);
+});
+test('a piece on any new named spot or speed spot makes the blueprint invalid', () => {
+  for (const [k, room] of [['desk', 'study'], ['shelves', 'study'], ['wardrobes', 'passage'], ['bedFoot', 'master'], ['bedside', 'master']]) {
+    assert.equal(validInterior(withEastPieces([{id: `on-${k}`, kind: 'chest', room, at: [...I.spots[k]]}])), false, k);
+  }
+  assert.equal(validInterior(withEastPieces([{id: 'on-speed3', kind: 'chest', room: 'study', at: [...I.spots.speed[3]]}])), false);
+  assert.equal(validInterior(withEastPieces([{id: 'on-speed4', kind: 'chest', room: 'master', at: [...I.spots.speed[4]]}])), false);
 });
