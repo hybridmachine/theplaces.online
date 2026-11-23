@@ -128,3 +128,129 @@ export function seenFrom(I) {
   }
   return Object.freeze(out);
 }
+
+// Each opening as a box in the interior frame [a, d, z], stored under both of its rooms:
+// span along the wall, the outside half of the wall's thickness (from the opening's line to the neighbour's face,
+// which every sight line into the room from outside must cross), and floor to doorHead in height.
+// Each room's box list is also paired (via a WeakMap) with the neighbour room on the far side of each opening.
+const BOX_OTHERS = new WeakMap();
+
+export function doorBoxes(I) {
+  const half = I.wall / 2;
+  const byId = new Map((I.rooms || []).map(r => [r.id, r]));
+  const byRoom = new Map((I.rooms || []).map(r => [r.id, []]));
+  const othersByRoom = new Map((I.rooms || []).map(r => [r.id, []]));
+  for (const o of I.openings || []) {
+    const along = Object.freeze([o.span[0], o.span[1]]);
+    const z0 = (o.floor || 0) * I.floorRise;
+    const z = Object.freeze([z0, z0 + I.doorHead]);
+    for (let i = 0; i < o.rooms.length; i++) {
+      const id = o.rooms[i], other = o.rooms[1 - i] ?? null, room = byId.get(id);
+      const span = room ? (o.line === 'a' ? room.a : room.d) : null;
+      const across = span && Math.abs(o.at - span[0]) < EPS ? Object.freeze([o.at - half, o.at])
+        : span && Math.abs(o.at - span[1]) < EPS ? Object.freeze([o.at, o.at + half])
+        : Object.freeze([o.at - half, o.at + half]);
+      const box = Object.freeze(o.line === 'a' ? {a: across, d: along, z} : {a: along, d: across, z});
+      if (!byRoom.has(id)) { byRoom.set(id, []); othersByRoom.set(id, []); }
+      byRoom.get(id).push(box);
+      othersByRoom.get(id).push(other);
+    }
+  }
+  const out = {}, others = {};
+  for (const [id, list] of byRoom) {
+    out[id] = Object.freeze(list);
+    others[id] = Object.freeze(othersByRoom.get(id));
+  }
+  const frozen = Object.freeze(out);
+  BOX_OTHERS.set(frozen, others);
+  return frozen;
+}
+
+function capPolygon(cuts, na, nd, nz) {
+  const uniq = [];
+  for (const p of cuts) {
+    if (!uniq.some(q => Math.abs(p[0] - q[0]) < 1e-7 && Math.abs(p[1] - q[1]) < 1e-7 && Math.abs(p[2] - q[2]) < 1e-7)) uniq.push(p);
+  }
+  if (uniq.length < 3) return null;
+  let ca = 0, cd = 0, cz = 0;
+  for (const p of uniq) { ca += p[0]; cd += p[1]; cz += p[2]; }
+  ca /= uniq.length; cd /= uniq.length; cz /= uniq.length;
+  const nl = Math.hypot(na, nd, nz) || 1, u = [na / nl, nd / nl, nz / nl];
+  const ref = Math.abs(u[2]) > .9 ? [1, 0, 0] : [0, 0, 1];
+  const bx0 = ref[1] * u[2] - ref[2] * u[1], bx1 = ref[2] * u[0] - ref[0] * u[2], bx2 = ref[0] * u[1] - ref[1] * u[0];
+  const bl = Math.hypot(bx0, bx1, bx2) || 1, bx = [bx0 / bl, bx1 / bl, bx2 / bl];
+  const by = [u[1] * bx[2] - u[2] * bx[1], u[2] * bx[0] - u[0] * bx[2], u[0] * bx[1] - u[1] * bx[0]];
+  return uniq
+    .map(p => {
+      const da = p[0] - ca, dd = p[1] - cd, dz = p[2] - cz;
+      return [Math.atan2(da * by[0] + dd * by[1] + dz * by[2], da * bx[0] + dd * bx[1] + dz * bx[2]), p];
+    })
+    .sort((x, y) => x[0] - y[0])
+    .map(x => x[1]);
+}
+
+// True when `box` intersects the region where every plane [na, nd, nz, c] has na*a + nd*d + nz*z + c >= 0.
+// Missing, empty or non-finite planes hide nothing.
+export function boxInView(box, planes) {
+  if (!Array.isArray(planes) || !planes.length || !box) return true;
+  for (let i = 0; i < planes.length; i++) {
+    const p = planes[i];
+    if (!Array.isArray(p) || p.length < 4 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]) || !Number.isFinite(p[2]) || !Number.isFinite(p[3])) return true;
+  }
+  const [a0, a1] = box.a, [d0, d1] = box.d, [z0, z1] = box.z;
+  let allIn = true;
+  for (let i = 0; i < planes.length; i++) {
+    const [na, nd, nz, c] = planes[i];
+    const hi = na * (na >= 0 ? a1 : a0) + nd * (nd >= 0 ? d1 : d0) + nz * (nz >= 0 ? z1 : z0) + c;
+    if (hi < -EPS) return false;
+    const lo = na * (na >= 0 ? a0 : a1) + nd * (nd >= 0 ? d0 : d1) + nz * (nz >= 0 ? z0 : z1) + c;
+    if (lo < -EPS) allIn = false;
+  }
+  if (allIn) return true;
+  let faces = [
+    [[a0, d0, z0], [a0, d1, z0], [a0, d1, z1], [a0, d0, z1]],
+    [[a1, d0, z0], [a1, d0, z1], [a1, d1, z1], [a1, d1, z0]],
+    [[a0, d0, z0], [a1, d0, z0], [a1, d0, z1], [a0, d0, z1]],
+    [[a0, d1, z0], [a0, d1, z1], [a1, d1, z1], [a1, d1, z0]],
+    [[a0, d0, z0], [a0, d1, z0], [a1, d1, z0], [a1, d0, z0]],
+    [[a0, d0, z1], [a1, d0, z1], [a1, d1, z1], [a0, d1, z1]],
+  ];
+  for (let i = 0; i < planes.length; i++) {
+    const [na, nd, nz, c] = planes[i];
+    const next = [], cuts = [];
+    for (const poly of faces) {
+      const out = [], n = poly.length;
+      for (let k = 0; k < n; k++) {
+        const p = poly[k], q = poly[(k + 1) % n];
+        const dp = na * p[0] + nd * p[1] + nz * p[2] + c;
+        const dq = na * q[0] + nd * q[1] + nz * q[2] + c;
+        const pIn = dp >= -EPS, qIn = dq >= -EPS;
+        if (pIn) { out.push(p); if (Math.abs(dp) <= EPS) cuts.push(p); }
+        if (pIn !== qIn) {
+          const t = dp / (dp - dq);
+          const m = [p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), p[2] + t * (q[2] - p[2])];
+          out.push(m); cuts.push(m);
+        }
+      }
+      if (out.length) next.push(out);
+    }
+    const cap = capPolygon(cuts, na, nd, nz);
+    if (cap) next.push(cap);
+    if (!next.length) return false;
+    faces = next;
+  }
+  return faces.length > 0;
+}
+
+// True when any of `roomId`'s doorway boxes touches the view, or the room has no boxes.
+// When `seen` (rooms seen from the visitor's room) is given, openings to rooms outside `seen` are skipped.
+export function doorInView(boxes, roomId, planes, seen = null) {
+  const list = boxes?.[roomId];
+  if (!list || !list.length) return true;
+  const others = seen ? BOX_OTHERS.get(boxes)?.[roomId] : null;
+  for (let i = 0; i < list.length; i++) {
+    if (others && others[i] && !seen.includes(others[i])) continue;
+    if (boxInView(list[i], planes)) return true;
+  }
+  return false;
+}
