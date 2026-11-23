@@ -79,7 +79,38 @@ const FURNITURE = [
   hung('picture-4', 'picture', 'dining', 'a', 11, [8.2, 9.0], 1.5),
   hung('picture-5', 'picture', 'dining', 'a', 11, [9.9, 10.7], 1.5),
   setOn('jug-sideboard', 'jug', 'dining', 'sideboard'), setOn('plates-sideboard', 'plates', 'dining', 'sideboard'),
-  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table')
+  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table'),
+  // The study: desk and chair under the front window, two bookshelves on the back wall, reading corner, rug and gable picture.
+  standing('study-rug', 'rug', 'study', [14.6, 2.3], .02, [3.0, 1.6]),
+  standing('desk', 'desk', 'study', [13.8, .45], Math.PI),
+  standing('chair-desk', 'chair', 'study', [13.8, 1.15], .04),
+  standing('bookshelf-study-1', 'bookshelf', 'study', [13.4, 3.75]),
+  standing('bookshelf-study-2', 'bookshelf', 'study', [16.1, 3.75]),
+  standing('armchair-study', 'armchair', 'study', [17.0, 1.0], -Math.PI / 2 - .5),
+  standing('side-table-study', 'side-table', 'study', [16.1, .5]),
+  hung('picture-study', 'picture', 'study', 'a', 18, [1.8, 2.6], 1.5),
+  setOn('desk-lamp', 'table-lamp', 'study', 'desk'),
+  ...many(2, 'book-desk', 'book', 'study', 'desk'), setOn('cup-desk', 'cup', 'study', 'desk'),
+  setOn('book-study-table', 'book', 'study', 'side-table-study'),
+  // The closet passage: two wardrobes flanking the wall lamp, and a runner between the hall and bath doors.
+  standing('wardrobe-passage-1', 'wardrobe', 'passage', [11.7, 4.375], Math.PI),
+  standing('wardrobe-passage-2', 'wardrobe', 'passage', [13.3, 4.375], Math.PI),
+  standing('passage-runner', 'runner', 'passage', [12.5, 5.6], .02, [1.8, .7]),
+  // The master bedroom: double bed against the back wall with bedside tables and lamps, blanket chest, rug, gable wardrobes, pictures.
+  standing('master-rug', 'rug', 'master', [14.5, 10.3], .02, [3.0, 3.2]),
+  standing('bed', 'double-bed', 'master', [14.5, 10.9]),
+  standing('bedside-1', 'side-table', 'master', [13.4, 11.65]),
+  standing('bedside-2', 'side-table', 'master', [15.6, 11.65]),
+  standing('blanket-chest', 'chest', 'master', [14.5, 9.55]),
+  standing('wardrobe-master-1', 'wardrobe', 'master', [17.625, 9.0], -Math.PI / 2),
+  standing('wardrobe-master-2', 'wardrobe', 'master', [17.625, 10.0], -Math.PI / 2),
+  hung('picture-master-1', 'picture', 'master', 'd', 12, [14.1, 14.9], 1.6),
+  hung('picture-master-2', 'picture', 'master', 'a', 11, [9.0, 9.8], 1.5),
+  setOn('bedside-lamp-1', 'table-lamp', 'master', 'bedside-1'),
+  setOn('bedside-lamp-2', 'table-lamp', 'master', 'bedside-2'),
+  ...many(2, 'pillow', 'pillow', 'master', 'bed'),
+  setOn('bed-blanket', 'blanket', 'master', 'bed'),
+  setOn('book-bedside', 'book', 'master', 'bedside-1'),
 ];
 
 const BLUEPRINT = {
@@ -143,14 +174,16 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
-  furnishLater: ['kitchen', 'dining'],
+  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
-  // before the dresser, at the dining window, and the three spots the frame cost is measured from.
+  // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
+  // and the five spots the frame cost is measured from.
   spots: {
     hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1],
     range: [4.4, 10.9], dresser: [3.5, 9.5], diningWindow: [10, 11.4],
-    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9]],
+    desk: [15.0, .7], shelves: [14.6, 3.1], wardrobes: [12.5, 5.4], bedFoot: [14.5, 8.8], bedside: [12.7, 11.0],
+    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
@@ -165,5 +198,6 @@ const BLUEPRINT = {
   ],
   lightSeed: 20261120
 };
+export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});

@@ -146,25 +146,31 @@ function furnitureFit(I, byId) {
 
 // Rule 8's walk is through the furnished rooms: the ground floor cut down to the rooms named, with the openings out of them
 // (so each doorway point is still standable but the way does not go round through rooms outside the set).
-export const FURNISHED = Object.freeze(['hall', 'living', 'kitchen', 'dining']);
+export const FURNISHED = Object.freeze(['hall', 'living', 'kitchen', 'dining', 'study', 'passage', 'master']);
 const FIRST_FURNISHED = ['hall', 'living'];
 export const furnishedWay = (I, rooms = FIRST_FURNISHED) => ({...I, rooms: I.rooms.filter(r => r.floor !== 0 || rooms.includes(r.id)),
   openings: I.openings.filter(o => o.floor !== 0 || o.rooms.some(id => rooms.includes(id)))});
 // What a walker 0.9 m wide must reach from the arrival spot: each doorway point touching those rooms and the stair foot.
 export const wideTargets = (I, rooms = FIRST_FURNISHED) => [...I.openings.filter(o => o.floor === 0 && o.rooms.some(id => rooms.includes(id)))
   .map(doorwayPoint), stairFoot(I)];
-// The ways through the kitchen and dining room alone, each tested at 0.9 m clearance over that room cut down.
+// The ways through the kitchen, dining room and passage, and into the study and master bedroom, each tested at 0.9 m clearance over that room cut down.
 export function throughWays(I) {
   const at = (x, y) => {
     const o = I.openings.find(o => o.floor === 0 && o.rooms.includes(x) && o.rooms.includes(y));
     return o && doorwayPoint(o);
   };
   const kd = at('kitchen', 'dining'), hd = at('hall', 'dining'), lk = at('living', 'kitchen'),
-    kl = at('kitchen', 'laundry'), kp = at('kitchen', 'pantry');
+    kl = at('kitchen', 'laundry'), kp = at('kitchen', 'pantry'),
+    hp = at('hall', 'passage'), pm = at('passage', 'master'), pb = at('passage', 'bath-ground'),
+    hs = at('hall', 'study');
   const out = [];
   if (kd && hd) out.push({room: 'dining', from: kd, to: [hd]});
   const kTo = [kd, kl, kp].filter(Boolean);
   if (lk && kTo.length) out.push({room: 'kitchen', from: lk, to: kTo});
+  const pTo = [pm, pb].filter(Boolean);
+  if (hp && pTo.length) out.push({room: 'passage', from: hp, to: pTo});
+  if (hs && I.spots?.shelves) out.push({room: 'study', from: hs, to: [I.spots.shelves]});
+  if (pm && I.spots?.bedFoot) out.push({room: 'master', from: pm, to: [I.spots.bedFoot]});
   return out;
 }
 

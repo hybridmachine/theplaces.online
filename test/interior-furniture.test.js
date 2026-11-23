@@ -7,7 +7,7 @@ import {MANTEL} from '../public/space/interior/fireplace.js';
 import {canStep, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
-import {RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
+import {buildFurniture, RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
 import {LAKESIDE_SPACE} from '../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING} from '../shared/lakeside-dressing.js';
 import {viewOpenings} from '../shared/window-views.js';
@@ -518,6 +518,91 @@ test('given up for the flat light with the lamp lit: furniture drawn, shades sti
   inside.dispose();
 });
 
+const studyIdx = I.rooms.findIndex(r => r.id === 'study');
+const dialsFor = (levels = {}) => ({
+  day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0,
+  lamps: I.rooms.map(r => levels[r.id] ?? 0),
+});
+const studyLampBlueprint = () => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furnishLater = ['study'];
+  c.furniture.push(
+    {id: 'test-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
+    {id: 'test-study-lamp', kind: 'table-lamp', room: 'study', on: 'test-study-table'},
+  );
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+const groupShadeColour = (inside, groupName, dials) => {
+  inside.setLight(dials);
+  const c = inside.scene.getObjectByName(groupName).getObjectByName('shades').material.color;
+  return [c.r, c.g, c.b];
+};
+
+test('a study lamp\'s shade follows the study\'s lamp, not the living room\'s', () => {
+  const inside = build(studyLampBlueprint());
+  inside.buildRest();
+  const studyLit = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1, living: 0}));
+  assert.deepEqual(studyLit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)), 'study shade is warm when study lamp is lit');
+  const studyOut = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 1}));
+  assert.ok(studyOut[0] / studyOut[2] < 1.4, `study shade stays pale when only living lamp is lit: ${studyOut}`);
+  assert.notDeepEqual(studyOut.map(v => +v.toFixed(4)), SHADE_WARM.map(v => +v.toFixed(4)));
+  const studyOutNone = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 0}));
+  assert.deepEqual(studyOut, studyOutNone, 'living room lamp changes nothing on the study shade');
+  // the living room's shades still follow the living room's lamp
+  const livingLit = groupShadeColour(inside, 'furniture', dialsFor({study: 0, living: 1}));
+  assert.deepEqual(livingLit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const livingOut = groupShadeColour(inside, 'furniture', dialsFor({study: 1, living: 0}));
+  assert.ok(livingOut[0] / livingOut[2] < 1.4);
+  inside.dispose();
+});
+
+test('a missing or non-finite lamp level leaves the shade pale and finite, and after fallBack a later set still colours its shades', () => {
+  const inside = build(studyLampBlueprint());
+  inside.fallBack();
+  inside.buildRest();
+  const pale = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0}));
+  const missingLamps = groupShadeColour(inside, 'furniture-study', {day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0});
+  assert.deepEqual(missingLamps, pale, 'missing lamps keeps the pale colour');
+  const nanLamps = groupShadeColour(inside, 'furniture-study', {day: [.6, .55, .45], fill: [.042, .054, .091], fire: 0, lamps: I.rooms.map(() => NaN)});
+  assert.deepEqual(nanLamps, pale, 'NaN lamps keeps the pale colour');
+  const empty = groupShadeColour(inside, 'furniture-study', {});
+  assert.ok(empty.every(Number.isFinite), 'empty dials give finite channels');
+  const warmAfterFallback = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1}));
+  assert.deepEqual(warmAfterFallback.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)), 'after fallBack a later set still warms its shade');
+  assert.ok(studyIdx >= 0);
+  inside.dispose();
+});
+
+test('shades in two rooms are refused', () => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furniture.push(
+    {id: 'two-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
+    {id: 'two-study-lamp', kind: 'table-lamp', room: 'study', on: 'two-study-table'},
+    {id: 'two-master-table', kind: 'side-table', room: 'master', at: [13.4, 11.65], turn: 0},
+    {id: 'two-master-lamp', kind: 'table-lamp', room: 'master', on: 'two-master-table'},
+  );
+  c.obstacles = obstaclesOf(c);
+  const inside = build();
+  const mat = inside.scene.getObjectByName('floors').material;
+  const leafed = furniture(inside.scene).getObjectByName('furniture-cloth').material;
+  const dummyFace = (f, a, b, o, col) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute([1, 1, 1, 1, 1, 1, 1, 1, 1], 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2));
+    return g;
+  };
+  assert.throws(() => buildFurniture(THREE, {
+    interior: c, art: stubArt(), light: null, flat: null, face: dummyFace, lit: g => g,
+    tint: base => () => base, materials: {surface: mat, leafed}, treads: 15,
+    only: new Set(['study', 'master']), name: 'two',
+    weightsAt: () => ({day: .5, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1}),
+  }), /shades in two rooms/);
+  inside.dispose();
+});
+
 test('no light source and nothing new in the overlay', () => {
   const inside = build(), bare = build({...I, furniture: [], obstacles: I.breasts});
   let lights = 0; inside.scene.traverse(o => { if (o.isLight && !o.isHemisphereLight) lights++; });
@@ -555,7 +640,7 @@ test('a rug in another room over the same plan position does not lift a piece\'s
 
 // ── furniture built by room, from a queue ──
 const queuedBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, ['kitchen', 'dining']));
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
   c.furnishLater = ['kitchen', 'dining'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -593,14 +678,16 @@ test('buildNext builds one room and returns its id; buildRest empties the queue'
   inside.dispose();
 });
 
-test('a queued set has at most four meshes and reports its own counts and time', () => {
+test('a queued set has at most four meshes without lamps (five with lamps) and reports its own counts and time', () => {
   const inside = buildQueued();
   inside.buildRest();
   assert.equal(inside.furniture.sets.length, 3);
   assert.deepEqual(inside.furniture.sets[1].rooms, ['kitchen']);
   assert.deepEqual(inside.furniture.sets[2].rooms, ['dining']);
   for (const s of inside.furniture.sets.slice(1)) {
-    assert.ok(s.meshes >= 1 && s.meshes <= 4, `${s.rooms}: ${s.meshes} meshes`);
+    const grp = inside.scene.getObjectByName(`furniture-${s.rooms[0]}`);
+    const limit = grp?.getObjectByName('shades') ? 5 : 4;
+    assert.ok(s.meshes >= 1 && s.meshes <= limit, `${s.rooms}: ${s.meshes} meshes (limit ${limit})`);
     assert.ok(s.vertices > 0 && Number.isFinite(s.ms) && s.ms >= 0, `${s.rooms}: ${s.vertices}v ${s.ms}ms`);
   }
   assert.equal(inside.furniture.vertices, inside.furniture.sets.reduce((t, s) => t + s.vertices, 0));
@@ -692,6 +779,69 @@ test('a blueprint built bare has nothing pending', () => {
   assert.deepEqual(inside.pending, []);
   assert.equal(inside.buildNext(), null);
   inside.dispose();
+});
+
+// ── out of sight, not drawn (Task 6) ──
+const queuedAllBlueprint = () => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furnishLater = ['kitchen', 'dining', 'study', 'passage', 'master'];
+  c.furniture.push(
+    {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
+    {id: 'q-dining-chair', kind: 'chair', room: 'dining', at: [9, 8.3], turn: 0},
+    {id: 'q-study-chair', kind: 'chair', room: 'study', at: [14.5, 2.0], turn: 0},
+    {id: 'q-passage-chair', kind: 'chair', room: 'passage', at: [12.5, 5.4], turn: 0},
+    {id: 'q-master-chair', kind: 'chair', room: 'master', at: [14.5, 9.5], turn: 0},
+  );
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+const buildQueuedAll = (opts = {}) => buildInterior(THREE, {interior: queuedAllBlueprint(), art: stubArt(), openings, recipes: {...RECIPES, chair: stubChair}, ...opts});
+
+test('showFrom hides queued rooms out of sight without changing counts, furnishedRooms or skipped', () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  const countsBefore = structuredClone(inside.furniture), roomsBefore = [...inside.furnishedRooms], skippedBefore = [...inside.skipped];
+  inside.showFrom('kitchen');
+  assert.equal(inside.shownRooms.includes('master'), false, 'master hidden from kitchen');
+  for (const r of ['living', 'hall', 'kitchen', 'dining', 'study']) assert.ok(inside.shownRooms.includes(r), `${r} shown from kitchen`);
+  assert.equal(furniture(inside.scene).visible, true, 'first set stays visible');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, false);
+  assert.deepEqual(inside.furniture, countsBefore);
+  assert.deepEqual(inside.furnishedRooms, roomsBefore);
+  assert.deepEqual(inside.skipped, skippedBefore);
+  inside.showFrom('passage');
+  assert.ok(inside.shownRooms.includes('master'), 'master shown from passage');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, true);
+  inside.showFrom(null);
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms, 'null shows every built room');
+  assert.equal(furniture(inside.scene).visible, true);
+  inside.dispose();
+});
+
+test('a room built after showFrom takes the current answer', () => {
+  const inside = buildQueuedAll();
+  inside.showFrom('kitchen');
+  inside.buildRest();
+  assert.equal(inside.shownRooms.includes('master'), false, 'master takes kitchen answer at once');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, false);
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('study'));
+  inside.dispose();
+});
+
+test('no table or malformed table: nothing hidden and one warning is logged', () => {
+  const [inside, warnings] = warned(() => buildQueuedAll({sight: () => { throw new Error('sight broken'); }}));
+  inside.buildRest();
+  assert.equal(warnings.length, 1);
+  inside.showFrom('kitchen');
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  inside.dispose();
+
+  const [inside2, warnings2] = warned(() => buildQueuedAll({sight: () => ({kitchen: 'not-an-array'})}));
+  inside2.buildRest();
+  assert.equal(warnings2.length, 1);
+  inside2.showFrom('kitchen');
+  assert.deepEqual(inside2.shownRooms, inside2.furnishedRooms);
+  inside2.dispose();
 });
 
 // ── kitchen furniture (Task 3) ──
@@ -909,5 +1059,72 @@ test('the jug on the sideboard is its full width; the one on the mantel is still
   const sideWidth = sideJug.a[1] - sideJug.a[0], sideDepth = sideJug.d[1] - sideJug.d[0];
   assert.ok(mantelDepth < .125, `mantel jug narrowed: ${mantelDepth}`);
   assert.ok(Math.min(sideWidth, sideDepth) >= .135, `sideboard jug full width: ${sideWidth} x ${sideDepth}`);
+  inside.dispose();
+});
+
+// ── study furniture (Task 4) ──
+test('the study builds as one queued set of at most five meshes with shades, skips nothing, and the desk tops out at its kind\'s height', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const set = inside.furniture.sets.find(s => s.rooms.includes('study'));
+  assert.ok(set, 'study set exists');
+  assert.deepEqual(set.rooms, ['study']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 5, `${set.meshes} meshes`);
+  assert.ok(inside.scene.getObjectByName('furniture-study')?.getObjectByName('shades'), 'study has a shades mesh');
+  const deskBox = inside.pieceBox('desk');
+  assert.ok(deskBox, 'desk is drawn');
+  assert.ok(Math.abs(deskBox.z[1] - KINDS.desk.height) <= .01, `desk top ${deskBox.z[1]} vs ${KINDS.desk.height}`);
+  // Every solid study piece stands inside its footprint and has a grounding patch.
+  const studySolids = I.furniture.filter(e => e.room === 'study' && KINDS[e.kind].standing === 'solid');
+  assert.ok(studySolids.length >= 6);
+  for (const e of studySolids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Desk lamp shade follows the study's lamp, not the living room's.
+  const lit = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
+  inside.dispose();
+});
+
+// ── passage and master bedroom furniture (Task 5) ──
+test('the passage and master bedroom build without skipping, stay within their mesh limits, place pillows on the mattress, and follow the master lamp', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const pSet = inside.furniture.sets.find(s => s.rooms.includes('passage'));
+  const mSet = inside.furniture.sets.find(s => s.rooms.includes('master'));
+  assert.ok(pSet && mSet, 'passage and master sets exist');
+  assert.ok(pSet.meshes >= 1 && pSet.meshes <= 4, `passage meshes: ${pSet.meshes}`);
+  assert.equal(inside.scene.getObjectByName('furniture-passage')?.getObjectByName('shades'), undefined, 'passage has no shades');
+  assert.ok(mSet.meshes >= 1 && mSet.meshes <= 5, `master meshes: ${mSet.meshes}`);
+  assert.ok(inside.scene.getObjectByName('furniture-master')?.getObjectByName('shades'), 'master has a shades mesh');
+  const pillow1 = inside.pieceBox('pillow-1');
+  assert.ok(pillow1, 'pillow-1 drawn');
+  assert.ok(pillow1.z[0] >= KINDS['double-bed'].seat - .005 && pillow1.z[0] <= KINDS['double-bed'].seat + .02,
+    `pillow-1 bottom ${pillow1.z[0]} vs mattress ${KINDS['double-bed'].seat}`);
+  // Every solid piece in passage and master stands inside its footprint and has a grounding patch.
+  const solids = I.furniture.filter(e => (e.room === 'passage' || e.room === 'master') && KINDS[e.kind].standing === 'solid');
+  assert.ok(solids.length >= 8);
+  for (const e of solids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Master bedroom shades follow lamps[master], not lamps[living].
+  const lit = groupShadeColour(inside, 'furniture-master', dialsFor({master: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-master', dialsFor({master: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
   inside.dispose();
 });

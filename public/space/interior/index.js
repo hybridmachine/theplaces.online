@@ -1,4 +1,5 @@
 import {ceilingHeight, roomAt, wallSegments} from '../../../shared/interior.js';
+import {seenFrom} from '../../../shared/sight.js';
 import {piecesIn} from '../../../shared/furniture.js';
 import {createLightField, interiorDials} from '../../../shared/interior-light.js';
 import {mergeGeometries, sheet, V} from '../geometry.js';
@@ -58,7 +59,7 @@ const DAYTIME = {calendar: {light: 1, elevation: 1, hour: 12}, weather: {cloud: 
   cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false};
 // `recipes` replaces the furniture's recipes by kind (buildFurniture's; its RECIPES unless given), as a test does to make one fail.
 
-export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
+export function buildInterior(THREE, {interior: I, art, openings, recipes, sight = seenFrom}) {
   const W = I.wall, half = W / 2, rise = I.floorRise, [SA, SD] = I.size;
   const base = floor => floor * rise;
   // The ceiling's height above the ground floor at depth d on that storey.
@@ -356,7 +357,27 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   scene.add(fittings.object);
   // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
   // room it names, as a face is. Rooms listed in `furnishLater` are queued and built one at a time by `buildNext()`.
-  const sets = [], setStats = [], builtRooms = [], failedSkipped = [];
+  const sets = [], setStats = [], builtRooms = [], failedSkipped = [], queuedSets = new Map();
+  // Which rooms can be seen from which: built once; if it throws or is malformed, nothing is ever hidden.
+  let sightSets = null, shownFrom = null;
+  try {
+    const table = sight(I);
+    if (!table || typeof table !== 'object') throw new Error('sight table is not an object');
+    const map = new Map();
+    for (const r of I.rooms) {
+      const list = table[r.id];
+      if (!Array.isArray(list) || !list.includes(r.id)) throw new Error(`malformed sight entry for ${r.id}`);
+      map.set(r.id, new Set(list));
+    }
+    sightSets = map;
+  } catch (error) {
+    console.warn("The cabin's room sight table could not be built; every room's furniture stays drawn.", error);
+  }
+  const sees = (from, target) => !sightSets || from == null || !sightSets.has(from) || sightSets.get(from).has(target);
+  const showFrom = (roomId = null) => {
+    shownFrom = roomId ?? null;
+    for (const [room, set] of queuedSets) set.object.visible = sees(shownFrom, room);
+  };
   // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.
   let skippedAll = Object.freeze([]);
   const noteSkipped = () => { const all = [...sets.flatMap(s => s.skipped), ...failedSkipped]; if (all.length !== skippedAll.length) skippedAll = Object.freeze(all); };
@@ -401,6 +422,8 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
       const {set, ms} = buildSet(new Set([room]), `furniture-${room}`);
       sets.push(set);
       if (set.counts.meshes > 0) {
+        queuedSets.set(room, set);
+        set.object.visible = sees(shownFrom, room);
         scene.add(set.object);
         setStats.push({rooms: [room], vertices: set.counts.vertices, meshes: set.counts.meshes, ms});
         builtRooms.push(room);
@@ -447,8 +470,9 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
     // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
     furnished: !!firstSet && I.furniture.length > 0,
     get pending() { return [...queue]; },
-    buildNext, buildRest,
+    buildNext, buildRest, showFrom,
     get furnishedRooms() { return [...builtRooms]; },
+    get shownRooms() { return builtRooms.filter(r => { const q = queuedSets.get(r); return !q || q.object.visible; }); },
     get furniture() {
       if (firstFailed) return null;
       return {vertices: setStats.reduce((t, s) => t + s.vertices, 0), meshes: setStats.reduce((t, s) => t + s.meshes, 0), sets: setStats.map(s => ({...s, rooms: [...s.rooms]}))};
