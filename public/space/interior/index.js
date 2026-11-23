@@ -357,6 +357,9 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
   // room it names, as a face is. Rooms listed in `furnishLater` are queued and built one at a time by `buildNext()`.
   const sets = [], setStats = [], builtRooms = [], failedSkipped = [];
+  // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.
+  let skippedAll = Object.freeze([]);
+  const noteSkipped = () => { const all = [...sets.flatMap(s => s.skipped), ...failedSkipped]; if (all.length !== skippedAll.length) skippedAll = Object.freeze(all); };
   let firstSet = null, firstFailed = false, flatMaterials = null, disposed = false;
   const later = Array.isArray(I.furnishLater) && Array.isArray(I.furniture) && I.furniture.length ? [...I.furnishLater] : [];
   const laterSet = new Set(later), queue = [...later];
@@ -376,7 +379,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
     const skippedSet = new Set(set.skipped);
     const firstRooms = I.rooms.filter(r => !laterSet.has(r.id) && I.furniture.some(e => e?.room === r.id && !skippedSet.has(e.id))).map(r => r.id);
     setStats.push({rooms: firstRooms, vertices: set.counts.vertices, meshes: set.counts.meshes, ms});
-    builtRooms.push(...firstRooms);
+    builtRooms.push(...firstRooms); noteSkipped();
   } catch (error) {
     console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
     firstFailed = true; queue.length = 0;
@@ -407,6 +410,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
       console.warn(`The cabin's furniture for ${room} could not be built; it stays bare.`, error);
       failedSkipped.push(...ids);
     }
+    noteSkipped();
     return room;
   };
   const buildRest = () => { while (buildNext() !== null) {} };
@@ -451,7 +455,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
     },
     pieceBox(id) { for (const s of sets) { const box = s.pieceBox(id); if (box) return box; } return null; },
     // The ids of the pieces passed over (each, and everything set on it; empty when none, or when no furniture was built).
-    get skipped() { return [...sets.flatMap(s => s.skipped), ...failedSkipped]; },
+    get skipped() { return skippedAll; },
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
     setLight(dials) { lastDials = dials; light?.set(dials); fittings.setLight(dials); for (const s of sets) s.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on

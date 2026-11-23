@@ -685,7 +685,7 @@ export const RECIPES = {
 // `recipes` (RECIPES unless given) are the recipes by kind; `only` (a Set of room ids, or null) limits what is made, grounded and reported;
 // `skipped` in the result names every piece passed over (empty when none).
 export function buildFurniture(THREE, {interior: I, art, light, flat = null, face, lit, tint, materials, treads, recipes = RECIPES, only = null, name = 'furniture', weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
-  const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => r.id ? [r.id, r] : [r, r]));
+  const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
   const entries = only ? I.furniture.filter(e => only.has(e?.room)) : I.furniture;
   const colours = light || flat ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),

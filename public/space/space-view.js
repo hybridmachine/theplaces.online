@@ -318,11 +318,10 @@ export class SpaceView {
     const I = this.interior, inside = this.inside;
     if (!inside || !Array.isArray(I?.furniture) || !I.furniture.length) return I;
     if (!inside.furnished) return this.bareWalk ??= bareInterior(I);
-    const n = inside.skipped?.length ?? 0;
-    if (!n) return I;
-    if (this.partWalkInside !== inside || this.partWalkCount !== n) {
-      this.partWalk = withoutPieces(I, inside.skipped); this.partWalkInside = inside; this.partWalkCount = n;
-    }
+    const skipped = inside.skipped;
+    if (!skipped?.length) return I;
+    // (the builder replaces its skipped list only when a queued room's build adds to it)
+    if (this.partWalkOf !== skipped) { this.partWalk = withoutPieces(I, skipped); this.partWalkOf = skipped; }
     return this.partWalk;
   }
   // Whether the room the visitor is in has its furniture built and drawn.
@@ -400,8 +399,9 @@ export class SpaceView {
       if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
       const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
       if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
-      if (this.state.place === 'cabin' && this.inside?.pending.length) this.inside.buildRest();
-      else if (hadInside && this.inside?.pending.length) this.inside.buildNext();
+      // (both are nothing once the queue is empty)
+      if (this.state.place === 'cabin') this.inside?.buildRest();
+      else if (hadInside) this.inside?.buildNext();
       this.door = this.inside ? door : 0; this.yard.setDoor(this.door);
       this.canvas.style.opacity = String(1 - veil);
     }

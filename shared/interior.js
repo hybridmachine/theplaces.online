@@ -116,7 +116,7 @@ function furnitureFit(I, byId) {
   }
   const stair = {a: I.stair.a, d: I.stair.d};
   const mouth = fp && {a: [fp.a + fp.breast.depth, fp.a + fp.breast.depth + .6], d: [fp.d - fp.mouth.width / 2, fp.d + fp.mouth.width / 2]};
-  const wallWindows = I.windows.filter(w => w.kind === 'wall').map(w => ({
+  const wallWindows = I.windows.filter(w => w.kind === 'wall' && (w.wall === 'front' || w.wall === 'back')).map(w => ({
     room: w.room, sill: w.sill,
     rect: {a: [w.a - w.width / 2, w.a + w.width / 2], d: w.wall === 'front' ? [0, .6] : [I.size[1] - .6, I.size[1]]},
   }));
