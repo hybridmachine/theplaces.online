@@ -1206,3 +1206,62 @@ test('the passage and master bedroom build without skipping, stay within their m
   assert.ok(out[0] / out[2] < 1.4);
   inside.dispose();
 });
+
+// ── ground-floor bathroom furniture (Task 4) ──
+test('the ground-floor bathroom builds as one queued set of at most four meshes with no shades, carries light weights and grounding, and places towels on rail and tub', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const set = inside.furniture.sets.find(s => s.rooms.includes('bath-ground'));
+  assert.ok(set, 'bath-ground set exists');
+  assert.deepEqual(set.rooms, ['bath-ground']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 4, `bath-ground meshes: ${set.meshes}`);
+  const grp = inside.scene.getObjectByName('furniture-bath-ground');
+  assert.ok(grp, 'furniture-bath-ground group exists');
+  assert.equal(grp.getObjectByName('shades'), undefined, 'bath-ground has no shades');
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const child of grp.children) {
+    assert.ok(allowed.has(child.name), `allowed mesh name ${child.name}`);
+    if (child.name !== 'grounding') {
+      const l = child.geometry.getAttribute('light');
+      assert.ok(l, `${child.name} has light attribute`);
+      for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${child.name} vertex ${i}`);
+    }
+  }
+  const bathRoom = I.rooms.find(r => r.id === 'bath-ground');
+  const solids = I.furniture.filter(e => e.room === 'bath-ground' && KINDS[e.kind].standing === 'solid');
+  assert.equal(solids.length, 4);
+  for (const e of solids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Every bath-ground piece stays within the room's a and d bounds.
+  for (const e of I.furniture.filter(x => x.room === 'bath-ground')) {
+    const box = inside.pieceBox(e.id);
+    assert.ok(box, `${e.id} drawn`);
+    assert.ok(box.a[0] >= bathRoom.a[0] && box.a[1] <= bathRoom.a[1], `${e.id} a ${box.a}`);
+    assert.ok(box.d[0] >= bathRoom.d[0] && box.d[1] <= bathRoom.d[1], `${e.id} d ${box.d}`);
+  }
+  const railTowel = inside.pieceBox('towel-rail-1');
+  assert.ok(railTowel.z[0] < 1.0 && railTowel.z[1] <= 1.24, `towel on rail hangs below 1.2: ${railTowel.z}`);
+  const tubTowel = inside.pieceBox('towel-tub');
+  assert.ok(tubTowel.z[1] >= KINDS.bathtub.height - .01 && tubTowel.z[1] <= KINDS.bathtub.height + .04, `towel on tub rests at rim: ${tubTowel.z}`);
+  inside.dispose();
+
+  // A bathtub recipe that throws skips bathtub and towel-tub together and builds the rest.
+  const [broken, brokenWarnings] = warned(() => {
+    const res = buildInterior(THREE, {interior: I, art: stubArt(), openings, recipes: {...RECIPES, bathtub: () => { throw new Error('tub cracked'); }}});
+    res.buildRest();
+    return res;
+  });
+  assert.equal(brokenWarnings.length, 1);
+  assert.ok(broken.skipped.includes('bathtub') && broken.skipped.includes('towel-tub'));
+  assert.equal(broken.pieceBox('bathtub'), null);
+  assert.equal(broken.pieceBox('towel-tub'), null);
+  assert.ok(broken.pieceBox('basin') && broken.pieceBox('toilet') && broken.pieceBox('shower'));
+  broken.dispose();
+});

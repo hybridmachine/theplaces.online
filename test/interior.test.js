@@ -437,9 +437,9 @@ test('nothing taller than the sill stands before the study window', () => {
     if (meets(f, box)) assert.ok(KINDS[e.kind].height <= win.sill + 1e-9, `${e.id} height ${KINDS[e.kind].height} exceeds sill ${win.sill}`);
   }
 });
-test('the real blueprint with the passage and master bedroom furnished is valid and queues all five later rooms in order', () => {
+test('the real blueprint with the passage and master bedroom furnished is valid and queues rooms in order', () => {
   assert.equal(validInterior(I), true);
-  assert.deepEqual(I.furnishLater, ['kitchen', 'dining', 'study', 'passage', 'master']);
+  assert.deepEqual(I.furnishLater.slice(0, 5), ['kitchen', 'dining', 'study', 'passage', 'master']);
   const ids = new Set(I.furniture.map(e => e.id));
   for (const id of [
     'wardrobe-passage-1', 'wardrobe-passage-2', 'passage-runner',
@@ -495,4 +495,19 @@ test('rule 6 accepts towel set on towel-rail, bathtub and basket', () => {
     {id: 'tw-2', kind: 'towel', room: 'bath-ground', on: 'bt-test'},
     {id: 'tw-3', kind: 'towel', room: 'laundry', on: 'bk-test'},
   ])), true);
+});
+test('the real blueprint with the ground-floor bathroom furnished is valid, queues bath-ground after master, and keeps the lamp point clear', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishLater.slice(0, 6), ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground']);
+  const ids = new Set(I.furniture.filter(e => e.room === 'bath-ground').map(e => e.id));
+  for (const id of ['basin', 'toilet', 'shower', 'bathtub', 'bath-mat', 'mirror-bath', 'towel-rail', 'towel-rail-1', 'towel-tub', 'jug-basin']) {
+    assert.ok(ids.has(id), `bath-ground has ${id}`);
+  }
+  const lamp = I.fittings.find(f => f.room === 'bath-ground');
+  for (const e of I.furniture) {
+    if (e.room !== 'bath-ground' || KINDS[e.kind].standing !== 'solid') continue;
+    const f = footprint(e);
+    const inside = lamp.at[0] >= f.a[0] && lamp.at[0] <= f.a[1] && lamp.at[1] >= f.d[0] && lamp.at[1] <= f.d[1];
+    assert.equal(inside, false, `${e.id} does not hold the bathroom lamp point`);
+  }
 });

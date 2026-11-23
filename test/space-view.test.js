@@ -852,8 +852,21 @@ test('sceneText includes the furnished clause for study, closet passage and mast
     ['study', /desk stands at the window and books line the back wall/],
     ['closet passage', /Wardrobes stand along one wall/],
     ['master bedroom', /double bed stands against the back wall, a lamp at each side/],
+    ['bathroom', /bathtub stands along one wall, a basin and mirror opposite/],
   ]) {
     assert.match(sceneText(snap, 0, {room, furnished: true}).description, phrase, `${room} furnished`);
     assert.doesNotMatch(sceneText(snap, 0, {room, furnished: false}).description, phrase, `${room} bare`);
   }
+  assert.doesNotMatch(sceneText(snap, 0, {room: 'upstairs bathroom', furnished: true}).description, /bathtub stands/, 'upstairs bathroom never gets the clause');
+});
+
+test('started indoors at spots.bath, the first frame has pending empty and the bathroom clause in the description', async () => {
+  const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [...I.spots.bath], yaw: Math.PI / 2, pitch: 0}});
+  frame(1);
+  assert.deepEqual(view.inside.pending, []);
+  assert.equal(view.furnished, true);
+  assert.equal(view.room, 'bathroom');
+  const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
+  assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, /bathtub stands along one wall, a basin and mirror opposite/);
+  view.inside.dispose();
 });
