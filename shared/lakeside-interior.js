@@ -79,7 +79,19 @@ const FURNITURE = [
   hung('picture-4', 'picture', 'dining', 'a', 11, [8.2, 9.0], 1.5),
   hung('picture-5', 'picture', 'dining', 'a', 11, [9.9, 10.7], 1.5),
   setOn('jug-sideboard', 'jug', 'dining', 'sideboard'), setOn('plates-sideboard', 'plates', 'dining', 'sideboard'),
-  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table')
+  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table'),
+  // The study: desk and chair under the front window, two bookshelves on the back wall, reading corner, rug and gable picture.
+  standing('study-rug', 'rug', 'study', [14.6, 2.3], .02, [3.0, 1.6]),
+  standing('desk', 'desk', 'study', [13.8, .45], Math.PI),
+  standing('chair-desk', 'chair', 'study', [13.8, 1.15], .04),
+  standing('bookshelf-study-1', 'bookshelf', 'study', [13.4, 3.75]),
+  standing('bookshelf-study-2', 'bookshelf', 'study', [16.1, 3.75]),
+  standing('armchair-study', 'armchair', 'study', [17.0, 1.0], -Math.PI / 2 - .5),
+  standing('side-table-study', 'side-table', 'study', [16.1, .5]),
+  hung('picture-study', 'picture', 'study', 'a', 18, [1.8, 2.6], 1.5),
+  setOn('desk-lamp', 'table-lamp', 'study', 'desk'),
+  ...many(2, 'book-desk', 'book', 'study', 'desk'), setOn('cup-desk', 'cup', 'study', 'desk'),
+  setOn('book-study-table', 'book', 'study', 'side-table-study'),
 ];
 
 const BLUEPRINT = {
@@ -143,7 +155,7 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
-  furnishLater: ['kitchen', 'dining'],
+  furnishLater: ['kitchen', 'dining', 'study'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,

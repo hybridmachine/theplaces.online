@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {bareInterior, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
+import {KINDS, bareInterior, footprint, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
@@ -411,4 +411,23 @@ test('a piece on any new named spot or speed spot makes the blueprint invalid', 
   }
   assert.equal(validInterior(withEastPieces([{id: 'on-speed3', kind: 'chest', room: 'study', at: [...I.spots.speed[3]]}])), false);
   assert.equal(validInterior(withEastPieces([{id: 'on-speed4', kind: 'chest', room: 'master', at: [...I.spots.speed[4]]}])), false);
+});
+test('the real blueprint with the study furnished is valid and queues the study third', () => {
+  assert.equal(validInterior(I), true);
+  assert.equal(I.furnishLater[2], 'study');
+  const ids = new Set(I.furniture.filter(e => e.room === 'study').map(e => e.id));
+  for (const id of ['study-rug', 'desk', 'chair-desk', 'bookshelf-study-1', 'bookshelf-study-2', 'armchair-study',
+    'side-table-study', 'picture-study', 'desk-lamp', 'book-desk-1', 'book-desk-2', 'cup-desk', 'book-study-table']) {
+    assert.ok(ids.has(id), `study has ${id}`);
+  }
+});
+test('nothing taller than the sill stands before the study window', () => {
+  const win = I.windows.find(w => w.id === 'study');
+  const box = {a: [win.a - win.width / 2, win.a + win.width / 2], d: [0, .6]};
+  const meets = (x, y) => x.a[0] < y.a[1] && y.a[0] < x.a[1] && x.d[0] < y.d[1] && y.d[0] < x.d[1];
+  for (const e of I.furniture) {
+    if (e.room !== 'study' || KINDS[e.kind].standing !== 'solid') continue;
+    const f = footprint(e);
+    if (meets(f, box)) assert.ok(KINDS[e.kind].height <= win.sill + 1e-9, `${e.id} height ${KINDS[e.kind].height} exceeds sill ${win.sill}`);
+  }
 });

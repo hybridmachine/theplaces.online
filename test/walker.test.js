@@ -202,3 +202,25 @@ test('walking from the hall opening round the table to the dining window arrives
   assert.ok(Math.hypot(s.position[0] - I.spots.diningWindow[0], s.position[1] - I.spots.diningWindow[1]) < .15, `arrived at ${s.position}`);
   assert.ok(standable(s));
 });
+
+test('walking from the study shelves toward the desk stops at its footprint and slides along it', () => {
+  const desk = I.obstacles.find(o => o.id === 'desk');
+  assert.ok(desk, 'desk obstacle exists');
+  const inside = p => p[0] > desk.a[0] && p[0] < desk.a[1] && p[1] > desk.d[0] && p[1] < desk.d[1];
+  // Start in front of the east side of the desk (clear of chair-desk at a = 13.8), heading straight -d toward the desk.
+  const start = {...entry, position: [14.35, I.spots.shelves[1]]};
+  assert.ok(standable(start));
+  let s = {...start, yaw: Math.PI};   // straight -d
+  for (let i = 0; i < 150; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inside(s.position), `entered desk at ${s.position}`);
+  }
+  assert.ok(s.position[1] >= desk.d[1] + I.eyeClear - 1e-9, `stopped short of desk: ${s.position}`);
+  assert.ok(s.position[1] < desk.d[1] + I.eyeClear + .1, `pressed close to desk: ${s.position}`);
+  let g = {...start, yaw: Math.PI - Math.PI / 4};   // diagonal +a / -d, sliding east along the desk
+  for (let i = 0; i < 150; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inside(g.position), `entered desk while sliding at ${g.position}`);
+  }
+  assert.ok(g.position[0] > desk.a[1] + .1, `slid east past desk to ${g.position}`);
+});

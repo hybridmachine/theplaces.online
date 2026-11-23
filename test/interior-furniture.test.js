@@ -524,7 +524,7 @@ const dialsFor = (levels = {}) => ({
   lamps: I.rooms.map(r => levels[r.id] ?? 0),
 });
 const studyLampBlueprint = () => {
-  const c = structuredClone(I);
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
   c.furnishLater = ['study'];
   c.furniture.push(
     {id: 'test-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
@@ -575,7 +575,7 @@ test('a missing or non-finite lamp level leaves the shade pale and finite, and a
 });
 
 test('shades in two rooms are refused', () => {
-  const c = structuredClone(I);
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
   c.furniture.push(
     {id: 'two-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
     {id: 'two-study-lamp', kind: 'table-lamp', room: 'study', on: 'two-study-table'},
@@ -640,7 +640,7 @@ test('a rug in another room over the same plan position does not lift a piece\'s
 
 // ── furniture built by room, from a queue ──
 const queuedBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, ['kitchen', 'dining']));
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
   c.furnishLater = ['kitchen', 'dining'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -678,14 +678,16 @@ test('buildNext builds one room and returns its id; buildRest empties the queue'
   inside.dispose();
 });
 
-test('a queued set has at most four meshes and reports its own counts and time', () => {
+test('a queued set has at most four meshes without lamps (five with lamps) and reports its own counts and time', () => {
   const inside = buildQueued();
   inside.buildRest();
   assert.equal(inside.furniture.sets.length, 3);
   assert.deepEqual(inside.furniture.sets[1].rooms, ['kitchen']);
   assert.deepEqual(inside.furniture.sets[2].rooms, ['dining']);
   for (const s of inside.furniture.sets.slice(1)) {
-    assert.ok(s.meshes >= 1 && s.meshes <= 4, `${s.rooms}: ${s.meshes} meshes`);
+    const grp = inside.scene.getObjectByName(`furniture-${s.rooms[0]}`);
+    const limit = grp?.getObjectByName('shades') ? 5 : 4;
+    assert.ok(s.meshes >= 1 && s.meshes <= limit, `${s.rooms}: ${s.meshes} meshes (limit ${limit})`);
     assert.ok(s.vertices > 0 && Number.isFinite(s.ms) && s.ms >= 0, `${s.rooms}: ${s.vertices}v ${s.ms}ms`);
   }
   assert.equal(inside.furniture.vertices, inside.furniture.sets.reduce((t, s) => t + s.vertices, 0));
@@ -994,5 +996,37 @@ test('the jug on the sideboard is its full width; the one on the mantel is still
   const sideWidth = sideJug.a[1] - sideJug.a[0], sideDepth = sideJug.d[1] - sideJug.d[0];
   assert.ok(mantelDepth < .125, `mantel jug narrowed: ${mantelDepth}`);
   assert.ok(Math.min(sideWidth, sideDepth) >= .135, `sideboard jug full width: ${sideWidth} x ${sideDepth}`);
+  inside.dispose();
+});
+
+// ── study furniture (Task 4) ──
+test('the study builds as one queued set of at most five meshes with shades, skips nothing, and the desk tops out at its kind\'s height', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const set = inside.furniture.sets.find(s => s.rooms.includes('study'));
+  assert.ok(set, 'study set exists');
+  assert.deepEqual(set.rooms, ['study']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 5, `${set.meshes} meshes`);
+  assert.ok(inside.scene.getObjectByName('furniture-study')?.getObjectByName('shades'), 'study has a shades mesh');
+  const deskBox = inside.pieceBox('desk');
+  assert.ok(deskBox, 'desk is drawn');
+  assert.ok(Math.abs(deskBox.z[1] - KINDS.desk.height) <= .01, `desk top ${deskBox.z[1]} vs ${KINDS.desk.height}`);
+  // Every solid study piece stands inside its footprint and has a grounding patch.
+  const studySolids = I.furniture.filter(e => e.room === 'study' && KINDS[e.kind].standing === 'solid');
+  assert.ok(studySolids.length >= 6);
+  for (const e of studySolids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Desk lamp shade follows the study's lamp, not the living room's.
+  const lit = groupShadeColour(inside, 'furniture-study', dialsFor({study: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-study', dialsFor({study: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
   inside.dispose();
 });

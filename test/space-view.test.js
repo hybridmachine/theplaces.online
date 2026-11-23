@@ -634,15 +634,14 @@ test('after the door is wanted, each later frame builds one queued room, the fir
   assert.equal(view.inside, null);
   frame(1); // frame 1: door wanted -> buildInside() runs, no queued room built on this frame
   assert.ok(view.inside);
-  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  assert.deepEqual(view.inside.pending, [...I.furnishLater]);
   assert.equal(view.inside.pieceBox('kitchen-table'), null);
   clock += 33;
   frame(1); // frame 2: builds kitchen
-  assert.deepEqual(view.inside.pending, ['dining']);
+  assert.deepEqual(view.inside.pending, I.furnishLater.slice(1));
   assert.ok(view.inside.pieceBox('kitchen-table'));
   assert.equal(view.inside.pieceBox('dining-table'), null);
-  clock += 33;
-  frame(1); // frame 3: builds dining
+  for (let i = 1; i < I.furnishLater.length; i++) { clock += 33; frame(1); }
   assert.deepEqual(view.inside.pending, []);
   assert.ok(view.inside.pieceBox('dining-table'));
   view.inside.dispose();
@@ -659,18 +658,18 @@ test('the visitor handed indoors with rooms still queued finds every room built 
     return origDraw.apply(this, args);
   };
   input.forward = 1;
-  frame(1); // t=1000: buildInside(), pending=['kitchen', 'dining']
-  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
-  clock = 2000; // slow frame: door swings fully open and fade starts; buildNext builds kitchen -> pending=['dining']
+  frame(1); // t=1000: buildInside(), pending=I.furnishLater
+  assert.deepEqual(view.inside.pending, [...I.furnishLater]);
+  clock = 2000; // slow frame: door swings fully open and fade starts; buildNext builds kitchen
   frame(1);
   assert.equal(view.state.place, 'yard');
-  assert.deepEqual(view.inside.pending, ['dining']);
-  clock = 2500; // fade midpoint reached while 'dining' is still queued -> hands visitor indoors and drains queue before drawIndoors
+  assert.deepEqual(view.inside.pending, I.furnishLater.slice(1));
+  clock = 2500; // fade midpoint reached while rooms are still queued -> hands visitor indoors and drains queue before drawIndoors
   frame(1);
   assert.equal(view.state.place, 'cabin');
   assert.equal(drawnPending.length, 1);
   assert.deepEqual(drawnPending[0].pending, []);
-  assert.ok(drawnPending[0].rooms.includes('kitchen') && drawnPending[0].rooms.includes('dining'));
+  for (const r of I.furnishLater) assert.ok(drawnPending[0].rooms.includes(r), r);
   view.inside.dispose();
 });
 
@@ -685,14 +684,14 @@ test('the same with reduced motion', async t => {
     return origDraw.apply(this, args);
   };
   input.forward = 1;
-  frame(1); // t=1000: buildInside(), pending=['kitchen', 'dining']
-  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
-  clock = 2000; // door opens to 1 and reduced-motion cut moves visitor indoors immediately with both rooms still queued
+  frame(1); // t=1000: buildInside(), pending=I.furnishLater
+  assert.deepEqual(view.inside.pending, [...I.furnishLater]);
+  clock = 2000; // door opens to 1 and reduced-motion cut moves visitor indoors immediately with rooms still queued
   frame(1);
   assert.equal(view.state.place, 'cabin');
   assert.equal(drawnPending.length, 1);
   assert.deepEqual(drawnPending[0].pending, []);
-  assert.ok(drawnPending[0].rooms.includes('kitchen') && drawnPending[0].rooms.includes('dining'));
+  for (const r of I.furnishLater) assert.ok(drawnPending[0].rooms.includes(r), r);
   view.inside.dispose();
 });
 
@@ -751,7 +750,7 @@ test('&furnish=first with ?check furnishes only the first rooms and walks withou
 
 test('furnished is false in a room still queued and true once it is built', async () => {
   const {view} = await rig({state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});
-  assert.deepEqual(view.inside.pending, ['kitchen', 'dining']);
+  assert.deepEqual(view.inside.pending, [...I.furnishLater]);
   view.state = {place: 'cabin', floor: 0, position: [4.4, 10.9], yaw: 0, pitch: 0}; // in kitchen, still queued
   assert.equal(view.furnished, false);
   view.inside.buildNext(); // builds kitchen
