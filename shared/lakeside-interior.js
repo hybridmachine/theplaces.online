@@ -95,7 +95,7 @@ const FURNITURE = [
   // The closet passage: two wardrobes flanking the wall lamp, and a runner between the hall and bath doors.
   standing('wardrobe-passage-1', 'wardrobe', 'passage', [11.7, 4.375], Math.PI),
   standing('wardrobe-passage-2', 'wardrobe', 'passage', [13.3, 4.375], Math.PI),
-  standing('passage-runner', 'runner', 'passage', [12.5, 5.85], .02, [2.6, .8]),
+  standing('passage-runner', 'runner', 'passage', [12.5, 5.6], .02, [1.8, .7]),
   // The master bedroom: double bed against the back wall with bedside tables and lamps, blanket chest, rug, gable wardrobes, pictures.
   standing('master-rug', 'rug', 'master', [14.5, 10.3], .02, [3.0, 3.2]),
   standing('bed', 'double-bed', 'master', [14.5, 10.9]),

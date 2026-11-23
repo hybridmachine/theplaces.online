@@ -832,7 +832,7 @@ export const RECIPES = {
   blanket(kit, e, pal) {
     const [hx, hy] = halves(e.parent), at = kit.placed(e), out = {};
     const wool = pal.surface('cloth', 0, .09, .54);
-    const y0 = -hy + .14, y1 = -hy + .66, topX = hx - .038, drop = .24, rise = .028;
+    const y0 = -hy + .14, y1 = -hy + .66, topX = hx - .018, drop = .24, rise = .028;
     const total = drop + 2 * topX + drop;
     const path = l => l < drop ? [-topX, rise - (drop - l)]
       : l < drop + 2 * topX ? [-topX + (l - drop), rise]

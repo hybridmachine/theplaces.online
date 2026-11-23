@@ -1,6 +1,6 @@
 # Cabin interior, part 4c: furnishing the study, closet passage and master bedroom — design
 
-Status: design, awaiting owner approval (November 22, 2026). Nothing is built.
+Status: built behind `?interior=1`, awaiting owner review (November 22, 2026). See As built at the end.
 
 This is the third slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). The first two, `2026-11-21-cabin-interior-part-4a-living-hall-furnishing-design.md` (4a) and `2026-11-21-cabin-interior-part-4b-kitchen-dining-furnishing-design.md` (4b), are built and merged. Their design and As built sections are the starting point: everything there about how a piece is described, made, lit, grounded, queued, checked and allowed to fail holds here unless this document says otherwise.
 
@@ -205,3 +205,79 @@ The captures. Three questions: is each room's layout right when seen built; do t
 - The form of the widened `&furnish=` switch.
 - The count and exact choice of dressing pieces within the budget.
 - The wording of the description clauses.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open. The pure room-to-room visibility table (`SIGHT`, `seenFrom`) lives in `shared/sight.js`; the new kinds (`desk`, `wardrobe`, `double-bed` with `seat: 0.55`, `chest`, `pillow`, `blanket`) and `withoutRooms(I, rooms, {keepQueue})` live in `shared/furniture.js`; widened rule 8 (`FURNISHED` over all seven rooms, `throughWays` entries for `passage`, `study` and `master`) lives in `shared/interior.js`; `furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master']`, `SLICE_4C`, the new pieces and the new named and speed spots live in `shared/lakeside-interior.js`. Per-set shade lighting (`lamps[shadeAt]` in place of `SHADE_ROOM`), the new recipes and parent-aware placements for `table-lamp`, `book` and `cup` live in `public/space/interior/furniture.js`; `showFrom(roomId)` and `shownRooms` live in `public/space/interior/index.js`; `&furnish=4b`, `&hide=0` and `updateSight()` live in `public/space/space-view.js`; the study, passage and master clauses live in `public/scene-description.js`.
+
+### Placements
+
+- Every study, passage and master piece stands where the plan's tables put it, with three small adjustments settled during testing and capture review:
+  - **`passage-runner`** moved and shortened from `[12.5, 5.85]` (`2.6 × 0.8` m) to `[12.5, 5.6]` (`1.8 × 0.7` m). At `2.6` m wide its bounding sphere (`r = 1.36` m) clipped the left frustum plane of speed pose 2 (`[5.2, 7.9]` in the kitchen, where `passage` is in `shownRooms`), adding one unseen draw call (`42` vs `41`). At `1.8 × 0.7` m centred on `[12.5, 5.6]` it still bridges the hall-to-bath crossing while keeping `passage`'s bounding sphere outside pose 2's frustum (`41` vs `41`).
+  - **`pillow-1` and `pillow-2`** sit at `oz = 0, tilt = 0.06` rather than `oz = 0.016` so `kit.cushion`'s taper lift leaves their bottoms within 6 mm of the mattress (`seat = 0.55` m).
+  - **`bed-blanket`** widens `topX` from `hx - 0.038` to `hx - 0.018` so its side folds sit cleanly outside the `double-bed` mattress side drapes (`hx - 0.042 + 0.018`) without z-overlap in `furnish-low-bed-floor.jpg`.
+- The **desk lamp** uses the existing `table-lamp` kind placed on the desk's east window corner (`[-0.52, 0.16]`), where it reads cleanly at desk height alongside two stacked books (`[0.42, 0.08]` / `[0.41, 0.09]`) and a cup (`[0.18, -0.14]`). No separate desk-lamp kind was needed.
+- **Named spots** added: `spots.desk = [15.0, 0.7]`, `spots.shelves = [14.6, 3.1]`, `spots.wardrobes = [12.5, 5.4]`, `spots.bedFoot = [14.5, 8.8]`, `spots.bedside = [12.7, 11.0]`, and `spots.speed[3] = [11.9, 0.8]`, `spots.speed[4] = [12.5, 7.9]`. None of the three existing speed spots moved.
+
+### Which pieces are sculpted
+
+- **Sculpted** (`turned`, `roll`, `drape`, `cushion`, then weighed coarsely per vertex): desk drawer knobs, wardrobe door knobs, blanket-chest side handles; the double bed's four turned corner posts and the bedclothes' side and foot drapes; the two pillows and the folded blanket; plus the existing sculpted kinds reused here (`armchair`, `chair`, `table-lamp`, `cup`).
+- **Kit** (through `face`): desk top/apron/legs/drawer fronts, wardrobe carcass/plinth/cornice/framed doors, double bed headboard/footboard/frame/mattress, blanket chest box/framed front/lid, study bookshelves, side tables, study and master rugs, passage runner, books and framed pictures.
+- Every new recipe picks its tints through `pal.surface(name, ...)` and emits under `SURFACES[name].mesh` (`wood`, `cloth`, `stone` or `shades`). 4a's and 4b's recipes were left unchanged beyond making `table-lamp`, `book` and `cup` recognise their new parent kinds.
+
+### Out of sight (`shared/sight.js`)
+
+- `seenFrom(I)` samples standing eye points on a `0.5` m grid (`SIGHT.grid = 0.5`) inside every room (plus its centre and `0.25` m in from each opening's centre), tests segments against wall segments whose openings are widened by `0.1` m at each jamb (`SIGHT.widen = 0.1`, generous reading), keeps the table symmetric and reflexive, and joins the stair's ground and upper floors both ways. Running on `LAKESIDE_INTERIOR` takes ~15 ms at build time.
+- Notice a consequence of the generous sight definition: from `living`, a diagonal sightline runs through three doorways (`living–hall`, `hall–passage`, `passage–master`), so `living` sees `master`, whereas `kitchen` does not see `master` (`shownRooms` drops `master` at `[5.2, 7.9]` and shows it again from `spots.wardrobes` and the yard).
+
+### Check spots and checks changed
+
+| Check | Was | Now | Why |
+|---|---|---|---|
+| 71, furniture mesh count | 3 sets; at most 5 in `sets[0]`, at most 4 in each queued set | 6 sets; at most 5 in `sets[0]` and in queued sets with lamps (`study`, `master`), at most 4 in queued sets without (`kitchen`, `dining`, `passage`) | three more queued sets, two of which carry a `shades` mesh |
+| `test/interior.test.js`, unfurnished hanging-lamp standability | `solid('master', [14.5, 9.5])` | `solid('bedroom-2', [3.5, 5])` | `blanket-chest` now stands directly under `master`'s hanging lamp at `[14.5, 9.55]` |
+| `test/interior-furniture.test.js`, single-set queue fixtures | stripped `['kitchen', 'dining']` | strip `I.furnishLater` | keeps `study` and `master` lamps out of the first build so the `shades in two rooms` check holds |
+| `test/space-view.test.js`, queue expectations | asserted `['kitchen', 'dining']` | reads `I.furnishLater` | covers all five queued rooms |
+
+Existing browser checks 40 (`paneSpots.study`), 58 (`masterPose` windowless-room capture) and 67 (`more` with `&furnish=first`) needed no spot moves.
+
+### Measured
+
+Full browser check suite (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on Apple Silicon, 1440 × 810, tier `full`, on a quiet machine. **103 of 103 checks passed**, 0 page or console errors. `docs/interior-validation/browser-results.json` holds checks 32–103 (72 entries, all passing).
+
+- **First build at the door (check 73):** `&furnish=first` adds **+63.4 ms** over `&bare=1` (full load's first build **+62.7 ms**; medians: first `201.2 ms`, full `200.5 ms`, bare `137.8 ms`) against the **80 ms** budget. Draw calls at the living capture pose: **+5** (`&furnish=first` vs `&bare=1`), **+0** more with all seven rooms furnished.
+- **Queued per-room builds (checks 83 & 90, median of 3 loads, limits ≤ 40 ms each, three new rooms ≤ 100 ms):**
+  - `study`: **29.6 ms** (`29.6, 29.9, 29.2` ms), `10,821` vertices in `5` meshes.
+  - `passage`: **4.4 ms** (`4.4, 4.2, 5.0` ms), `1,258` vertices in `3` meshes.
+  - `master`: **17.4 ms** (`17.3, 17.4, 17.4` ms), `4,240` vertices in `4` meshes.
+  - Three new rooms together: **51.4 ms** (limit `100` ms).
+  - Earlier queued rooms: `kitchen` **30.4 ms** (`5,501`v, `4`m), `dining` **27.0 ms** (`5,192`v, `4`m); `sets[0]` (`living`, `hall`): `12,092`v, `5`m (`64.2` ms).
+  - Started indoors in `master` (all 7 rooms built at load, check 101): **170.3 ms** furniture total.
+  - Total across all seven furnished rooms: **39,104 vertices in 25 meshes**.
+- **Speed at `[11.9, 0.8]` (study facing reading chair, study window live, check 91, limits ≤ 1.1x yard and ≤ +0.05 over `&furnish=4b`):**
+  - Day: **1.035x** yard (`11.8 ms` vs `11.4 ms`), against `&furnish=4b` `1.027x` (**+0.008**).
+  - Night (study lamp lit by fixture): **1.044x** yard (`11.9 ms` vs `11.4 ms`), against `&furnish=4b` `1.035x` (**+0.009**).
+- **Speed at `[12.5, 7.9]` (master bedroom facing bed, check 92, limits ≤ 1.1x yard and ≤ +0.05 over `&furnish=4b`):**
+  - Day: **0.841x** yard (`9.5 ms` vs `11.3 ms`), against `&furnish=4b` `0.841x` (**+0.000**).
+  - Night (master lamp lit by fixture): **0.833x** yard (`9.5 ms` vs `11.4 ms`), against `&furnish=4b` `0.833x` (**+0.000**).
+- **Draw calls at the two new poses (check 93, limit ≤ +6 over `&furnish=4b`):** study **+5** (`31` vs `26`), master **+4** (`14` vs `10`).
+- **Existing three speed poses vs `&furnish=4b` (check 94, 5 ABBA-balanced pairs, 20-frame span timing, limit ≤ +0.01 of a yard frame and no added draw calls):**
+  - `[4.2, 3]`: day **+0.002**, night **+0.004**, `44 / 44` draw calls.
+  - `[3.8, 5.5]`: day **+0.002**, night **+0.000**, `52 / 52` draw calls.
+  - `[5.2, 7.9]`: day **−0.008**, night **+0.001**, `41 / 41` draw calls.
+- **Shades, hiding, entry, determinism and fallback (checks 95–103):**
+  - Desk lamp shade reads `rgb(56, 63, 80)` pale when study is out & living lit, `rgb(236, 193, 139)` warm when study is lit & living out (matching living reference `rgb(231, 188, 135)`), while living's shade tracks its own lamp.
+  - Bedside lamp 1 shade reads `rgb(53, 60, 77)` pale when master is out & living lit, `rgb(229, 187, 134)` warm when master is lit & living out.
+  - Hiding unseen rooms changes **0** of `5,184` sampled pixels across all five speed poses and the hall capture pose (`default` vs `&hide=0`), hides `master` from `[5.2, 7.9]`, and shows it from `spots.wardrobes` and the yard.
+  - Normal and reduced-motion entry both report `pending: []` with all 7 rooms built on the first indoor frame; starting indoors in `master` builds all 7 rooms (`170.3 ms`) and includes the master bedroom's clause in the description; 2-load determinism reads **0** differing pixels (`&furnish=4b` differs in `29.2%` study / `31.5%` master); after `inside.fallBack()` all meshes stay present with mean luminance `0.579` (study), `0.635` (passage) and `0.630` (master).
+
+### Cut for speed
+
+- Nothing was cut: every planned piece and dressing item built and drew within budget (`passage-runner` was shortened from `2.6` to `1.8` m only so its bounding sphere stays outside speed pose 2's frustum).
+
+### Known weak points, as the captures show them
+
+- **Brushwork weight (inherited from 4a/4b, out of scope here):** wood furniture, wardrobe panels, books, the cup, knobs and handles carry the strong `hills` / `stone` brushwork, so small pieces read with heavy strokes and will benefit from the planned texture pass (`SURFACES` is in place for it).
+- **Grounding patches are subtle by day:** visible under the bed and chest in `furnish-low-bed-floor.jpg`, faint at standing height.
+- **Passage wardrobe niche:** the two wardrobes either side of the wall lamp leave a `0.6` m recess between them that frames the lamp cleanly from inside the passage (`furnish-passage-day.jpg` / `furnish-passage-lit.jpg`), though the doorway edge trims part of the left wardrobe from the hall (`furnish-hall-to-master.jpg`) — open to owner review.
+- **Hall-to-master sightline:** from the hall doorway (`furnish-hall-to-master.jpg`), the line of sight through the passage doorway reaches the master rug and the gable wardrobes rather than the bed, because the bed stands east of the passage–master doorway (`a = 14.5` vs doorway `a = 12–13`).
