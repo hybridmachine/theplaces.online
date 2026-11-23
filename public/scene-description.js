@@ -24,8 +24,13 @@ export function sceneText(snapshot, now, { study = null, paused = false, disconn
   };
 }
 
-// What the furniture adds to the room's description (SpaceView.furnished): a fixed clause for the two furnished rooms, nothing elsewhere.
-const FURNISHED_TEXT = {'living room': 'A sofa and two armchairs are drawn up to the fire. ', 'entry hall': 'Coats hang by the door and the stair climbs ahead. '};
+// What the furniture adds to the room's description (SpaceView.furnished): a fixed clause for each furnished room, nothing elsewhere.
+const FURNISHED_TEXT = {
+  'living room': 'A sofa and two armchairs are drawn up to the fire. ',
+  'entry hall': 'Coats hang by the door and the stair climbs ahead. ',
+  'kitchen': 'A range stands on the back wall and a table in the middle. ',
+  'dining room': 'A table is laid for six by the window. ',
+};
 const furnishedText = room => FURNISHED_TEXT[room] ?? '';
 
 // What is lit in the room (SpaceView.lit): its lamp, and in the living room the fire.

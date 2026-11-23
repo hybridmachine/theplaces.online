@@ -20,8 +20,21 @@ import {MANTEL} from './fireplace.js';
 // Linear tints, lit; the flat light's (built unlit) is each divided by the flat light's irradiance on a floor, as the shell's boards are.
 // (the reds and blues faded toward grey, as the painting's are: nothing saturated; `walnut` is the stair's joinery, darker than its treads;
 // `slate` the hall's runner, a worn grey-blue)
-const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], walnut: [.26, .17, .11], rugRed: [.86, .46, .36], ochre: [1.05, .84, .5], green: [.52, .62, .5],
-  blue: [.54, .6, .7], slate: [.6, .62, .64], linen: [1.2, 1.12, .95], glass: [.82, .9, .98]};
+export const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], walnut: [.26, .17, .11], rugRed: [.86, .46, .36], ochre: [1.05, .84, .5], green: [.52, .62, .5],
+  blue: [.54, .6, .7], slate: [.6, .62, .64], linen: [1.2, 1.12, .95], glass: [.82, .9, .98],
+  iron: [.24, .23, .24], copper: [1.02, .54, .34], china: [1.22, 1.18, 1.08], enamel: [.96, .98, .92]};
+// Named surfaces for new recipes: each maps to an existing mesh and palette tint so a later texture pass can find surfaces by name.
+export const SURFACES = Object.freeze({
+  wood: Object.freeze({mesh: 'wood', colour: 'oak'}),
+  cloth: Object.freeze({mesh: 'cloth', colour: 'linen'}),
+  stone: Object.freeze({mesh: 'stone', colour: 'slate'}),
+  iron: Object.freeze({mesh: 'wood', colour: 'iron'}),
+  copper: Object.freeze({mesh: 'wood', colour: 'copper'}),
+  china: Object.freeze({mesh: 'stone', colour: 'china'}),
+  enamel: Object.freeze({mesh: 'stone', colour: 'enamel'}),
+});
+const put = (out, surface, gs) => { const m = SURFACES[surface].mesh; (out[m] ??= []).push(...gs); };
+const DRESSER_COUNTER = .86, DRESSER_SHELVES = [1.24, 1.62];
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -217,8 +230,18 @@ export const RECIPES = {
     const at = kit.moved(kit.placed(e), [-.18, .04, 0], {turn: .35});
     return {cloth: kit.box(at, [-.08, .08], [-.115, .115], [0, .03], pal.blue(0, .1, .9), {skip: ['under'], seed: pal.seed})};
   },
-  // A cup: a short post, its top the dark of the tea, and a handle.
+  // A cup: on the living room's low table a short post with a handle; on the dresser a spun china cup on the counter ledge.
   cup(kit, e, pal) {
+    if (e.parent?.kind === 'dresser') {
+      const i = e.index || 0, x = i === 0 ? -.30 : .24, dz = DRESSER_COUNTER - KINDS.dresser.height;
+      const at = kit.moved(kit.placed(e), [x, -.05 + (pal.random(1) - .5) * .03, dz], {turn: .5 + i * 1.4}), out = {};
+      const glaze = pal.surface('china', 0, .05, .96);
+      put(out, 'china', [
+        ...kit.turned(at, [0, 0], [[0, 0], [.032, 0], [.032, 0], [.038, .02], [.04, .08], [.035, .082], [.032, .076], [.028, .012], [0, .012]], lined(glaze, 6), {segments: 8, tile: STONE_TILE}),
+        ...kit.board(at, [.036, .056], [-.007, .007], [.022, .064], glaze, {skip: ['left']}),
+      ]);
+      return out;
+    }
     const at = kit.moved(kit.placed(e), [.22, -.08, 0], {turn: .8}), china = pal.linen(0, .04);
     return {wood: [...kit.post(at, [0, 0], [0, .085], .035, china, {tuck: ['top']}), ...kit.board(at, [.035, .055], [-.008, .008], [.025, .065], china, {skip: ['left']})]};
   },
@@ -269,17 +292,34 @@ export const RECIPES = {
       ...kit.roll(at, [-.03, .02, .04], [-.07, .05, .58], .012, pal.darkOak(1, .06), {sides: 6}),
       ...kit.roll(at, [.03, -.02, .04], [.05, -.06, .575], .026, pal.rugRed(2, .08, .6), {sides: 7, ends: pal.darkOak(3, .06)})]};
   },
-  // A blue-glazed jug on the mantel toward its front-wall end, with a handle; on a shelf shallower than its belly (the mantel's exposed
-  // `deep`), drawn narrower to fit it, its handle drawn in with it.
+  // A jug: on the mantel toward its front-wall end, narrowed to fit the shelf's exposed depth; on any other piece (e.g. sideboard),
+  // standing full width on its top through pal.surface.
   jug(kit, e, pal) {
+    if (e.parent?.kind !== 'mantel') {
+      const at = kit.moved(kit.placed(e), [-.45, .02, 0], {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
+      put(out, 'china', [
+        ...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [.07, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]],
+          lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
+        ...kit.roll(at, [.06, 0, .2], [.1, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}),
+        ...kit.roll(at, [.1, 0, .17], [.066, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE}),
+      ]);
+      return out;
+    }
     const at = kit.moved(kit.placed(e), [-.8, 0, 0]), glaze = pal.blue(0, .06, 1.15);   // (blue, so it does not sink into the breast's stone)
     const belly = .07, s = Math.min(1, ((e.parent?.deep ?? 2 * belly) / 2 - .002) / belly), r = ([x, z]) => [x * s, z];
     return {stone: [...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [belly, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]].map(r),
       lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
       ...kit.roll(at, [.06 * s, 0, .2], [.1 * s, 0, .17], .01, glaze, {sides: 5, tile: STONE_TILE}), ...kit.roll(at, [.1 * s, 0, .17], [.066 * s, 0, .07], .01, glaze, {sides: 5, tile: STONE_TILE})]};
   },
-  // A brass candlestick with its candle, either side of the clock.
+  // A candlestick with its candle: on the mantel either side of the clock; on a table either side of the centre bowl.
   candlestick(kit, e, pal) {
+    if (e.parent?.kind !== 'mantel') {
+      const at = kit.moved(kit.placed(e), [((e.index || 0) - ((e.count || 1) - 1) / 2) * .68, 0, 0]), out = {};
+      const brass = pal.surface('copper', 0, .06, .82), wax = pal.surface('china', 1, .04, .98);
+      put(out, 'copper', kit.turned(at, [0, 0], [[0, 0], [.045, 0], [.045, 0], [.045, .012], [.03, .02], [.014, .04], [.012, .15], [.026, .16], [.026, .17], [0, .17]], brass, {segments: 8}));
+      put(out, 'china', kit.turned(at, [0, 0], [[0, .17], [.01, .17], [.01, .25], [0, .25]], wax, {segments: 8, tile: STONE_TILE}));
+      return out;
+    }
     const at = kit.moved(kit.placed(e), [((e.index || 0) - ((e.count || 1) - 1) / 2) * .9, 0, 0]), brass = pal.ochre(0, .06, .8), wax = pal.linen(1, .04);
     const profile = [[0, 0], [.045, 0], [.045, 0], [.045, .012], [.03, .02], [.014, .04], [.012, .15], [.026, .16], [.026, .17], [.01, .17], [.01, .17], [.01, .25], [0, .25]];
     return {stone: kit.turned(at, [0, 0], profile, (p, k) => (k >= 10 ? wax : brass)(p), {segments: 8, tile: STONE_TILE})};
@@ -347,17 +387,315 @@ export const RECIPES = {
     const x = (i - (n - 1) / 2) * .62 + jitter(1) * .05, flat = kit.moved(at, [x, jitter(2) * .04, 0], {turn: jitter(3) * .25});
     return {cloth: kit.cushion(flat, [-.26, .26], [-.19, .19], [0, .12], colour, {seed: pal.seed})};
   },
+  // ── kitchen pieces: every tint through pal.surface, returned under SURFACES[name].mesh ──
+  // A sink unit: cupboard below, timber deck round a sunk enamel basin, and a copper tap arching over it.
+  'sink-unit'(kit, e, pal) {
+    const [hx, hy] = halves(e), top = .82, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .07, .76), deck = pal.surface('wood', 1, .07, .96), plinth = pal.surface('wood', 2, .05, .55);
+    const basin = pal.surface('enamel', 3, .04, .96), inside = pal.surface('enamel', 4, .04, .78);
+    const tap = pal.surface('copper', 5, .05, .82), knob = pal.surface('iron', 6, .04);
+    const bx = .28, by = .18, floor = top - .16;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .06, hy], [0, .09], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .01, hx - .01], [-hy + .02, hy], [.09, top - .04], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.board(at, [-hx, -bx], [-hy, hy], [top - .04, top], deck, {tuck: ['under'], skip: ['back']}),
+      ...kit.board(at, [bx, hx], [-hy, hy], [top - .04, top], deck, {tuck: ['under'], skip: ['back']}),
+      ...kit.board(at, [-bx, bx], [-hy, -by], [top - .04, top], deck, {tuck: ['under']}),
+      ...kit.board(at, [-bx, bx], [by, hy], [top - .04, top], deck, {tuck: ['under'], skip: ['back']}),
+    ]);
+    // two cabinet doors with small iron knobs
+    for (const [x0, x1, kx] of [[-hx + .07, -.03, -.1], [.03, hx - .07, .1]]) {
+      put(out, 'wood', kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [.14, top - .1], pal.surface('wood', 7, .06, .84), {skip: ['back']}));
+      put(out, 'iron', kit.board(at, [kx - .015, kx + .015], [-hy - .005, -hy + .005], [top - .2, top - .17], knob, {skip: ['back']}));
+    }
+    // sunk enamel basin
+    put(out, 'enamel', [
+      ...kit.board(at, [-bx, bx], [-by, by], [floor, floor + .015], basin, {skip: ['under', 'left', 'right', 'front', 'back']}),
+      ...kit.board(at, [-bx, -bx + .015], [-by, by], [floor, top], inside, {skip: ['left', 'under']}),
+      ...kit.board(at, [bx - .015, bx], [-by, by], [floor, top], inside, {skip: ['right', 'under']}),
+      ...kit.board(at, [-bx, bx], [-by, -by + .015], [floor, top], inside, {skip: ['front', 'under']}),
+      ...kit.board(at, [-bx, bx], [by - .015, by], [floor, top], inside, {skip: ['back', 'under']}),
+    ]);
+    // sculpted tap at the back of the basin, staying within KINDS['sink-unit'].height (0.90)
+    put(out, 'copper', [
+      ...kit.roll(at, [0, .22, top], [0, .22, .89], .012, tap, {sides: 6}),
+      ...kit.roll(at, [0, .22, .885], [0, .1, .895], .01, tap, {sides: 6}),
+      ...kit.roll(at, [0, .1, .895], [0, .09, .86], .009, tap, {sides: 6}),
+      ...kit.roll(at, [-.045, .22, .855], [.045, .22, .855], .006, tap, {sides: 5}),
+    ]);
+    return out;
+  },
+  // A cast-iron range: dark iron body, two oven doors, hotplates, front towel rail and a flue pipe rising to the ceiling.
+  range(kit, e, pal, {interior}) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const iron = pal.surface('iron', 0, .05), hob = pal.surface('iron', 1, .05, 1.15), door = pal.surface('iron', 2, .04, 1.32);
+    const rail = pal.surface('copper', 3, .05, .85), flue = pal.surface('iron', 4, .04, .92);
+    put(out, 'iron', [
+      ...kit.box(at, [-hx, hx], [-hy + .055, hy], [.08, h - .03], iron, {tuck: ['under'], skip: ['back'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy + .04, hy], [h - .03, h - .01], hob, {tuck: ['under'], skip: ['back'], broken: .006}),
+      // two flat hotplate lids
+      ...kit.board(at, [-.37, -.07], [-.12, .16], [h - .01, h], door, {skip: ['under']}),
+      ...kit.board(at, [.07, .37], [-.12, .16], [h - .01, h], door, {skip: ['under']}),
+      // two oven doors on the front
+      ...kit.board(at, [-hx + .06, -.03], [-hy + .04, -hy + .055], [.16, h - .18], door, {skip: ['back']}),
+      ...kit.board(at, [.03, hx - .06], [-hy + .04, -hy + .055], [.16, h - .18], door, {skip: ['back']}),
+      // rail brackets
+      ...kit.board(at, [-hx + .07, -hx + .095], [-hy + .02, -hy + .055], [h - .105, h - .075], iron, {skip: ['back']}),
+      ...kit.board(at, [hx - .095, hx - .07], [-hy + .02, -hy + .055], [h - .105, h - .075], iron, {skip: ['back']}),
+      // flue pipe rising from the back of the range straight to the ground ceiling
+      ...kit.roll(at, [0, hy - .1, h - .015], [0, hy - .1, interior.groundCeiling], .07, flue, {sides: 8}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'iron', kit.post(at, [x * (hx - .07), y * (hy - .08)], [0, .08], .035, iron));
+    // front towel rail and door handles
+    put(out, 'copper', [
+      ...kit.roll(at, [-hx + .05, -hy + .02, h - .09], [hx - .05, -hy + .02, h - .09], .011, rail, {sides: 6}),
+      ...kit.board(at, [-.3, -.14], [-hy + .025, -hy + .04], [.55, .57], rail, {skip: ['back']}),
+      ...kit.board(at, [.14, .3], [-hy + .025, -hy + .04], [.55, .57], rail, {skip: ['back']}),
+    ]);
+    return out;
+  },
+  // A kitchen worktop: cupboard below with three doors and an overhanging timber top whose underside is tucked.
+  worktop(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .07, .76), top = pal.surface('wood', 1, .07, 1.0), plinth = pal.surface('wood', 2, .05, .55);
+    const door = pal.surface('wood', 3, .06, .84), knob = pal.surface('iron', 4, .04);
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .06, hy], [0, .09], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .01, hx - .01], [-hy + .04, hy], [.09, h - .04], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], top, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    const w = (2 * hx - .16) / 3;
+    for (let k = 0; k < 3; k++) {
+      const x0 = -hx + .05 + k * (w + .03), x1 = x0 + w;
+      put(out, 'wood', kit.board(at, [x0, x1], [-hy + .025, -hy + .04], [.14, h - .1], door, {skip: ['back']}));
+      put(out, 'iron', kit.board(at, [x1 - .07, x1 - .045], [-hy + .015, -hy + .025], [h - .22, h - .195], knob, {skip: ['back']}));
+    }
+    return out;
+  },
+  // A Welsh dresser: closed cupboard below, shallower open shelves above with tucked insides.
+  dresser(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .07, .96), body = pal.surface('wood', 1, .07, .82), plinth = pal.surface('wood', 2, .05, .55);
+    const knob = pal.surface('iron', 3, .04), shut = {tuck: ['under', 'back', 'left', 'right']};
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .05, hy], [0, .08], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .01, hx - .01], [-hy + .02, hy], [.08, DRESSER_COUNTER - .035], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [DRESSER_COUNTER - .035, DRESSER_COUNTER], wood, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+      // upper open hutch: full width so outer sides sit at ±hx, inner sides tucked at ±(hx - T)
+      ...kit.box(at, [-hx, hx], [-hy + .14, hy], [DRESSER_COUNTER, h], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed + 2}),
+    ]);
+    for (const [x0, x1, kx] of [[-hx + .06, -.03, -.09], [.03, hx - .06, .09]]) {
+      put(out, 'wood', kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [.13, DRESSER_COUNTER - .09], pal.surface('wood', 4, .06, .88), {skip: ['back']}));
+      put(out, 'iron', kit.board(at, [kx - .015, kx + .015], [-hy - .005, -hy + .005], [DRESSER_COUNTER - .19, DRESSER_COUNTER - .16], knob, {skip: ['back']}));
+    }
+    for (const z of DRESSER_SHELVES) put(out, 'wood', kit.board(at, [-hx + T, hx - T], [-hy + .15, hy - T], [z - .025, z], wood, shut));
+    return out;
+  },
+  // A farmhouse kitchen table: thick plank top with tucked underside, apron, four stout legs and low stretchers.
+  'kitchen-table'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const top = pal.surface('wood', 0, .07, .98), base = pal.surface('wood', 1, .06, .82);
+    const ix = hx - .07, iy = hy - .07;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], top, {tuck: ['under'], seed: pal.seed}),
+      ...kit.board(at, [-ix, ix], [-iy, -iy + .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [iy - .03, iy], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .03], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .03, ix], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [-.02, .02], [.14, .175], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .035], [-iy, iy], [.14, .175], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .035, ix], [-iy, iy], [.14, .175], base, {tuck: ['under']}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'wood', kit.post(at, [x * ix, y * iy], [0, h - .04], .03, base));
+    return out;
+  },
+  // A wooden spindle-back chair: four turned legs, a seat board with tucked underside, two stiles, three spindles and a crest rail.
+  // Faces local −y, so the back stands at +y.
+  chair(kit, e, pal) {
+    const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .07, .88), dark = pal.surface('wood', 1, .06, .76);
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .02, hy - .02], [seat - .03, seat], wood, {tuck: ['under'], seed: pal.seed}),
+      ...kit.box(at, [-hx + .035, hx - .035], [hy - .048, hy - .008], [h - .075, h], dark, {tuck: ['under'], broken: .005, seed: pal.seed + 1}),
+    ]);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1])
+      put(out, 'wood', kit.roll(at, [sx * (hx - .04), sy * (hy - .04), 0], [sx * (hx - .065), sy * (hy - .065), seat - .025], .017, dark, {sides: 6}));
+    for (const sx of [-1, 1])
+      put(out, 'wood', kit.roll(at, [sx * (hx - .055), hy - .045, seat - .01], [sx * (hx - .055), hy - .022, h - .03], .015, dark, {sides: 6}));
+    for (const x of [-.085, 0, .085])
+      put(out, 'wood', kit.roll(at, [x, hy - .045, seat], [x, hy - .026, h - .05], .008, wood, {sides: 5}));
+    return out;
+  },
+  // A wrought-iron pan rail on the back wall: flat iron bar on two brackets.
+  'pan-rail'(kit, e, pal) {
+    const at = kit.placed(e), w = (e.along[1] - e.along[0]) / 2, z = e.z, out = {}, iron = pal.surface('iron', 0, .05);
+    put(out, 'iron', [
+      ...kit.board(at, [-w, w], [-.06, -.042], [z - .014, z + .014], iron, {tuck: ['under']}),
+      ...kit.board(at, [-w + .05, -w + .09], [-.06, 0], [z - .024, z + .024], iron, {skip: ['back']}),
+      ...kit.board(at, [w - .09, w - .05], [-.06, 0], [z - .024, z + .024], iron, {skip: ['back']}),
+    ]);
+    return out;
+  },
+  // A pan hanging from the pan rail: iron handle down from the bar, spun copper or iron body facing into the kitchen.
+  pan(kit, e, pal) {
+    const rail = e.parent, w = (rail.along[1] - rail.along[0]) / 2, i = e.index || 0, n = e.count || 1;
+    const x = -w + .22 + i * (2 * w - .44) / Math.max(1, n - 1) + (pal.random(1) - .5) * .04;
+    const r = [.12, .095, .11, .085, .105][i % 5], depth = [.055, .048, .05, .045, .052][i % 5], stem = [.15, .13, .16, .12, .14][i % 5];
+    const surf = i % 2 === 0 ? 'copper' : 'iron', at = kit.placed(e), out = {};
+    const body = pal.surface(surf, 0, .07, surf === 'copper' ? .95 : 1.05), iron = pal.surface('iron', 1, .04);
+    put(out, 'iron', kit.roll(at, [x, -.05, rail.z - .005], [x, -.068, rail.z - stem], .009, iron, {sides: 5}));
+    const face = kit.moved(at, [x, -.068, rail.z - stem - r], {tilt: Math.PI / 2});
+    const prof = [[0, 0], [r * .85, 0], [r * .85, 0], [r, depth * .3], [r, depth], [r * .9, depth], [r * .85, .01], [0, .01]];
+    put(out, surf, kit.turned(face, [0, 0], prof, lined(body, 5), {segments: 10}));
+    return out;
+  },
+  // A copper kettle standing on the range's left hotplate, with spout and arched iron handle.
+  kettle(kit, e, pal) {
+    const at = kit.moved(kit.placed(e), [-.22, -.02, 0], {turn: .4}), out = {};
+    const copper = pal.surface('copper', 0, .07, .96), iron = pal.surface('iron', 1, .05);
+    put(out, 'copper', [
+      ...kit.turned(at, [0, 0], [[0, 0], [.09, 0], [.09, 0], [.105, .04], [.10, .10], [.06, .145], [.05, .155], [0, .16]], copper, {segments: 10}),
+      ...kit.roll(at, [.08, 0, .06], [.15, 0, .145], .014, copper, {sides: 6}),
+    ]);
+    put(out, 'iron', [
+      ...kit.roll(at, [-.075, 0, .12], [-.045, 0, .205], .008, iron, {sides: 5}),
+      ...kit.roll(at, [-.045, 0, .205], [.045, 0, .205], .008, iron, {sides: 5}),
+      ...kit.roll(at, [.045, 0, .205], [.075, 0, .12], .008, iron, {sides: 5}),
+      ...kit.turned(at, [0, 0], [[0, .16], [.016, .16], [.018, .178], [0, .182]], iron, {segments: 6}),
+    ]);
+    return out;
+  },
+  // A folded linen tea towel draped over the range's front rail.
+  cloth(kit, e, pal) {
+    const hy = halves(e.parent)[1], at = kit.placed(e), out = {};
+    const railY = -hy + .02, railZ = -.09, R = .017, back = .14, over = Math.PI * R, front = .26, total = back + over + front;
+    const path = l => l < back ? [railY + R, railZ - back + l]
+      : l < back + over ? [railY + R * Math.cos((l - back) / R), railZ + R * Math.sin((l - back) / R)]
+      : [railY - R, railZ - (l - back - over)];
+    const pointOf = (s, t) => { const [y, z] = path(t * total); return [.34 - .24 * s, y, z]; };
+    const free = (s, t) => { const l = t * total; return l < back ? .5 * (1 - l / back) : l < back + over ? 0 : (l - back - over) / front; };
+    put(out, 'cloth', kit.drape(at, pointOf, .24, total, pal.surface('cloth', 0, .08, .9), {seed: pal.seed, free, folds: .015, cell: .06}));
+    return out;
+  },
+  // A ceramic storage jar (kit, not sculpted) with a wood lid, grouped along the back of the worktop.
+  jar(kit, e, pal) {
+    const i = e.index || 0, xs = [-.54, -.36, -.2], hs = [.13, .175, .15], rs = [.055, .062, .052];
+    const at = kit.moved(kit.placed(e), [xs[i % 3], .14 + (pal.random(1) - .5) * .04, 0], {turn: (pal.random(2) - .5) * .5}), out = {};
+    const surf = i % 2 === 0 ? 'china' : 'enamel', r = rs[i % 3], h = hs[i % 3];
+    put(out, surf, [
+      ...kit.box(at, [-r, r], [-r, r], [0, h - .035], pal.surface(surf, 0, .05, .94), {skip: ['under'], seed: pal.seed, broken: .012}),
+      ...kit.box(at, [-r * .75, r * .75], [-r * .75, r * .75], [h - .035, h - .015], pal.surface(surf, 1, .04, .88), {skip: ['under'], broken: .006}),
+    ]);
+    put(out, 'wood', kit.box(at, [-r * .8, r * .8], [-r * .8, r * .8], [h - .015, h], pal.surface('wood', 2, .06, .82), {skip: ['under'], broken: .005}));
+    return out;
+  },
+  // A timber breadboard with a short handle on the worktop.
+  breadboard(kit, e, pal) {
+    const at = kit.moved(kit.placed(e), [.28, -.03, 0], {turn: .09}), out = {}, wood = pal.surface('wood', 0, .07, 1.04);
+    put(out, 'wood', [
+      ...kit.box(at, [-.18, .18], [-.12, .12], [0, .024], wood, {skip: ['under'], seed: pal.seed, broken: .006}),
+      ...kit.board(at, [.18, .26], [-.035, .035], [.002, .022], wood, {skip: ['under', 'left']}),
+    ]);
+    return out;
+  },
+  // A round farmhouse cob loaf on the kitchen table.
+  loaf(kit, e, pal) {
+    const at = kit.moved(kit.placed(e), [-.26, -.05, 0], {turn: .25}), out = {};
+    const crust = pal.surface('wood', 0, .1, 1.06), base = pal.surface('wood', 1, .06, .72);
+    put(out, 'wood', kit.turned(at, [0, 0], [[0, 0], [.095, 0], [.108, .02], [.112, .045], [.098, .075], [.062, .092], [0, .098]],
+      (p, k) => (k < 2 ? base : crust)(p), {segments: 10}));
+    return out;
+  },
+  // A spun china bowl, centred on the dining table or set to one side on the kitchen table.
+  bowl(kit, e, pal) {
+    const onKitchen = e.parent?.kind === 'kitchen-table';
+    const at = kit.moved(kit.placed(e), onKitchen ? [.25, .05, 0] : [0, 0, 0]), out = {};
+    const glaze = pal.surface('china', 0, .05, .94);
+    put(out, 'china', kit.turned(at, [0, 0], [[0, 0], [.06, 0], [.06, 0], [.105, .03], [.13, .075], [.135, .095], [.125, .098], [.118, .075], [.085, .022], [0, .02]],
+      lined(glaze, 6), {segments: 10, tile: STONE_TILE}));
+    return out;
+  },
+  // Plates: leaning on the dresser's open shelves (two pairs) and a flat stack on the dresser or sideboard.
+  plates(kit, e, pal) {
+    const out = {}, glaze = pal.surface('china', 0, .05, .98);
+    const dish = (at, r = .11, h = .022) => kit.turned(at, [0, 0], [[0, 0], [r * .62, 0], [r * .62, 0], [r, h], [r * .92, h + .003], [r * .58, .008], [0, .008]],
+      lined(glaze, 4), {segments: 10, tile: STONE_TILE});
+    if (e.parent?.kind === 'dresser') {
+      const i = e.index || 0, hy = halves(e.parent)[1], base = kit.placed(e), H = KINDS.dresser.height;
+      if (i < 2) {
+        const shelf = i === 0 ? DRESSER_SHELVES[1] : DRESSER_SHELVES[0];
+        const xs = i === 0 ? [-.28, .22] : [-.02, .30];
+        for (const x of xs) {
+          const leaning = kit.moved(base, [x, hy - .085, shelf - H + .112], {tilt: 1.38});
+          put(out, 'china', dish(leaning, .105, .02));
+        }
+      } else {
+        for (let k = 0; k < 4; k++) put(out, 'china', dish(kit.moved(base, [-.34, .04, DRESSER_SHELVES[0] - H + k * .022]), .105, .022));
+      }
+      return out;
+    }
+    const base = kit.placed(e);
+    for (let k = 0; k < 5; k++) put(out, 'china', dish(kit.moved(base, [.42, 0, k * .022]), .115, .022));
+    return out;
+  },
+  // ── dining room pieces: every tint through pal.surface, returned under SURFACES[name].mesh ──
+  // A dining table for six: darker oak top with tucked underside, apron and four square legs.
+  'dining-table'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const top = pal.surface('wood', 0, .06, .72), base = pal.surface('wood', 1, .06, .6);
+    const ix = hx - .08, iy = hy - .08;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], top, {tuck: ['under'], seed: pal.seed}),
+      ...kit.board(at, [-ix, ix], [-iy, -iy + .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [iy - .03, iy], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .03], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .03, ix], [-iy + .03, iy - .03], [h - .11, h - .04], base, {tuck: ['under']}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'wood', kit.post(at, [x * ix, y * iy], [0, h - .04], .028, base));
+    return out;
+  },
+  // A dining sideboard: plinth, three upper drawers, three lower cupboard doors with iron pulls, overhanging top with tucked underside.
+  sideboard(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .06, .66), top = pal.surface('wood', 1, .06, .76), plinth = pal.surface('wood', 2, .05, .48);
+    const panel = pal.surface('wood', 3, .06, .72), pull = pal.surface('iron', 4, .04);
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .05, hy], [0, .09], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .01, hx - .01], [-hy + .02, hy], [.09, h - .035], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    const w = (2 * hx - .16) / 3;
+    for (let k = 0; k < 3; k++) {
+      const x0 = -hx + .05 + k * (w + .03), x1 = x0 + w, mid = (x0 + x1) / 2;
+      put(out, 'wood', [
+        ...kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [h - .19, h - .06], panel, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [-hy + .005, -hy + .02], [.13, h - .22], panel, {skip: ['back']}),
+      ]);
+      put(out, 'iron', [
+        ...kit.board(at, [mid - .03, mid + .03], [-hy - .005, -hy + .005], [h - .135, h - .115], pull, {skip: ['back']}),
+        ...kit.board(at, [mid - .015, mid + .015], [-hy - .005, -hy + .005], [h - .32, h - .295], pull, {skip: ['back']}),
+      ]);
+    }
+    return out;
+  },
 };
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.
 // `weightsAt(point, normal, roomId)` is the light field's weights at a point of the interior frame, in that room.
-// `recipes` (RECIPES unless given) are the recipes by kind; `skipped` in the result names every piece passed over (empty when none).
-export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint, materials, treads, recipes = RECIPES, weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
+// `recipes` (RECIPES unless given) are the recipes by kind; `only` (a Set of room ids, or null) limits what is made, grounded and reported;
+// `skipped` in the result names every piece passed over (empty when none).
+export function buildFurniture(THREE, {interior: I, art, light, flat = null, face, lit, tint, materials, treads, recipes = RECIPES, only = null, name = 'furniture', weightsAt = () => ({day: 0, lamp: 0, fire: 0, room: -1, spill: 0, spillRoom: -1})}) {
   const kit = createKit(THREE, {face, lit}), plain = createKit(THREE, {face, lit: g => g}), byId = new Map(I.furniture.map(e => [e.id, e])), rooms = new Map(I.rooms.map(r => [r.id, r]));
-  const colours = light ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
+  const entries = only ? I.furniture.filter(e => only.has(e?.room)) : I.furniture;
+  const colours = light || flat ? COLOURS : Object.fromEntries(Object.entries(COLOURS).map(([k, c]) => [k, c.map(v => v / FLAT)]));
   const paletteFor = seed => ({seed, random: k => hash(k, 11, seed),
     // the shades' own: pale and neutral, not lit by the room's weights, so not taken back by the flat light's ratio
     shade: (k = 0, spread = .04) => tint([1, 1, 1], seed + k, spread),
+    surface: (name, k = 0, spread = .08, times = 1) => {
+      const s = SURFACES[name];
+      if (!s) throw new Error(`unknown surface ${name}`);
+      return tint(colours[s.colour].map(v => v * times), seed + k, spread);
+    },
     ...Object.fromEntries(Object.entries(colours).map(([name, c]) => [name, (k = 0, spread = .08, times = 1) => tint(c.map(v => v * times), seed + k, spread)]))});
 
   // Where an entry stands: the entry with `at`, `turn` and `lift` (and, set on a piece, its parent and its place among its kind
@@ -389,7 +727,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   // standing on a piece that is not there and the walker's plan can leave them all out: withoutPieces)
   const lists = {wood: [], cloth: [], stone: [], shades: []}, counts = {wood: 0, cloth: 0, stone: 0, shades: 0}, ranges = new Map(), scene = {interior: I, treads, plain};
   const why = new Map(), makes = [];
-  for (const entry of I.furniture) {
+  for (const entry of entries) {
     const recipe = Object.hasOwn(recipes, entry?.kind) ? recipes[entry.kind] : null;
     if (!recipe) { why.set(entry?.id, `no recipe for ${entry?.kind}`); continue; }
     try {
@@ -400,7 +738,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
       makes.push([entry, made]);
     } catch (error) { why.set(entry.id, error?.message ?? String(error)); }
   }
-  const skipped = [...withDependents(I.furniture, [...why.keys()])];
+  const skipped = [...withDependents(entries, [...why.keys()])];
   for (const id of skipped) if (!why.has(id)) why.set(id, `set on ${byId.get(id).on}, which was passed over`);
   for (const [entry, made] of makes) {
     if (why.has(entry.id)) { for (const list of Object.values(made)) for (const g of list) g.dispose(); continue; }
@@ -413,10 +751,11 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   }
   if (skipped.length) console.warn(`The cabin's furniture passed over ${skipped.length} piece(s) it could not draw: ${skipped.map(id => `${id} (${why.get(id)})`).join(', ')}.`);
 
-  const object = new THREE.Group(); object.name = 'furniture'; object.userData.pieces = ranges;
+  const object = new THREE.Group(); object.name = name; object.userData.pieces = ranges;
   // The stone's own material, as the fireplace's: lit over the stone brushwork (plain where the art has none), or Lambert when built unlit.
   const stoneMap = art?.surfaces?.stone ? {map: art.surfaces.stone} : {};
-  let stone = lists.stone.length ? (light ? light.material(stoneMap) : new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true})) : null;
+  let stone = lists.stone.length ? (light ? light.material(stoneMap)
+    : new THREE.MeshLambertMaterial({...stoneMap, vertexColors: true, ...(flat ? {color: new THREE.Color().setRGB(1 / FLAT, 1 / FLAT, 1 / FLAT, THREE.LinearSRGBColorSpace)} : {})})) : null;
   // The shades' own: one colour for the mesh, set by setLight; double-sided, as an open cone is seen inside and out.
   const shadeMaterial = lists.shades.length ? new THREE.MeshBasicMaterial({vertexColors: true, side: THREE.DoubleSide, fog: false}) : null;
   const material = {wood: materials.surface, cloth: materials.leafed, stone, shades: shadeMaterial};
@@ -438,7 +777,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
   };
   // ── the grounding: one patch a solid piece, merged into one mesh ──
   // A walk-over piece (a rug) the piece's middle stands on: the patch lies just over its top, not under it.
-  const rugs = I.furniture.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
+  const rugs = entries.filter(e => KINDS[e.kind]?.standing === 'walk-over' && ranges.has(e.id));
   const under = e => {
     const rug = rugs.find(r => { if (r.room !== e.room) return false; const [w, h] = sizeOf(r), c = Math.cos(r.turn || 0), s = Math.sin(r.turn || 0), x = e.at[0] - r.at[0], y = e.at[1] - r.at[1];
       return Math.abs(x * c + y * s) <= w / 2 && Math.abs(-x * s + y * c) <= h / 2; });
@@ -476,7 +815,7 @@ export function buildFurniture(THREE, {interior: I, art, light, face, lit, tint,
     }
     grounded.set(e.id, {first, count: position.length / 3 - first});
   };
-  for (const e of I.furniture) if (KINDS[e.kind]?.standing === 'solid' && ranges.has(e.id)) patchOf(e);
+  for (const e of entries) if (KINDS[e.kind]?.standing === 'solid' && ranges.has(e.id)) patchOf(e);
   let ground = null;
   if (grounded.size) {
     const g = new THREE.BufferGeometry();

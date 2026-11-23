@@ -51,7 +51,35 @@ const FURNITURE = [
   standing('newel', 'newel', 'hall', STAIR_RAIL.newel),
   hung('hooks', 'hooks', 'hall', 'a', 7, [.35, 1.6], 1.6),
   hung('mirror', 'mirror', 'hall', 'a', 7, [5.6, 6.2], 1.5),
-  ...many(3, 'coat', 'coat', 'hall', 'hooks'), setOn('hat', 'hat', 'hall', 'hooks'), setOn('boots', 'boots', 'hall', 'boot-bench')
+  ...many(3, 'coat', 'coat', 'hall', 'hooks'), setOn('hat', 'hat', 'hall', 'hooks'), setOn('boots', 'boots', 'hall', 'boot-bench'),
+  // The kitchen: back-wall sink, range and worktop under a pan rail, dresser between the west doors, farmhouse table and two chairs.
+  standing('sink-unit', 'sink-unit', 'kitchen', [3.25, 11.62]),
+  standing('range', 'range', 'kitchen', [4.4, 11.62]),
+  standing('worktop', 'worktop', 'kitchen', [5.7, 11.62]),
+  standing('dresser', 'dresser', 'kitchen', [2.8, 9.5], Math.PI / 2),
+  standing('kitchen-table', 'kitchen-table', 'kitchen', [4.75, 9.5]),
+  standing('chair-kitchen-1', 'chair', 'kitchen', [4.35, 8.82], Math.PI + .06),
+  standing('chair-kitchen-2', 'chair', 'kitchen', [5.15, 8.82], Math.PI - .1),
+  hung('pan-rail', 'pan-rail', 'kitchen', 'd', 12, [4.65, 6.45], 1.75),
+  ...many(5, 'pan', 'pan', 'kitchen', 'pan-rail'),
+  setOn('kettle', 'kettle', 'kitchen', 'range'), setOn('cloth', 'cloth', 'kitchen', 'range'),
+  ...many(3, 'jar', 'jar', 'kitchen', 'worktop'), setOn('breadboard', 'breadboard', 'kitchen', 'worktop'),
+  setOn('bowl-kitchen', 'bowl', 'kitchen', 'kitchen-table'), setOn('loaf', 'loaf', 'kitchen', 'kitchen-table'),
+  ...many(3, 'plates-dresser', 'plates', 'kitchen', 'dresser'), ...many(2, 'cup-dresser', 'cup', 'kitchen', 'dresser'),
+  // The dining room: rug, table for six under the lamp, six chairs, sideboard left of the back window, two pictures on the east wall.
+  standing('dining-rug', 'rug', 'dining', [9, 9.5], .02, [2.9, 3.6]),
+  standing('dining-table', 'dining-table', 'dining', [9, 9.5], Math.PI / 2),
+  standing('chair-dining-1', 'chair', 'dining', [8.30, 9.05], Math.PI / 2 + .05),
+  standing('chair-dining-2', 'chair', 'dining', [8.30, 9.95], Math.PI / 2),
+  standing('chair-dining-3', 'chair', 'dining', [9.70, 9.05], -Math.PI / 2),
+  standing('chair-dining-4', 'chair', 'dining', [9.70, 9.95], -Math.PI / 2 - .08),
+  standing('chair-dining-5', 'chair', 'dining', [9, 8.33], Math.PI),
+  standing('chair-dining-6', 'chair', 'dining', [9, 10.67], 0),
+  standing('sideboard', 'sideboard', 'dining', [8.3, 11.7]),
+  hung('picture-4', 'picture', 'dining', 'a', 11, [8.2, 9.0], 1.5),
+  hung('picture-5', 'picture', 'dining', 'a', 11, [9.9, 10.7], 1.5),
+  setOn('jug-sideboard', 'jug', 'dining', 'sideboard'), setOn('plates-sideboard', 'plates', 'dining', 'sideboard'),
+  ...many(2, 'candlestick-dining', 'candlestick', 'dining', 'dining-table'), setOn('bowl-dining', 'bowl', 'dining', 'dining-table')
 ];
 
 const BLUEPRINT = {
@@ -115,10 +143,15 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
+  furnishLater: ['kitchen', 'dining'],
   stairRail: STAIR_RAIL,
-  // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, and the two
-  // spots the frame cost is measured from.
-  spots: {hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1], speed: [[4.2, 3], [3.8, 5.5]]},
+  // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
+  // before the dresser, at the dining window, and the three spots the frame cost is measured from.
+  spots: {
+    hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1],
+    range: [4.4, 10.9], dresser: [3.5, 9.5], diningWindow: [10, 11.4],
+    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9]],
+  },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
     fitting('living', 'hanging', [3.8, 3.5, 2.15]), fitting('study', 'hanging', [14.5, 2, 2.15]), fitting('kitchen', 'hanging', [4.75, 9.5, 2.15]),

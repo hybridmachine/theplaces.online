@@ -1,4 +1,5 @@
 import {ceilingHeight, roomAt, wallSegments} from '../../../shared/interior.js';
+import {piecesIn} from '../../../shared/furniture.js';
 import {createLightField, interiorDials} from '../../../shared/interior-light.js';
 import {mergeGeometries, sheet, V} from '../geometry.js';
 import {noise} from '../scene/noise.js';
@@ -354,18 +355,34 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   const fittings = buildFittings(THREE, {interior: I, light, field, tints: {plaster, boards}, materials: {surface, plastered}});
   scene.add(fittings.object);
   // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
-  // room it names, as a face is. If it cannot be built the rooms stay bare.
-  let furniture = null;
-  try {
-    const weigh = coarseWeigh();
-    furniture = buildFurniture(THREE, {interior: I, art, light, face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
+  // room it names, as a face is. Rooms listed in `furnishLater` are queued and built one at a time by `buildNext()`.
+  const sets = [], setStats = [], builtRooms = [], failedSkipped = [];
+  // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.
+  let skippedAll = Object.freeze([]);
+  const noteSkipped = () => { const all = [...sets.flatMap(s => s.skipped), ...failedSkipped]; if (all.length !== skippedAll.length) skippedAll = Object.freeze(all); };
+  let firstSet = null, firstFailed = false, flatMaterials = null, disposed = false;
+  const later = Array.isArray(I.furnishLater) && Array.isArray(I.furniture) && I.furniture.length ? [...I.furnishLater] : [];
+  const laterSet = new Set(later), queue = [...later];
+  const buildSet = (only, name) => {
+    const t0 = performance.now(), weigh = coarseWeigh();
+    const set = buildFurniture(THREE, {interior: I, art, light, flat: flatMaterials,
+      face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
       lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint,
-      materials: {surface, leafed}, treads: TREADS, recipes,
+      materials: flatMaterials ?? {surface, leafed}, treads: TREADS, recipes, only, name,
       weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
-    scene.add(furniture.object);
+    return {set, ms: performance.now() - t0};
+  };
+  try {
+    const firstOnly = laterSet.size ? new Set(I.furniture.map(e => e?.room).filter(r => !laterSet.has(r))) : null;
+    const {set, ms} = buildSet(firstOnly, 'furniture');
+    firstSet = set; sets.push(set); scene.add(set.object);
+    const skippedSet = new Set(set.skipped);
+    const firstRooms = I.rooms.filter(r => !laterSet.has(r.id) && I.furniture.some(e => e?.room === r.id && !skippedSet.has(e.id))).map(r => r.id);
+    setStats.push({rooms: firstRooms, vertices: set.counts.vertices, meshes: set.counts.meshes, ms});
+    builtRooms.push(...firstRooms); noteSkipped();
   } catch (error) {
     console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
-    furniture = null;
+    firstFailed = true; queue.length = 0;
   }
   // The added light (the lamps' halos, the flames and the fire's glow), a scene of its own that the view draws after the yard seen
   // through the live panes, into the same target, depth-tested against the rooms and with no stencil: drawn with the rooms it would
@@ -374,7 +391,29 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   const overlay = new THREE.Scene(); overlay.name = 'interior-overlay'; overlay.add(fittings.overlay, fireplace.overlay);
   // Lit, the rooms show a plain daytime until a frame sets its own light; unlit, one even light as before.
   const daytime = interiorDials({interior: I, ...DAYTIME}); fittings.setLight(daytime);
+  let lastDials = daytime;
   if (light) light.set(daytime); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
+  const buildNext = () => {
+    if (disposed || !queue.length) return null;
+    const room = queue.shift(), ids = piecesIn(I, [room]);
+    if (!ids.length) return room;
+    try {
+      const {set, ms} = buildSet(new Set([room]), `furniture-${room}`);
+      sets.push(set);
+      if (set.counts.meshes > 0) {
+        scene.add(set.object);
+        setStats.push({rooms: [room], vertices: set.counts.vertices, meshes: set.counts.meshes, ms});
+        builtRooms.push(room);
+        set.setLight(lastDials);
+      }
+    } catch (error) {
+      console.warn(`The cabin's furniture for ${room} could not be built; it stays bare.`, error);
+      failedSkipped.push(...ids);
+    }
+    noteSkipped();
+    return room;
+  };
+  const buildRest = () => { while (buildNext() !== null) {} };
   const clamp01 = x => Math.min(1, Math.max(0, x));
   // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
@@ -406,19 +445,28 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
   const overlayWithRooms = on => { if (on === withRooms) return; withRooms = on; (on ? scene : overlay).add(fittings.overlay, fireplace.overlay); };
   return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
     // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
-    furnished: !!furniture && I.furniture.length > 0, furniture: furniture?.counts ?? null, pieceBox: id => furniture?.pieceBox(id) ?? null,
+    furnished: !!firstSet && I.furniture.length > 0,
+    get pending() { return [...queue]; },
+    buildNext, buildRest,
+    get furnishedRooms() { return [...builtRooms]; },
+    get furniture() {
+      if (firstFailed) return null;
+      return {vertices: setStats.reduce((t, s) => t + s.vertices, 0), meshes: setStats.reduce((t, s) => t + s.meshes, 0), sets: setStats.map(s => ({...s, rooms: [...s.rooms]}))};
+    },
+    pieceBox(id) { for (const s of sets) { const box = s.pieceBox(id); if (box) return box; } return null; },
     // The ids of the pieces passed over (each, and everything set on it; empty when none, or when no furniture was built).
-    skipped: furniture?.skipped ?? [],
+    get skipped() { return skippedAll; },
     // A frame's dials (shared/interior-light.js's interiorDials) into every lit surface at once, and the lamps' glasses (lit or not).
-    setLight(dials) { light?.set(dials); fittings.setLight(dials); furniture?.setLight(dials); },
+    setLight(dials) { lastDials = dials; light?.set(dials); fittings.setLight(dials); for (const s of sets) s.setLight(dials); },
     // Gives the lit surfaces up for the flat light, as if they could never be made (for a lit program that would not compile on
     // this device, found only once it is first drawn): every lit surface of the shell, the fireplace, the fittings and the furniture takes the
     // Lambert materials and the hemisphere light comes in. The glasses, halos and fire carry on. Once only; nothing when unlit.
     fallBack() {
       if (!light) return;
       const ratio = (unlit, lit) => unlit.map((c, i) => c / lit[i]), flat = lambert({plasterK: ratio(PLASTER, LIT_PLASTER), boardsK: ratio(BOARDS, LIT_BOARDS)});
+      flatMaterials = flat;
       for (const [name, kind] of Object.entries(FLAT)) { const m = scene.getObjectByName(name); if (m) m.material = flat[kind]; }
-      fireplace.fallBack(flat); fittings.fallBack(flat); furniture?.fallBack(flat);
+      fireplace.fallBack(flat); fittings.fallBack(flat); for (const s of sets) s.fallBack(flat);
       light.dispose(); light = null;
       scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
     },
@@ -440,9 +488,10 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes}) {
     setFire: fireplace.setFire,
     setDoor(open) { doorLeaf.rotation.y = doorTurn * clamp01(open) * DOOR_SWING; },
     dispose() {
+      disposed = true; queue.length = 0;
       const materials = new Set(markers.values());
       scene.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
       for (const m of materials) m.dispose();
-      fireplace.dispose(); fittings.dispose(); furniture?.dispose();
+      fireplace.dispose(); fittings.dispose(); for (const s of sets) s.dispose();
     }};
 }

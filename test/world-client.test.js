@@ -203,6 +203,21 @@ test('a furnished room adds its fixed clause once, before what is lit', () => {
   } finally { store.close(); }
 });
 
+test('kitchen and dining room descriptions include their furnished clause only when furnished', () => {
+  const store = new WorldStore(':memory:', epoch);
+  try {
+    const data = store.snapshot(epoch), text = options => sceneText(data, epoch, options).description;
+    const KITCHEN = 'A range stands on the back wall and a table in the middle. ';
+    const DINING = 'A table is laid for six by the window. ';
+    assert.ok(text({room: 'kitchen', lit: {room: 'kitchen', lamp: false, fire: null}, furnished: true})
+      .startsWith(`Inside the cabin, in the kitchen. ${KITCHEN}The lamp is out. `));
+    assert.doesNotMatch(text({room: 'kitchen', lit: {room: 'kitchen', lamp: false, fire: null}, furnished: false}), /range stands/);
+    assert.ok(text({room: 'dining room', lit: {room: 'dining room', lamp: true, fire: null}, furnished: true})
+      .startsWith(`Inside the cabin, in the dining room. ${DINING}The lamp is lit. `));
+    assert.doesNotMatch(text({room: 'dining room', lit: {room: 'dining room', lamp: true, fire: null}, furnished: false}), /laid for six/);
+  } finally { store.close(); }
+});
+
 test('the description is refreshed when a lamp or the fire changes', () => {
   const store = new WorldStore(':memory:', epoch);
   try {

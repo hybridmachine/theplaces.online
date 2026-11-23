@@ -217,7 +217,8 @@ test('liveOpenings leaves out a pane behind a wall even when it would fill the s
 
 test('the outer wall a pane sits in never hides it', () => {
   for (const id of ['living', 'study', 'dining', 'door']) {
-    const o = by(id), side = o.across.map(x => x * 1.2), p = [0, 1].map(i => o.centre[i] - o.outward[i] * .5 + side[i] * (id === 'dining' ? -1 : 1));
+    const o = by(id), side = o.across.map(x => x * 1.2), off = id === 'dining' ? .9 : .5;
+    const p = [0, 1].map(i => o.centre[i] - o.outward[i] * off + side[i] * (id === 'dining' ? -1 : 1));
     assert.ok(floorArea(I, 0, p), `${id} eye is standable`);
     assert.equal(inSight(o, I, at(0, p), eyeOf(0, p)), true, id);
   }

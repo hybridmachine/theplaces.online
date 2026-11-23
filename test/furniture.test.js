@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {KINDS, footprint, corners, solidObstacles, obstaclesOf, bareInterior, withoutPieces} from '../shared/furniture.js';
+import {KINDS, footprint, corners, solidObstacles, obstaclesOf, bareInterior, withoutPieces, piecesIn, withoutRooms} from '../shared/furniture.js';
 
 const r2 = n => Math.round(n * 100) / 100;
 const round = f => f && {a: f.a.map(r2), d: f.d.map(r2)};
@@ -86,4 +86,53 @@ test('footprint of an unknown kind is null and nothing throws', () => {
   assert.equal(footprint({id: 'q', kind: 'book', room: 'living', on: 'mantel'}), null);
   assert.deepEqual(solidObstacles({rooms: [], breasts: []}), []);
   assert.ok(KINDS.sofa.standing === 'solid');
+});
+
+test('the kitchen and dining kinds have the right standings, heights and footprints', () => {
+  for (const [k, size, h] of [
+    ['sink-unit', [1.3, .6], .9], ['range', [1.0, .6], .9], ['worktop', [1.6, .6], .9], ['dresser', [1.2, .45], 2.0],
+    ['kitchen-table', [1.5, .8], .75], ['dining-table', [1.8, .9], .75], ['chair', [.45, .45], .9], ['sideboard', [1.6, .45], .85],
+  ]) {
+    assert.equal(KINDS[k].standing, 'solid', k);
+    assert.deepEqual(KINDS[k].size, size, k);
+    assert.equal(KINDS[k].height, h, k);
+  }
+  assert.equal(KINDS.chair.seat, .45);
+  assert.equal(KINDS['pan-rail'].standing, 'wall-hung'); assert.equal(KINDS['pan-rail'].height, .05);
+  for (const [k, h] of [['pan', .3], ['kettle', .22], ['cloth', .05], ['jar', .18], ['breadboard', .03], ['loaf', .1], ['bowl', .1], ['plates', .12], ['cup', .09]]) {
+    assert.equal(KINDS[k].standing, 'set-on', k);
+    assert.equal(KINDS[k].height, h, k);
+  }
+  const ch = footprint({id: 'c', kind: 'chair', room: 'living', at: [4, 4], turn: Math.PI / 2});
+  near(ch.a[1] - ch.a[0], .45); near(ch.d[1] - ch.d[0], .45);
+  const dt = footprint({id: 'd', kind: 'dining-table', room: 'living', at: [4, 4], turn: Math.PI / 2});
+  near(dt.a[1] - dt.a[0], .9); near(dt.d[1] - dt.d[0], 1.8);
+});
+test('piecesIn lists ids of pieces in the named rooms', () => {
+  const i = {furniture: [
+    {id: 'a', kind: 'sofa', room: 'living', at: [3, 3]},
+    {id: 'b', kind: 'chair', room: 'kitchen', at: [4, 8]},
+    {id: 'c', kind: 'chair', room: 'dining', at: [9, 8]},
+  ]};
+  assert.deepEqual(piecesIn(i, ['kitchen', 'dining']), ['b', 'c']);
+  assert.deepEqual(piecesIn(i, ['hall']), []);
+});
+test('withoutRooms drops those rooms\' pieces and what is set on them, re-derives obstacles and empties furnishLater', () => {
+  const i = {
+    rooms: [{id: 'living', floor: 0, a: [0, 7], d: [0, 7]}, {id: 'kitchen', floor: 0, a: [2.5, 7], d: [7, 12]}, {id: 'dining', floor: 0, a: [7, 11], d: [7, 12]}],
+    breasts: [{floor: 0, a: [0, .5], d: [2.5, 4.5]}],
+    furnishLater: ['kitchen', 'dining'],
+    furniture: [
+      {id: 's', kind: 'sofa', room: 'living', at: [4, 4]},
+      {id: 'kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5]},
+      {id: 'b', kind: 'bowl', room: 'kitchen', on: 'kt'},
+      {id: 'dt', kind: 'dining-table', room: 'dining', at: [9, 9.5]},
+    ],
+  };
+  i.obstacles = obstaclesOf(i);
+  const w = withoutRooms(i, ['kitchen', 'dining']);
+  assert.deepEqual(w.furniture.map(e => e.id), ['s']);
+  assert.deepEqual(w.obstacles, obstaclesOf(w));
+  assert.deepEqual(w.furnishLater, []);
+  assert.ok(Object.isFrozen(w)); assert.ok(Object.isFrozen(w.furnishLater));
 });

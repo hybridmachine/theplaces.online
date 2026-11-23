@@ -1,5 +1,5 @@
 import test from 'node:test';
-import {bareInterior, obstaclesOf, solidObstacles} from '../shared/furniture.js';
+import {bareInterior, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
@@ -162,12 +162,12 @@ test('no wall fitting sits inside an obstacle; a hanging one may hang over one',
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 1.5, 1.8]}); }), true);
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
   assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
-  // a table under the dining room's lamp leaves the blueprint valid
-  assert.equal(solid('dining', [9, 9.5]), true);
+  // a table under a room's hanging lamp leaves the blueprint valid (dining already has its table; test an unfurnished room too)
+  assert.equal(solid('master', [14.5, 9.5]), true);
 });
 
 // The living room's and hall's furniture, and the rules that keep it walkable.
-import {doorwayPoint, furnishedWay, reachable, wideTargets} from '../shared/interior.js';
+import {FURNISHED, doorwayPoint, furnishedWay, reachable, throughWays, wideTargets} from '../shared/interior.js';
 
 const piece = (c, id) => c.furniture.find(e => e.id === id);
 // A copy of the blueprint with its furniture changed, the walker's obstacles derived again.
@@ -276,4 +276,87 @@ test('a blueprint whose obstacles omit a solid piece, or reorder them, is invali
   const swapped = structuredClone(I); swapped.obstacles.reverse();
   assert.equal(validInterior(swapped), false, 'the same rectangles in another order');
   assert.equal(validInterior(bareInterior(I)), true);
+});
+
+// Kitchen and dining room rules, spots and ways through (synthetic cases start with kitchen and dining bare so they test each rule in isolation).
+const withPieces = (extra, spots) => {
+  const c = structuredClone(withoutRooms(I, ['kitchen', 'dining']));
+  c.furniture.push(...extra);
+  if (spots) c.spots = {...c.spots, ...spots};
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+test('the real blueprint is valid, with the new spots and the third speed spot', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishLater, ['kitchen', 'dining']);
+  assert.equal(I.spots.speed.length, 3);
+  for (const k of ['range', 'dresser', 'diningWindow']) assert.ok(Array.isArray(I.spots[k]) && floorArea(I, 0, I.spots[k]), k);
+  assert.ok(floorArea(I, 0, I.spots.speed[2]));
+  assert.deepEqual(FURNISHED, ['hall', 'living', 'kitchen', 'dining']);
+});
+test('a table across the kitchen blocks the way through it', () => {
+  assert.equal(validInterior(withPieces([{id: 'kt-wide', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], size: [3.9, .8]}])), false);
+  // (clear of all doorway boxes and passable at 0.25 m, yet too tight for the 0.9 m way through to the laundry and pantry)
+  const narrow = withPieces([{id: 'kt-narrow', kind: 'kitchen-table', room: 'kitchen', at: [3.6, 9.5], size: [.7, 3.6]}], {dresser: [4.5, 9.5]});
+  const pantry = doorwayPoint(I.openings.find(o => o.id === 'kitchen-pantry'));
+  const lk = doorwayPoint(I.openings.find(o => o.id === 'living-kitchen'));
+  assert.ok(reachable(furnishedWay(narrow, ['kitchen']), 0, lk, pantry), 'the 0.25 m walker still passes');
+  assert.equal(reachable(furnishedWay(narrow, ['kitchen']), 0, lk, pantry, .45), false);
+  assert.equal(validInterior(narrow), false);
+});
+test('a table across the dining room blocks the way through it', () => {
+  assert.equal(validInterior(withPieces([{id: 'dt-wide', kind: 'dining-table', room: 'dining', at: [9, 8.2], size: [3.4, .9], turn: 0}])), false);
+  // (clear of the doorway boxes, yet too tight for the 0.9 m way between the kitchen and hall openings)
+  const tight = withPieces([{id: 'dt-tight', kind: 'dining-table', room: 'dining', at: [9.15, 8.2], size: [3.1, .9], turn: 0}]);
+  const kd = doorwayPoint(I.openings.find(o => o.id === 'kitchen-dining'));
+  const hd = doorwayPoint(I.openings.find(o => o.id === 'hall-dining'));
+  assert.equal(reachable(furnishedWay(tight, ['dining']), 0, kd, hd, .45), false);
+  assert.equal(validInterior(tight), false);
+});
+test('a piece on a new named spot makes the blueprint invalid', () => {
+  for (const [k, room] of [['range', 'kitchen'], ['dresser', 'kitchen'], ['diningWindow', 'dining']]) {
+    assert.equal(validInterior(withPieces([{id: `on-${k}`, kind: 'chair', room, at: [...I.spots[k]]}])), false, k);
+  }
+  // (a low piece under the window sill still fails because it covers spots.diningWindow)
+  assert.equal(validInterior(withPieces([{id: 'low-on-dw', kind: 'side-table', room: 'dining', at: [...I.spots.diningWindow]}])), false);
+});
+test('a piece on the third speed spot makes the blueprint invalid', () => {
+  assert.equal(validInterior(withPieces([{id: 'on-speed2', kind: 'chair', room: 'kitchen', at: [...I.spots.speed[2]]}])), false);
+});
+test('a sideboard under the dining window makes the blueprint invalid; a low piece there does not', () => {
+  // Move diningWindow slightly forward so Rule 7 does not hide Rule 9.
+  const clearSpot = {diningWindow: [10, 11.0]};
+  assert.equal(validInterior(withPieces([{id: 'sb-win', kind: 'sideboard', room: 'dining', at: [10, 11.7]}], clearSpot)), false);
+  assert.equal(validInterior(withPieces([{id: 'ws-win', kind: 'window-seat', room: 'dining', at: [10, 11.7]}], clearSpot)), true);
+});
+test('throughWays names the dining room once and the kitchen once, by doorway points of the blueprint', () => {
+  const ways = throughWays(I), op = id => doorwayPoint(I.openings.find(o => o.id === id));
+  assert.deepEqual(ways.map(w => w.room), ['dining', 'kitchen']);
+  assert.deepEqual(ways[0], {room: 'dining', from: op('kitchen-dining'), to: [op('hall-dining')]});
+  assert.deepEqual(ways[1], {room: 'kitchen', from: op('living-kitchen'), to: [op('kitchen-dining'), op('kitchen-laundry'), op('kitchen-pantry')]});
+});
+test('a kitchen table as planned leaves a 0.9 m way to the pantry and laundry doors', () => {
+  const c = withPieces([
+    {id: 'kt-plan', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], turn: 0},
+    {id: 'dr-plan', kind: 'dresser', room: 'kitchen', at: [2.8, 9.5], turn: Math.PI / 2},
+  ]);
+  assert.equal(validInterior(c), true);
+});
+test('the real blueprint with the kitchen furnished is valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'range'));
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'kitchen-table'));
+  assert.ok(I.furniture.some(e => e.room === 'kitchen' && e.kind === 'dresser'));
+});
+test('the real blueprint with both rooms furnished is valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(I.furniture.some(e => e.room === 'dining' && e.kind === 'dining-table'));
+  assert.ok(I.furniture.some(e => e.room === 'dining' && e.kind === 'sideboard'));
+  assert.equal(I.furniture.filter(e => e.room === 'dining' && e.kind === 'chair').length, 6);
+});
+test('the dining window spot is reachable down the side wall', () => {
+  assert.equal(reachable(I, 0, I.entry.position, I.spots.diningWindow), true);
+});
+test('the way down the side wall to the window is 0.9 m wide', () => {
+  assert.equal(reachable(furnishedWay(I, ['dining']), 0, doorwayPoint(I.openings.find(o => o.id === 'hall-dining')), [10.44, 11.2], .45), true);
 });
