@@ -224,3 +224,43 @@ test('walking from the study shelves toward the desk stops at its footprint and 
   }
   assert.ok(g.position[0] > desk.a[1] + .1, `slid east past desk to ${g.position}`);
 });
+
+test('walking into the bed\'s side and into a passage wardrobe stops and slides', () => {
+  const bed = I.obstacles.find(o => o.id === 'bed');
+  assert.ok(bed, 'bed obstacle exists');
+  const inBed = p => p[0] > bed.a[0] && p[0] < bed.a[1] && p[1] > bed.d[0] && p[1] < bed.d[1];
+  const bedStart = {...entry, position: [12.7, 10.6]};
+  assert.ok(standable(bedStart));
+  let s = {...bedStart, yaw: Math.PI / 2};   // straight +a into bed's west side
+  for (let i = 0; i < 120; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inBed(s.position), `entered bed at ${s.position}`);
+  }
+  assert.ok(s.position[0] <= bed.a[0] - I.eyeClear + 1e-9, `stopped at bed: ${s.position}`);
+  assert.ok(s.position[0] > bed.a[0] - I.eyeClear - .1, `pressed close to bed: ${s.position}`);
+  let g = {...bedStart, yaw: Math.PI * 3 / 4};   // diagonal +a / -d, sliding north toward foot of bed
+  for (let i = 0; i < 60; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inBed(g.position), `entered bed while sliding: ${g.position}`);
+  }
+  assert.ok(g.position[1] < bedStart.position[1] - .5, `slid along bed to ${g.position}`);
+
+  const w = I.obstacles.find(o => o.id === 'wardrobe-passage-1');
+  assert.ok(w, 'wardrobe-passage-1 obstacle exists');
+  const inW = p => p[0] > w.a[0] && p[0] < w.a[1] && p[1] > w.d[0] && p[1] < w.d[1];
+  const wStart = {...entry, position: [11.7, 5.5]};
+  assert.ok(standable(wStart));
+  let ws = {...wStart, yaw: Math.PI};   // straight -d into wardrobe
+  for (let i = 0; i < 90; i++) {
+    ws = stepIndoors(I, ws, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(ws) && !inW(ws.position), `entered wardrobe at ${ws.position}`);
+  }
+  assert.ok(ws.position[1] >= w.d[1] + I.eyeClear - 1e-9, `stopped at wardrobe: ${ws.position}`);
+  assert.ok(ws.position[1] < w.d[1] + I.eyeClear + .1, `pressed close to wardrobe: ${ws.position}`);
+  let wg = {...wStart, yaw: Math.PI - Math.PI / 4};   // diagonal +a / -d, sliding east along wardrobe
+  for (let i = 0; i < 45; i++) {
+    wg = stepIndoors(I, wg, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(wg) && !inW(wg.position), `entered wardrobe while sliding: ${wg.position}`);
+  }
+  assert.ok(wg.position[0] > wStart.position[0] + .4, `slid along wardrobe to ${wg.position}`);
+});

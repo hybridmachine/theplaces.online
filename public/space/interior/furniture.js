@@ -722,6 +722,126 @@ export const RECIPES = {
     }
     return out;
   },
+  // A tall wardrobe: plinth, carcass, cornice with broken edge, two framed doors and sculpted iron knobs.
+  wardrobe(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .06, .70), cornice = pal.surface('wood', 1, .06, .78);
+    const plinth = pal.surface('wood', 2, .05, .48), stile = pal.surface('wood', 3, .06, .76), panel = pal.surface('wood', 4, .05, .58);
+    const knob = pal.surface('iron', 5, .04);
+    const fy = -hy + .04;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .035, hx - .035], [fy + .02, hy], [0, .09], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .02, hx - .02], [fy, hy], [.09, h - .065], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .065, h], cornice, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    // two framed doors on the front face, each with an upper and lower recessed panel
+    for (const [x0, x1, kx] of [[-hx + .045, -.01, -.06], [.01, hx - .045, .06]]) {
+      const z0 = .12, z1 = h - .09, zm = .82, sw = .055;
+      put(out, 'wood', [
+        ...kit.board(at, [x0, x1], [fy - .018, fy], [z0, z0 + sw], stile, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [fy - .018, fy], [zm - sw / 2, zm + sw / 2], stile, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [fy - .018, fy], [z1 - sw, z1], stile, {skip: ['back']}),
+        ...kit.board(at, [x0, x0 + sw], [fy - .018, fy], [z0 + sw, z1 - sw], stile, {skip: ['back']}),
+        ...kit.board(at, [x1 - sw, x1], [fy - .018, fy], [z0 + sw, z1 - sw], stile, {skip: ['back']}),
+        ...kit.board(at, [x0 + sw, x1 - sw], [fy - .008, fy], [z0 + sw, zm - sw / 2], panel, {skip: ['back', 'left', 'right', 'top', 'under']}),
+        ...kit.board(at, [x0 + sw, x1 - sw], [fy - .008, fy], [zm + sw / 2, z1 - sw], panel, {skip: ['back', 'left', 'right', 'top', 'under']}),
+      ]);
+      put(out, 'iron', kit.roll(at, [kx, fy - .018, 1.05], [kx, fy - .036, 1.05], .012, knob, {sides: 6}));
+    }
+    return out;
+  },
+  // A double bed: kit frame, headboard and lower footboard, sculpted turned corner posts, mattress top at `seat`,
+  // dark tucked underside, and sculpted draped bedclothes falling along the sides and foot.
+  'double-bed'(kit, e, pal) {
+    const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .06, .66), trim = pal.surface('wood', 1, .06, .76), panel = pal.surface('wood', 2, .05, .56);
+    const linen = pal.surface('cloth', 3, .06, .98), sheet = pal.surface('cloth', 4, .06, .92);
+    const footH = .74, postProfile = top => [
+      [0, 0], [.032, 0], [.032, 0], [.032, .05], [.022, .09], [.034, .18], [.036, .20],
+      [.036, top - .10], [.024, top - .07], [.040, top - .035], [.030, top - .01], [0, top],
+    ];
+    for (const sx of [-1, 1]) {
+      put(out, 'wood', [
+        ...kit.turned(at, [sx * (hx - .04), hy - .04], postProfile(h), wood, {segments: 8}),
+        ...kit.turned(at, [sx * (hx - .04), -hy + .04], postProfile(footH), wood, {segments: 8}),
+      ]);
+    }
+    put(out, 'wood', [
+      // side rails, foot rail and dark tucked under-mattress base (18 cm floor clearance)
+      ...kit.board(at, [-hx + .03, -hx + .065], [-hy + .07, hy - .07], [.18, .35], wood, {tuck: ['under', 'right']}),
+      ...kit.board(at, [hx - .065, hx - .03], [-hy + .07, hy - .07], [.18, .35], wood, {tuck: ['under', 'left']}),
+      ...kit.board(at, [-hx + .07, hx - .07], [-hy + .025, -hy + .06], [.18, .35], wood, {tuck: ['under', 'back']}),
+      ...kit.board(at, [-hx + .065, hx - .065], [-hy + .06, hy - .06], [.24, .28], wood, {tuck: ['under'], skip: ['top']}),
+      // headboard (at +y) with top cap rail and framed panel
+      ...kit.box(at, [-hx + .07, hx - .07], [hy - .06, hy - .025], [.34, h - .06], panel, {skip: ['under'], seed: pal.seed}),
+      ...kit.box(at, [-hx + .07, hx - .07], [hy - .068, hy - .02], [h - .06, h - .015], trim, {tuck: ['under'], seed: pal.seed + 1}),
+      // lower footboard (at -y) with top cap rail
+      ...kit.box(at, [-hx + .07, hx - .07], [-hy + .025, -hy + .055], [.35, footH - .10], panel, {skip: ['under'], seed: pal.seed + 2}),
+      ...kit.box(at, [-hx + .07, hx - .07], [-hy + .02, -hy + .062], [footH - .10, footH - .055], trim, {tuck: ['under'], seed: pal.seed + 3}),
+    ]);
+    // mattress and top linen up to `seat`, plus turned-down top cuff near the head
+    put(out, 'cloth', [
+      ...kit.box(at, [-hx + .055, hx - .055], [-hy + .065, hy - .065], [.28, seat], linen, {skip: ['under'], seed: pal.seed + 4}),
+      ...kit.box(at, [-hx + .05, hx - .05], [.26, .48], [seat - .005, seat + .012], sheet, {skip: ['under'], broken: .006, seed: pal.seed + 5}),
+    ]);
+    // sculpted draped bedclothes falling over both sides (keeping the lower 24 cm open under the bed) and inside the footboard
+    const sideY0 = -hy + .10, sideY1 = hy - .14, drop = seat - .24;
+    for (const side of [-1, 1]) {
+      const x = side * (hx - .042);
+      const pt = (s, t) => [x, side < 0 ? sideY1 - (sideY1 - sideY0) * s : sideY0 + (sideY1 - sideY0) * s, seat - drop * t];
+      put(out, 'cloth', kit.drape(at, pt, sideY1 - sideY0, drop, sheet, {seed: pal.seed + (side < 0 ? 10 : 11), folds: .018, cell: .2}));
+    }
+    const footX = hx - .065, footDrop = seat - .36;
+    put(out, 'cloth', kit.drape(at, (s, t) => [-footX + 2 * footX * s, -hy + .062, seat - footDrop * t],
+      2 * footX, footDrop, sheet, {seed: pal.seed + 12, folds: .015, cell: .2}));
+    return out;
+  },
+  // A blanket chest: plinth, boarded carcass with framed front panels, lid standing 2 cm proud, and sculpted iron end handles.
+  chest(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .07, .70), lid = pal.surface('wood', 1, .07, .82);
+    const plinth = pal.surface('wood', 2, .05, .48), panel = pal.surface('wood', 3, .06, .62), iron = pal.surface('iron', 4, .04);
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .03, hx - .03], [-hy + .03, hy - .03], [0, .055], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .02, hx - .02], [-hy + .02, hy - .02], [.055, h - .04], body, {skip: ['under', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], lid, {tuck: ['under'], seed: pal.seed + 1}),
+    ]);
+    for (const [x0, x1] of [[-hx + .08, -.04], [.04, hx - .08]]) {
+      put(out, 'wood', kit.board(at, [x0, x1], [-hy + .012, -hy + .02], [.10, h - .09], panel, {skip: ['back']}));
+    }
+    for (const sx of [-1, 1]) {
+      const x = sx * (hx - .01);
+      put(out, 'iron', [
+        ...kit.roll(at, [x, -.07, .31], [x, .07, .31], .009, iron, {sides: 5}),
+        ...kit.roll(at, [x - sx * .01, -.07, .31], [x, -.07, .31], .008, iron, {sides: 5}),
+        ...kit.roll(at, [x - sx * .01, .07, .31], [x, .07, .31], .008, iron, {sides: 5}),
+      ]);
+    }
+    return out;
+  },
+  // A pillow on the bed: rolled and tapering to a seam as the window seat's cushions do, placed side by side at the head end.
+  pillow(kit, e, pal) {
+    const [, hy] = halves(e.parent), i = e.index || 0, n = e.count || 1;
+    const x = (i - (n - 1) / 2) * .72 + (pal.random(1) - .5) * .03;
+    const at = kit.moved(kit.placed(e), [x, hy - .32, 0], {turn: (pal.random(2) - .5) * .08, tilt: .06}), out = {};
+    put(out, 'cloth', kit.cushion(at, [-.29, .29], [-.18, .18], [0, KINDS.pillow.height], pal.surface('cloth', i, .06, 1.02),
+      {seed: pal.seed, bulge: .75, sag: .35, taper: .65, cuts: 3}));
+    return out;
+  },
+  // A folded woollen blanket draped across the foot of the bed and hanging over both sides.
+  blanket(kit, e, pal) {
+    const [hx, hy] = halves(e.parent), at = kit.placed(e), out = {};
+    const wool = pal.surface('cloth', 0, .09, .54);
+    const y0 = -hy + .14, y1 = -hy + .66, topX = hx - .038, drop = .24, rise = .028;
+    const total = drop + 2 * topX + drop;
+    const path = l => l < drop ? [-topX, rise - (drop - l)]
+      : l < drop + 2 * topX ? [-topX + (l - drop), rise]
+        : [topX, rise - (l - drop - 2 * topX)];
+    const pt = (s, t) => { const [x, z] = path(t * total); return [x, y0 + (y1 - y0) * s, z]; };
+    const free = (s, t) => { const l = t * total; return l < drop ? (drop - l) / drop : l > drop + 2 * topX ? (l - drop - 2 * topX) / drop : 0; };
+    put(out, 'cloth', kit.drape(at, pt, y1 - y0, total, wool, {seed: pal.seed, free, folds: .022, cell: .18}));
+    return out;
+  },
 };
 
 // `treads` is the stair's tread count (buildInterior's), which the newel's balusters follow.

@@ -1030,3 +1030,38 @@ test('the study builds as one queued set of at most five meshes with shades, ski
   assert.ok(out[0] / out[2] < 1.4);
   inside.dispose();
 });
+
+// ── passage and master bedroom furniture (Task 5) ──
+test('the passage and master bedroom build without skipping, stay within their mesh limits, place pillows on the mattress, and follow the master lamp', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const pSet = inside.furniture.sets.find(s => s.rooms.includes('passage'));
+  const mSet = inside.furniture.sets.find(s => s.rooms.includes('master'));
+  assert.ok(pSet && mSet, 'passage and master sets exist');
+  assert.ok(pSet.meshes >= 1 && pSet.meshes <= 4, `passage meshes: ${pSet.meshes}`);
+  assert.equal(inside.scene.getObjectByName('furniture-passage')?.getObjectByName('shades'), undefined, 'passage has no shades');
+  assert.ok(mSet.meshes >= 1 && mSet.meshes <= 5, `master meshes: ${mSet.meshes}`);
+  assert.ok(inside.scene.getObjectByName('furniture-master')?.getObjectByName('shades'), 'master has a shades mesh');
+  const pillow1 = inside.pieceBox('pillow-1');
+  assert.ok(pillow1, 'pillow-1 drawn');
+  assert.ok(pillow1.z[0] >= KINDS['double-bed'].seat - .005 && pillow1.z[0] <= KINDS['double-bed'].seat + .02,
+    `pillow-1 bottom ${pillow1.z[0]} vs mattress ${KINDS['double-bed'].seat}`);
+  // Every solid piece in passage and master stands inside its footprint and has a grounding patch.
+  const solids = I.furniture.filter(e => (e.room === 'passage' || e.room === 'master') && KINDS[e.kind].standing === 'solid');
+  assert.ok(solids.length >= 8);
+  for (const e of solids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Master bedroom shades follow lamps[master], not lamps[living].
+  const lit = groupShadeColour(inside, 'furniture-master', dialsFor({master: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-master', dialsFor({master: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
+  inside.dispose();
+});

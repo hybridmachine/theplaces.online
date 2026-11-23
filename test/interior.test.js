@@ -431,3 +431,26 @@ test('nothing taller than the sill stands before the study window', () => {
     if (meets(f, box)) assert.ok(KINDS[e.kind].height <= win.sill + 1e-9, `${e.id} height ${KINDS[e.kind].height} exceeds sill ${win.sill}`);
   }
 });
+test('the real blueprint with the passage and master bedroom furnished is valid and queues all five later rooms in order', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishLater, ['kitchen', 'dining', 'study', 'passage', 'master']);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of [
+    'wardrobe-passage-1', 'wardrobe-passage-2', 'passage-runner',
+    'master-rug', 'bed', 'bedside-1', 'bedside-2', 'blanket-chest',
+    'wardrobe-master-1', 'wardrobe-master-2', 'picture-master-1', 'picture-master-2',
+    'bedside-lamp-1', 'bedside-lamp-2', 'pillow-1', 'pillow-2', 'bed-blanket', 'book-bedside',
+  ]) assert.ok(ids.has(id), `blueprint has ${id}`);
+});
+test('the passage\'s wall lamp stands between its wardrobes', () => {
+  const lamp = I.fittings.find(f => f.room === 'passage');
+  const w1 = footprint(I.furniture.find(e => e.id === 'wardrobe-passage-1'));
+  const w2 = footprint(I.furniture.find(e => e.id === 'wardrobe-passage-2'));
+  assert.ok(w1 && w2 && lamp);
+  const left = w1.a[1] < w2.a[0] ? w1 : w2, right = left === w1 ? w2 : w1;
+  assert.ok(lamp.at[0] > left.a[1] + .1 && lamp.at[0] < right.a[0] - .1, `lamp a=${lamp.at[0]} between ${left.a[1]} and ${right.a[0]}`);
+  for (const w of [w1, w2]) {
+    const inside = lamp.at[0] >= w.a[0] && lamp.at[0] <= w.a[1] && lamp.at[1] >= w.d[0] && lamp.at[1] <= w.d[1];
+    assert.equal(inside, false, 'wardrobe does not hold the lamp point');
+  }
+});

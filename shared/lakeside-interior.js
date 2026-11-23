@@ -92,6 +92,25 @@ const FURNITURE = [
   setOn('desk-lamp', 'table-lamp', 'study', 'desk'),
   ...many(2, 'book-desk', 'book', 'study', 'desk'), setOn('cup-desk', 'cup', 'study', 'desk'),
   setOn('book-study-table', 'book', 'study', 'side-table-study'),
+  // The closet passage: two wardrobes flanking the wall lamp, and a runner between the hall and bath doors.
+  standing('wardrobe-passage-1', 'wardrobe', 'passage', [11.7, 4.375], Math.PI),
+  standing('wardrobe-passage-2', 'wardrobe', 'passage', [13.3, 4.375], Math.PI),
+  standing('passage-runner', 'runner', 'passage', [12.5, 5.85], .02, [2.6, .8]),
+  // The master bedroom: double bed against the back wall with bedside tables and lamps, blanket chest, rug, gable wardrobes, pictures.
+  standing('master-rug', 'rug', 'master', [14.5, 10.3], .02, [3.0, 3.2]),
+  standing('bed', 'double-bed', 'master', [14.5, 10.9]),
+  standing('bedside-1', 'side-table', 'master', [13.4, 11.65]),
+  standing('bedside-2', 'side-table', 'master', [15.6, 11.65]),
+  standing('blanket-chest', 'chest', 'master', [14.5, 9.55]),
+  standing('wardrobe-master-1', 'wardrobe', 'master', [17.625, 9.0], -Math.PI / 2),
+  standing('wardrobe-master-2', 'wardrobe', 'master', [17.625, 10.0], -Math.PI / 2),
+  hung('picture-master-1', 'picture', 'master', 'd', 12, [14.1, 14.9], 1.6),
+  hung('picture-master-2', 'picture', 'master', 'a', 11, [9.0, 9.8], 1.5),
+  setOn('bedside-lamp-1', 'table-lamp', 'master', 'bedside-1'),
+  setOn('bedside-lamp-2', 'table-lamp', 'master', 'bedside-2'),
+  ...many(2, 'pillow', 'pillow', 'master', 'bed'),
+  setOn('bed-blanket', 'blanket', 'master', 'bed'),
+  setOn('book-bedside', 'book', 'master', 'bedside-1'),
 ];
 
 const BLUEPRINT = {
@@ -155,7 +174,7 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
-  furnishLater: ['kitchen', 'dining', 'study'],
+  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
