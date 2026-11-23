@@ -7,7 +7,7 @@ import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR, SLICE_4C} from '../../shared/lakeside-interior.js';
-import {roomAt} from '../../shared/interior.js';
+import {onStair, roomAt} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
@@ -59,6 +59,11 @@ export function interiorSwitch(search = typeof location !== 'undefined' ? locati
   if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4C, {keepQueue: true});
   return LAKESIDE_INTERIOR;
 }
+// With ?check, &hide=0 draws every built room's furniture even when out of sight, to verify hiding changes no pixel; ignored without ?check.
+export function hidingSwitch(search = typeof location !== 'undefined' ? location.search : '') {
+  const params = new URLSearchParams(search);
+  return !(params.has('check') && params.get('hide') === '0');
+}
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
 // The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
@@ -72,8 +77,8 @@ export function lightLevels(calendar, weather) {
 }
 
 export class SpaceView {
-  constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, interior = interiorSwitch(), sky = SCENES[0].sky, onFailure} = {}) {
-    this.canvas = canvas; this.space = space; this.dressing = dressing; this.interior = interior; this.skyConfig = sky; this.onFailure = onFailure;
+  constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, interior = interiorSwitch(), hideUnseen = hidingSwitch(), sky = SCENES[0].sky, onFailure} = {}) {
+    this.canvas = canvas; this.space = space; this.dressing = dressing; this.interior = interior; this.hideUnseen = hideUnseen; this.skyConfig = sky; this.onFailure = onFailure;
     this.state = pose(space.arrival);
     // Walking: held keys, drag deltas gathered since the last frame, an optional glide home, and the remembered place.
     this.keys = new WalkKeys(window, {blocked: () => [...document.querySelectorAll('dialog')].some(d => d.open)});
@@ -197,6 +202,7 @@ export class SpaceView {
       this.openings = viewOpenings(this.interior, this.space, this.dressing);
       this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: this.openings});
       if (this.state.place === 'cabin') this.inside.buildRest();
+      this.updateSight();
     }
     catch (error) {
       this.insideFailed = true; console.warn("The cabin's interior could not be built; its door stays shut.", error);
@@ -244,7 +250,15 @@ export class SpaceView {
   // visitor's eye into the same target without clearing it and with the stencil test off, still depth-tested against the rooms;
   // it is drawn so wherever some of it lies over a live pane, and otherwise with the rooms. Through the pass all of it goes into the scene target before the filter: the pass's
   // `views` hook draws the views (and says whether it drew any) and its `over` the added light.
+  // Hides queued rooms' furniture that cannot be seen from the visitor's room; shows everything in the yard, on the stair, or with &hide=0.
+  updateSight() {
+    if (!this.inside) return;
+    const from = this.state.place === 'cabin' && this.hideUnseen !== false && !onStair(this.interior, this.state.position)
+      ? roomAt(this.interior, this.state.floor, this.state.position)?.id ?? null : null;
+    this.inside.showFrom(from);
+  }
   drawIndoors({flat = false} = {}) {
+    this.updateSight();
     let ids = [];
     if (flat) this.inside.setLive([]); else ids = this.openWindows();
     // (made once; this frame's views, if any, are set on it, and its `over` only when something of the overlay lies over a live pane:
@@ -441,6 +455,7 @@ export class SpaceView {
     this.life.update(lifeFrame({snapshot, now, study, motion: this.motion, motionSeconds, realSeconds, camera: this.camera, conditions, fixture, rainAt}));
     // Indoors the rooms are drawn instead of the yard, which (sky, light and life) carries on all the same, and is drawn again
     // through each live pane into the same frame.
+    if (this.inside) this.updateSight();
     const ids = this.live = indoors ? this.drawIndoors() : [];
     if (!indoors) { if (this.passMode === 'off' || !this.pass) this.renderer.render(this.scene, this.camera); else this.pass.render(this.scene, this.camera, {water: true, views: null}); }
     // Frames across the door are not measured. The rooms are far cheaper to draw than the yard, so frames indoors may step the

@@ -30,6 +30,9 @@ const FURNISHED_TEXT = {
   'entry hall': 'Coats hang by the door and the stair climbs ahead. ',
   'kitchen': 'A range stands on the back wall and a table in the middle. ',
   'dining room': 'A table is laid for six by the window. ',
+  'study': 'A desk stands at the window and books line the back wall. ',
+  'closet passage': 'Wardrobes stand along one wall. ',
+  'master bedroom': 'A double bed stands against the back wall, a lamp at each side. ',
 };
 const furnishedText = room => FURNISHED_TEXT[room] ?? '';
 

@@ -162,8 +162,8 @@ test('no wall fitting sits inside an obstacle; a hanging one may hang over one',
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 1.5, 1.8]}); }), true);
   assert.equal(variant(c => { Object.assign(fit(c, 'living'), {kind: 'wall', at: [.2, 3.5, 1.8]}); }), false);
   assert.equal(variant(c => { Object.assign(fit(c, 'bedroom-2'), {kind: 'wall', at: [.2, 3.5, I.floorRise + 1.8]}); }), false, 'and upstairs');
-  // a table under a room's hanging lamp leaves the blueprint valid (dining already has its table; test an unfurnished room too)
-  assert.equal(solid('master', [14.5, 9.5]), true);
+  // a table under a room's hanging lamp leaves the blueprint valid (dining and master already have furniture there; test an unfurnished room too)
+  assert.equal(solid('bedroom-2', [3.5, 5]), true);
 });
 
 // The living room's and hall's furniture, and the rules that keep it walkable.

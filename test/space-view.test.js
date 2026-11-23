@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SpaceView, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
+import {SpaceView, hidingSwitch, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
 import {LAKESIDE_INTERIOR as I, SLICE_4C} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
@@ -222,7 +222,7 @@ test('a view built from the bare blueprint is not furnished, so its description 
 // ── The cabin's windows, drawn through SpaceView.render with a recording renderer ──
 // A SpaceView without a page: its own render, buildInside and window wiring, with the yard's sky, life and light stubbed, a
 // real interior and a real painterly pass (or none, on plain) drawing into a renderer that records what it is asked.
-const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I, state = {place: 'cabin', floor: 0, position: [4.2, 3], yaw: Math.PI, pitch: 0}, yard = {}} = {}) => {
+const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I, state = {place: 'cabin', floor: 0, position: [4.2, 3], yaw: Math.PI, pitch: 0}, yard = {}, hideUnseen = true} = {}) => {
   const THREE = await import('../public/assets/vendor/three-0.170.0.module.js');
   const {LAKESIDE_DRESSING: D} = await import('../shared/lakeside-dressing.js'), {SCENES} = await import('../shared/world.js');
   const {createViewBudget} = await import('../public/space/view-budget.js');
@@ -237,7 +237,7 @@ const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I
   const view = Object.create(SpaceView.prototype), camera = new THREE.PerspectiveCamera(verticalFov(16 / 9), 16 / 9, .1, 4000);
   camera.rotation.order = 'YXZ';
   const meter = {tier, locked: true, frames: [], frame(t, o) { this.frames.push(o); return tier; }};
-  Object.assign(view, {space: S, dressing: D, interior, skyConfig: SCENES[0].sky, art: stubArt(), renderer, camera, check: false, fixture: null,
+  Object.assign(view, {space: S, dressing: D, interior, skyConfig: SCENES[0].sky, art: stubArt(), renderer, camera, check: false, fixture: null, hideUnseen,
     motion: true, frozenMotion: null, lastMotion: null, frozenCelestial: null, lastCelestial: null, celestialStudy: null, shown: true, passage: null,
     disposed: false, failed: false, state: structuredClone(state), door: 0, inside: null, insideFailed: false, views: null, viewsFailed: false, live: [],
     dials: null, dialsFailed: false, lightChecked: false,
@@ -770,4 +770,51 @@ test('&furnish=4b with ?check strips SLICE_4C rooms and keeps the kitchen and di
   assert.equal(interiorSwitch('?interior=1&furnish=4b'), I, 'ignored without ?check');
   const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4b');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4b');
+});
+
+test('hidingSwitch is true unless ?check and hide=0', () => {
+  assert.equal(hidingSwitch(''), true);
+  assert.equal(hidingSwitch('?interior=1&hide=0'), true, 'ignored without ?check');
+  assert.equal(hidingSwitch('?interior=1&check'), true);
+  assert.equal(hidingSwitch('?interior=1&check&hide=0'), false);
+});
+
+test('SpaceView hides unseen rooms indoors, shows all on the stair, in the yard, or with ?check&hide=0, and shows master on first frame from passage', async () => {
+  const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [5.2, 7.9], yaw: 0, pitch: 0}});
+  frame(1);
+  assert.equal(view.inside.shownRooms.includes('master'), false, 'master hidden in kitchen');
+  // on the stair: everything shown
+  view.state = {place: 'cabin', floor: 0, position: [10.3, 3.0], yaw: 0, pitch: 0};
+  frame(1);
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms, 'all shown on the stair');
+  // in the yard: everything shown
+  view.state = {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch};
+  frame(1);
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms, 'all shown in the yard');
+  view.inside.dispose();
+
+  // with hiding off (?check&hide=0), everything shown even in the kitchen
+  const noHide = await rig({state: {place: 'cabin', floor: 0, position: [5.2, 7.9], yaw: 0, pitch: 0}, hideUnseen: false});
+  noHide.frame(1);
+  assert.deepEqual(noHide.view.inside.shownRooms, noHide.view.inside.furnishedRooms, 'hide=0 shows all in kitchen');
+  noHide.view.inside.dispose();
+
+  // started in the passage: pending is empty and master is shown on the first frame
+  const inPassage = await rig({state: {place: 'cabin', floor: 0, position: [...I.spots.wardrobes], yaw: 0, pitch: 0}});
+  inPassage.frame(1);
+  assert.deepEqual(inPassage.view.inside.pending, []);
+  assert.ok(inPassage.view.inside.shownRooms.includes('master'), 'master shown from passage on first frame');
+  inPassage.view.inside.dispose();
+});
+
+test('sceneText includes the furnished clause for study, closet passage and master bedroom only when furnished', () => {
+  const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
+  for (const [room, phrase] of [
+    ['study', /desk stands at the window and books line the back wall/],
+    ['closet passage', /Wardrobes stand along one wall/],
+    ['master bedroom', /double bed stands against the back wall, a lamp at each side/],
+  ]) {
+    assert.match(sceneText(snap, 0, {room, furnished: true}).description, phrase, `${room} furnished`);
+    assert.doesNotMatch(sceneText(snap, 0, {room, furnished: false}).description, phrase, `${room} bare`);
+  }
 });

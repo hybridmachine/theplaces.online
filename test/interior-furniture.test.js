@@ -781,6 +781,69 @@ test('a blueprint built bare has nothing pending', () => {
   inside.dispose();
 });
 
+// ── out of sight, not drawn (Task 6) ──
+const queuedAllBlueprint = () => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furnishLater = ['kitchen', 'dining', 'study', 'passage', 'master'];
+  c.furniture.push(
+    {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
+    {id: 'q-dining-chair', kind: 'chair', room: 'dining', at: [9, 8.3], turn: 0},
+    {id: 'q-study-chair', kind: 'chair', room: 'study', at: [14.5, 2.0], turn: 0},
+    {id: 'q-passage-chair', kind: 'chair', room: 'passage', at: [12.5, 5.4], turn: 0},
+    {id: 'q-master-chair', kind: 'chair', room: 'master', at: [14.5, 9.5], turn: 0},
+  );
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+const buildQueuedAll = (opts = {}) => buildInterior(THREE, {interior: queuedAllBlueprint(), art: stubArt(), openings, recipes: {...RECIPES, chair: stubChair}, ...opts});
+
+test('showFrom hides queued rooms out of sight without changing counts, furnishedRooms or skipped', () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  const countsBefore = structuredClone(inside.furniture), roomsBefore = [...inside.furnishedRooms], skippedBefore = [...inside.skipped];
+  inside.showFrom('kitchen');
+  assert.equal(inside.shownRooms.includes('master'), false, 'master hidden from kitchen');
+  for (const r of ['living', 'hall', 'kitchen', 'dining', 'study']) assert.ok(inside.shownRooms.includes(r), `${r} shown from kitchen`);
+  assert.equal(furniture(inside.scene).visible, true, 'first set stays visible');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, false);
+  assert.deepEqual(inside.furniture, countsBefore);
+  assert.deepEqual(inside.furnishedRooms, roomsBefore);
+  assert.deepEqual(inside.skipped, skippedBefore);
+  inside.showFrom('passage');
+  assert.ok(inside.shownRooms.includes('master'), 'master shown from passage');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, true);
+  inside.showFrom(null);
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms, 'null shows every built room');
+  assert.equal(furniture(inside.scene).visible, true);
+  inside.dispose();
+});
+
+test('a room built after showFrom takes the current answer', () => {
+  const inside = buildQueuedAll();
+  inside.showFrom('kitchen');
+  inside.buildRest();
+  assert.equal(inside.shownRooms.includes('master'), false, 'master takes kitchen answer at once');
+  assert.equal(inside.scene.getObjectByName('furniture-master').visible, false);
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('study'));
+  inside.dispose();
+});
+
+test('no table or malformed table: nothing hidden and one warning is logged', () => {
+  const [inside, warnings] = warned(() => buildQueuedAll({sight: () => { throw new Error('sight broken'); }}));
+  inside.buildRest();
+  assert.equal(warnings.length, 1);
+  inside.showFrom('kitchen');
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  inside.dispose();
+
+  const [inside2, warnings2] = warned(() => buildQueuedAll({sight: () => ({kitchen: 'not-an-array'})}));
+  inside2.buildRest();
+  assert.equal(warnings2.length, 1);
+  inside2.showFrom('kitchen');
+  assert.deepEqual(inside2.shownRooms, inside2.furnishedRooms);
+  inside2.dispose();
+});
+
 // ── kitchen furniture (Task 3) ──
 test('the real blueprint skips nothing once every room is built', () => {
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
