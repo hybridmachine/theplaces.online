@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SpaceView, hidingSwitch, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_INTERIOR as I, SLICE_4C} from '../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4C, SLICE_4D} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
 import {PainterlyPass, canPaint} from '../public/space/painterly-pass.js';
 import {DIALS, interiorDials} from '../shared/interior-light.js';
@@ -762,14 +762,24 @@ test('furnished is false in a room still queued and true once it is built', asyn
   view.inside.dispose();
 });
 
-test('&furnish=4b with ?check strips SLICE_4C rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
+test('&furnish=4b with ?check strips SLICE_4C and SLICE_4D rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
   const b4 = interiorSwitch('?interior=1&check&furnish=4b');
-  assert.equal(b4.furniture.some(e => SLICE_4C.includes(e.room)), false, 'no SLICE_4C pieces');
+  assert.equal(b4.furniture.some(e => SLICE_4C.includes(e.room) || SLICE_4D.includes(e.room)), false, 'no SLICE_4C or SLICE_4D pieces');
   assert.ok(b4.furniture.some(e => e.room === 'kitchen'), 'kitchen pieces kept');
   assert.deepEqual(b4.furnishLater, ['kitchen', 'dining']);
   assert.equal(interiorSwitch('?interior=1&furnish=4b'), I, 'ignored without ?check');
   const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4b');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4b');
+});
+
+test('&furnish=4c with ?check strips SLICE_4D rooms and keeps master queued; without ?check it is ignored', () => {
+  const c4 = interiorSwitch('?interior=1&check&furnish=4c');
+  assert.equal(c4.furniture.some(e => SLICE_4D.includes(e.room)), false, 'no SLICE_4D pieces');
+  assert.ok(c4.furnishLater.includes('master'), 'master still queued');
+  assert.equal(c4.furnishLater.some(r => SLICE_4D.includes(r)), false, 'no SLICE_4D room queued');
+  assert.equal(interiorSwitch('?interior=1&furnish=4c'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4c');
+  assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4c');
 });
 
 test('hidingSwitch is true unless ?check and hide=0', () => {

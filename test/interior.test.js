@@ -286,14 +286,17 @@ const withPieces = (extra, spots) => {
   c.obstacles = obstaclesOf(c);
   return c;
 };
-test('the real blueprint is valid, with the new spots and the five speed spots', () => {
+test('the real blueprint is valid, with the new spots and the six speed spots', () => {
   assert.equal(validInterior(I), true);
-  assert.equal(I.spots.speed.length, 5);
-  for (const k of ['range', 'dresser', 'diningWindow', 'desk', 'shelves', 'wardrobes', 'bedFoot', 'bedside']) {
+  assert.equal(I.spots.speed.length, 6);
+  for (const k of ['range', 'dresser', 'diningWindow', 'desk', 'shelves', 'wardrobes', 'bedFoot', 'bedside', 'bath', 'laundry', 'pantry']) {
     assert.ok(Array.isArray(I.spots[k]) && floorArea(I, 0, I.spots[k]), k);
   }
   for (const p of I.spots.speed) assert.ok(floorArea(I, 0, p), `speed ${p}`);
-  assert.deepEqual(FURNISHED, ['hall', 'living', 'kitchen', 'dining', 'study', 'passage', 'master']);
+  assert.equal(roomAt(I, 0, I.spots.speed[5])?.id, 'bath-ground');
+  assert.equal(FURNISHED.length, 10);
+  const groundIds = I.rooms.filter(r => r.floor === 0).map(r => r.id).sort();
+  assert.deepEqual([...FURNISHED].sort(), groundIds);
 });
 test('a table across the kitchen blocks the way through it', () => {
   assert.equal(validInterior(withPieces([{id: 'kt-wide', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], size: [3.9, .8]}])), false);
@@ -330,14 +333,17 @@ test('a sideboard under the dining window makes the blueprint invalid; a low pie
   assert.equal(validInterior(withPieces([{id: 'sb-win', kind: 'sideboard', room: 'dining', at: [10, 11.7]}], clearSpot)), false);
   assert.equal(validInterior(withPieces([{id: 'ws-win', kind: 'window-seat', room: 'dining', at: [10, 11.7]}], clearSpot)), true);
 });
-test('throughWays names the dining, kitchen, passage, study and master rooms, by doorway points and spots of the blueprint', () => {
+test('throughWays names the dining, kitchen, passage, study, master, bath-ground, laundry and pantry rooms, by doorway points and spots of the blueprint', () => {
   const ways = throughWays(I), op = id => doorwayPoint(I.openings.find(o => o.id === id));
-  assert.deepEqual(ways.map(w => w.room), ['dining', 'kitchen', 'passage', 'study', 'master']);
+  assert.deepEqual(ways.map(w => w.room), ['dining', 'kitchen', 'passage', 'study', 'master', 'bath-ground', 'laundry', 'pantry']);
   assert.deepEqual(ways[0], {room: 'dining', from: op('kitchen-dining'), to: [op('hall-dining')]});
   assert.deepEqual(ways[1], {room: 'kitchen', from: op('living-kitchen'), to: [op('kitchen-dining'), op('kitchen-laundry'), op('kitchen-pantry')]});
   assert.deepEqual(ways[2], {room: 'passage', from: op('hall-passage'), to: [op('passage-master'), op('passage-bath-ground')]});
   assert.deepEqual(ways[3], {room: 'study', from: op('hall-study'), to: [I.spots.shelves]});
   assert.deepEqual(ways[4], {room: 'master', from: op('passage-master'), to: [I.spots.bedFoot]});
+  assert.deepEqual(ways[5], {room: 'bath-ground', from: op('passage-bath-ground'), to: [I.spots.bath]});
+  assert.deepEqual(ways[6], {room: 'laundry', from: op('kitchen-laundry'), to: [I.spots.laundry]});
+  assert.deepEqual(ways[7], {room: 'pantry', from: op('kitchen-pantry'), to: [I.spots.pantry]});
 });
 test('a kitchen table as planned leaves a 0.9 m way to the pantry and laundry doors', () => {
   const c = withPieces([
@@ -453,4 +459,40 @@ test('the passage\'s wall lamp stands between its wardrobes', () => {
     const inside = lamp.at[0] >= w.a[0] && lamp.at[0] <= w.a[1] && lamp.at[1] >= w.d[0] && lamp.at[1] <= w.d[1];
     assert.equal(inside, false, 'wardrobe does not hold the lamp point');
   }
+});
+
+// Ground-floor bathroom, laundry and pantry rules and spots (synthetic cases start with those three rooms bare).
+const withWetPieces = (extra, spots) => {
+  const c = structuredClone(withoutRooms(I, ['bath-ground', 'laundry', 'pantry']));
+  c.furniture.push(...extra);
+  if (spots) c.spots = {...c.spots, ...spots};
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+test('rule 8: a 2.0 × 0.5 block across the way into bath-ground, laundry or pantry fails; against a far wall it passes', () => {
+  // bath-ground: block across the way in fails, against the d = 7 wall passes
+  assert.equal(validInterior(withWetPieces([{id: 'b-block', kind: 'pantry-shelf', room: 'bath-ground', at: [15.35, 5.3], turn: Math.PI / 2, size: [2.0, .5]}], {bath: [16.8, 5.5]})), false);
+  assert.equal(validInterior(withWetPieces([{id: 'b-far', kind: 'pantry-shelf', room: 'bath-ground', at: [16.5, 6.675], turn: 0, size: [2.0, .5]}])), true);
+  // laundry: block across the way in fails, against the d = 7 wall passes
+  assert.equal(validInterior(withWetPieces([{id: 'l-block', kind: 'pantry-shelf', room: 'laundry', at: [1.5, 8.25], turn: Math.PI / 2, size: [2.0, .5]}])), false);
+  assert.equal(validInterior(withWetPieces([{id: 'l-far', kind: 'pantry-shelf', room: 'laundry', at: [1.25, 7.325], turn: 0, size: [2.0, .5]}])), true);
+  // pantry: block across the way in fails, against the d = 9.5 wall passes
+  assert.equal(validInterior(withWetPieces([{id: 'p-block', kind: 'pantry-shelf', room: 'pantry', at: [1.5, 10.75], turn: Math.PI / 2, size: [2.0, .5]}])), false);
+  assert.equal(validInterior(withWetPieces([{id: 'p-far', kind: 'pantry-shelf', room: 'pantry', at: [1.25, 9.825], turn: 0, size: [2.0, .5]}])), true);
+});
+test('a solid piece over bath, laundry, pantry or speed[5] makes the blueprint invalid', () => {
+  for (const [k, room] of [['bath', 'bath-ground'], ['laundry', 'laundry'], ['pantry', 'pantry']]) {
+    assert.equal(validInterior(withWetPieces([{id: `on-${k}`, kind: 'basket', room, at: [...I.spots[k]]}])), false, k);
+  }
+  assert.equal(validInterior(withWetPieces([{id: 'on-speed5', kind: 'basket', room: 'bath-ground', at: [...I.spots.speed[5]]}])), false);
+});
+test('rule 6 accepts towel set on towel-rail, bathtub and basket', () => {
+  assert.equal(validInterior(withWetPieces([
+    {id: 'tr-test', kind: 'towel-rail', room: 'bath-ground', wall: 'a', line: 18, along: [5.3, 6.1], z: 1.2},
+    {id: 'bt-test', kind: 'bathtub', room: 'bath-ground', at: [16.3, 6.55], turn: 0},
+    {id: 'bk-test', kind: 'basket', room: 'laundry', at: [.3, 9.2], turn: 0},
+    {id: 'tw-1', kind: 'towel', room: 'bath-ground', on: 'tr-test'},
+    {id: 'tw-2', kind: 'towel', room: 'bath-ground', on: 'bt-test'},
+    {id: 'tw-3', kind: 'towel', room: 'laundry', on: 'bk-test'},
+  ])), true);
 });

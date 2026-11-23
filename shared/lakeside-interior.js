@@ -178,12 +178,13 @@ const BLUEPRINT = {
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
-  // and the five spots the frame cost is measured from.
+  // in the ground-floor bathroom, laundry and pantry, and the six spots the frame cost is measured from.
   spots: {
     hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1],
     range: [4.4, 10.9], dresser: [3.5, 9.5], diningWindow: [10, 11.4],
     desk: [15.0, .7], shelves: [14.6, 3.1], wardrobes: [12.5, 5.4], bedFoot: [14.5, 8.8], bedside: [12.7, 11.0],
-    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9]],
+    bath: [15.5, 5.5], laundry: [1.6, 8.3], pantry: [1.5, 10.7],
+    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9], [14.6, 5.5]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
@@ -199,5 +200,6 @@ const BLUEPRINT = {
   lightSeed: 20261120
 };
 export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
+export const SLICE_4D = Object.freeze(['bath-ground', 'laundry', 'pantry']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});
