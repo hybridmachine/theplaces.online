@@ -877,7 +877,7 @@ export const RECIPES = {
   // A pedestal washbasin: sculpted turned pedestal and hollow bowl in enamel, back tap ledge and iron taps.
   basin(kit, e, pal) {
     const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
-    const enamel = pal.surface('enamel', 0, .04, .98), iron = pal.surface('iron', 1, .04);
+    const enamel = pal.surface('enamel', 0, .04, 1.22), iron = pal.surface('iron', 1, .04);
     const ped = [[0, 0], [.125, 0], [.125, 0], [.12, .04], [.072, .12], [.065, .45], [.085, .58], [.12, .67], [0, .67]];
     const bowl = [[0, .64], [.12, .65], [.185, .71], [.215, .79], [.22, .845], [.20, .85], [.175, .83], [.155, .74], [.10, .69], [0, .685]];
     put(out, 'enamel', [
@@ -896,16 +896,17 @@ export const RECIPES = {
     }
     return out;
   },
-  // A ceramic toilet: low cistern against the wall with lid and flush handle, sculpted enamel pedestal & hollow bowl, oak seat.
+  // A ceramic toilet: low close-coupled cistern against the wall with lid and flush handle, sculpted enamel pedestal & hollow bowl, oak seat.
   toilet(kit, e, pal) {
     const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
-    const enamel = pal.surface('enamel', 0, .04, .98), wood = pal.surface('wood', 1, .06, .74), iron = pal.surface('iron', 2, .04);
+    const enamel = pal.surface('enamel', 0, .04, 1.22), wood = pal.surface('wood', 1, .06, .74), iron = pal.surface('iron', 2, .04);
     const bowl = [[0, 0], [.12, 0], [.12, 0], [.11, .05], [.082, .14], [.145, .24], [.18, .35], [.188, .40], [.165, .402], [.14, .37], [.105, .23], [.05, .17], [0, .17]];
     put(out, 'enamel', [
+      // close-coupled rear platform joining the bowl solidly to the cistern base
+      ...kit.box(at, [-.135, .135], [.02, hy - .015], [.26, .425], enamel, {tuck: ['under'], skip: ['back'], broken: .004, tile: STONE_TILE}),
       // cistern against the +y wall, with overhanging lid
       ...kit.box(at, [-hx + .015, hx - .015], [.14, hy - .005], [.42, h - .03], enamel, {tuck: ['under'], skip: ['back'], broken: .006, tile: STONE_TILE, seed: pal.seed}),
       ...kit.box(at, [-hx + .005, hx - .005], [.13, hy], [h - .03, h], enamel, {tuck: ['under'], skip: ['back'], broken: .005, tile: STONE_TILE, seed: pal.seed + 1}),
-      ...kit.roll(at, [0, .18, .33], [0, .18, .44], .028, enamel, {sides: 6, tile: STONE_TILE}),
       ...kit.turned(at, [0, -.085], bowl, lined(enamel, 8), {segments: 12, tile: STONE_TILE}),
     ]);
     // warm oak seat & closed lid resting on the bowl rim
@@ -920,7 +921,7 @@ export const RECIPES = {
   // A corner shower: kit enamel tray, L-shaped iron curtain rail and riser pipe, sculpted cloth curtain across both open sides (-y and +x).
   shower(kit, e, pal) {
     const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
-    const enamel = pal.surface('enamel', 0, .04, .95), trayFloor = pal.surface('enamel', 1, .04, .95 * TUCK);
+    const enamel = pal.surface('enamel', 0, .04, 1.18), trayFloor = pal.surface('enamel', 1, .04, 1.18 * TUCK);
     const iron = pal.surface('iron', 2, .04), cloth = pal.surface('cloth', 3, .06, .96);
     const rim = .06, railZ = h - .04, cx = hx - .06, cy = -hy + .06;
     // tray base + raised perimeter lips (leaving recessed dark floor)
@@ -949,7 +950,7 @@ export const RECIPES = {
   // A roll-top bathtub on four iron claw feet: sculpted stadium-plan enamel body raised off the floor, hollow tucked interior, rolled rim.
   bathtub(kit, e, pal) {
     const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
-    const enamel = pal.surface('enamel', 0, .04, .98), iron = pal.surface('iron', 1, .04);
+    const enamel = pal.surface('enamel', 0, .04, 1.22), iron = pal.surface('iron', 1, .04);
     // [rx, ry, z, shade] from outer underside around the rolled rim down to the inner floor
     const profile = [
       [0, 0, .13, TUCK],
@@ -1127,10 +1128,10 @@ export const RECIPES = {
           const prof = [[r * .85, z], [r, z + jh * .52], [r * .82, z + jh], [0, z + jh]];
           put(out, 'stone', kit.turned(at, [x, y], prof, tone, {segments: 6, tile: STONE_TILE}));
         } else {
-          // coarse glazed china preserve jar (at most 6 sides, 4 rings)
+          // coarse glazed china preserve jar (at most 6 sides, 4 rings, flat lid)
           const r = .044 + pal.random(k + 3) * .016, jh = .15 + pal.random(k + 4) * .09;
-          const tone = pal.surface('china', k, .06, .84 + pal.random(k + 5) * .20);
-          const prof = [[r * .82, z], [r, z + jh * .46], [r * .62, z + jh * .86], [0, z + jh]];
+          const tone = pal.surface('china', k, .06, .92 + pal.random(k + 5) * .20);
+          const prof = [[r * .84, z], [r, z + jh * .52], [r * .72, z + jh], [0, z + jh]];
           put(out, 'china', kit.turned(at, [x, y], prof, tone, {segments: 6, tile: STONE_TILE}));
         }
       }

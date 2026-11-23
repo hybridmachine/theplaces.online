@@ -388,7 +388,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   };
   const showFrom = (roomId = null, planes = null) => {
     shownFrom = roomId ?? null;
-    shownPlanes = planes ?? null;
+    shownPlanes = Array.isArray(planes) && queue.length ? planes.map(p => (Array.isArray(p) ? [...p] : p)) : planes ?? null;
     for (const [room, set] of queuedSets) set.object.visible = shown(shownFrom, room, shownPlanes);
   };
   // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.

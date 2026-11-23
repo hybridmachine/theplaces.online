@@ -22,7 +22,7 @@
           "floor": 0,
           "position": [
             9,
-            1.0787399998664857
+            1.1267600001335145
           ],
           "yaw": 0,
           "pitch": 0,
@@ -30,8 +30,8 @@
           "cameraY": 1.6,
           "opacity": "1"
         },
-        "darkestOpacity": 0.004,
-        "samples": 70,
+        "darkestOpacity": 0.111333,
+        "samples": 69,
         "yardMask": 1,
         "hallMask": 0
       }
@@ -59,7 +59,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478460000133517
+            5.4332399998664895
           ],
           "yaw": 0,
           "pitch": 0,
@@ -80,7 +80,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478460000133517
+            5.4332399998664895
           ],
           "yaw": 0,
           "pitch": 0,
@@ -94,7 +94,7 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478460000133517
+            5.4332399998664895
           ],
           "yaw": 0,
           "pitch": 0,
@@ -108,11 +108,11 @@
           "floor": 1,
           "position": [
             10.3,
-            5.478460000133517
+            5.4332399998664895
           ],
           "yaw": 0,
           "pitch": 0,
-          "savedAt": 1795418185506
+          "savedAt": 1795468711834
         }
       }
     },
@@ -186,19 +186,19 @@
         "stuck": {
           "place": "yard",
           "position": [
-            17.79424396223467,
-            5.866715140476505
+            17.79230689032208,
+            5.871233726228811
           ],
           "yaw": 1.2217304763960306,
           "pitch": 0,
           "room": null,
-          "cameraY": 3.38341504098752,
+          "cameraY": 3.38439660715882,
           "opacity": "1",
           "door": 0,
           "insideFailed": true
         },
         "warnings": [
-          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:70:19)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:203:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:415:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:430:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
+          "The cabin's interior could not be built; its door stays shut. TypeError: Cannot read properties of null (reading 'surfaces')\n    at buildInterior (http://127.0.0.1:4190/space/interior/index.js:70:19)\n    at SpaceView.buildInside (http://127.0.0.1:4190/space/space-view.js:204:21)\n    at SpaceView.step (http://127.0.0.1:4190/space/space-view.js:439:98)\n    at SpaceView.render (http://127.0.0.1:4190/space/space-view.js:454:26)\n    at frame (http://127.0.0.1:4190/app.js:118:76)"
         ],
         "pageErrors": []
       }
@@ -230,11 +230,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 52874,
+              "n": 52857,
               "of": 53760
             },
             "varied": {
-              "n": 53665,
+              "n": 53634,
               "of": 53760
             },
             "mean": [
@@ -265,11 +265,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 93217,
+              "n": 93234,
               "of": 97848
             },
             "varied": {
-              "n": 97730,
+              "n": 97670,
               "of": 97848
             },
             "mean": [
@@ -300,11 +300,11 @@
             ],
             "live": true,
             "unlike": {
-              "n": 349647,
+              "n": 349674,
               "of": 378925
             },
             "varied": {
-              "n": 378519,
+              "n": 378302,
               "of": 378925
             },
             "mean": [
@@ -335,17 +335,17 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46035,
+              "n": 46033,
               "of": 46728
             },
             "varied": {
-              "n": 46706,
+              "n": 46705,
               "of": 46728
             },
             "mean": [
               99,
               103,
-              72
+              73
             ],
             "room": "second bedroom"
           },
@@ -370,17 +370,17 @@
             ],
             "live": true,
             "unlike": {
-              "n": 46024,
+              "n": 46038,
               "of": 46728
             },
             "varied": {
-              "n": 46702,
+              "n": 46704,
               "of": 46728
             },
             "mean": [
-              145,
-              159,
-              159
+              146,
+              161,
+              162
             ],
             "room": "third bedroom"
           },
@@ -405,7 +405,7 @@
             ],
             "live": true,
             "unlike": {
-              "n": 238070,
+              "n": 238059,
               "of": 244860
             },
             "varied": {
@@ -445,7 +445,7 @@
             "of": 94392
           },
           "varied": {
-            "n": 93652,
+            "n": 93447,
             "of": 94392
           },
           "mean": [
@@ -489,11 +489,11 @@
           619
         ],
         "parallaxDiff": {
-          "n": 227,
+          "n": 223,
           "of": 288
         },
         "parallaxControl": {
-          "n": 77,
+          "n": 85,
           "of": 288
         },
         "firstPair": {
@@ -508,11 +508,11 @@
             ]
           ],
           "diff": {
-            "n": 227,
+            "n": 223,
             "of": 288
           },
           "control": {
-            "n": 77,
+            "n": 85,
             "of": 288
           }
         },
@@ -536,11 +536,11 @@
           ],
           "live": true,
           "unlike": {
-            "n": 2764,
+            "n": 2773,
             "of": 3720
           },
           "varied": {
-            "n": 3704,
+            "n": 3703,
             "of": 3720
           },
           "mean": [
@@ -583,11 +583,11 @@
         ],
         "unlike": [
           {
-            "n": 49677,
+            "n": 49679,
             "of": 87117
           },
           {
-            "n": 24915,
+            "n": 24917,
             "of": 25090
           }
         ],
@@ -609,7 +609,7 @@
       "pass": true,
       "detail": {
         "pane": {
-          "n": 2031,
+          "n": 2892,
           "of": 70144
         },
         "streakMin": 35,
@@ -656,7 +656,7 @@
           653
         ],
         "caseDiff": {
-          "n": 36195,
+          "n": 37459,
           "of": 109440
         }
       }
@@ -683,7 +683,7 @@
             "of": 53760
           },
           "varied": {
-            "n": 53312,
+            "n": 53489,
             "of": 53760
           },
           "mean": [
@@ -721,49 +721,23 @@
       "pass": true,
       "detail": {
         "yardMs": 11.5,
-        "roomMs": 12.1,
-        "ratio": 1.052,
+        "roomMs": 11.9,
+        "ratio": 1.035,
         "limit": 1.1,
         "roundRatios": [
-          0.959,
-          1.079,
-          1.149,
-          1.043,
-          1.052
+          1.026,
+          1.035,
+          1.063,
+          0.976,
+          1.045
         ],
         "ratioSpread": [
-          0.959,
-          1.149
+          0.976,
+          1.063
         ],
         "rounds": [
           {
-            "yardMs": 11.1,
-            "roomMs": 11.9,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": false,
-              "fire": "cold"
-            }
-          },
-          {
-            "yardMs": 12.1,
-            "roomMs": 11.6,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": false,
-              "fire": "cold"
-            }
-          },
-          {
-            "yardMs": 11.4,
+            "yardMs": 11.9,
             "roomMs": 12.3,
             "yardTier": "full",
             "roomLive": [
@@ -776,8 +750,8 @@
             }
           },
           {
-            "yardMs": 11.4,
-            "roomMs": 13.1,
+            "yardMs": 11.5,
+            "roomMs": 11.8,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -790,7 +764,7 @@
           },
           {
             "yardMs": 11.5,
-            "roomMs": 12,
+            "roomMs": 11.9,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -802,8 +776,34 @@
             }
           },
           {
-            "yardMs": 11.5,
+            "yardMs": 11.2,
+            "roomMs": 11.9,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": false,
+              "fire": "cold"
+            }
+          },
+          {
+            "yardMs": 12.4,
             "roomMs": 12.1,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": false,
+              "fire": "cold"
+            }
+          },
+          {
+            "yardMs": 11.2,
+            "roomMs": 11.7,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -817,7 +817,7 @@
         ],
         "discardedFirstRound": true,
         "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
-        "hallDoorOpenMs": 15.2,
+        "hallDoorOpenMs": 14.3,
         "hallLive": [
           "door",
           "living"
@@ -882,9 +882,9 @@
           "study": null
         },
         "server": {
-          "epoch": 1795418300588,
-          "shiftedBy": 5961998,
-          "port": 57550,
+          "epoch": 1795468826712,
+          "shiftedBy": 5961999,
+          "port": 52479,
           "worldHourAimed": 11.677
         },
         "note": "the on-screen clock and the drawn scene are the same moment: the server's Date.now is moved, no study is used"
@@ -917,20 +917,20 @@
       "pass": true,
       "detail": {
         "glow": [
-          242,
-          202,
-          148
+          240,
+          200,
+          147
         ],
         "glowOut": [
-          147,
+          146,
           128,
           108
         ],
-        "glowWarmth": 1.635,
+        "glowWarmth": 1.633,
         "limitGlow": 1.3,
-        "ringBrighter": 1.582,
+        "ringBrighter": 1.57,
         "limitRingBrighter": 1.15,
-        "ringWarmer": 1.201,
+        "ringWarmer": 1.208,
         "limitRingWarmer": 1.05,
         "glass": [
           253,
@@ -944,7 +944,7 @@
         ],
         "glassBrighter": 1.49,
         "limitGlassBrighter": 1.1,
-        "glassOverRing": 1.225,
+        "glassOverRing": 1.236,
         "glassPatch": [
           254,
           254,
@@ -958,8 +958,8 @@
         ],
         "finding": "the lit glass's centre clips to white (about 253,253,253) at this distance; it is warm only at its rim and in its halo, which is why the colour is read in the ring",
         "wallDusk": [
-          191,
-          167,
+          190,
+          166,
           136
         ],
         "wallNoon": [
@@ -967,9 +967,9 @@
           210,
           183
         ],
-        "wallWarmthDusk": 1.404,
+        "wallWarmthDusk": 1.397,
         "wallWarmthNoon": 1.191,
-        "ratio": 1.179,
+        "ratio": 1.173,
         "limitWall": 1.05,
         "screen": [
           [
@@ -1012,29 +1012,29 @@
         "limitFlames": 0.25,
         "mouthLit": [
           218,
-          169,
-          90
+          173,
+          94
         ],
         "mouthOut": [
           81,
           58,
           32
         ],
-        "mouthRatio": 2.857,
+        "mouthRatio": 2.913,
         "limitMouth": 1.3,
         "slab": [
-          174,
-          117,
-          62
+          173,
+          116,
+          61
         ],
         "floor": [
           141,
           106,
           72
         ],
-        "slabWarmth": 2.806,
+        "slabWarmth": 2.836,
         "floorWarmth": 1.958,
-        "ratio": 1.433,
+        "ratio": 1.448,
         "limitSlab": 1.05,
         "slabAt": [
           0.75,
@@ -1344,7 +1344,7 @@
       "detail": {
         "lit": true,
         "lights": [],
-        "meshes": 70
+        "meshes": 81
       }
     },
     {
@@ -1352,25 +1352,38 @@
       "name": "Speed on &tier=full under the night study (the living room's lamp and fire lit): a frame in the living room facing the window costs at most 1.1 times a frame at the yard's arrival pose, measured as check 50 measures it",
       "pass": true,
       "detail": {
-        "yardMs": 11.4,
-        "roomMs": 12,
-        "ratio": 1.053,
+        "yardMs": 11.5,
+        "roomMs": 12.1,
+        "ratio": 1.052,
         "limit": 1.1,
         "roundRatios": [
-          1.078,
-          1,
+          1.132,
+          1.017,
           1.043,
-          1.053,
-          1.044
+          1.07,
+          1
         ],
         "ratioSpread": [
           1,
-          1.078
+          1.132
         ],
         "rounds": [
           {
+            "yardMs": 11,
+            "roomMs": 12.1,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": true,
+              "fire": "burning"
+            }
+          },
+          {
             "yardMs": 11.4,
-            "roomMs": 12.4,
+            "roomMs": 12.9,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1383,7 +1396,20 @@
           },
           {
             "yardMs": 11.5,
-            "roomMs": 12.4,
+            "roomMs": 11.7,
+            "yardTier": "full",
+            "roomLive": [
+              "living"
+            ],
+            "roomLit": {
+              "room": "living room",
+              "lamp": true,
+              "fire": "burning"
+            }
+          },
+          {
+            "yardMs": 11.6,
+            "roomMs": 12.1,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1396,7 +1422,7 @@
           },
           {
             "yardMs": 11.4,
-            "roomMs": 11.4,
+            "roomMs": 12.2,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1408,34 +1434,8 @@
             }
           },
           {
-            "yardMs": 11.5,
-            "roomMs": 12,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": true,
-              "fire": "burning"
-            }
-          },
-          {
-            "yardMs": 11.4,
-            "roomMs": 12,
-            "yardTier": "full",
-            "roomLive": [
-              "living"
-            ],
-            "roomLit": {
-              "room": "living room",
-              "lamp": true,
-              "fire": "burning"
-            }
-          },
-          {
-            "yardMs": 11.4,
-            "roomMs": 11.9,
+            "yardMs": 12.1,
+            "roomMs": 12.1,
             "yardTier": "full",
             "roomLive": [
               "living"
@@ -1450,7 +1450,7 @@
         "discardedFirstRound": true,
         "method": "Six rounds of 20 forced frames at the yard's arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place's figure is the median of the other five rounds' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).",
         "litInTheRoom": true,
-        "dayRatio": 1.052,
+        "dayRatio": 1.035,
         "dayYardMs": 11.5,
         "nightYardNote": "a yard frame costs the same by night as by day when timed alone (12.5 ms by day, 12.1 ms by night: 44 against 47 draw calls, 330,704 against 333,404 triangles, no shadow pass in either); an earlier day figure of 26 ms was measured while the windows' visitor was still open and drawing, which halves the GPU. The ratio compares the same page's room frame with its yard frame under one study: the room frame is drawIndoors, the cabin's own scene plus the live views of this very yard through its panes, so it shows that the lit interior costs no more than the yard it looks onto; it does not show what a night yard costs against a day one, which is the same.",
         "hallDoorOpenMs": 15.4,
@@ -1465,8 +1465,8 @@
       "name": "The interior's build time (the first buildInside) and its first indoor draw, in milliseconds (recorded, not asserted)",
       "pass": true,
       "detail": {
-        "buildMs": 202.3,
-        "firstIndoorDrawMs": 99.7,
+        "buildMs": 205.9,
+        "firstIndoorDrawMs": 106.8,
         "note": "headless Chrome on the machine's GPU through ANGLE; one load, the page's first build after a cold start"
       }
     },
@@ -1741,23 +1741,23 @@
         ],
         "lit": [
           [
-            84,
+            83,
             89,
-            96
+            97
           ],
           [
-            84,
-            88,
-            96
+            83,
+            90,
+            100
           ],
           [
-            86,
-            80,
+            85,
+            79,
             51
           ],
           [
-            94,
-            89,
+            95,
+            90,
             60
           ],
           [
@@ -1768,24 +1768,24 @@
         ],
         "out": [
           [
-            39,
+            38,
             57,
-            79
+            80
           ],
           [
-            39,
-            56,
-            79
+            38,
+            58,
+            83
           ],
           [
-            41,
+            42,
             49,
             35
           ],
           [
-            50,
-            59,
-            45
+            52,
+            61,
+            46
           ],
           [
             40,
@@ -1794,10 +1794,10 @@
           ]
         ],
         "ratios": [
-          1.62,
-          1.622,
-          1.721,
-          1.574,
+          1.619,
+          1.605,
+          1.696,
+          1.538,
           1.638
         ],
         "limit": 1.15,
@@ -1813,16 +1813,16 @@
           ],
           "live": true,
           "unlike": {
-            "n": 10311,
+            "n": 10315,
             "of": 13916
           },
           "varied": {
-            "n": 13911,
+            "n": 13912,
             "of": 13916
           },
           "mean": [
             134,
-            131,
+            132,
             122
           ]
         },
@@ -1856,11 +1856,11 @@
           ],
           "live": true,
           "unlike": {
-            "n": 52881,
+            "n": 52846,
             "of": 53760
           },
           "varied": {
-            "n": 53646,
+            "n": 53339,
             "of": 53760
           },
           "mean": [
@@ -1879,7 +1879,7 @@
             179,
             156
           ],
-          "lum": 0.7045593395969498
+          "lum": 0.7045940410539215
         },
         "after": {
           "box": [
@@ -1893,11 +1893,11 @@
           ],
           "live": true,
           "unlike": {
-            "n": 52838,
+            "n": 52849,
             "of": 53760
           },
           "varied": {
-            "n": 53361,
+            "n": 53430,
             "of": 53760
           },
           "mean": [
@@ -1920,14 +1920,14 @@
     },
     {
       "n": 71,
-      "name": "With ?interior=1 the interior reports furnished and draws six sets: at most 5 meshes in sets[0] and in queued rooms with lamps (study, master), at most 4 in the others; with &bare=1 it reports none and draws none, and is walked by the bare plan; without ?interior=1 nothing is built (check 32)",
+      "name": "With ?interior=1 the interior reports furnished and draws nine sets: at most 5 meshes in sets[0] and in queued rooms with lamps (study, master), at most 4 in the others; with &bare=1 it reports none and draws none, and is walked by the bare plan; without ?interior=1 nothing is built (check 32)",
       "pass": true,
       "detail": {
         "furnished": {
           "furnished": true,
           "counts": {
-            "vertices": 39104,
-            "meshes": 25,
+            "vertices": 48034,
+            "meshes": 36,
             "sets": [
               {
                 "rooms": [
@@ -1936,7 +1936,7 @@
                 ],
                 "vertices": 12092,
                 "meshes": 5,
-                "ms": 64.19999980926514
+                "ms": 64.30000019073486
               },
               {
                 "rooms": [
@@ -1944,7 +1944,7 @@
                 ],
                 "vertices": 5501,
                 "meshes": 4,
-                "ms": 30.40000009536743
+                "ms": 31
               },
               {
                 "rooms": [
@@ -1952,7 +1952,7 @@
                 ],
                 "vertices": 5192,
                 "meshes": 4,
-                "ms": 28.699999809265137
+                "ms": 26.90000009536743
               },
               {
                 "rooms": [
@@ -1960,7 +1960,7 @@
                 ],
                 "vertices": 10821,
                 "meshes": 5,
-                "ms": 29.600000381469727
+                "ms": 29.699999809265137
               },
               {
                 "rooms": [
@@ -1968,7 +1968,7 @@
                 ],
                 "vertices": 1258,
                 "meshes": 3,
-                "ms": 4.400000095367432
+                "ms": 4.5
               },
               {
                 "rooms": [
@@ -1976,7 +1976,31 @@
                 ],
                 "vertices": 4240,
                 "meshes": 4,
-                "ms": 17.299999713897705
+                "ms": 16.5
+              },
+              {
+                "rooms": [
+                  "bath-ground"
+                ],
+                "vertices": 2858,
+                "meshes": 4,
+                "ms": 11.799999713897705
+              },
+              {
+                "rooms": [
+                  "laundry"
+                ],
+                "vertices": 2051,
+                "meshes": 3,
+                "ms": 9.300000190734863
+              },
+              {
+                "rooms": [
+                  "pantry"
+                ],
+                "vertices": 4021,
+                "meshes": 4,
+                "ms": 18.09999990463257
               }
             ]
           },
@@ -2130,6 +2154,72 @@
               "name": "grounding",
               "vertices": 96,
               "visible": true
+            },
+            {
+              "set": "furniture-bath-ground",
+              "name": "furniture-wood",
+              "vertices": 1176,
+              "visible": true
+            },
+            {
+              "set": "furniture-bath-ground",
+              "name": "furniture-cloth",
+              "vertices": 681,
+              "visible": true
+            },
+            {
+              "set": "furniture-bath-ground",
+              "name": "furniture-stone",
+              "vertices": 937,
+              "visible": true
+            },
+            {
+              "set": "furniture-bath-ground",
+              "name": "grounding",
+              "vertices": 64,
+              "visible": true
+            },
+            {
+              "set": "furniture-laundry",
+              "name": "furniture-wood",
+              "vertices": 1541,
+              "visible": true
+            },
+            {
+              "set": "furniture-laundry",
+              "name": "furniture-cloth",
+              "vertices": 446,
+              "visible": true
+            },
+            {
+              "set": "furniture-laundry",
+              "name": "grounding",
+              "vertices": 64,
+              "visible": true
+            },
+            {
+              "set": "furniture-pantry",
+              "name": "furniture-wood",
+              "vertices": 2263,
+              "visible": true
+            },
+            {
+              "set": "furniture-pantry",
+              "name": "furniture-cloth",
+              "vertices": 154,
+              "visible": true
+            },
+            {
+              "set": "furniture-pantry",
+              "name": "furniture-stone",
+              "vertices": 1540,
+              "visible": true
+            },
+            {
+              "set": "furniture-pantry",
+              "name": "grounding",
+              "vertices": 64,
+              "visible": true
             }
           ],
           "walk": "furnished"
@@ -2164,15 +2254,15 @@
           3
         ],
         "stoppedAt": [
-          4.249708679004052,
-          3.063820679851646
+          4.2499321886246,
+          3.067903418804906
         ],
         "sofaFront": 4.5,
         "expectedStop": 4.25,
         "tolerance": 0.03,
         "eyeClear": 0.25,
         "bareWentTo": [
-          6.050000000000002,
+          6.04986000013352,
           3
         ],
         "bareRoom": "living room",
@@ -2195,7 +2285,7 @@
             ],
             "end": [
               6.004,
-              4.104
+              4.105
             ],
             "room": "living room"
           },
@@ -2216,8 +2306,8 @@
               7.8
             ],
             "end": [
-              5.058,
-              8.033
+              5.059,
+              8.031
             ],
             "room": "kitchen"
           }
@@ -2240,29 +2330,29 @@
           "bare": 42
         },
         "triangles": {
-          "furnished": 359078,
-          "first": 359078,
-          "bare": 348608
+          "furnished": 359058,
+          "first": 359058,
+          "bare": 348588
         },
-        "buildAddedMs": 63.4,
-        "fullFirstBuildAddedMs": 62.7,
+        "buildAddedMs": 63.5,
+        "fullFirstBuildAddedMs": 61.8,
         "budgetMs": 80,
         "withinBudget": true,
         "buildMs": {
           "furnished": [
-            199.7,
-            201.6,
-            200.5
+            206.1,
+            204.1,
+            201.7
           ],
           "first": [
-            201.2,
-            201,
-            203.4
+            207,
+            205.8,
+            203.1
           ],
           "bare": [
-            138.1,
-            137.8,
-            135.1
+            141.4,
+            142.8,
+            142.3
           ]
         },
         "sets": [
@@ -2273,7 +2363,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 64.19999980926514
+            "ms": 64.30000019073486
           },
           {
             "rooms": [
@@ -2281,7 +2371,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 30.40000009536743
+            "ms": 31
           },
           {
             "rooms": [
@@ -2289,7 +2379,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 28.699999809265137
+            "ms": 26.90000009536743
           },
           {
             "rooms": [
@@ -2297,7 +2387,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 29.600000381469727
+            "ms": 29.699999809265137
           },
           {
             "rooms": [
@@ -2305,7 +2395,7 @@
             ],
             "vertices": 1258,
             "meshes": 3,
-            "ms": 4.400000095367432
+            "ms": 4.5
           },
           {
             "rooms": [
@@ -2313,11 +2403,35 @@
             ],
             "vertices": 4240,
             "meshes": 4,
-            "ms": 17.299999713897705
+            "ms": 16.5
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 11.799999713897705
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 9.300000190734863
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 18.09999990463257
           }
         ],
-        "vertices": 39104,
-        "meshes": 25,
+        "vertices": 48034,
+        "meshes": 36,
         "pose": {
           "place": "cabin",
           "floor": 0,
@@ -2423,15 +2537,15 @@
             162,
             138
           ],
-          "lum": 0.640582818287037
+          "lum": 0.6405751702069716
         },
         "hall": {
           "rgb": [
             170,
-            155,
+            154,
             130
           ],
-          "lum": 0.6121073481753813
+          "lum": 0.6116400428921569
         },
         "meshes": [
           {
@@ -2583,6 +2697,72 @@
             "name": "grounding",
             "vertices": 96,
             "visible": true
+          },
+          {
+            "set": "furniture-bath-ground",
+            "name": "furniture-wood",
+            "vertices": 1176,
+            "visible": true
+          },
+          {
+            "set": "furniture-bath-ground",
+            "name": "furniture-cloth",
+            "vertices": 681,
+            "visible": true
+          },
+          {
+            "set": "furniture-bath-ground",
+            "name": "furniture-stone",
+            "vertices": 937,
+            "visible": true
+          },
+          {
+            "set": "furniture-bath-ground",
+            "name": "grounding",
+            "vertices": 64,
+            "visible": true
+          },
+          {
+            "set": "furniture-laundry",
+            "name": "furniture-wood",
+            "vertices": 1541,
+            "visible": true
+          },
+          {
+            "set": "furniture-laundry",
+            "name": "furniture-cloth",
+            "vertices": 446,
+            "visible": true
+          },
+          {
+            "set": "furniture-laundry",
+            "name": "grounding",
+            "vertices": 64,
+            "visible": true
+          },
+          {
+            "set": "furniture-pantry",
+            "name": "furniture-wood",
+            "vertices": 2263,
+            "visible": true
+          },
+          {
+            "set": "furniture-pantry",
+            "name": "furniture-cloth",
+            "vertices": 154,
+            "visible": true
+          },
+          {
+            "set": "furniture-pantry",
+            "name": "furniture-stone",
+            "vertices": 1540,
+            "visible": true
+          },
+          {
+            "set": "furniture-pantry",
+            "name": "grounding",
+            "vertices": 64,
+            "visible": true
           }
         ]
       }
@@ -2617,30 +2797,30 @@
       "pass": true,
       "detail": {
         "furnished": {
-          "ratio": 1.088,
+          "ratio": 1.096,
           "yardMs": 11.4,
-          "roomMs": 12.4,
+          "roomMs": 12.5,
           "roundRatios": [
-            1.053,
-            0.992,
-            1.148,
-            1.159,
-            1.097
+            1.114,
+            1.198,
+            1.096,
+            1.035,
+            0.992
           ]
         },
         "bare": {
-          "ratio": 1.053,
+          "ratio": 1.07,
           "yardMs": 11.4,
-          "roomMs": 12,
+          "roomMs": 12.2,
           "roundRatios": [
-            1.035,
-            1.026,
-            1.088,
             1.08,
-            1.053
+            1.045,
+            1.07,
+            0.992,
+            1.105
           ]
         },
-        "added": 0.035,
+        "added": 0.026,
         "limit": 0.05,
         "lit": true,
         "pose": {
@@ -2661,8 +2841,8 @@
       "name": "Speed at [4.2, 3] furnished, by day and under the night study, is at most 1.1 times a yard frame (checks 50 and 63, gathered)",
       "pass": true,
       "detail": {
-        "day": 1.052,
-        "night": 1.053,
+        "day": 1.035,
+        "night": 1.052,
         "limit": 1.1,
         "checks": [
           50,
@@ -2694,18 +2874,18 @@
           7.9
         ],
         "day": {
-          "all": 1.043,
-          "first": 1.054,
-          "added": -0.011,
-          "yardMs": 11.5,
-          "roomMs": 12
+          "all": 1.053,
+          "first": 1.044,
+          "added": 0.009,
+          "yardMs": 11.3,
+          "roomMs": 11.9
         },
         "night": {
-          "all": 1.044,
-          "first": 1.052,
-          "added": -0.008,
+          "all": 1.053,
+          "first": 1.053,
+          "added": 0,
           "yardMs": 11.4,
-          "roomMs": 11.9,
+          "roomMs": 12,
           "lit": true
         },
         "limit": 1.1,
@@ -2731,7 +2911,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 64.19999980926514
+            "ms": 64.30000019073486
           },
           {
             "rooms": [
@@ -2739,7 +2919,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 30.40000009536743
+            "ms": 31
           },
           {
             "rooms": [
@@ -2747,7 +2927,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 28.699999809265137
+            "ms": 26.90000009536743
           },
           {
             "rooms": [
@@ -2755,7 +2935,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 29.600000381469727
+            "ms": 29.699999809265137
           },
           {
             "rooms": [
@@ -2763,7 +2943,7 @@
             ],
             "vertices": 1258,
             "meshes": 3,
-            "ms": 4.400000095367432
+            "ms": 4.5
           },
           {
             "rooms": [
@@ -2771,7 +2951,31 @@
             ],
             "vertices": 4240,
             "meshes": 4,
-            "ms": 17.299999713897705
+            "ms": 16.5
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 11.799999713897705
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 9.300000190734863
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 18.09999990463257
           }
         ]
       }
@@ -2782,19 +2986,19 @@
       "pass": true,
       "detail": {
         "kitchen": {
-          "median": 30.4,
+          "median": 30.6,
           "loads": [
-            30.4,
-            30.5,
-            30.4
+            31,
+            30.6,
+            30.5
           ]
         },
         "dining": {
-          "median": 27,
+          "median": 26.5,
           "loads": [
-            28.7,
-            27,
-            26.9
+            26.9,
+            26.5,
+            26.2
           ]
         },
         "limit": 40
@@ -2818,7 +3022,10 @@
               "dining",
               "study",
               "passage",
-              "master"
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
             ]
           },
           "quiet": true
@@ -2836,7 +3043,10 @@
               "dining",
               "study",
               "passage",
-              "master"
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
             ]
           },
           "quiet": true
@@ -2854,7 +3064,7 @@
         "furnished": true,
         "kitchen": true,
         "dining": true,
-        "description": "Inside the cabin, in the kitchen. A range stands on the back wall and a table in the middle. The lamp is out. Year 1, day 138, 03:47. Spring. Dawn. Soft clouds. A completed nest rests in the oak. The cottage windows are dark. The bird is resting out of sight behind the oak.",
+        "description": "Inside the cabin, in the kitchen. A range stands on the back wall and a table in the middle. The lamp is lit. Year 1, day 137, 21:42. Spring. Night. Soft clouds. A completed nest rests in the oak. Both cottage rooms are lit. The bird is resting out of sight behind the oak.",
         "quiet": true
       }
     },
@@ -2881,7 +3091,7 @@
               8.1
             ],
             "end": [
-              7.852,
+              7.853,
               8.035
             ],
             "room": "dining room"
@@ -2892,7 +3102,7 @@
               7.6
             ],
             "end": [
-              7.396,
+              7.419,
               7.329
             ],
             "room": "dining room"
@@ -2903,8 +3113,8 @@
               7.6
             ],
             "end": [
-              9.329,
-              7.656
+              9.351,
+              7.66
             ],
             "room": "dining room"
           },
@@ -2914,23 +3124,23 @@
               6
             ],
             "end": [
-              8.929,
-              5.642
+              8.927,
+              5.654
             ],
             "room": "entry hall"
           }
         ],
         "frontFurnished": [
-          4.741803494055026,
-          8.381561912248742
+          4.73894207902733,
+          8.382378965069416
         ],
         "frontFirst": [
           4.75,
-          10.698879999732975
+          10.698320000267026
         ],
         "backFurnished": [
-          4.8210780755934355,
-          10.150130616242052
+          4.800679894171796,
+          10.150228909664543
         ],
         "expectedBackStop": 10.15,
         "tableD": [
@@ -2946,7 +3156,7 @@
       "detail": {
         "AB": 0,
         "AC": 0,
-        "first": 0.4338,
+        "first": 0.4425,
         "limit": 0.02,
         "firstLeast": 0.05,
         "points": 5184,
@@ -2970,11 +3180,11 @@
         "lit": false,
         "kitchen": {
           "rgb": [
-            161,
+            160,
             145,
             120
           ],
-          "lum": 0.5754979813453158
+          "lum": 0.5732060382625271
         },
         "dining": {
           "rgb": [
@@ -2982,7 +3192,7 @@
             155,
             132
           ],
-          "lum": 0.613548412990196
+          "lum": 0.6134917626633987
         },
         "sets": [
           {
@@ -2992,7 +3202,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 64.19999980926514
+            "ms": 64.09999990463257
           },
           {
             "rooms": [
@@ -3000,7 +3210,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 29.799999713897705
+            "ms": 30.90000009536743
           },
           {
             "rooms": [
@@ -3008,7 +3218,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 27.59999990463257
+            "ms": 27.699999809265137
           },
           {
             "rooms": [
@@ -3016,7 +3226,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 30.399999618530273
+            "ms": 29.59999990463257
           },
           {
             "rooms": [
@@ -3032,7 +3242,31 @@
             ],
             "vertices": 4240,
             "meshes": 4,
-            "ms": 17.40000009536743
+            "ms": 17.59999990463257
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 11.5
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 8.899999618530273
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 16.59999990463257
           }
         ]
       }
@@ -3063,39 +3297,39 @@
       "pass": true,
       "detail": {
         "study": {
-          "median": 29.6,
+          "median": 28.6,
           "loads": [
-            29.6,
-            29.9,
-            29.2
+            29.7,
+            28.6,
+            28.6
           ],
           "meshes": 5,
           "vertices": 10821
         },
         "passage": {
-          "median": 4.4,
+          "median": 4.5,
           "loads": [
-            4.4,
-            4.2,
-            5
+            4.5,
+            4.6,
+            4.3
           ],
           "meshes": 3,
           "vertices": 1258
         },
         "master": {
-          "median": 17.4,
+          "median": 16.5,
           "loads": [
-            17.3,
-            17.4,
-            17.4
+            16.5,
+            16.5,
+            16.7
           ],
           "meshes": 4,
           "vertices": 4240
         },
-        "threeTogetherMs": 51.4,
+        "threeTogetherMs": 49.6,
         "limitEach": 40,
         "limitTogether": 100,
-        "startedIndoorsAllSevenMs": 170.3,
+        "startedIndoorsAllSevenMs": 207.6,
         "startedIndoorsSets": [
           {
             "rooms": [
@@ -3104,7 +3338,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 66.80000019073486
+            "ms": 68.2000002861023
           },
           {
             "rooms": [
@@ -3112,7 +3346,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 29.90000009536743
+            "ms": 30.5
           },
           {
             "rooms": [
@@ -3120,7 +3354,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 26.09999990463257
+            "ms": 27
           },
           {
             "rooms": [
@@ -3128,7 +3362,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 28.699999809265137
+            "ms": 29.199999809265137
           },
           {
             "rooms": [
@@ -3144,7 +3378,31 @@
             ],
             "vertices": 4240,
             "meshes": 4,
-            "ms": 14.900000095367432
+            "ms": 15.200000286102295
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 10.899999618530273
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 7.599999904632568
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 15.099999904632568
           }
         ]
       }
@@ -3170,18 +3428,18 @@
         },
         "studyWindowLive": true,
         "day": {
-          "all": 1.035,
-          "base4b": 1.027,
-          "added": 0.008,
-          "yardMs": 11.4,
-          "roomMs": 11.8
+          "all": 1.053,
+          "base4b": 1.044,
+          "added": 0.009,
+          "yardMs": 11.3,
+          "roomMs": 11.9
         },
         "night": {
-          "all": 1.044,
+          "all": 1.053,
           "base4b": 1.035,
-          "added": 0.009,
+          "added": 0.018,
           "yardMs": 11.4,
-          "roomMs": 11.9,
+          "roomMs": 12,
           "lit": true
         },
         "limit": 1.1,
@@ -3208,17 +3466,17 @@
           "pitch": -0.1648989945768177
         },
         "day": {
-          "all": 0.841,
-          "base4b": 0.841,
+          "all": 0.817,
+          "base4b": 0.817,
           "added": 0,
-          "yardMs": 11.3,
-          "roomMs": 9.5
+          "yardMs": 11.5,
+          "roomMs": 9.4
         },
         "night": {
-          "all": 0.833,
-          "base4b": 0.833,
+          "all": 0.826,
+          "base4b": 0.826,
           "added": 0,
-          "yardMs": 11.4,
+          "yardMs": 11.5,
           "roomMs": 9.5,
           "lit": true
         },
@@ -3252,419 +3510,419 @@
         "speed": [
           {
             "k": "s0-day",
-            "all": 1.062,
-            "base4b": 1.06,
-            "allRoomMs": 12.045,
-            "base4bRoomMs": 12.025,
-            "diff": 0.002,
+            "all": 1.07,
+            "base4b": 1.058,
+            "allRoomMs": 12.11,
+            "base4bRoomMs": 12.06,
+            "diff": 0.005,
             "pairDiffs": [
-              -0.017,
-              -0.001,
-              0.002,
               0.005,
-              0.008
+              -0.001,
+              0.012,
+              0.002,
+              0.009
             ],
             "allLoads": [
               {
-                "ratio": 1.044,
-                "roomMs": 11.83,
-                "yardMs": 11.335
+                "ratio": 1.07,
+                "roomMs": 12.145,
+                "yardMs": 11.35
               },
               {
-                "ratio": 1.047,
-                "roomMs": 11.93,
-                "yardMs": 11.39
+                "ratio": 1.071,
+                "roomMs": 12.055,
+                "yardMs": 11.26
               },
               {
-                "ratio": 1.062,
-                "roomMs": 12.085,
-                "yardMs": 11.375
+                "ratio": 1.057,
+                "roomMs": 12.11,
+                "yardMs": 11.46
               },
               {
-                "ratio": 1.075,
-                "roomMs": 12.045,
-                "yardMs": 11.205
+                "ratio": 1.07,
+                "roomMs": 12.025,
+                "yardMs": 11.24
               },
               {
-                "ratio": 1.073,
+                "ratio": 1.077,
                 "roomMs": 12.165,
-                "yardMs": 11.34
+                "yardMs": 11.3
               }
             ],
             "base4bLoads": [
               {
-                "ratio": 1.064,
-                "roomMs": 12.025,
-                "yardMs": 11.305
-              },
-              {
-                "ratio": 1.06,
-                "roomMs": 11.94,
-                "yardMs": 11.265
-              },
-              {
-                "ratio": 1.061,
-                "roomMs": 12.06,
-                "yardMs": 11.365
-              },
-              {
-                "ratio": 1.049,
-                "roomMs": 11.99,
-                "yardMs": 11.435
+                "ratio": 1.058,
+                "roomMs": 12.09,
+                "yardMs": 11.43
               },
               {
                 "ratio": 1.059,
                 "roomMs": 12.07,
                 "yardMs": 11.395
+              },
+              {
+                "ratio": 1.061,
+                "roomMs": 11.975,
+                "yardMs": 11.285
+              },
+              {
+                "ratio": 1.055,
+                "roomMs": 12.005,
+                "yardMs": 11.38
+              },
+              {
+                "ratio": 1.051,
+                "roomMs": 12.06,
+                "yardMs": 11.47
               }
             ],
             "quiet": true
           },
           {
             "k": "s0-night",
-            "all": 1.063,
-            "base4b": 1.054,
-            "allRoomMs": 12.1,
-            "base4bRoomMs": 12.035,
-            "diff": 0.004,
+            "all": 1.053,
+            "base4b": 1.055,
+            "allRoomMs": 12.135,
+            "base4bRoomMs": 12.075,
+            "diff": 0.006,
             "pairDiffs": [
-              0.013,
-              0.012,
-              0.004,
-              -0.006,
-              0.001
+              -0.016,
+              0.006,
+              -0.005,
+              0.009,
+              0.009
             ],
             "allLoads": [
               {
+                "ratio": 1.047,
+                "roomMs": 12.04,
+                "yardMs": 11.495
+              },
+              {
                 "ratio": 1.063,
-                "roomMs": 12.155,
-                "yardMs": 11.43
+                "roomMs": 12.14,
+                "yardMs": 11.42
               },
               {
-                "ratio": 1.066,
-                "roomMs": 12.09,
-                "yardMs": 11.34
+                "ratio": 1.05,
+                "roomMs": 12.055,
+                "yardMs": 11.48
               },
               {
-                "ratio": 1.066,
-                "roomMs": 12.11,
-                "yardMs": 11.365
+                "ratio": 1.061,
+                "roomMs": 12.175,
+                "yardMs": 11.48
               },
               {
-                "ratio": 1.06,
-                "roomMs": 11.965,
-                "yardMs": 11.29
-              },
-              {
-                "ratio": 1.062,
-                "roomMs": 12.1,
-                "yardMs": 11.395
+                "ratio": 1.053,
+                "roomMs": 12.135,
+                "yardMs": 11.52
               }
             ],
             "base4bLoads": [
               {
-                "ratio": 1.045,
-                "roomMs": 12.005,
-                "yardMs": 11.49
+                "ratio": 1.073,
+                "roomMs": 12.22,
+                "yardMs": 11.39
               },
               {
-                "ratio": 1.056,
-                "roomMs": 11.955,
-                "yardMs": 11.325
+                "ratio": 1.058,
+                "roomMs": 12.075,
+                "yardMs": 11.415
               },
               {
-                "ratio": 1.054,
-                "roomMs": 12.06,
-                "yardMs": 11.445
+                "ratio": 1.055,
+                "roomMs": 12.11,
+                "yardMs": 11.475
               },
               {
                 "ratio": 1.052,
-                "roomMs": 12.035,
-                "yardMs": 11.445
+                "roomMs": 12.07,
+                "yardMs": 11.47
               },
               {
-                "ratio": 1.06,
-                "roomMs": 12.085,
-                "yardMs": 11.4
+                "ratio": 1.052,
+                "roomMs": 12.03,
+                "yardMs": 11.435
               }
             ],
             "quiet": true
           },
           {
             "k": "s1-day",
-            "all": 1.086,
-            "base4b": 1.088,
-            "allRoomMs": 12.34,
-            "base4bRoomMs": 12.355,
+            "all": 1.1,
+            "base4b": 1.091,
+            "allRoomMs": 12.42,
+            "base4bRoomMs": 12.345,
             "diff": 0.002,
             "pairDiffs": [
-              -0.011,
-              -0.007,
+              0.001,
+              0.022,
+              -0.004,
               0.002,
-              0.004,
-              0.013
+              0.021
             ],
             "allLoads": [
               {
-                "ratio": 1.077,
-                "roomMs": 12.28,
-                "yardMs": 11.4
-              },
-              {
-                "ratio": 1.077,
-                "roomMs": 12.21,
-                "yardMs": 11.335
-              },
-              {
-                "ratio": 1.086,
-                "roomMs": 12.395,
-                "yardMs": 11.415
-              },
-              {
-                "ratio": 1.096,
-                "roomMs": 12.395,
+                "ratio": 1.093,
+                "roomMs": 12.36,
                 "yardMs": 11.305
               },
               {
-                "ratio": 1.097,
-                "roomMs": 12.34,
-                "yardMs": 11.25
+                "ratio": 1.107,
+                "roomMs": 12.455,
+                "yardMs": 11.255
+              },
+              {
+                "ratio": 1.096,
+                "roomMs": 12.42,
+                "yardMs": 11.335
+              },
+              {
+                "ratio": 1.1,
+                "roomMs": 12.37,
+                "yardMs": 11.245
+              },
+              {
+                "ratio": 1.105,
+                "roomMs": 12.46,
+                "yardMs": 11.275
               }
             ],
             "base4bLoads": [
               {
                 "ratio": 1.094,
-                "roomMs": 12.41,
-                "yardMs": 11.34
+                "roomMs": 12.345,
+                "yardMs": 11.28
               },
               {
-                "ratio": 1.088,
-                "roomMs": 12.29,
-                "yardMs": 11.3
+                "ratio": 1.081,
+                "roomMs": 12.21,
+                "yardMs": 11.295
               },
               {
-                "ratio": 1.087,
-                "roomMs": 12.37,
-                "yardMs": 11.375
+                "ratio": 1.098,
+                "roomMs": 12.47,
+                "yardMs": 11.355
               },
               {
-                "ratio": 1.094,
-                "roomMs": 12.355,
-                "yardMs": 11.29
+                "ratio": 1.091,
+                "roomMs": 12.345,
+                "yardMs": 11.315
               },
               {
-                "ratio": 1.076,
-                "roomMs": 12.19,
-                "yardMs": 11.33
+                "ratio": 1.073,
+                "roomMs": 12.225,
+                "yardMs": 11.395
               }
             ],
             "quiet": true
           },
           {
             "k": "s1-night",
-            "all": 1.092,
-            "base4b": 1.098,
-            "allRoomMs": 12.385,
-            "base4bRoomMs": 12.385,
-            "diff": 0,
+            "all": 1.095,
+            "base4b": 1.087,
+            "allRoomMs": 12.415,
+            "base4bRoomMs": 12.355,
+            "diff": 0.002,
             "pairDiffs": [
-              0.004,
-              -0.011,
-              -0.011,
-              0.003,
-              0
+              0.002,
+              0.009,
+              0,
+              0.005,
+              -0.006
             ],
             "allLoads": [
               {
-                "ratio": 1.094,
-                "roomMs": 12.385,
-                "yardMs": 11.325
+                "ratio": 1.077,
+                "roomMs": 12.355,
+                "yardMs": 11.475
               },
               {
-                "ratio": 1.092,
-                "roomMs": 12.395,
-                "yardMs": 11.355
+                "ratio": 1.095,
+                "roomMs": 12.46,
+                "yardMs": 11.38
               },
               {
-                "ratio": 1.094,
+                "ratio": 1.095,
+                "roomMs": 12.46,
+                "yardMs": 11.375
+              },
+              {
+                "ratio": 1.1,
+                "roomMs": 12.35,
+                "yardMs": 11.23
+              },
+              {
+                "ratio": 1.081,
                 "roomMs": 12.415,
-                "yardMs": 11.35
-              },
-              {
-                "ratio": 1.084,
-                "roomMs": 12.385,
-                "yardMs": 11.425
-              },
-              {
-                "ratio": 1.091,
-                "roomMs": 12.385,
-                "yardMs": 11.355
+                "yardMs": 11.485
               }
             ],
             "base4bLoads": [
               {
-                "ratio": 1.098,
-                "roomMs": 12.335,
-                "yardMs": 11.23
+                "ratio": 1.085,
+                "roomMs": 12.33,
+                "yardMs": 11.365
               },
               {
-                "ratio": 1.112,
-                "roomMs": 12.52,
-                "yardMs": 11.255
-              },
-              {
-                "ratio": 1.093,
-                "roomMs": 12.535,
-                "yardMs": 11.465
-              },
-              {
-                "ratio": 1.09,
+                "ratio": 1.087,
                 "roomMs": 12.355,
-                "yardMs": 11.335
+                "yardMs": 11.365
               },
               {
-                "ratio": 1.103,
-                "roomMs": 12.385,
-                "yardMs": 11.225
+                "ratio": 1.094,
+                "roomMs": 12.465,
+                "yardMs": 11.395
+              },
+              {
+                "ratio": 1.081,
+                "roomMs": 12.295,
+                "yardMs": 11.375
+              },
+              {
+                "ratio": 1.094,
+                "roomMs": 12.485,
+                "yardMs": 11.415
               }
             ],
             "quiet": true
           },
           {
             "k": "s2-day",
-            "all": 1.062,
-            "base4b": 1.067,
-            "allRoomMs": 11.965,
-            "base4bRoomMs": 12.055,
-            "diff": -0.008,
+            "all": 1.061,
+            "base4b": 1.062,
+            "allRoomMs": 12.06,
+            "base4bRoomMs": 12.035,
+            "diff": 0.002,
             "pairDiffs": [
               0.002,
-              -0.011,
-              -0.018,
-              -0.008,
-              0.039
+              -0.003,
+              -0.004,
+              0.008,
+              0.007
             ],
             "allLoads": [
               {
+                "ratio": 1.067,
+                "roomMs": 12.055,
+                "yardMs": 11.295
+              },
+              {
                 "ratio": 1.059,
-                "roomMs": 11.94,
-                "yardMs": 11.27
+                "roomMs": 12.06,
+                "yardMs": 11.385
               },
               {
-                "ratio": 1.063,
-                "roomMs": 12.04,
-                "yardMs": 11.33
+                "ratio": 1.06,
+                "roomMs": 12.015,
+                "yardMs": 11.34
               },
               {
-                "ratio": 1.05,
-                "roomMs": 11.9,
-                "yardMs": 11.33
+                "ratio": 1.061,
+                "roomMs": 12.12,
+                "yardMs": 11.425
               },
               {
-                "ratio": 1.062,
-                "roomMs": 11.965,
-                "yardMs": 11.265
-              },
-              {
-                "ratio": 1.079,
-                "roomMs": 12.415,
-                "yardMs": 11.51
+                "ratio": 1.065,
+                "roomMs": 12.09,
+                "yardMs": 11.35
               }
             ],
             "base4bLoads": [
               {
-                "ratio": 1.055,
-                "roomMs": 11.92,
-                "yardMs": 11.3
+                "ratio": 1.059,
+                "roomMs": 12.035,
+                "yardMs": 11.365
               },
               {
-                "ratio": 1.075,
-                "roomMs": 12.17,
-                "yardMs": 11.325
+                "ratio": 1.071,
+                "roomMs": 12.09,
+                "yardMs": 11.285
               },
               {
-                "ratio": 1.067,
-                "roomMs": 12.1,
-                "yardMs": 11.34
-              },
-              {
-                "ratio": 1.068,
-                "roomMs": 12.055,
+                "ratio": 1.069,
+                "roomMs": 12.065,
                 "yardMs": 11.29
               },
               {
-                "ratio": 1.06,
-                "roomMs": 11.97,
-                "yardMs": 11.295
+                "ratio": 1.062,
+                "roomMs": 12.025,
+                "yardMs": 11.32
+              },
+              {
+                "ratio": 1.055,
+                "roomMs": 12.01,
+                "yardMs": 11.38
               }
             ],
             "quiet": true
           },
           {
             "k": "s2-night",
-            "all": 1.051,
-            "base4b": 1.05,
-            "allRoomMs": 11.99,
-            "base4bRoomMs": 11.98,
-            "diff": 0.001,
+            "all": 1.056,
+            "base4b": 1.054,
+            "allRoomMs": 12.08,
+            "base4bRoomMs": 12.025,
+            "diff": 0.004,
             "pairDiffs": [
+              -0.002,
               0.008,
-              0,
-              0.001,
               0.004,
-              -0.013
+              0.012,
+              -0.008
             ],
             "allLoads": [
               {
                 "ratio": 1.05,
-                "roomMs": 12.01,
+                "roomMs": 12,
+                "yardMs": 11.43
+              },
+              {
+                "ratio": 1.06,
+                "roomMs": 12.105,
+                "yardMs": 11.42
+              },
+              {
+                "ratio": 1.066,
+                "roomMs": 12.09,
+                "yardMs": 11.345
+              },
+              {
+                "ratio": 1.056,
+                "roomMs": 12.08,
                 "yardMs": 11.44
               },
               {
-                "ratio": 1.051,
-                "roomMs": 11.995,
-                "yardMs": 11.415
-              },
-              {
-                "ratio": 1.054,
-                "roomMs": 11.99,
-                "yardMs": 11.38
-              },
-              {
-                "ratio": 1.051,
-                "roomMs": 11.975,
-                "yardMs": 11.39
-              },
-              {
-                "ratio": 1.038,
-                "roomMs": 11.87,
-                "yardMs": 11.435
+                "ratio": 1.046,
+                "roomMs": 12.01,
+                "yardMs": 11.48
               }
             ],
             "base4bLoads": [
               {
-                "ratio": 1.052,
-                "roomMs": 11.915,
-                "yardMs": 11.33
-              },
-              {
                 "ratio": 1.054,
-                "roomMs": 12,
-                "yardMs": 11.39
-              },
-              {
-                "ratio": 1.05,
-                "roomMs": 11.98,
+                "roomMs": 12.025,
                 "yardMs": 11.41
               },
               {
-                "ratio": 1.046,
-                "roomMs": 11.935,
-                "yardMs": 11.405
+                "ratio": 1.058,
+                "roomMs": 12.01,
+                "yardMs": 11.35
               },
               {
-                "ratio": 1.05,
-                "roomMs": 12.015,
+                "ratio": 1.051,
+                "roomMs": 12.04,
+                "yardMs": 11.46
+              },
+              {
+                "ratio": 1.044,
+                "roomMs": 11.94,
+                "yardMs": 11.44
+              },
+              {
+                "ratio": 1.058,
+                "roomMs": 12.1,
                 "yardMs": 11.44
               }
             ],
@@ -3820,9 +4078,7 @@
           "living",
           "hall",
           "kitchen",
-          "dining",
-          "study",
-          "passage"
+          "dining"
         ],
         "passage": [
           "living",
@@ -3840,7 +4096,10 @@
             "dining",
             "study",
             "passage",
-            "master"
+            "master",
+            "bath-ground",
+            "laundry",
+            "pantry"
           ],
           "built": [
             "living",
@@ -3849,7 +4108,10 @@
             "dining",
             "study",
             "passage",
-            "master"
+            "master",
+            "bath-ground",
+            "laundry",
+            "pantry"
           ]
         }
       }
@@ -3872,7 +4134,10 @@
               "dining",
               "study",
               "passage",
-              "master"
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
             ]
           },
           "quiet": true
@@ -3906,7 +4171,10 @@
               "dining",
               "study",
               "passage",
-              "master"
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
             ]
           },
           "quiet": true
@@ -3938,7 +4206,10 @@
           "dining",
           "study",
           "passage",
-          "master"
+          "master",
+          "bath-ground",
+          "laundry",
+          "pantry"
         ],
         "sets": [
           {
@@ -3948,7 +4219,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 66.80000019073486
+            "ms": 68.2000002861023
           },
           {
             "rooms": [
@@ -3956,7 +4227,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 29.90000009536743
+            "ms": 30.5
           },
           {
             "rooms": [
@@ -3964,7 +4235,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 26.09999990463257
+            "ms": 27
           },
           {
             "rooms": [
@@ -3972,7 +4243,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 28.699999809265137
+            "ms": 29.199999809265137
           },
           {
             "rooms": [
@@ -3988,11 +4259,35 @@
             ],
             "vertices": 4240,
             "meshes": 4,
-            "ms": 14.900000095367432
+            "ms": 15.200000286102295
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 10.899999618530273
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 7.599999904632568
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 15.099999904632568
           }
         ],
-        "totalFurnitureMs": 170.3,
-        "description": "Inside the cabin, in the master bedroom. A double bed stands against the back wall, a lamp at each side. The lamp is out. Year 1, day 138, 03:57. Spring. Dawn. Soft clouds. A completed nest rests in the oak. The cottage windows are dark. The bird is resting out of sight behind the oak.",
+        "totalFurnitureMs": 207.6,
+        "description": "Inside the cabin, in the master bedroom. A double bed stands against the back wall, a lamp at each side. The lamp is lit. Year 1, day 137, 21:51. Spring. Night. Soft clouds. A completed nest rests in the oak. Both cottage rooms are lit. The bird is resting out of sight behind the oak.",
         "quiet": true
       }
     },
@@ -4022,18 +4317,18 @@
         "study": {
           "rgb": [
             159,
-            147,
+            146,
             125
           ],
-          "lum": 0.5793238919526144
+          "lum": 0.5790697280092593
         },
         "passage": {
           "rgb": [
-            175,
-            161,
-            136
+            173,
+            159,
+            134
           ],
-          "lum": 0.6353409027777778
+          "lum": 0.6282682543572984
         },
         "master": {
           "rgb": [
@@ -4051,7 +4346,7 @@
             ],
             "vertices": 12092,
             "meshes": 5,
-            "ms": 65
+            "ms": 64.30000019073486
           },
           {
             "rooms": [
@@ -4059,7 +4354,7 @@
             ],
             "vertices": 5501,
             "meshes": 4,
-            "ms": 31.5
+            "ms": 31
           },
           {
             "rooms": [
@@ -4067,7 +4362,7 @@
             ],
             "vertices": 5192,
             "meshes": 4,
-            "ms": 27
+            "ms": 26.90000009536743
           },
           {
             "rooms": [
@@ -4075,7 +4370,7 @@
             ],
             "vertices": 10821,
             "meshes": 5,
-            "ms": 30.199999809265137
+            "ms": 29.5
           },
           {
             "rooms": [
@@ -4083,7 +4378,7 @@
             ],
             "vertices": 1258,
             "meshes": 3,
-            "ms": 4.400000095367432
+            "ms": 4.299999713897705
           },
           {
             "rooms": [
@@ -4092,6 +4387,868 @@
             "vertices": 4240,
             "meshes": 4,
             "ms": 17.09999990463257
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 12
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 9.099999904632568
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 17.200000286102295
+          }
+        ],
+        "quiet": true
+      }
+    },
+    {
+      "n": 104,
+      "name": "Queued builds of bath-ground, laundry and pantry (median of three loads): each at most 30 ms, together at most 70 ms, all eight queued rooms under 180 ms; meshes at most 4 each",
+      "pass": true,
+      "detail": {
+        "bath": {
+          "median": 11.8,
+          "loads": [
+            11.8,
+            11.9,
+            11.1
+          ],
+          "meshes": 4,
+          "vertices": 2858
+        },
+        "laundry": {
+          "median": 9.3,
+          "loads": [
+            9.3,
+            9.3,
+            9.3
+          ],
+          "meshes": 3,
+          "vertices": 2051
+        },
+        "pantry": {
+          "median": 17.4,
+          "loads": [
+            18.1,
+            17.4,
+            17.1
+          ],
+          "meshes": 4,
+          "vertices": 4021
+        },
+        "threeTogetherMs": 38.5,
+        "allEightQueuedMs": 145.2,
+        "limits": {
+          "each": 30,
+          "three": 70,
+          "allEight": 180
+        },
+        "startedIndoorsAllTenMs": 205.1,
+        "startedIndoorsSets": [
+          {
+            "rooms": [
+              "living",
+              "hall"
+            ],
+            "vertices": 12092,
+            "meshes": 5,
+            "ms": 66.69999980926514
+          },
+          {
+            "rooms": [
+              "kitchen"
+            ],
+            "vertices": 5501,
+            "meshes": 4,
+            "ms": 30.399999618530273
+          },
+          {
+            "rooms": [
+              "dining"
+            ],
+            "vertices": 5192,
+            "meshes": 4,
+            "ms": 26.100000381469727
+          },
+          {
+            "rooms": [
+              "study"
+            ],
+            "vertices": 10821,
+            "meshes": 5,
+            "ms": 28.40000009536743
+          },
+          {
+            "rooms": [
+              "passage"
+            ],
+            "vertices": 1258,
+            "meshes": 3,
+            "ms": 4.799999713897705
+          },
+          {
+            "rooms": [
+              "master"
+            ],
+            "vertices": 4240,
+            "meshes": 4,
+            "ms": 15
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 10
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 8.5
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 15.199999809265137
+          }
+        ]
+      }
+    },
+    {
+      "n": 105,
+      "name": "Speed at [14.6,5.5] (bathroom, facing gable), day and night (bathroom lamp lit): at most 1.1 times a yard frame and at most 0.05 above &furnish=4c",
+      "pass": true,
+      "detail": {
+        "spot": [
+          14.6,
+          5.5
+        ],
+        "pose": {
+          "place": "cabin",
+          "floor": 0,
+          "position": [
+            14.6,
+            5.5
+          ],
+          "yaw": 1.5707963267948966,
+          "pitch": 0
+        },
+        "day": {
+          "all": 0.832,
+          "base4c": 0.816,
+          "added": 0.016,
+          "yardMs": 11.3,
+          "roomMs": 9.4
+        },
+        "night": {
+          "all": 0.833,
+          "base4c": 0.817,
+          "added": 0.016,
+          "yardMs": 11.4,
+          "roomMs": 9.5,
+          "lit": true
+        },
+        "limit": 1.1,
+        "limitAdded": 0.05
+      }
+    },
+    {
+      "n": 106,
+      "name": "Draw calls at the bathroom pose [14.6,5.5] add at most 4 over &furnish=4c",
+      "pass": true,
+      "detail": {
+        "bath": {
+          "all": 14,
+          "base4c": 10,
+          "added": 4
+        },
+        "limit": 4
+      }
+    },
+    {
+      "n": 107,
+      "name": "The five existing speed poses, day and night (ABBA pairing vs &furnish=4c): at most +0.01 of a yard frame and no added draw calls (or at most +0.02 and the new room's meshes where new pieces are in view)",
+      "pass": true,
+      "detail": {
+        "speed": [
+          {
+            "k": "s0-day",
+            "pose": "s0",
+            "all": 1.071,
+            "base4c": 1.063,
+            "allRoomMs": 12.065,
+            "base4cRoomMs": 12.09,
+            "diff": -0.001,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.001,
+              -0.015,
+              0.002,
+              -0.01,
+              0.008
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s0-night",
+            "pose": "s0",
+            "all": 1.055,
+            "base4c": 1.061,
+            "allRoomMs": 12.07,
+            "base4cRoomMs": 12.08,
+            "diff": -0.006,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.008,
+              -0.006,
+              0.019,
+              -0.011,
+              -0.006
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s1-day",
+            "pose": "s1",
+            "all": 1.096,
+            "base4c": 1.092,
+            "allRoomMs": 12.35,
+            "base4cRoomMs": 12.375,
+            "diff": 0.004,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              0.004,
+              -0.001,
+              -0.008,
+              0.005,
+              0.006
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s1-night",
+            "pose": "s1",
+            "all": 1.094,
+            "base4c": 1.089,
+            "allRoomMs": 12.475,
+            "base4cRoomMs": 12.43,
+            "diff": 0,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.004,
+              0.002,
+              0,
+              -0.008,
+              0.004
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s2-day",
+            "pose": "s2",
+            "all": 1.067,
+            "base4c": 1.067,
+            "allRoomMs": 12.1,
+            "base4cRoomMs": 12.085,
+            "diff": 0.004,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              0.004,
+              0.004,
+              -0.016,
+              0.006,
+              -0.007
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s2-night",
+            "pose": "s2",
+            "all": 1.054,
+            "base4c": 1.059,
+            "allRoomMs": 12.015,
+            "base4cRoomMs": 12.06,
+            "diff": -0.003,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.007,
+              -0.047,
+              0.014,
+              -0.003,
+              -0.002
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s3-day",
+            "pose": "s3",
+            "all": 1.04,
+            "base4c": 1.046,
+            "allRoomMs": 11.845,
+            "base4cRoomMs": 11.83,
+            "diff": 0.002,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              0.001,
+              0.005,
+              -0.01,
+              0.002,
+              0.011
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s3-night",
+            "pose": "s3",
+            "all": 1.041,
+            "base4c": 1.043,
+            "allRoomMs": 11.94,
+            "base4cRoomMs": 11.875,
+            "diff": 0.006,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              0.007,
+              0.001,
+              0.006,
+              0.009,
+              -0.011
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s4-day",
+            "pose": "s4",
+            "all": 0.837,
+            "base4c": 0.835,
+            "allRoomMs": 9.525,
+            "base4cRoomMs": 9.515,
+            "diff": 0,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.008,
+              -0.001,
+              0,
+              0.006,
+              0.008
+            ],
+            "quiet": true
+          },
+          {
+            "k": "s4-night",
+            "pose": "s4",
+            "all": 0.835,
+            "base4c": 0.833,
+            "allRoomMs": 9.555,
+            "base4cRoomMs": 9.505,
+            "diff": 0,
+            "limit": 0.01,
+            "visibleNew": false,
+            "pairDiffs": [
+              -0.003,
+              0.008,
+              0,
+              -0.001,
+              0.003
+            ],
+            "quiet": true
+          }
+        ],
+        "calls": {
+          "s0": [
+            44,
+            44
+          ],
+          "s1": [
+            52,
+            52
+          ],
+          "s2": [
+            41,
+            41
+          ],
+          "s3": [
+            31,
+            31
+          ],
+          "s4": [
+            14,
+            14
+          ]
+        },
+        "differingPixelsVs4c": {
+          "s0": 0,
+          "s1": 0,
+          "s2": 0,
+          "s3": 0,
+          "s4": 0
+        },
+        "callsOk": true
+      }
+    },
+    {
+      "n": 108,
+      "name": "Hiding unseen rooms changes no pixel: at all six speed poses, the living and hall capture poses and the kitchen west-wall pose, default and &hide=0 draw identical frames",
+      "pass": true,
+      "detail": {
+        "differingPixels": {
+          "speed0": 0,
+          "speed1": 0,
+          "speed2": 0,
+          "speed3": 0,
+          "speed4": 0,
+          "speed5": 0,
+          "living": 0,
+          "hall": 0,
+          "kitchenWest": 0
+        },
+        "pointsPerPose": 5184
+      }
+    },
+    {
+      "n": 109,
+      "name": "Full 360° turn every 15° (24 frames each) at spots.dresser and spots.wardrobes: hiding changes 0 pixels at every step",
+      "pass": true,
+      "detail": {
+        "dresser": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "wardrobes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "pointsPerStep": 5184
+      }
+    },
+    {
+      "n": 110,
+      "name": "shownRooms hides bath-ground from [5.2, 7.9] facing the dining window, hides laundry and pantry from the living capture pose, shows bath-ground from the bathroom pose, and shows every built room in the yard",
+      "pass": true,
+      "detail": {
+        "kitchen": [
+          "living",
+          "hall",
+          "kitchen",
+          "dining"
+        ],
+        "living": [
+          "living",
+          "hall",
+          "kitchen"
+        ],
+        "bath": [
+          "living",
+          "hall",
+          "bath-ground"
+        ],
+        "yard": {
+          "shown": [
+            "living",
+            "hall",
+            "kitchen",
+            "dining",
+            "study",
+            "passage",
+            "master",
+            "bath-ground",
+            "laundry",
+            "pantry"
+          ],
+          "built": [
+            "living",
+            "hall",
+            "kitchen",
+            "dining",
+            "study",
+            "passage",
+            "master",
+            "bath-ground",
+            "laundry",
+            "pantry"
+          ]
+        }
+      }
+    },
+    {
+      "n": 111,
+      "name": "Entering through the door (normal motion): on the first indoor frame, pending is [] and all ten ground-floor rooms are built",
+      "pass": true,
+      "detail": {
+        "normal": {
+          "reducedMotion": false,
+          "got": {
+            "pending": [],
+            "kitchen": true,
+            "dining": true,
+            "furnishedRooms": [
+              "living",
+              "hall",
+              "kitchen",
+              "dining",
+              "study",
+              "passage",
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
+            ]
+          },
+          "quiet": true
+        },
+        "want": [
+          "hall",
+          "living",
+          "kitchen",
+          "dining",
+          "study",
+          "passage",
+          "master",
+          "bath-ground",
+          "laundry",
+          "pantry"
+        ]
+      }
+    },
+    {
+      "n": 112,
+      "name": "Entering through the door (reduced motion): on the first indoor frame, pending is [] and all ten ground-floor rooms are built",
+      "pass": true,
+      "detail": {
+        "reducedMotion": {
+          "reducedMotion": true,
+          "got": {
+            "pending": [],
+            "kitchen": true,
+            "dining": true,
+            "furnishedRooms": [
+              "living",
+              "hall",
+              "kitchen",
+              "dining",
+              "study",
+              "passage",
+              "master",
+              "bath-ground",
+              "laundry",
+              "pantry"
+            ]
+          },
+          "quiet": true
+        },
+        "want": [
+          "hall",
+          "living",
+          "kitchen",
+          "dining",
+          "study",
+          "passage",
+          "master",
+          "bath-ground",
+          "laundry",
+          "pantry"
+        ]
+      }
+    },
+    {
+      "n": 113,
+      "name": "A load starting indoors in the bathroom has pending empty, furnished true, all ten ground-floor rooms built, and the bathroom's clause in the description",
+      "pass": true,
+      "detail": {
+        "place": "cabin",
+        "room": "bathroom",
+        "pending": [],
+        "furnished": true,
+        "furnishedRooms": [
+          "living",
+          "hall",
+          "kitchen",
+          "dining",
+          "study",
+          "passage",
+          "master",
+          "bath-ground",
+          "laundry",
+          "pantry"
+        ],
+        "sets": [
+          {
+            "rooms": [
+              "living",
+              "hall"
+            ],
+            "vertices": 12092,
+            "meshes": 5,
+            "ms": 66.69999980926514
+          },
+          {
+            "rooms": [
+              "kitchen"
+            ],
+            "vertices": 5501,
+            "meshes": 4,
+            "ms": 30.399999618530273
+          },
+          {
+            "rooms": [
+              "dining"
+            ],
+            "vertices": 5192,
+            "meshes": 4,
+            "ms": 26.100000381469727
+          },
+          {
+            "rooms": [
+              "study"
+            ],
+            "vertices": 10821,
+            "meshes": 5,
+            "ms": 28.40000009536743
+          },
+          {
+            "rooms": [
+              "passage"
+            ],
+            "vertices": 1258,
+            "meshes": 3,
+            "ms": 4.799999713897705
+          },
+          {
+            "rooms": [
+              "master"
+            ],
+            "vertices": 4240,
+            "meshes": 4,
+            "ms": 15
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 10
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 8.5
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 15.199999809265137
+          }
+        ],
+        "totalFurnitureMs": 205.1,
+        "description": "Inside the cabin, in the bathroom. A bathtub stands along one wall, a basin and mirror opposite. The lamp is out. Year 1, day 137, 23:37. Spring. Night. Cloudy skies. A completed nest rests in the oak. The cottage windows are dark. The bird is resting out of sight behind the oak.",
+        "quiet": true
+      }
+    },
+    {
+      "n": 114,
+      "name": "Two loads at the same world moment draw the same bathroom, laundry and pantry (0 pixel difference), and a &furnish=4c baseline load differs in each",
+      "pass": true,
+      "detail": {
+        "bath": {
+          "sameDiffPixels": 0,
+          "vs4cShare": 0.2392
+        },
+        "laundry": {
+          "sameDiffPixels": 0,
+          "vs4cShare": 0.2978
+        },
+        "pantry": {
+          "sameDiffPixels": 0,
+          "vs4cShare": 0.6804
+        },
+        "minShare": 0.05,
+        "points": 5184
+      }
+    },
+    {
+      "n": 115,
+      "name": "After inside.fallBack() bath-ground, laundry and pantry keep every mesh with mean luminance above 0.1, and no page or console errors occurred in part 4d visitors",
+      "pass": true,
+      "detail": {
+        "lit": false,
+        "bath": {
+          "rgb": [
+            190,
+            177,
+            152
+          ],
+          "lum": 0.6985516816448801
+        },
+        "laundry": {
+          "rgb": [
+            179,
+            165,
+            142
+          ],
+          "lum": 0.6533601572712417
+        },
+        "pantry": {
+          "rgb": [
+            143,
+            127,
+            99
+          ],
+          "lum": 0.5024842320261438
+        },
+        "sets": [
+          {
+            "rooms": [
+              "living",
+              "hall"
+            ],
+            "vertices": 12092,
+            "meshes": 5,
+            "ms": 72.10000038146973
+          },
+          {
+            "rooms": [
+              "kitchen"
+            ],
+            "vertices": 5501,
+            "meshes": 4,
+            "ms": 35.09999990463257
+          },
+          {
+            "rooms": [
+              "dining"
+            ],
+            "vertices": 5192,
+            "meshes": 4,
+            "ms": 29
+          },
+          {
+            "rooms": [
+              "study"
+            ],
+            "vertices": 10821,
+            "meshes": 5,
+            "ms": 32.5
+          },
+          {
+            "rooms": [
+              "passage"
+            ],
+            "vertices": 1258,
+            "meshes": 3,
+            "ms": 4.900000095367432
+          },
+          {
+            "rooms": [
+              "master"
+            ],
+            "vertices": 4240,
+            "meshes": 4,
+            "ms": 16.199999809265137
+          },
+          {
+            "rooms": [
+              "bath-ground"
+            ],
+            "vertices": 2858,
+            "meshes": 4,
+            "ms": 10.699999809265137
+          },
+          {
+            "rooms": [
+              "laundry"
+            ],
+            "vertices": 2051,
+            "meshes": 3,
+            "ms": 8.099999904632568
+          },
+          {
+            "rooms": [
+              "pantry"
+            ],
+            "vertices": 4021,
+            "meshes": 4,
+            "ms": 15.099999904632568
           }
         ],
         "quiet": true

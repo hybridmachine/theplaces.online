@@ -198,15 +198,18 @@ export function boxInView(box, planes) {
     if (!Array.isArray(p) || p.length < 4 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]) || !Number.isFinite(p[2]) || !Number.isFinite(p[3])) return true;
   }
   const [a0, a1] = box.a, [d0, d1] = box.d, [z0, z1] = box.z;
-  let allIn = true;
+  let allIn = true, sa = 0, sd = 0, sz = 0, sc = 0;
   for (let i = 0; i < planes.length; i++) {
     const [na, nd, nz, c] = planes[i];
+    sa += na; sd += nd; sz += nz; sc += c;
     const hi = na * (na >= 0 ? a1 : a0) + nd * (nd >= 0 ? d1 : d0) + nz * (nz >= 0 ? z1 : z0) + c;
     if (hi < -EPS) return false;
     const lo = na * (na >= 0 ? a0 : a1) + nd * (nd >= 0 ? d0 : d1) + nz * (nz >= 0 ? z0 : z1) + c;
     if (lo < -EPS) allIn = false;
   }
   if (allIn) return true;
+  // Positive sum of all planes is also valid for every interior point; rejects boxes strictly behind the camera apex in O(1).
+  if (sa * (sa >= 0 ? a1 : a0) + sd * (sd >= 0 ? d1 : d0) + sz * (sz >= 0 ? z1 : z0) + sc < -EPS) return false;
   let faces = [
     [[a0, d0, z0], [a0, d1, z0], [a0, d1, z1], [a0, d0, z1]],
     [[a1, d0, z0], [a1, d0, z1], [a1, d1, z1], [a1, d1, z0]],

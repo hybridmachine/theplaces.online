@@ -261,15 +261,16 @@ export class SpaceView {
     cam.updateMatrixWorld();
     const vp = (this._viewVp ??= new THREE.Matrix4()).multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     if (this.inside?.scene) {
-      this.inside.scene.updateMatrixWorld();
+      this.inside.scene.updateWorldMatrix(true, false);
       vp.multiply(this.inside.scene.matrixWorld);
     }
     const frustum = (this._viewFrustum ??= new THREE.Frustum()).setFromProjectionMatrix(vp);
-    const out = [];
+    const out = this._viewPlanes ??= [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
     for (let i = 0; i < 4; i++) {
       const p = frustum.planes[i], {x, y, z} = p.normal, c = p.constant;
       if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(c)) return null;
-      out.push([x, -z, y, c]);
+      const row = out[i];
+      row[0] = x; row[1] = -z; row[2] = y; row[3] = c;
     }
     return out;
   }

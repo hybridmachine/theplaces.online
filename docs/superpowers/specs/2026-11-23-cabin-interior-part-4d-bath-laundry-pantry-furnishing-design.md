@@ -1,6 +1,6 @@
 # Cabin interior, part 4d: furnishing the ground-floor bathroom, laundry and pantry — design
 
-Status: design, awaiting owner approval (November 23, 2026).
+Status: built behind `?interior=1`, awaiting owner review (November 23, 2026).
 
 This is the fourth slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). The first three, `2026-11-21-cabin-interior-part-4a-living-hall-furnishing-design.md` (4a), `2026-11-21-cabin-interior-part-4b-kitchen-dining-furnishing-design.md` (4b) and `2026-11-22-cabin-interior-part-4c-study-passage-master-furnishing-design.md` (4c), are built and merged. Their design and As built sections are the starting point: everything there about how a piece is described, made, lit, grounded, queued, hidden, checked and allowed to fail holds here unless this document says otherwise.
 
@@ -234,3 +234,78 @@ The captures. Three questions: does the bathroom read as a bathroom from the pas
 - The wording of the description clauses.
 - Where the doorway test lives in `shared/`, its signature, and how the frame gets the frustum's planes to it.
 - The README's interior section and the spec's As built section, written when the work lands.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open. The pure doorway test (`doorBoxes`, `boxInView`, `doorInView`) lives beside `seenFrom` in `shared/sight.js`; the thirteen new kinds (`basin`, `toilet`, `shower`, `bathtub`, `wash-tub`, `drying-rack`, `basket`, `pantry-shelf`, `sack`, `crate`, `bath-mat`, `towel-rail`, `towel`) live in `shared/furniture.js`; widened rule 8 (`FURNISHED` over all ten ground-floor rooms, `throughWays` entries for `bath-ground`, `laundry` and `pantry`) lives in `shared/interior.js`; `furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry']`, `SLICE_4D`, the new pieces and the new named and speed spots live in `shared/lakeside-interior.js`. `grid` is exposed on `createKit` in `public/space/interior/furniture-kit.js` for the lofted tubs; `SURFACES.wicker` (mapping to `wood` with `ochre`), `PANTRY_JARS_PER_SHELF = 6`, `RACK_RAILS`, the new recipes and parent-aware placements for `jug` (on `basin`), `cloth` (on `drying-rack`) and `towel` (on `towel-rail`, `bathtub` and `basket`) live in `public/space/interior/furniture.js`; `showFrom(roomId, planes)` and `doors = doorBoxes` live in `public/space/interior/index.js`; `SpaceView.viewPlanes()`, `updateSight()` and `&furnish=4c` (with `&furnish=4b` stripping `SLICE_4C` and `SLICE_4D`) live in `public/space/space-view.js`; the bathroom, laundry and pantry clauses live in `public/scene-description.js`.
+
+### Placements
+
+- Every bathroom, laundry and pantry piece stands where the plan's tables put it, with no footprint moves needed:
+  - **Bathroom (`bath-ground`):** pedestal `basin` at `[15.1, 4.3]` (turn π) with `mirror-bath` above it (`d = 4`, `a` `[14.8, 15.4]`, `z = 1.5`) and `jug-basin` on the back corner ledge; close-coupled `toilet` at `[16.7, 4.425]` (turn π) with a porcelain rear platform joining the bowl to the cistern (added after capture review so the cistern never reads as floating); corner `shower` at `[17.475, 4.525]` (turn π) with curtain across both open sides (`-y` and `-a`); roll-top `bathtub` on four iron claw feet at `[16.3, 6.55]` (turn 0); `bath-mat` at `[16.3, 5.75]` (turn `0.03`, `[0.9, 0.55]`); `towel-rail` on `a = 18` over `d` `[5.3, 6.1]` at `z = 1.2` with `towel-rail-1` hung on it and `towel-tub` draped across the tub's front rim.
+  - **Laundry (`laundry`):** deep copper `wash-tub` on a four-legged oak stand with a leaning washboard inside at `[0.9, 7.375]` (turn π); A-frame `drying-rack` at `[1.3, 9.2]` (turn 0) with `cloth-rack-1..3` hung on three rails at distinct heights (`z = 1.18, 0.96, 0.72` m); wicker `basket-1` and `basket-2` at `[0.3, 8.7]` and `[0.3, 9.2]`, with `linen-basket` folded inside `basket-2`.
+  - **Pantry (`pantry`):** `pantry-shelf-1` at `[1.1, 9.75]` (turn π) and `pantry-shelf-2` at `[1.1, 11.75]` (turn 0), each with five shelves holding `PANTRY_JARS_PER_SHELF = 6` flat-lidded china preserve jars, stone crocks and occasional copper/iron tins; two slumped grain `sacks` at `[0.325, 10.15]`; two stacked slatted wooden `crates` (upper turned `0.18` rad askew) at `[0.325, 11.35]`.
+- **Named spots** added: `spots.bath = [15.5, 5.5]`, `spots.laundry = [1.6, 8.3]`, `spots.pantry = [1.5, 10.7]`, and `spots.speed[5] = [14.6, 5.5]`. None of the five existing speed spots moved.
+
+### Which pieces are sculpted
+
+- **Sculpted** (`turned`, `roll`, `drape`, `cushion`, and `stadiumLoft` over `kit.grid`, weighed coarsely per vertex): the bathtub's stadium-plan roll-top body, four claw feet and taps; the washbasin's pedestal, hollow bowl and taps; the toilet's pedestal, hollow bowl, oak seat and flush lever; the shower's folded curtain, L-shaped rail and riser/rose; the bath towels (`towel-rail-1`, `towel-tub`, `linen-basket`) and `jug-basin`; the copper wash tub's body; the drying rack's round posts and rails and its three draped cloths; the two wicker baskets and handles; the two grain sacks; and the pantry shelves' coarse 6-sided, 4-ring china jars and stone crocks.
+- **Kit** (through `face`): the basin's back ledge, toilet cistern and close-coupled rear base, shower tray, bath mat, bathroom mirror, wash-tub stand and washboard, pantry shelf carcasses and tins, and stacked crates.
+- Every new recipe picks tints through `pal.surface(name, ...)` and emits under `SURFACES[name].mesh` (`wood`, `cloth`, `stone`). One new surface name, `SURFACES.wicker = {mesh: 'wood', colour: 'ochre'}`, was added; no new material or mesh name was introduced.
+
+### The doorway test as built (`shared/sight.js`, `public/space/interior/index.js`, `public/space/space-view.js`)
+
+- `doorBoxes(I)` produces, for each room, one frozen `{a, d, z}` box per opening covering the opening's `span`, height `floor * I.floorRise` to `floor * I.floorRise + I.doorHead`, and the **outside half** of the wall's thickness (from the opening's wall line `at` to `at ± I.wall / 2` on the neighbour's side, which every sight ray entering the room from outside must cross). Using the full `± I.wall / 2` symmetric box pushed the inner corner of the laundry door (`a = 2.425, d = 7.8`) `0.11°` (`8.8 mm`) inside the living capture pose's 100° horizontal frustum even though that corner sits behind the solid kitchen–laundry wall; using the outside half (`a = [2.5, 2.575]`) keeps `laundry` cleanly hidden at the living capture pose (`extraAllCalls = 0`) while remaining sound for every outside sight line and every camera standing on or inside the jamb.
+- `boxInView(box, planes)` runs a fast p-vertex pass over the four side planes, then an O(1) sum-plane check (which rejects boxes strictly behind the camera apex, such as standing 0.4 m from a door facing away, without false positives from independent side-plane checks), and only for boxes straddling a frustum plane runs exact 3D convex-polyhedron clipping against the four half-spaces. Missing, empty or non-finite planes return `true`.
+- `doorInView(boxes, roomId, planes, seen)` skips openings whose neighbour room on the far side is not in `seen` (paired via a private `WeakMap` so `doorBoxes` keeps the plain `{a, d, z}` shape). This hides `passage` from `[5.2, 7.9]` facing the dining window even though `passage-master` falls inside the frustum, because `kitchen` cannot see `master`.
+- `SpaceView.viewPlanes()` extracts the camera's four side planes (`Right, Left, Bottom, Top`, omitting near and far) into a reused 4×4 buffer in `[a, d, z]` using `scene.updateWorldMatrix(true, false)` (zero per-frame scene-graph walk or heap allocations once the queue empties), returning `null` for a zero-size canvas, lost context or non-finite projection.
+- **Draw calls at existing poses:** unchanged from 4c (`s0: 44`, `s1: 52`, `s2: 41`, `s3: 31`, `s4: 14`; living capture pose `extraAllCalls: 0`, check 82 `SPEED2_CALLS: +7` of 8), with `bath-ground`, `laundry` and `pantry` adding `0` unseen draw calls at any existing pose.
+
+### Check spots and checks changed
+
+| Check | Was | Now | Why |
+|---|---|---|---|
+| 71, furniture mesh count | 6 sets; at most 5 in `sets[0]`, `study`, `master`, at most 4 in the others | 9 sets; same per-set mesh limits | three more queued sets (`bath-ground`, `laundry`, `pantry`), none carrying `shades` |
+| `test/interior.test.js` | `spots.speed.length === 5`, 7 rooms in `FURNISHED`, 5 entries in `throughWays`, 5 rooms in `furnishLater` | `spots.speed.length === 6`, 10 rooms in `FURNISHED`, 8 entries in `throughWays`, 8 rooms in `furnishLater` | ground floor finished |
+
+No existing browser check spots moved and no budget limits were loosened.
+
+### Measured
+
+Full browser check suite (`scripts/check-space-browser.mjs`): headless Chrome through ANGLE on Apple Silicon, 1440 × 810, tier `full`, on a quiet machine. **115 of 115 checks passed**, 0 page or console errors. `docs/interior-validation/browser-results.json` holds checks 32–115 (84 entries, all passing).
+
+- **First build at the door (check 73):** `&furnish=first` adds **+63.5 ms** over `&bare=1` (full load's first build **+61.8 ms**; medians: first `205.8 ms`, full `204.1 ms`, bare `142.3 ms`) against the **80 ms** budget. Draw calls at the living capture pose: **+5** (`&furnish=first` vs `&bare=1`), **+0** more with all ten rooms furnished (`47` vs `47`, limit `ALL_LIVING_BUDGET = 4`).
+- **Kitchen/dining speed pose 2 draw calls (check 82):** **+7** (`41` vs `34`, limit `SPEED2_CALLS = 8`).
+- **Queued per-room builds (check 104, median of 3 loads, limits ≤ 30 ms each, three new rooms ≤ 70 ms, all eight queued rooms < 180 ms):**
+  - `bath-ground`: **11.8 ms** (`11.8, 11.9, 11.1` ms), `2,858` vertices in `4` meshes (`wood`, `cloth`, `stone`, `grounding`).
+  - `laundry`: **9.3 ms** (`9.3, 9.3, 9.3` ms), `2,051` vertices in `3` meshes (`wood`, `cloth`, `grounding`).
+  - `pantry`: **17.4 ms** (`18.1, 17.4, 17.1` ms), `4,021` vertices in `4` meshes (`wood`, `cloth`, `stone`, `grounding`).
+  - Three new rooms together: **38.5 ms** (limit `70` ms).
+  - All eight queued rooms together: **145.2 ms** (limit `< 180` ms).
+  - Started indoors in `bath-ground` (all 10 rooms built at load, check 113): **205.1 ms** furniture total.
+  - Total across all ten furnished ground-floor rooms: **48,034 vertices in 36 meshes** (9 sets).
+- **Speed at `[14.6, 5.5]` facing `[17.9, 5.5]` (bathroom, check 105, limits ≤ 1.1× yard and ≤ +0.05 over `&furnish=4c`):**
+  - Day: **0.832×** yard (`9.4 ms` vs `11.3 ms`), against `&furnish=4c` `0.816×` (**+0.016**).
+  - Night (bathroom lamp lit by fixture): **0.833×** yard (`9.5 ms` vs `11.4 ms`), against `&furnish=4c` `0.817×` (**+0.016**).
+- **Draw calls at the bathroom pose (check 106, limit ≤ +4 over `&furnish=4c`):** **+4** (`14` vs `10`).
+- **Five existing speed poses vs `&furnish=4c` (check 107, 5 ABBA-balanced pairs, 20-frame span timing, limit ≤ +0.01 of a yard frame and no added draw calls; 0 differing pixels vs `&furnish=4c` at all five poses):**
+  - `[4.2, 3]`: day **−0.001**, night **−0.006**, `44 / 44` draw calls.
+  - `[3.8, 5.5]`: day **+0.004**, night **+0.000**, `52 / 52` draw calls.
+  - `[5.2, 7.9]`: day **+0.004**, night **−0.003**, `41 / 41` draw calls.
+  - `[11.9, 0.8]`: day **+0.002**, night **+0.006**, `31 / 31` draw calls.
+  - `[12.5, 7.9]`: day **+0.000**, night **+0.000**, `14 / 14` draw calls.
+- **Hiding, entry, determinism and fallback (checks 108–115):**
+  - Hiding changes **0** of `5,184` sampled pixels at all six speed poses, the living and hall capture poses and the kitchen west-wall pose (`default` vs `&hide=0`), and **0** pixels at every `15°` step of a full 360° turn (24 frames each) at `spots.dresser` and `spots.wardrobes`.
+  - `shownRooms` hides `bath-ground` at `[5.2, 7.9]` facing the dining window, hides `laundry` and `pantry` at the living capture pose, shows `bath-ground` at `[14.6, 5.5]`, and shows all ten built rooms in the yard.
+  - Normal and reduced-motion entry both report `pending: []` with all ten ground-floor rooms built on the first indoor frame; starting indoors in `bath-ground` builds all ten rooms (`205.1 ms`) and includes the bathroom clause in the description.
+  - Two-load determinism reads **0** differing pixels across bathroom, laundry and pantry (`&furnish=4c` differs in `23.9%` bath, `29.8%` laundry, `68.0%` pantry); after `inside.fallBack()` every mesh stays present with mean luminance `0.699` (bathroom), `0.653` (laundry) and `0.502` (pantry).
+
+### Cut for speed
+
+- Nothing was cut: every planned piece, dressing item, washboard and all 6 jars/crocks/tins per pantry shelf built and drew well within budget (`38.5 ms` vs `70 ms` build, `145.2 ms` vs `< 180 ms` total queue, `+0.016` vs `+0.05` speed).
+
+### Known weak points, as the captures show them
+
+- **Brushwork weight (inherited from 4a–4c, out of scope here):** enamel fixtures (tub, basin, toilet, shower tray) and china jars carry the strong `stone` brushwork, so white porcelain reads warmly textured rather than glossy until the planned texture pass (`SURFACES` is in place for it).
+- **Shower curtain:** drawn fully closed across both open sides (`-y` and `-a`) to frame the corner cleanly (`furnish-bath-day.jpg`), so from the door it reads as a tall draped column hiding the riser pipe behind it — open to owner review.
+- **Grounding patches are subtle by day:** clearly visible beneath the bathtub's claw feet in `furnish-low-tub-floor.jpg`, faint at standing eye height.
