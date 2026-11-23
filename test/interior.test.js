@@ -511,3 +511,21 @@ test('the real blueprint with the ground-floor bathroom furnished is valid, queu
     assert.equal(inside, false, `${e.id} does not hold the bathroom lamp point`);
   }
 });
+test('the real blueprint with the laundry and pantry furnished is valid, queues all eight later rooms in order, and keeps both lamp points clear', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishLater, ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry']);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of [
+    'wash-tub', 'drying-rack', 'basket-1', 'basket-2', 'cloth-rack-1', 'cloth-rack-2', 'cloth-rack-3', 'linen-basket',
+    'pantry-shelf-1', 'pantry-shelf-2', 'sacks', 'crates',
+  ]) assert.ok(ids.has(id), `blueprint has ${id}`);
+  for (const room of ['laundry', 'pantry']) {
+    const lamp = I.fittings.find(f => f.room === room);
+    for (const e of I.furniture) {
+      if (e.room !== room || KINDS[e.kind].standing !== 'solid') continue;
+      const f = footprint(e);
+      const inside = lamp.at[0] >= f.a[0] && lamp.at[0] <= f.a[1] && lamp.at[1] >= f.d[0] && lamp.at[1] <= f.d[1];
+      assert.equal(inside, false, `${e.id} does not hold the ${room} lamp point`);
+    }
+  }
+});

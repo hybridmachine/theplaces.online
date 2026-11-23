@@ -122,6 +122,18 @@ const FURNITURE = [
   setOn('towel-rail-1', 'towel', 'bath-ground', 'towel-rail'),
   setOn('towel-tub', 'towel', 'bath-ground', 'bathtub'),
   setOn('jug-basin', 'jug', 'bath-ground', 'basin'),
+  // The laundry: copper wash tub on a stand, standing drying rack with cloths, two baskets with folded linen.
+  standing('wash-tub', 'wash-tub', 'laundry', [.9, 7.375], Math.PI),
+  standing('drying-rack', 'drying-rack', 'laundry', [1.3, 9.2]),
+  standing('basket-1', 'basket', 'laundry', [.3, 8.7]),
+  standing('basket-2', 'basket', 'laundry', [.3, 9.2]),
+  ...many(3, 'cloth-rack', 'cloth', 'laundry', 'drying-rack'),
+  setOn('linen-basket', 'towel', 'laundry', 'basket-2'),
+  // The pantry: two tall shelf units of jars facing each other, grain sacks and stacked wooden crates flanking the wall lamp.
+  standing('pantry-shelf-1', 'pantry-shelf', 'pantry', [1.1, 9.75], Math.PI),
+  standing('pantry-shelf-2', 'pantry-shelf', 'pantry', [1.1, 11.75]),
+  standing('sacks', 'sack', 'pantry', [.325, 10.15]),
+  standing('crates', 'crate', 'pantry', [.325, 11.35]),
 ];
 
 const BLUEPRINT = {
@@ -185,7 +197,7 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
-  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground'],
+  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,

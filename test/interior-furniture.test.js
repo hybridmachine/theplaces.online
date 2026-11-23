@@ -1265,3 +1265,61 @@ test('the ground-floor bathroom builds as one queued set of at most four meshes 
   assert.ok(broken.pieceBox('basin') && broken.pieceBox('toilet') && broken.pieceBox('shower'));
   broken.dispose();
 });
+
+// ── laundry and pantry furniture (Task 5) ──
+test('the laundry and pantry build as queued sets (nine sets in all), stay within their room bounds and limits, hang cloths at different heights, and draw deterministic jars on four or more shelves', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  assert.equal(inside.furniture.sets.length, 9, 'nine furniture sets across all ten ground-floor rooms');
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const roomId of ['laundry', 'pantry']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.deepEqual(set.rooms, [roomId]);
+    assert.ok(set.meshes >= 1 && set.meshes <= 4, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp, `furniture-${roomId} group exists`);
+    assert.equal(grp.getObjectByName('shades'), undefined, `${roomId} has no shades`);
+    const room = I.rooms.find(r => r.id === roomId);
+    for (const child of grp.children) {
+      assert.ok(allowed.has(child.name), `${roomId} allowed mesh ${child.name}`);
+      const p = child.geometry.getAttribute('position');
+      for (let i = 0; i < p.count; i++) {
+        const a = p.getX(i), d = -p.getZ(i);
+        assert.ok(a >= room.a[0] - 1e-6 && a <= room.a[1] + 1e-6, `${roomId} ${child.name} a=${a} in ${room.a}`);
+        assert.ok(d >= room.d[0] - 1e-6 && d <= room.d[1] + 1e-6, `${roomId} ${child.name} d=${d} in ${room.d}`);
+      }
+      if (child.name !== 'grounding') {
+        const l = child.geometry.getAttribute('light');
+        assert.ok(l, `${roomId} ${child.name} has light attribute`);
+        for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${roomId} ${child.name} v${i}`);
+      }
+    }
+    const solids = I.furniture.filter(e => e.room === roomId && KINDS[e.kind].standing === 'solid');
+    assert.equal(solids.length, 4);
+    for (const e of solids) {
+      const box = inside.pieceBox(e.id), f = footprint(e);
+      assert.ok(box, `${e.id} drawn`);
+      for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+      assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+      assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+      assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+    }
+  }
+  // Cloths on the drying rack hang at different heights along its rails.
+  const clothTops = ['cloth-rack-1', 'cloth-rack-2', 'cloth-rack-3'].map(id => +inside.pieceBox(id).z[1].toFixed(2));
+  assert.equal(new Set(clothTops).size, 3, `cloths at distinct heights: ${clothTops}`);
+  // Pantry shelf draws jars on at least four distinct shelves.
+  const shelfJars = vertices(inside.scene, 'pantry-shelf-1', 'furniture-stone');
+  assert.ok(shelfJars.length > 100, 'pantry-shelf-1 has jars');
+  const bands = new Set(shelfJars.map(v => Math.floor(v.z / .35)));
+  assert.ok(bands.size >= 4, `jars across at least 4 shelves: ${[...bands]}`);
+  const firstCount = inside.furniture.sets.find(s => s.rooms.includes('pantry')).vertices;
+  inside.dispose();
+
+  // Deterministic vertex count over two builds.
+  const second = build(); second.buildRest();
+  assert.equal(second.furniture.sets.find(s => s.rooms.includes('pantry')).vertices, firstCount);
+  second.dispose();
+});

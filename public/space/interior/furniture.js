@@ -32,9 +32,13 @@ export const SURFACES = Object.freeze({
   copper: Object.freeze({mesh: 'wood', colour: 'copper'}),
   china: Object.freeze({mesh: 'stone', colour: 'china'}),
   enamel: Object.freeze({mesh: 'stone', colour: 'enamel'}),
+  wicker: Object.freeze({mesh: 'wood', colour: 'ochre'}),
 });
 const put = (out, surface, gs) => { const m = SURFACES[surface].mesh; (out[m] ??= []).push(...gs); };
 const DRESSER_COUNTER = .86, DRESSER_SHELVES = [1.24, 1.62];
+const RACK_RAILS = [[0, 1.18], [-.08, .96], [.08, .96], [-.14, .72], [.14, .72], [-.17, .48]];
+// How many jars/crocks/tins each pantry shelf carries; one edit adjusts the pantry's vertex budget.
+const PANTRY_JARS_PER_SHELF = 6;
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -587,8 +591,25 @@ export const RECIPES = {
     ]);
     return out;
   },
-  // A folded linen tea towel draped over the range's front rail.
+  // A folded cloth: on the range draped over its front rail; on a drying rack hung at varied heights along its rails.
   cloth(kit, e, pal) {
+    if (e.parent?.kind === 'drying-rack') {
+      const i = e.index || 0, H = KINDS['drying-rack'].height, at = kit.placed(e), out = {};
+      const slots = [
+        {rail: RACK_RAILS[0], cx: -.25, hw: .13, drop: .36, times: .94},
+        {rail: RACK_RAILS[1], cx: .22, hw: .14, drop: .33, times: .78},
+        {rail: RACK_RAILS[3], cx: -.02, hw: .12, drop: .28, times: .86},
+      ];
+      const slot = slots[i % slots.length], [ry, zAbs] = slot.rail, rz = zAbs - H, R = .015;
+      const back = slot.drop * .75, over = Math.PI * R, front = slot.drop, total = back + over + front;
+      const path = l => l < back ? [ry + R, rz - back + l]
+        : l < back + over ? [ry + R * Math.cos((l - back) / R), rz + R * Math.sin((l - back) / R)]
+          : [ry - R, rz - (l - back - over)];
+      const pt = (s, t) => { const [y, z] = path(t * total); return [slot.cx + slot.hw - 2 * slot.hw * s, y, z]; };
+      const free = (s, t) => { const l = t * total; return l < back ? .5 * (1 - l / back) : l < back + over ? 0 : (l - back - over) / front; };
+      put(out, 'cloth', kit.drape(at, pt, 2 * slot.hw, total, pal.surface('cloth', i, .08, slot.times), {seed: pal.seed, free, folds: .016, cell: .08}));
+      return out;
+    }
     const hy = halves(e.parent)[1], at = kit.placed(e), out = {};
     const railY = -hy + .02, railZ = -.09, R = .017, back = .14, over = Math.PI * R, front = .26, total = back + over + front;
     const path = l => l < back ? [railY + R, railZ - back + l]
@@ -1005,6 +1026,156 @@ export const RECIPES = {
       ...kit.cushion(kit.moved(stack, [.01, -.01, .07], {turn: .45}), [-.13, .13], [-.11, .11], [0, .08], pal.surface('cloth', 2, .07, .82),
         {seed: pal.seed + 3, bulge: .65, sag: .2, taper: .45, cuts: 3}),
     ]);
+    return out;
+  },
+  // ── laundry and pantry pieces: every tint through pal.surface, returned under SURFACES[name].mesh ──
+  // A deep copper wash tub on a timber stand, with a ribbed wooden washboard leaning inside.
+  'wash-tub'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const copper = pal.surface('copper', 0, .07, .96), wood = pal.surface('wood', 1, .06, .70), boardWood = pal.surface('wood', 2, .06, .88);
+    // oak stand: four legs, lower stretchers, and cradle frame at z = 0.44..0.48
+    const lx = hx - .08, ly = hy - .08;
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) put(out, 'wood', kit.post(at, [sx * lx, sy * ly], [0, .48], .025, wood));
+    put(out, 'wood', [
+      ...kit.board(at, [-lx, lx], [-ly - .015, -ly + .015], [.14, .18], wood, {tuck: ['under']}),
+      ...kit.board(at, [-lx, lx], [ly - .015, ly + .015], [.14, .18], wood, {tuck: ['under']}),
+      ...kit.board(at, [-lx - .015, -lx + .015], [-ly, ly], [.14, .18], wood, {tuck: ['under']}),
+      ...kit.board(at, [lx - .015, lx + .015], [-ly, ly], [.14, .18], wood, {tuck: ['under']}),
+      ...kit.board(at, [-lx - .02, lx + .02], [-ly - .02, ly + .02], [.44, .475], wood, {tuck: ['under']}),
+    ]);
+    // sculpted deep copper tub body resting on the stand (z = 0.45..0.85)
+    const profile = [
+      [0, 0, .45, TUCK],
+      [hx - .10, hy - .08, .45, TUCK],
+      [hx - .05, hy - .04, .64, .92],
+      [hx - .02, hy - .015, .82, 1],
+      [hx - .005, hy - .005, .845, 1],
+      [hx - .025, hy - .02, h, 1],
+      [hx - .05, hy - .04, .82, .72],
+      [hx - .09, hy - .07, .50, TUCK],
+      [0, 0, .49, TUCK],
+    ];
+    put(out, 'copper', [stadiumLoft(kit, at, profile, (p, k) => copper(p).map(c => c * profile[k][3]), {ends: 5})]);
+    // a wooden washboard leaning inside the tub against its back wall, staying below the rim height
+    const wb = kit.moved(at, [.14, .03, .50], {turn: -.18, tilt: -.34});
+    put(out, 'wood', [
+      ...kit.board(wb, [-.13, -.10], [-.012, .012], [0, .34], boardWood),
+      ...kit.board(wb, [.10, .13], [-.012, .012], [0, .34], boardWood),
+      ...kit.board(wb, [-.10, .10], [-.01, .01], [.04, .29], pal.surface('iron', 3, .05, 1.35)),
+      ...kit.board(wb, [-.13, .13], [-.014, .014], [.29, .34], boardWood),
+    ]);
+    return out;
+  },
+  // A standing wooden A-frame drying rack with rails at five heights.
+  'drying-rack'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .06, .84), dark = pal.surface('wood', 1, .06, .68);
+    const ex = hx - .025, fy = hy - .025;
+    for (const sx of [-1, 1]) {
+      const x = sx * ex;
+      put(out, 'wood', [
+        ...kit.roll(at, [x, -fy, 0], [x, -.01, h], .015, wood, {sides: 6}),
+        ...kit.roll(at, [x, fy, 0], [x, .01, h], .015, wood, {sides: 6}),
+        ...kit.roll(at, [x, -fy + .03, .18], [x, fy - .03, .18], .012, dark, {sides: 5}),
+      ]);
+    }
+    for (const [ry, rz] of RACK_RAILS) {
+      put(out, 'wood', kit.roll(at, [-ex, ry, rz], [ex, ry, rz], .011, wood, {sides: 6}));
+    }
+    return out;
+  },
+  // A round woven wicker laundry basket with a sculpted rolled rim, tucked interior and two side loop handles.
+  basket(kit, e, pal) {
+    const h = KINDS[e.kind].height, at = kit.placed(e), out = {}, wicker = pal.surface('wicker', 0, .09, .76);
+    const profile = [[0, 0], [.16, 0], [.16, 0], [.195, .08], [.212, .34], [.222, .375], [.208, h], [.192, .385], [.185, .34], [.15, .04], [0, .04]];
+    put(out, 'wicker', kit.turned(at, [0, 0], profile, lined(wicker, 7), {segments: 10}));
+    for (const sx of [-1, 1]) {
+      put(out, 'wicker', kit.roll(at, [sx * .205, -.05, .36], [sx * .205, .05, .36], .013, pal.surface('wicker', 1, .08, .66), {sides: 5}));
+    }
+    return out;
+  },
+  // A tall pantry shelf unit: kit timber uprights, tucked back and five shelves holding coarse turned china jars, stone crocks and pantry tins.
+  'pantry-shelf'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .06, .78), backWood = pal.surface('wood', 1, .05, .64);
+    const T = .026, px = hx - .022, py = hy - .022;
+    // uprights, tucked back board, top board and five shelves
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) put(out, 'wood', kit.post(at, [sx * px, sy * py], [0, h], .02, wood));
+    put(out, 'wood', [
+      ...kit.board(at, [-hx + .01, hx - .01], [hy - .016, hy], [.02, h - .01], backWood, {tuck: ['front', 'back'], skip: ['under', 'top']}),
+      ...kit.board(at, [-hx, hx], [-hy, hy], [h - T, h], wood, {tuck: ['under', 'back']}),
+    ]);
+    const shelves = [.16, .54, .92, 1.30, 1.68];
+    const span = 2 * (hx - .13), n = PANTRY_JARS_PER_SHELF;
+    shelves.forEach((z, si) => {
+      put(out, 'wood', kit.board(at, [-hx + .02, hx - .02], [-hy + .005, hy - .016], [z - T, z], wood, {tuck: ['under', 'back']}));
+      for (let ji = 0; ji < n; ji++) {
+        const k = si * 13 + ji * 3;
+        const x = -hx + .13 + (ji + .5 + (pal.random(k) - .5) * .45) * (span / n);
+        const y = -hy + .12 + (pal.random(k + 1) - .5) * .08;
+        const kind = pal.random(k + 2);
+        if (kind < .16) {
+          // a small copper or iron pantry tin (kit box)
+          const r = .048 + pal.random(k + 3) * .018, th = .13 + pal.random(k + 4) * .07;
+          const surf = (si + ji) % 2 === 0 ? 'copper' : 'iron';
+          const tinAt = kit.moved(at, [x, y, z], {turn: (pal.random(k + 5) - .5) * .4});
+          put(out, surf, kit.box(tinAt, [-r, r], [-r, r], [0, th], pal.surface(surf, k, .07, surf === 'copper' ? .88 : 1.05), {skip: ['under'], broken: .004}));
+        } else if (kind < .46) {
+          // coarse earthenware stone crock (at most 6 sides, 4 rings)
+          const r = .052 + pal.random(k + 3) * .018, jh = .14 + pal.random(k + 4) * .08;
+          const tone = pal.surface('stone', k, .07, .82 + pal.random(k + 5) * .22);
+          const prof = [[r * .85, z], [r, z + jh * .52], [r * .82, z + jh], [0, z + jh]];
+          put(out, 'stone', kit.turned(at, [x, y], prof, tone, {segments: 6, tile: STONE_TILE}));
+        } else {
+          // coarse glazed china preserve jar (at most 6 sides, 4 rings)
+          const r = .044 + pal.random(k + 3) * .016, jh = .15 + pal.random(k + 4) * .09;
+          const tone = pal.surface('china', k, .06, .84 + pal.random(k + 5) * .20);
+          const prof = [[r * .82, z], [r, z + jh * .46], [r * .62, z + jh * .86], [0, z + jh]];
+          put(out, 'china', kit.turned(at, [x, y], prof, tone, {segments: 6, tile: STONE_TILE}));
+        }
+      }
+    });
+    return out;
+  },
+  // Two plump slumped grain/flour sacks standing together inside the footprint.
+  sack(kit, e, pal) {
+    const at = kit.placed(e), out = {};
+    const specs = [
+      {pos: [-.08, .04], r: .145, h: .57, times: .74},
+      {pos: [.10, -.05], r: .13, h: .46, times: .64},
+    ];
+    specs.forEach((s, i) => {
+      const cloth = pal.surface('cloth', i, .09, s.times);
+      const prof = [[0, 0], [s.r * .88, 0], [s.r, s.h * .24], [s.r * .92, s.h * .62], [s.r * .42, s.h * .82], [s.r * .56, s.h], [0, s.h * .97]];
+      put(out, 'cloth', kit.turned(at, s.pos, prof, cloth, {segments: 10}));
+    });
+    return out;
+  },
+  // Two wooden slatted crates, the upper stacked askew on the lower inside the footprint.
+  crate(kit, e, pal) {
+    const at = kit.placed(e), out = {};
+    const makeCrate = (frame, cx, cy, ch, seed, times) => {
+      const wood = pal.surface('wood', seed, .07, times), inner = pal.surface('wood', seed + 1, .06, times * TUCK);
+      // solid recessed inner shadow box + corner posts + horizontal slats on all four sides
+      put(out, 'wood', [
+        ...kit.box(frame, [-cx + .022, cx - .022], [-cy + .022, cy - .022], [.015, ch - .02], inner, {skip: ['under'], broken: 0}),
+        ...kit.board(frame, [-cx, cx], [-cy, cy], [0, .022], wood, {skip: ['under']}),
+      ]);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+        put(out, 'wood', kit.post(frame, [sx * (cx - .016), sy * (cy - .016)], [0, ch], .015, wood));
+      }
+      for (const z0 of [.03, ch * .38, ch - .065]) {
+        const z1 = z0 + .058;
+        put(out, 'wood', [
+          ...kit.board(frame, [-cx, cx], [-cy, -cy + .016], [z0, z1], wood),
+          ...kit.board(frame, [-cx, cx], [cy - .016, cy], [z0, z1], wood),
+          ...kit.board(frame, [-cx, -cx + .016], [-cy + .016, cy - .016], [z0, z1], wood),
+          ...kit.board(frame, [cx - .016, cx], [-cy + .016, cy - .016], [z0, z1], wood),
+        ]);
+      }
+    };
+    makeCrate(at, .24, .21, .30, 0, .78);
+    makeCrate(kit.moved(at, [0, 0, .30], {turn: .18}), .19, .16, .29, 3, .88);
     return out;
   },
 };
