@@ -834,6 +834,9 @@ test('no table or malformed table: nothing hidden and one warning is logged', ()
   assert.equal(warnings.length, 1);
   inside.showFrom('kitchen');
   assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  // Without the table the doorway boxes hide nothing either, as the warning says.
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]}));
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
   inside.dispose();
 
   const [inside2, warnings2] = warned(() => buildQueuedAll({sight: () => ({kitchen: 'not-an-array'})}));

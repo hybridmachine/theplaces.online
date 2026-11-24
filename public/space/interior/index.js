@@ -358,7 +358,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
   // room it names, as a face is. Rooms listed in `furnishLater` are queued and built one at a time by `buildNext()`.
   const sets = [], setStats = [], builtRooms = [], failedSkipped = [], queuedSets = new Map();
-  // Which rooms can be seen from which, and each room's doorway boxes: built once; if either throws or is malformed, it hides nothing.
+  // Which rooms can be seen from which, and each room's doorway boxes: built once. Without the table nothing is ever hidden; without the boxes, rooms are hidden by the table alone.
   let sightSets = null, boxes = null, shownFrom = null, shownPlanes = null;
   try {
     const table = sight(I);
@@ -382,6 +382,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   }
   const sees = (from, target) => !sightSets || from == null || !sightSets.has(from) || sightSets.get(from).has(target);
   const shown = (from, target, planes) => {
+    if (!sightSets) return true;
     if (!sees(from, target)) return false;
     if (from == null || planes == null || !boxes || target === from) return true;
     return doorInView(boxes, target, planes, sightSets ? sightSets.get(from) : null);
