@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {SIGHT, seenFrom, doorBoxes, boxInView, doorInView} from '../shared/sight.js';
+import {SIGHT, seenFrom, doorBoxes, stairWellBox, boxInView, doorInView} from '../shared/sight.js';
 
 const S = seenFrom(I), sees = (a, b) => S[a].includes(b);
 
@@ -160,4 +160,57 @@ test('unusable planes hide nothing', () => {
   assert.equal(boxInView(box, [...planes, [NaN, 0, 0, 0]]), true);
   assert.equal(boxInView(box, [[1, 0, 0, Infinity]]), true);
   assert.equal(doorInView(boxes, 'no-such-room', planes), true);
+});
+
+test('stairWellBox returns the stairwell ceiling-to-floor cutout', () => {
+  const well = stairWellBox(I);
+  assert.deepEqual(well, {
+    a: [...I.stair.a],
+    d: [...I.stair.d],
+    z: [I.groundCeiling, I.floorRise],
+  });
+  assert.ok(Object.isFrozen(well) && Object.isFrozen(well.a) && Object.isFrozen(well.d) && Object.isFrozen(well.z));
+  assert.equal(stairWellBox({...I, stair: null}), null);
+});
+
+test('doorBoxes includes the stairwell opening on landing and hall', () => {
+  const boxes = doorBoxes(I), well = stairWellBox(I);
+  assert.ok(boxes.landing.some(b => b.a[0] === well.a[0] && b.a[1] === well.a[1] && b.d[0] === well.d[0] && b.d[1] === well.d[1] && b.z[0] === well.z[0] && b.z[1] === well.z[1]));
+  assert.ok(boxes.hall.some(b => b.a[0] === well.a[0] && b.a[1] === well.a[1] && b.d[0] === well.d[0] && b.d[1] === well.d[1] && b.z[0] === well.z[0] && b.z[1] === well.z[1]));
+});
+
+test('cross-floor poses with stairwell out of view hide all opposite-floor rooms', () => {
+  const boxes = doorBoxes(I);
+  const upperRooms = I.rooms.filter(r => r.floor === 1).map(r => r.id);
+  const groundPoses = [
+    ['living', [...I.spots.speed[0], 1.6], [4.2, 0]],
+    ['living', [...I.spots.speed[1], 1.6], [4.2, 0]],
+    ['kitchen', [...I.spots.speed[2], 1.6], [10, 12]],
+    ['study', [...I.spots.speed[3], 1.6], [17.0, 1.0]],
+    ['master', [...I.spots.speed[4], 1.6], [14.5, 10.9]],
+    ['bath-ground', [...I.spots.speed[5], 1.6], [17.9, 5.5]],
+    ['living', [6.2, 5.2, 1.6], [0.5, 3.5]],
+  ];
+  for (const [from, at, facing] of groundPoses) {
+    const planes = planesFrom({at, facing});
+    for (const target of upperRooms) {
+      assert.equal(doorInView(boxes, target, planes, S[from], from), false, `${from} -> ${target}`);
+    }
+  }
+});
+
+test('from hall looking up the stairwell shows landing; facing the front door hides landing', () => {
+  const boxes = doorBoxes(I);
+  const up = planesFrom({at: [9, 0.8, 1.6], facing: [10.3, 4.0], pitch: 0.35});
+  assert.equal(doorInView(boxes, 'landing', up, S.hall, 'hall'), true);
+  const away = planesFrom({at: [9, 0.8, 1.6], facing: [9, 0], pitch: 0});
+  assert.equal(doorInView(boxes, 'landing', away, S.hall, 'hall'), false);
+});
+
+test('from sky-room facing the roof window hides ground-floor queued rooms', () => {
+  const boxes = doorBoxes(I);
+  const planes = planesFrom({at: [5.8, 9.5, 4.6], facing: [3.5, 10.5], pitch: -0.08});
+  for (const target of I.furnishLater) {
+    assert.equal(doorInView(boxes, target, planes, S['sky-room'], 'sky-room'), false, `sky-room -> ${target}`);
+  }
 });
