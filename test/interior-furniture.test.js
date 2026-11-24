@@ -32,7 +32,8 @@ const vertices = (scene, id, meshName) => {
 };
 const mean = xs => xs.reduce((t, x) => t + x, 0) / xs.length;
 const room = id => I.rooms.find(r => r.id === id);
-const laterRooms = new Set(I.furnishLater || []);
+const laterRooms = new Set([...(I.furnishLater || []), ...(I.furnishUpper || [])]);
+const allQueued = () => [...(I.furnishLater || []), ...(I.furnishUpper || [])];
 // The solid pieces of the first build, each inside its own footprint; not the newel, which carries the stair's rail up the flight.
 const DRAWN_SOLID = I.furniture.filter(e => !laterRooms.has(e.room) && KINDS[e.kind].standing === 'solid' && RECIPES[e.kind] && e.kind !== 'newel');
 // A standing piece's vertices (from every mesh) in its own frame: x across, y deep (it faces −y), z up from its floor; normals likewise.
@@ -524,7 +525,7 @@ const dialsFor = (levels = {}) => ({
   lamps: I.rooms.map(r => levels[r.id] ?? 0),
 });
 const studyLampBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['study'];
   c.furniture.push(
     {id: 'test-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
@@ -575,7 +576,7 @@ test('a missing or non-finite lamp level leaves the shade pale and finite, and a
 });
 
 test('shades in two rooms are refused', () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furniture.push(
     {id: 'two-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
     {id: 'two-study-lamp', kind: 'table-lamp', room: 'study', on: 'two-study-table'},
@@ -640,7 +641,7 @@ test('a rug in another room over the same plan position does not lift a piece\'s
 
 // ── furniture built by room, from a queue ──
 const queuedBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['kitchen', 'dining'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -783,7 +784,7 @@ test('a blueprint built bare has nothing pending', () => {
 
 // ── out of sight, not drawn (Task 6) ──
 const queuedAllBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['kitchen', 'dining', 'study', 'passage', 'master'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -1274,7 +1275,7 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
   assert.deepEqual(inside.skipped, []);
   assert.equal(warnings.length, 0);
-  assert.equal(inside.furniture.sets.length, 9, 'nine furniture sets across all ten ground-floor rooms');
+  assert.equal(inside.furniture.sets.length, 14, 'fourteen furniture sets across all fifteen furnished rooms');
   const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
   for (const roomId of ['laundry', 'pantry']) {
     const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
@@ -1329,7 +1330,7 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
 
 // ── two-stage build queue and cross-floor showFrom (Part 4e, Task 2) ──
 test('two-stage queue: buildRest(0) leaves furnishUpper pending, buildNext drains floor 0 then floor 1, buildRest(1) flushes floor 1, and cross-floor showFrom uses the stairwell gate', () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['kitchen'];
   c.furnishUpper = ['landing', 'nook'];
   c.furniture.push(

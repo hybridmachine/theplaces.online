@@ -152,7 +152,7 @@ const FURNITURE = [
   standing('bed-2', 'single-bed', 'bedroom-2', [2.4, 1.075], Math.PI),
   standing('bed2-side-table', 'side-table', 'bedroom-2', [3.3, .35], Math.PI),
   standing('bed2-chest', 'chest-of-drawers', 'bedroom-2', [2.2, 6.65]),
-  standing('bed2-chair', 'chair', 'bedroom-2', [.8, 1.4], Math.PI + .5),
+  standing('bed2-chair', 'chair', 'bedroom-2', [5.9, 1.4], Math.PI - .5),
   hung('mirror-bed2', 'mirror', 'bedroom-2', 'd', 7, [1.9, 2.5], 1.5),
   hung('picture-bed2', 'picture', 'bedroom-2', 'a', 0, [5.0, 5.8], 1.5),
   setOn('bed2-lamp', 'table-lamp', 'bedroom-2', 'bed2-side-table'),
