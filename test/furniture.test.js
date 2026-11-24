@@ -199,3 +199,28 @@ test('the bathroom, laundry and pantry kinds have the right standings, heights a
   assert.equal(KINDS.towel.standing, 'set-on'); assert.equal(KINDS.towel.height, .6);
   assert.equal(footprint({id: 'tw', kind: 'towel', room: 'living', on: 'tr'}), null);
 });
+
+test('withoutRooms filters furnishUpper alongside furnishLater', () => {
+  const i = {
+    rooms: [{id: 'living', floor: 0, a: [0, 7], d: [0, 7]}, {id: 'kitchen', floor: 0, a: [2.5, 7], d: [7, 12]},
+      {id: 'landing', floor: 1, a: [7, 11], d: [0, 7]}, {id: 'nook', floor: 1, a: [7, 11], d: [7, 12]}],
+    breasts: [],
+    furniture: [
+      {id: 's', kind: 'sofa', room: 'living', at: [4, 4]},
+      {id: 'kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5]},
+      {id: 'ls', kind: 'window-seat', room: 'landing', at: [9.8, .315]},
+      {id: 'nc', kind: 'armchair', room: 'nook', at: [8.45, 10.7]},
+    ],
+    furnishLater: ['kitchen'],
+    furnishUpper: ['landing', 'nook'],
+  };
+  i.obstacles = obstaclesOf(i);
+  const kept = withoutRooms(i, ['nook'], {keepQueue: true});
+  assert.deepEqual(kept.furniture.map(e => e.id), ['s', 'kt', 'ls']);
+  assert.deepEqual(kept.furnishLater, ['kitchen']);
+  assert.deepEqual(kept.furnishUpper, ['landing']);
+  assert.ok(Object.isFrozen(kept.furnishUpper));
+  const emptied = withoutRooms(i, ['nook']);
+  assert.deepEqual(emptied.furnishLater, []);
+  assert.deepEqual(emptied.furnishUpper, []);
+});

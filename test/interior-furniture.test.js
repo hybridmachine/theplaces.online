@@ -1326,3 +1326,56 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
   assert.equal(second.furniture.sets.find(s => s.rooms.includes('pantry')).vertices, firstCount);
   second.dispose();
 });
+
+// ── two-stage build queue and cross-floor showFrom (Part 4e, Task 2) ──
+test('two-stage queue: buildRest(0) leaves furnishUpper pending, buildNext drains floor 0 then floor 1, buildRest(1) flushes floor 1, and cross-floor showFrom uses the stairwell gate', () => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furnishLater = ['kitchen'];
+  c.furnishUpper = ['landing', 'nook'];
+  c.furniture.push(
+    {id: 't-kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], turn: 0},
+    {id: 't-ls', kind: 'window-seat', room: 'landing', at: [9.8, .315], turn: Math.PI},
+    {id: 't-nc', kind: 'armchair', room: 'nook', at: [8.45, 10.7], turn: .45},
+  );
+  c.obstacles = obstaclesOf(c);
+
+  const inside = build(c);
+  assert.deepEqual(inside.pending, ['kitchen', 'landing', 'nook']);
+  assert.deepEqual(inside.pendingFor(0), ['kitchen']);
+  assert.deepEqual(inside.pendingFor(1), ['landing', 'nook']);
+
+  inside.buildRest(0);
+  assert.deepEqual(inside.pendingFor(0), []);
+  assert.deepEqual(inside.pendingFor(1), ['landing', 'nook']);
+  assert.deepEqual(inside.pending, ['landing', 'nook']);
+  assert.ok(inside.furnishedRooms.includes('kitchen') && !inside.furnishedRooms.includes('landing'));
+
+  assert.equal(inside.buildNext(), 'landing');
+  assert.deepEqual(inside.pendingFor(1), ['nook']);
+  inside.buildRest(1);
+  assert.deepEqual(inside.pending, []);
+  assert.ok(inside.furnishedRooms.includes('landing') && inside.furnishedRooms.includes('nook'));
+
+  // Cross-floor showFrom: facing the dining window from kitchen hides both upper rooms.
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.speed[2], 1.6], facing: [10, 12]}));
+  assert.equal(inside.shownRooms.includes('landing'), false);
+  assert.equal(inside.shownRooms.includes('nook'), false);
+  // Looking up the stairwell from hall shows landing.
+  inside.showFrom('hall', planesFrom({at: [9, .8, 1.6], facing: [10.3, 4.0], pitch: .35}));
+  assert.equal(inside.shownRooms.includes('landing'), true);
+  // Facing away toward the front door from hall hides landing.
+  inside.showFrom('hall', planesFrom({at: [9, .8, 1.6], facing: [9, 0], pitch: 0}));
+  assert.equal(inside.shownRooms.includes('landing'), false);
+  inside.dispose();
+
+  // buildRest(1) can flush floor 1 without flushing floor 0 first (e.g. starting indoors on floor 1).
+  const upperStart = build(c);
+  upperStart.buildRest(1);
+  assert.deepEqual(upperStart.pendingFor(1), []);
+  assert.deepEqual(upperStart.pendingFor(0), ['kitchen']);
+  assert.ok(upperStart.furnishedRooms.includes('landing') && upperStart.furnishedRooms.includes('nook'));
+  assert.equal(upperStart.furnishedRooms.includes('kitchen'), false);
+  upperStart.buildRest();
+  assert.deepEqual(upperStart.pending, []);
+  upperStart.dispose();
+});

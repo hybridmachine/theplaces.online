@@ -12,7 +12,7 @@ import {viewConditions} from '../shared/world.js';
 import {WorldStore} from '../src/store.js';
 import {sceneText} from '../public/scene-description.js';
 import {stepIndoors} from '../shared/walker.js';
-import {bareInterior, withoutRooms} from '../shared/furniture.js';
+import {bareInterior, obstaclesOf, withoutRooms} from '../shared/furniture.js';
 import {canStep, floorArea} from '../shared/interior.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
@@ -876,4 +876,46 @@ test('started indoors at spots.bath or spots.pantry, the first frame has pending
     assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, phrase);
     view.inside.dispose();
   }
+});
+
+test('two-stage queue in SpaceView: floor 0 flushes at cabin entry, floor 1 flushes near the stair or when starting upstairs, and unbuilt rooms report furnished false', async t => {
+  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  c.furnishLater = ['kitchen'];
+  c.furnishUpper = ['landing', 'nook'];
+  c.furniture.push(
+    {id: 'sv-kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], turn: 0},
+    {id: 'sv-ls', kind: 'window-seat', room: 'landing', at: [9.8, .315], turn: Math.PI},
+    {id: 'sv-nc', kind: 'armchair', room: 'nook', at: [8.45, 10.7], turn: .45},
+  );
+  c.obstacles = obstaclesOf(c);
+
+  // Entering with reduced motion flushes floor 0 only and leaves floor 1 pending on the first indoor frame.
+  let clock = 1000;
+  t.mock.method(performance, 'now', () => clock);
+  const entered = await doorRig({motion: false, interior: c});
+  entered.input.forward = 1;
+  entered.frame(1); // buildInside()
+  clock = 2000;
+  entered.frame(1); // reduced-motion cut into hall
+  assert.equal(entered.view.state.place, 'cabin');
+  assert.deepEqual(entered.view.inside.pendingFor(0), []);
+  assert.deepEqual(entered.view.inside.pendingFor(1), ['landing', 'nook']);
+  // Stepping within 1.0 m of the stair foot flushes floor 1 synchronously.
+  entered.input.forward = 0;
+  entered.view.state = {place: 'cabin', floor: 0, position: [10.0, 1.0], yaw: 0, pitch: 0};
+  clock = 2033;
+  entered.frame(1);
+  assert.deepEqual(entered.view.inside.pendingFor(1), []);
+  assert.ok(entered.view.inside.furnishedRooms.includes('landing') && entered.view.inside.furnishedRooms.includes('nook'));
+  entered.view.inside.dispose();
+
+  // Starting on floor 1 builds floor 1 on frame 1 while leaving floor 0 for background frames.
+  const up = await rig({interior: c, state: {place: 'cabin', floor: 1, position: [8.4, 1.0], yaw: 0, pitch: 0}});
+  assert.deepEqual(up.view.inside.pendingFor(1), []);
+  assert.deepEqual(up.view.inside.pendingFor(0), ['kitchen']);
+  assert.equal(up.view.furnished, true);
+  // Before floor 0 drains, moving to kitchen (not yet built) reports furnished false.
+  up.view.state = {place: 'cabin', floor: 0, position: [4.75, 8.0], yaw: 0, pitch: 0};
+  assert.equal(up.view.furnished, false);
+  up.view.inside.dispose();
 });

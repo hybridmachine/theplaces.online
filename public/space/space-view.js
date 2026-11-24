@@ -7,7 +7,7 @@ import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
 import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D} from '../../shared/lakeside-interior.js';
-import {onStair, roomAt} from '../../shared/interior.js';
+import {onStair, roomAt, stairFoot} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
@@ -202,7 +202,7 @@ export class SpaceView {
     try {
       this.openings = viewOpenings(this.interior, this.space, this.dressing);
       this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: this.openings});
-      if (this.state.place === 'cabin') this.inside.buildRest();
+      if (this.state.place === 'cabin') this.inside.buildRest(this.state.floor);
       this.updateSight();
     }
     catch (error) {
@@ -439,9 +439,17 @@ export class SpaceView {
       if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
       const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
       if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
-      // (both are nothing once the queue is empty)
-      if (this.state.place === 'cabin') this.inside?.buildRest();
-      else if (hadInside) this.inside?.buildNext();
+      // (floor 0 flushes on entry; floor 1 drains quietly in background frames and flushes when approaching or climbing the stair)
+      if (this.state.place === 'cabin' && this.inside) {
+        const floor = this.state.floor;
+        this.inside.buildRest(floor);
+        if (!move) {
+          const pos = this.state.position, I = this.interior;
+          const stairEnd = floor === 0 ? stairFoot(I) : [(I.stair.a[0] + I.stair.a[1] - I.wall / 2) / 2, I.stair.d[1] + .1];
+          if (onStair(I, pos) || Math.hypot(pos[0] - stairEnd[0], pos[1] - stairEnd[1]) <= 1.0) this.inside.buildRest(1 - floor);
+          else this.inside.buildNext();
+        }
+      } else if (hadInside) this.inside?.buildNext();
       this.door = this.inside ? door : 0; this.yard.setDoor(this.door);
       this.canvas.style.opacity = String(1 - veil);
     }

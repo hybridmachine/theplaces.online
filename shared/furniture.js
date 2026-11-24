@@ -141,10 +141,12 @@ export function piecesIn(interior, roomIds) {
   return (interior?.furniture || []).filter(e => e && rooms.has(e.room)).map(e => e.id);
 }
 
-// The same interior without those rooms' pieces (and whatever is set on them), its queue emptied unless keepQueue is set.
+// The same interior without those rooms' pieces (and whatever is set on them), its queues emptied unless keepQueue is set.
 export function withoutRooms(interior, roomIds, {keepQueue = false} = {}) {
   const drop = new Set(roomIds || []);
-  const furnishLater = keepQueue && Array.isArray(interior?.furnishLater)
-    ? Object.freeze(interior.furnishLater.filter(id => !drop.has(id))) : Object.freeze([]);
-  return Object.freeze({...withoutPieces(interior, piecesIn(interior, roomIds)), furnishLater});
+  const filterQueue = list => keepQueue && Array.isArray(list)
+    ? Object.freeze(list.filter(id => !drop.has(id))) : Object.freeze([]);
+  const furnishLater = filterQueue(interior?.furnishLater);
+  const furnishUpper = Array.isArray(interior?.furnishUpper) ? {furnishUpper: filterQueue(interior.furnishUpper)} : {};
+  return Object.freeze({...withoutPieces(interior, piecesIn(interior, roomIds)), furnishLater, ...furnishUpper});
 }
