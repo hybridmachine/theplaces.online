@@ -1,8 +1,8 @@
 import test from 'node:test';
 import {KINDS, bareInterior, footprint, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
-import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4E} from '../shared/lakeside-interior.js';
+import {FURNISHED_UPPER, ceilingHeight, roomAt, stairTop, upperThroughWays, validInterior} from '../shared/interior.js';
 
 test('each floor is tiled exactly by its rooms: 18 × 12 with no overlap', () => {
   for (const floor of [0, 1]) {
@@ -528,4 +528,50 @@ test('the real blueprint with the laundry and pantry furnished is valid, queues 
       assert.equal(inside, false, `${e.id} does not hold the ${room} lamp point`);
     }
   }
+});
+
+// ── Part 4e: ceiling-slope rule (Rule 10), floor-1 walks, upperSpots and SLICE_4E ──
+const withUpperPieces = (extra, upperSpots) => {
+  const c = structuredClone(withoutRooms(I, SLICE_4E));
+  c.furniture.push(...extra);
+  if (upperSpots) c.upperSpots = {...c.upperSpots, ...upperSpots};
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / FURNISHED_UPPER / SLICE_4E are valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(floorArea(I, 1, stairTop(I), I.eyeClear));
+  assert.ok(floorArea(I, 1, stairTop(I), .45));
+  assert.deepEqual(new Set(FURNISHED_UPPER), new Set(['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']));
+  assert.deepEqual(new Set(SLICE_4E), new Set(FURNISHED_UPPER));
+  assert.equal(I.upperSpots.speed.length, 2);
+  assert.equal(roomAt(I, 1, I.upperSpots.speed[0])?.id, 'landing');
+  assert.equal(roomAt(I, 1, I.upperSpots.speed[1])?.id, 'sky-room');
+  for (const [k, p] of Object.entries(I.upperSpots)) {
+    if (k === 'speed') continue;
+    assert.ok(Array.isArray(p) && floorArea(I, 1, p), `upperSpots.${k}`);
+  }
+  assert.equal(upperThroughWays(I).length, 5);
+});
+test('rule 10: ceiling clearance rejects tall solids, badly placed sloped shelves, and high wall-hung pieces under the roof slope', () => {
+  // Regular bookshelf (h 2.1 m) against d = 0 eave (ceiling 1.92..2.02 m) fails; eave-bookshelf (1.88 m) passes.
+  assert.equal(validInterior(withUpperPieces([{id: 'too-tall', kind: 'bookshelf', room: 'bedroom-2', at: [3.5, .25], turn: Math.PI}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'eave-ok', kind: 'eave-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), true);
+  // Sloped bookshelf along a = 7 over d 10.1..11.55 (maxC 2.438 >= 2.40, minC 2.028 >= 1.5) passes; placed along d = 11.75 (maxC 2.00 < 2.40) fails.
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-ok', kind: 'sloped-bookshelf', room: 'nook', at: [7.25, 10.825], turn: Math.PI / 2}])), true);
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-low', kind: 'sloped-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), false);
+  // Wall-hung picture (h 0.6) on d = 0 (ceiling 1.9 m): z = 1.7 (top 2.0) fails, z = 1.5 (top 1.8) passes.
+  assert.equal(validInterior(withUpperPieces([{id: 'pic-high', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.7}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'pic-ok', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.5}])), true);
+});
+test('rule 7 & 8 on floor 1: covering an upper spot or blocking any upper room way fails', () => {
+  for (const [k, room] of [['landingSeat', 'landing'], ['bed2', 'bedroom-2'], ['bed3', 'bedroom-3'], ['skyWindow', 'sky-room'], ['nookChair', 'nook']]) {
+    assert.equal(validInterior(withUpperPieces([{id: `on-${k}`, kind: 'floor-cushion', room, at: [...I.upperSpots[k]]}])), false, k);
+  }
+  assert.equal(validInterior(withUpperPieces([{id: 'on-us0', kind: 'floor-cushion', room: 'landing', at: [...I.upperSpots.speed[0]]}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'on-us1', kind: 'floor-cushion', room: 'sky-room', at: [...I.upperSpots.speed[1]]}])), false);
+  // Blocking nook between landing opening (d=7) and sky-room/bath doors (d=9.5) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'nook-bar', kind: 'chest-of-drawers', room: 'nook', at: [9.0, 8.2], turn: 0, size: [3.6, .5]}])), false);
+  // Blocking bedroom-3 between landing door (a=11, d=6.2) and box-room door (d=7, a=16.5) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'bed3-bar', kind: 'chest-of-drawers', room: 'bedroom-3', at: [14.0, 3.5], turn: Math.PI / 2, size: [6.4, .5]}])), false);
 });

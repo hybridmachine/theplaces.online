@@ -120,7 +120,7 @@ function furnitureFit(I, byId) {
     room: w.room, sill: w.sill,
     rect: {a: [w.a - w.width / 2, w.a + w.width / 2], d: w.wall === 'front' ? [0, .6] : [I.size[1] - .6, I.size[1]]},
   }));
-  for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4, 9
+  for (const [k, {e, f, floor}] of solids.entries()) {   // 3, 4, 9, 10
     if (solids.some((o, j) => j > k && o.floor === floor && overlaps(o.f, f))) return false;
     if (I.breasts.some(b => b.floor === floor && overlaps(b, f))) return false;
     if (I.openings.some(o => o.floor === floor && overlaps(f, o.line === 'a' ? {a: [o.at - .5, o.at + .5], d: o.span} : {a: o.span, d: [o.at - .5, o.at + .5]}))) return false;
@@ -129,19 +129,36 @@ function furnitureFit(I, byId) {
     if (I.fittings.some(l => l.kind === 'wall' && byId.get(l.room) && byId.get(l.room).floor === floor && holds(f, l.at))) return false;
     if (floor === 0 && mouth && overlaps(f, mouth)) return false;
     if (wallWindows.some(w => w.room === e.room && KINDS[e.kind].height > w.sill + EPS && overlaps(f, w.rect))) return false;
+    const kdef = KINDS[e.kind], c0 = ceilingHeight(I, floor, f.d[0]), c1 = ceilingHeight(I, floor, f.d[1]);
+    const minC = Math.min(c0, c1), maxC = Math.max(c0, c1);
+    if (kdef.sloped ? (minC < (kdef.minHeight ?? 1.2) - EPS || kdef.height > maxC + EPS) : kdef.height > minC + EPS) return false;
   }
   const named = Object.entries(I.spots).filter(([k]) => k !== 'speed').map(([, p]) => p), from = I.entry.position, foot = stairFoot(I);   // 7
   const near = flood(I, 0, from);
   if (!near || !I.openings.filter(o => o.floor === 0).every(o => near(doorway(I, o)))) return false;
-  if (![...named, ...I.spots.speed, foot].every(p => Array.isArray(p) && p.length === 2 && reachable(I, 0, from, p))) return false;
-  const hallAndLiving = furnishedWay(I);
-  if (!wideTargets(I).every(p => reachable(hallAndLiving, 0, from, p, WIDE_CLEAR))) return false;   // 8a
-  const four = furnishedWay(I, FURNISHED);
-  if (!wideTargets(I, FURNISHED).every(p => reachable(four, 0, from, p, WIDE_CLEAR))) return false;   // 8b
-  return throughWays(I).every(({room, from: start, to}) => {
-    const one = furnishedWay(I, [room]);
-    return to.every(p => reachable(one, 0, start, p, WIDE_CLEAR));
-  });   // 8c
+  if (![...named, ...I.spots.speed, foot].every(p => Array.isArray(p) && p.length === 2 && floorArea(I, 0, p) && near.reaches(p))) return false;
+  const hallAndLiving = furnishedWay(I), w0 = flood(hallAndLiving, 0, from, WIDE_CLEAR);
+  if (!w0 || !wideTargets(I).every(p => floorArea(hallAndLiving, 0, p, WIDE_CLEAR) && w0.reaches(p))) return false;   // 8a
+  const four = furnishedWay(I, FURNISHED), w1 = flood(four, 0, from, WIDE_CLEAR);
+  if (!w1 || !wideTargets(I, FURNISHED).every(p => floorArea(four, 0, p, WIDE_CLEAR) && w1.reaches(p))) return false;   // 8b
+  if (!throughWays(I).every(({room, from: start, to}) => {
+    const one = furnishedWay(I, [room]), hit = flood(one, 0, start, WIDE_CLEAR);
+    return !!hit && to.every(p => floorArea(one, 0, p, WIDE_CLEAR) && hit.reaches(p));
+  })) return false;   // 8c
+  if (I.upperSpots) {
+    if (!Array.isArray(I.upperSpots.speed)) return false;
+    const top = stairTop(I), upNear = flood(I, 1, top);
+    if (!upNear || !I.openings.filter(o => o.floor === 1).every(o => upNear(doorway(I, o)))) return false;
+    const upNamed = Object.entries(I.upperSpots).filter(([k]) => k !== 'speed').map(([, p]) => p);
+    if (![...upNamed, ...I.upperSpots.speed].every(p => Array.isArray(p) && p.length === 2 && floorArea(I, 1, p) && upNear.reaches(p))) return false;
+    const upFurn = upperFurnishedWay(I, FURNISHED_UPPER), upWide = flood(upFurn, 1, top, WIDE_CLEAR);
+    if (!upWide || !upperWideTargets(I, FURNISHED_UPPER).every(p => floorArea(upFurn, 1, p, WIDE_CLEAR) && upWide.reaches(p))) return false;
+    if (!upperThroughWays(I).every(({room, from: start, to}) => {
+      const one = upperFurnishedWay(I, [room]), hit = flood(one, 1, start, WIDE_CLEAR);
+      return !!hit && to.every(p => floorArea(one, 1, p, WIDE_CLEAR) && hit.reaches(p));
+    })) return false;
+  }
+  return true;
 }
 
 // Rule 8's walk is through the furnished rooms: the ground floor cut down to the rooms named, with the openings out of them
@@ -178,12 +195,39 @@ export function throughWays(I) {
   return out;
 }
 
+export const FURNISHED_UPPER = Object.freeze(['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']);
+export const upperFurnishedWay = (I, rooms = FURNISHED_UPPER) => ({...I, rooms: I.rooms.filter(r => r.floor !== 1 || rooms.includes(r.id)),
+  openings: I.openings.filter(o => o.floor !== 1 || o.rooms.some(id => rooms.includes(id)))});
+export const upperWideTargets = (I, rooms = FURNISHED_UPPER) => I.openings.filter(o => o.floor === 1 && o.rooms.some(id => rooms.includes(id))).map(doorwayPoint);
+export function upperThroughWays(I) {
+  const at = (x, y) => {
+    const o = I.openings.find(o => o.floor === 1 && o.rooms.includes(x) && o.rooms.includes(y));
+    return o && doorwayPoint(o);
+  };
+  const lb2 = at('landing', 'bedroom-2'), lb3 = at('landing', 'bedroom-3'), ln = at('landing', 'nook'),
+    ns = at('nook', 'sky-room'), nb = at('nook', 'bath-upper'), b3box = at('bedroom-3', 'box-room');
+  const out = [];
+  const lTo = [lb2, lb3, ln, I.upperSpots?.landingSeat].filter(Boolean);
+  if (lTo.length) out.push({room: 'landing', from: stairTop(I), to: lTo});
+  const nTo = [ns, nb, I.upperSpots?.nookChair].filter(Boolean);
+  if (ln && nTo.length) out.push({room: 'nook', from: ln, to: nTo});
+  const b3To = [b3box, I.upperSpots?.bed3].filter(Boolean);
+  if (lb3 && b3To.length) out.push({room: 'bedroom-3', from: lb3, to: b3To});
+  if (lb2 && I.upperSpots?.bed2) out.push({room: 'bedroom-2', from: lb2, to: [I.upperSpots.bed2]});
+  if (ns && I.upperSpots?.skyWindow) out.push({room: 'sky-room', from: ns, to: [I.upperSpots.skyWindow]});
+  return out;
+}
+
 // A hung piece lies on one of its room's wall lines, within the room along it, and clear of that line's openings, the front door and windows
 // and of wall lamps.
 function wallHungFits(I, e, room) {
   const across = e.wall, along = across === 'a' ? 'd' : 'a';
   if (!(across === 'a' || across === 'd') || !room[across].includes(e.line) || !Array.isArray(e.along) || !(e.along[0] < e.along[1]) || typeof e.z !== 'number') return false;
   if (e.along[0] < room[along][0] - EPS || e.along[1] > room[along][1] + EPS) return false;
+  const kh = KINDS[e.kind].height;
+  const minC = across === 'd' ? ceilingHeight(I, room.floor, e.line)
+    : Math.min(ceilingHeight(I, room.floor, e.along[0]), ceilingHeight(I, room.floor, e.along[1]));
+  if (e.z - kh / 2 < -EPS || e.z + kh / 2 > minC + EPS) return false;
   const apart = (lo, hi) => e.along[1] <= lo + EPS || e.along[0] >= hi - EPS;
   if (I.openings.some(o => o.floor === room.floor && o.line === across && o.at === e.line && !apart(...o.span))) return false;
   // (the front door, in the ground floor's front wall, is not one of the openings between rooms)
@@ -236,6 +280,8 @@ export function reachable(I, floor, from, to, clear = I.eyeClear) {
 export const doorwayPoint = o => { const mid = (o.span[0] + o.span[1]) / 2; return o.line === 'a' ? [o.at, mid] : [mid, o.at]; };
 // The point a step in front of the flight's foot, midway across its walkable strip.
 export const stairFoot = I => [(I.stair.a[0] + I.stair.a[1] - I.wall / 2) / 2, I.stair.d[0] - .1];
+// The point a step past the flight's top on floor 1, midway across its walkable strip.
+export const stairTop = I => [(I.stair.a[0] + I.stair.a[1] - I.wall / 2) / 2, I.stair.d[1] + .1];
 
 const doorway = (I, o) => ([a, d]) => {
   const [across, along] = o.line === 'a' ? [a, d] : [d, a];

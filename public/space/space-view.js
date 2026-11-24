@@ -6,8 +6,8 @@ import {buildInterior} from './interior/index.js';
 import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
-import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D} from '../../shared/lakeside-interior.js';
-import {onStair, roomAt, stairFoot} from '../../shared/interior.js';
+import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D, SLICE_4E} from '../../shared/lakeside-interior.js';
+import {onStair, roomAt, stairFoot, stairTop} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
@@ -55,9 +55,10 @@ export function interiorSwitch(search = typeof location !== 'undefined' ? locati
   if (params.get('interior') !== '1') return null;
   if (!params.has('check')) return LAKESIDE_INTERIOR;
   if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
-  if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, LAKESIDE_INTERIOR.furnishLater);
-  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4C, ...SLICE_4D], {keepQueue: true});
-  if (params.get('furnish') === '4c') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4D, {keepQueue: true});
+  if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, [...LAKESIDE_INTERIOR.furnishLater, ...(LAKESIDE_INTERIOR.furnishUpper ?? [])]);
+  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4C, ...SLICE_4D, ...SLICE_4E], {keepQueue: true});
+  if (params.get('furnish') === '4c') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4D, ...SLICE_4E], {keepQueue: true});
+  if (params.get('furnish') === '4d') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4E, {keepQueue: true});
   return LAKESIDE_INTERIOR;
 }
 // With ?check, &hide=0 draws every built room's furniture even when out of sight, to verify hiding changes no pixel; ignored without ?check.
@@ -445,7 +446,7 @@ export class SpaceView {
         this.inside.buildRest(floor);
         if (!move) {
           const pos = this.state.position, I = this.interior;
-          const stairEnd = floor === 0 ? stairFoot(I) : [(I.stair.a[0] + I.stair.a[1] - I.wall / 2) / 2, I.stair.d[1] + .1];
+          const stairEnd = floor === 0 ? stairFoot(I) : stairTop(I);
           if (onStair(I, pos) || Math.hypot(pos[0] - stairEnd[0], pos[1] - stairEnd[1]) <= 1.0) this.inside.buildRest(1 - floor);
           else this.inside.buildNext();
         }
