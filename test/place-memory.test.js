@@ -127,3 +127,11 @@ test('a remembered place inside or against a pantry shelf falls back to the arri
   assert.equal(at([1.1, 9.95]), null, 'against pantry-shelf-1');
   assert.deepEqual(at([...I.spots.pantry]).position, [...I.spots.pantry]);
 });
+
+test('a floor-1 remembered place inside the daybed falls back to arrival; upperSpots.skyWindow is kept', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 1, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at([3.5, 10.7]), null, 'inside daybed');
+  const loaded = at([...I.upperSpots.skyWindow]);
+  assert.equal(loaded.floor, 1);
+  assert.deepEqual(loaded.position, [...I.upperSpots.skyWindow]);
+});

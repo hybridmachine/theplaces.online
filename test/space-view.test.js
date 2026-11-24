@@ -927,3 +927,19 @@ test('two-stage queue in SpaceView: floor 0 flushes at cabin entry, floor 1 flus
   assert.equal(up.view.furnished, false);
   up.view.inside.dispose();
 });
+
+test('started indoors in the sky room or landing builds floor 1 on frame 1 and emits the room clause', async () => {
+  const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
+  for (const [spot, room, phrase] of [
+    [I.upperSpots.landingSeat, 'landing', /cushioned seat stands against the front wall above the stair/],
+    [I.upperSpots.skyWindow, 'sky room', /daybed and cushions lie under the roof window, a small telescope beside them/],
+  ]) {
+    const {view, frame} = await rig({state: {place: 'cabin', floor: 1, position: [...spot], yaw: 0, pitch: 0}});
+    frame(1);
+    assert.deepEqual(view.inside.pendingFor(1), []);
+    assert.equal(view.furnished, true);
+    assert.equal(view.room, room);
+    assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, phrase);
+    view.inside.dispose();
+  }
+});

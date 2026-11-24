@@ -1379,3 +1379,54 @@ test('two-stage queue: buildRest(0) leaves furnishUpper pending, buildNext drain
   assert.deepEqual(upperStart.pending, []);
   upperStart.dispose();
 });
+
+// ── landing and sky room furniture (Part 4e, Task 4) ──
+test('landing and sky-room build as floor-1 queued sets of at most 4 meshes without shades, lifted to floor 1 with grounding and light weights', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const roomId of ['landing', 'sky-room']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.ok(set.meshes >= 1 && set.meshes <= 4, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp, `furniture-${roomId} exists`);
+    assert.equal(grp.getObjectByName('shades'), undefined, `${roomId} has no shades`);
+    for (const child of grp.children) {
+      assert.ok(allowed.has(child.name), `${roomId} allowed mesh ${child.name}`);
+      const p = child.geometry.getAttribute('position');
+      for (let i = 0; i < p.count; i++) assert.ok(p.getY(i) >= I.floorRise - .01, `${roomId} ${child.name} z=${p.getY(i)}`);
+      if (child.name !== 'grounding') {
+        const l = child.geometry.getAttribute('light');
+        assert.ok(l, `${roomId} ${child.name} has light attribute`);
+        for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${roomId} ${child.name} v${i}`);
+      }
+    }
+    const solids = I.furniture.filter(e => e.room === roomId && KINDS[e.kind].standing === 'solid');
+    for (const e of solids) {
+      const box = inside.pieceBox(e.id), f = footprint(e);
+      assert.ok(box, `${e.id} drawn`);
+      for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .03 && box[k][1] <= f[k][1] + .03, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+      assert.ok(Math.abs(box.z[0] - I.floorRise) <= .02, `${e.id} stands on floor 1: ${box.z[0]}`);
+      assert.ok(box.z[1] <= I.floorRise + KINDS[e.kind].height + .02, `${e.id} height ${box.z[1] - I.floorRise}`);
+      assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+    }
+  }
+  const c1 = inside.pieceBox('cushion-daybed-1'), th = inside.pieceBox('throw-daybed'), tele = inside.pieceBox('telescope');
+  assert.ok(c1.z[0] >= I.floorRise + KINDS.daybed.seat - .03, `daybed cushion on seat: ${c1.z}`);
+  assert.ok(th.z[1] >= I.floorRise + KINDS.daybed.seat, `daybed throw over seat: ${th.z}`);
+  assert.ok(tele.z[1] > I.floorRise + 1.1 && tele.z[1] <= I.floorRise + KINDS.telescope.height + .02, `telescope height: ${tele.z}`);
+  inside.dispose();
+
+  // A daybed recipe that throws skips its cushions and throw while keeping telescope built.
+  const [broken, brokenWarnings] = warned(() => {
+    const res = buildInterior(THREE, {interior: I, art: stubArt(), openings, recipes: {...RECIPES, daybed: () => { throw new Error('slat broke'); }}});
+    res.buildRest();
+    return res;
+  });
+  assert.equal(brokenWarnings.length, 1);
+  assert.ok(broken.skipped.includes('daybed') && broken.skipped.includes('cushion-daybed-1') && broken.skipped.includes('throw-daybed'));
+  assert.ok(broken.pieceBox('telescope'));
+  broken.dispose();
+});

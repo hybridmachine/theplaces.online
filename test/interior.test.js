@@ -575,3 +575,15 @@ test('rule 7 & 8 on floor 1: covering an upper spot or blocking any upper room w
   // Blocking bedroom-3 between landing door (a=11, d=6.2) and box-room door (d=7, a=16.5) fails Rule 8.
   assert.equal(validInterior(withUpperPieces([{id: 'bed3-bar', kind: 'chest-of-drawers', room: 'bedroom-3', at: [14.0, 3.5], turn: Math.PI / 2, size: [6.4, .5]}])), false);
 });
+test('the landing and sky room pieces are valid, keep the landing lamp clear, and leave existing upstairs check poses standable', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['landing-seat', 'landing-runner', 'picture-landing', 'cushion-landing-1', 'cushion-landing-2',
+    'sky-rug', 'daybed', 'floor-cushion-1', 'floor-cushion-2', 'telescope', 'cushion-daybed-1', 'cushion-daybed-2', 'throw-daybed']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  const lamp = I.fittings.find(f => f.room === 'landing');
+  const seat = footprint(I.furniture.find(e => e.id === 'landing-seat'));
+  assert.equal(lamp.at[0] >= seat.a[0] && lamp.at[0] <= seat.a[1] && lamp.at[1] >= seat.d[0] && lamp.at[1] <= seat.d[1], false);
+  for (const p of [[8, 1], [6.4, 7.6], [3, 9], [3.5, 7.6]]) assert.ok(floorArea(I, 1, p), `existing check pose ${p}`);
+});

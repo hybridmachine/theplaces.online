@@ -134,6 +134,19 @@ const FURNITURE = [
   standing('pantry-shelf-2', 'pantry-shelf', 'pantry', [1.1, 11.75]),
   standing('sacks', 'sack', 'pantry', [.325, 10.15]),
   standing('crates', 'crate', 'pantry', [.325, 11.35]),
+  // The landing: cushioned window seat on the front wall east of the wall lamp, runner along the west walk, framed picture.
+  standing('landing-seat', 'window-seat', 'landing', [9.8, .315], Math.PI),
+  standing('landing-runner', 'runner', 'landing', [8.3, 3.5], .02, [.9, 3.8]),
+  hung('picture-landing', 'picture', 'landing', 'a', 7, [1.2, 2.0], 1.5),
+  ...many(2, 'cushion-landing', 'cushion', 'landing', 'landing-seat'),
+  // The sky room: daybed with cushions and throw under the back roof window, rug, floor cushions and a brass tripod telescope aimed at the glass.
+  standing('sky-rug', 'rug', 'sky-room', [3.5, 9.6], .01, [3.2, 2.8]),
+  standing('daybed', 'daybed', 'sky-room', [3.5, 10.7]),
+  standing('floor-cushion-1', 'floor-cushion', 'sky-room', [1.9, 9.5], .2),
+  standing('floor-cushion-2', 'floor-cushion', 'sky-room', [2.4, 8.6], -.3),
+  standing('telescope', 'telescope', 'sky-room', [4.9, 9.0], -1.91),
+  ...many(2, 'cushion-daybed', 'cushion', 'sky-room', 'daybed'),
+  setOn('throw-daybed', 'throw', 'sky-room', 'daybed'),
 ];
 
 const BLUEPRINT = {
@@ -198,7 +211,7 @@ const BLUEPRINT = {
   breasts: BREASTS,
   furniture: FURNITURE,
   furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
-  furnishUpper: [],
+  furnishUpper: ['landing', 'sky-room'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
