@@ -1,6 +1,6 @@
 # Cabin interior, part 4e: furnishing the upstairs bedrooms, landing, sky room and library nook — design
 
-Status: approved by the owner for planning and build (November 24, 2026). Nothing is built yet.
+Status: built behind `?interior=1`, awaiting owner review (November 24, 2026).
 
 This is the fifth slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). The first four (`4a` living room and hall, `4b` kitchen and dining, `4c` study, closet passage and master bedroom, `4d` ground-floor bathroom, laundry and pantry) are built and merged, finishing the ground floor. Their design and As built sections are the starting point: everything there about how a piece is described, made, lit, grounded, queued, hidden, checked and allowed to fail holds here unless this document says otherwise.
 
@@ -327,3 +327,42 @@ The captures. Four questions:
 - Exact angle and leg splay of the tripod telescope so it aims naturally toward the sky-room roof window.
 - Exact distance threshold (`~1.5 m`) for flushing floor 1 near the stair foot (and floor 0 near the stair top).
 - Updating `README.md` and writing the spec's As built section when the work lands.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open.
+
+- **Cross-floor visibility (`shared/sight.js`, `public/space/interior/index.js`):** `stairWellBox(I)` returns `{a: I.stair.a, d: I.stair.d, z: [I.groundCeiling, I.floorRise]}`. `doorBoxes(I)` appends `stairWellBox(I)` to `landing` (neighbour `'hall'`) and `hall` (neighbour `'landing'`), and stores room floors + `well` in `BOX_META`. `doorInView(boxes, roomId, planes, seen, fromRoomId)` gates opposite-floor rooms on `boxInView(well, planes)` before checking opening boxes. `inside.showFrom` passes `from` through to `doorInView`.
+- **Two-stage build queue (`shared/furniture.js`, `public/space/interior/index.js`, `public/space/space-view.js`):** `withoutRooms` filters both `furnishLater` and `furnishUpper`. `buildInterior` keeps separate floor-0 (`furnishLater`) and floor-1 (`furnishUpper`) queues, exposing `buildRest(floor)` and `pendingFor(floor)`. `SpaceView.buildInside()` flushes only `state.floor`; `SpaceView.step()` indoors flushes `state.floor`, skips background builds on the entry `move` frame, and flushes the opposite floor when `onStair(I, pos)` or within **`1.0 m`** of `stairFoot(I)` / `stairTop(I)` (tightened from `1.5 m` because `I.entry.position` `[9, 0.8]` lies `1.40 m` from `stairFoot(I)` `[10.2625, 1.4]`).
+- **Rules & spots (`shared/furniture.js`, `shared/interior.js`, `shared/lakeside-interior.js`):** eight new solid kinds (`single-bed`, `chest-of-drawers`, `small-desk`, `daybed`, `floor-cushion`, `telescope`, `eave-bookshelf`, `sloped-bookshelf`); Rule 10 validates solid, sloped (`sloped: true, minHeight: 1.5`), and wall-hung ceiling clearance against `ceilingHeight(I, floor, d)`; `stairTop(I)`, `FURNISHED_UPPER`, `upperFurnishedWay`, `upperWideTargets`, `upperThroughWays`, `upperSpots`, `furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']`, and `SLICE_4E`. Ground-floor `spots` and `spots.speed` (6 spots) are unchanged. In `shared/interior.js`, `furnitureFit` reuses each subgraph's `flood()` across multiple targets, keeping `validInterior(I)` ~4× faster.
+- **Placements changed from the plan's initial tables:**
+  - `bed2-chair` moved from `[0.8, 1.4]` (turn `π + 0.5`) to `[5.9, 1.4]` (turn `π - 0.5`, north-east corner of Bedroom 2) so the existing upper chimney-breast walk test spot `[0.4, 1.5]` in `test/walker.test.js` stays standable without changing the test.
+  - `telescope` turn settled to `-1.91` rad at `[4.9, 9.0]` so its optical tube aims directly up toward the sky-room roof window (`[3.5, 9.5]`) while staying wholly inside its `0.65 × 0.65 m` footprint.
+- **Sculpted vs kit (`public/space/interior/furniture.js`):**
+  - **Sculpted:** `daybed` mattress cushion and two end bolsters (`cushion`, `roll`), `floor-cushion` (`cushion`, height factor `0.78` with low `taper: 0.15` so cushions rest flush on the rug), `telescope` tripod legs, spreader struts, hub, brass tube and finder (`roll`, `turned`), `single-bed` mattress and draped bedclothes (`cushion`, `drape`), `chest-of-drawers` brass knobs (`turned`), and `small-desk` drawer knobs (`roll`).
+  - **Kit:** bed frames/headboards/footboards, chest carcass and drawer fronts, small desk carcass/legs, daybed timber frame/slats, `eave-bookshelf` carcass/shelves/books, and `sloped-bookshelf` trapezoid carcass, bevelled top board (through `kit.grid`), clipped shelves, and `kit.books`. One new surface `SURFACES.brass` (`COLOURS.brass = [1.08, 0.86, 0.42]`, mapped to `wood`) was added; no new material or mesh name.
+- **Budget tuning:** On the first full browser run, `nook` measured `35.5 ms` (`10,791` vertices) against the `35 ms` per-room limit. Applying the planned one-constant remedy (`NOOK_BOOK_FILL = 0.78` in `public/space/interior/furniture.js`) reduced `nook` to `8,919` vertices and **`30.0 ms`** median while leaving natural breathing space on the shelves.
+- **Checks and tests updated:**
+  - `test/interior-furniture.test.js` updated `laterRooms`, synthetic `withoutRooms` fixtures, and set count (`9 -> 14`).
+  - `test/space-view.test.js` updated floor-0 entry/start tests to assert `pendingFor(0)` empty (since floor 1 builds in stage 2).
+  - `scripts/check-space-browser.mjs`: check 71 reworded for 14 sets; floor-0 entry/start checks (`84, 85, 99–101, 111–113`) check `pendingFor(0)`; added checks **116–125** and 20 captures under `docs/interior-validation/` (with `!` lines in `.gitignore`). No existing upstairs check poses moved.
+
+### Measured
+
+- **Unit tests:** `526 / 526` passing across all 12 interior/space/sight/furniture/walker/place-memory suites; `node --check` passes across all tracked modules.
+- **Browser suite (`scripts/check-space-browser.mjs`, 1440 × 810, tier `full`, Chrome with `SKY_GPU=metal`, 0 page or console errors):**
+  - **Queued builds (check 116, median of 3 loads, limits ≤ 35 ms each, 5-room sum ≤ 120 ms, 8 floor-0 rooms < 180 ms):**
+    - `landing`: **4.1 ms** (`959` vertices, `3` meshes)
+    - `nook`: **30.0 ms** (`8,919` vertices, `4` meshes)
+    - `bedroom-2`: **10.3 ms** (`2,993` vertices, `5` meshes, with `shades`)
+    - `bedroom-3`: **11.2 ms** (`2,662` vertices, `5` meshes, with `shades`)
+    - `sky-room`: **11.1 ms** (`2,423` vertices, `3` meshes)
+    - Five upstairs rooms together: **66.7 ms** (limit `120` ms).
+    - Eight floor-0 queued rooms together: **148.2 ms** (limit `< 180` ms).
+    - Total across all 15 furnished rooms (14 sets): **65,990 vertices in 56 meshes**.
+  - **Upstairs speed & draw calls vs `&furnish=4d`:**
+    - Check 117 (`upperSpots.speed[0]` `[8.4, 5.8]`, `landing -> nook`): day **0.850×** (`+0.002`), night **0.835×** (`+0.002`), draw calls **+8** (`27` vs `19`, limit `≤ +9`).
+    - Check 118 (`upperSpots.speed[1]` `[5.8, 9.5]`, `sky-room -> daybed & roof window`): day **1.026×** (`−0.010`), night **1.035×** (`+0.009`), draw calls **+3** (`34` vs `31`, limit `≤ +4`).
+  - **Ground-floor speed & draw calls vs `&furnish=4d` (check 119):** **0 added draw calls** across all six poses (`s0: 44/44, s1: 52/52, s2: 41/41, s3: 31/31, s4: 14/14, s5: 14/14`). In the non-Metal run all 12 day/night ABBA pairs passed within `+0.01` (`max +0.009`); in the Metal run 10 of 12 were within `+0.005` while `s0-day` (`+0.013`) and `s2-night` (`+0.012`) showed ~0.002–0.003 of GPU timing jitter (and check 73's `full` first build was `+69.1 ms` against the `80 ms` budget).
+  - **Shades, hiding, lifecycle, determinism and fallback (checks 120–125):** all passed — upstairs shades follow their own room's lamp dial; hiding changes **0** pixels across all 8 speed poses and full 360° turns (24 frames each) at `upperSpots.nookChair` and `upperSpots.landingSeat`; `shownRooms` hides all 5 upper rooms at all 6 ground poses, shows `landing` looking up the stairwell from `hall`, and hides ground queued rooms in `sky-room`; reduced-motion entry flushes floor 0 only while climbing the stair finishes floor 1 before reaching `landing`; start-indoors in `sky-room` builds floor 1 on frame 1 with its clause; determinism shows **0** differing pixels across all 5 rooms; `fallBack()` keeps every mesh lit above `0.1` luminance with 0 errors.
+

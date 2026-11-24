@@ -41,7 +41,7 @@ const RACK_RAILS = [[0, 1.18], [-.08, .96], [.08, .96], [-.14, .72], [.14, .72],
 // How many jars/crocks/tins each pantry shelf carries; one edit adjusts the pantry's vertex budget.
 const PANTRY_JARS_PER_SHELF = 6;
 // Book density trim (fraction of bay width filled) for library nook bookcases; one edit adjusts the nook's vertex budget.
-const NOOK_BOOK_FILL = 1;
+const NOOK_BOOK_FILL = .78;
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
