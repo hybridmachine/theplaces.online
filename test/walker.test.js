@@ -348,3 +348,18 @@ test('walking in bedroom-2 toward bed-2 stops at its footprint less eye clearanc
   }
   assert.ok(g.position[0] > start.position[0] + .4, `slid east along bed-2 to ${g.position}`);
 });
+
+test('walking in the library nook toward nook-eave-shelves stops at its footprint less eye clearance and slides along it', () => {
+  const shelf = I.obstacles.find(o => o.id === 'nook-eave-shelves');
+  assert.ok(shelf, 'nook-eave-shelves obstacle exists');
+  const inShelf = p => p[0] > shelf.a[0] && p[0] < shelf.a[1] && p[1] > shelf.d[0] && p[1] < shelf.d[1];
+  const start = {place: 'cabin', floor: 1, position: [10.15, 9.6], yaw: 0, pitch: 0};
+  assert.ok(standable(start));
+  let s = {...start};   // straight +d toward the eave shelves
+  for (let i = 0; i < 90; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inShelf(s.position), `entered nook-eave-shelves at ${s.position}`);
+  }
+  assert.ok(s.position[1] <= shelf.d[0] - I.eyeClear + 1e-9, `stopped at nook-eave-shelves: ${s.position}`);
+  assert.ok(s.position[1] > shelf.d[0] - I.eyeClear - .1, `pressed close to nook-eave-shelves: ${s.position}`);
+});

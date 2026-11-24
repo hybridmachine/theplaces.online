@@ -1,6 +1,6 @@
 import {KINDS, withDependents} from '../../../shared/furniture.js';
 import {lightSum} from '../../../shared/interior-light.js';
-import {roomAt} from '../../../shared/interior.js';
+import {ceilingHeight, roomAt} from '../../../shared/interior.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {mergeGeometries} from '../geometry.js';
 import {hash} from '../scene/noise.js';
@@ -40,6 +40,8 @@ const DRESSER_COUNTER = .86, DRESSER_SHELVES = [1.24, 1.62];
 const RACK_RAILS = [[0, 1.18], [-.08, .96], [.08, .96], [-.14, .72], [.14, .72], [-.17, .48]];
 // How many jars/crocks/tins each pantry shelf carries; one edit adjusts the pantry's vertex budget.
 const PANTRY_JARS_PER_SHELF = 6;
+// Book density trim (fraction of bay width filled) for library nook bookcases; one edit adjusts the nook's vertex budget.
+const NOOK_BOOK_FILL = 1;
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -1357,6 +1359,84 @@ export const RECIPES = {
       put(out, 'wood', kit.board(at, [x0, x1], [-iy - .012, -iy], [apronZ + .012, h - .048], front, {skip: ['back']}));
       put(out, 'brass', kit.roll(at, [mid, -iy - .012, zm], [mid, -iy - .028, zm], .01, knob, {sides: 6}));
     }
+    return out;
+  },
+  // ── library nook bookshelves (Part 4e): low eave bookcase and roof-pitch sloped bookcases ──
+  'eave-bookshelf'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .07, .76), shut = {tuck: ['under', 'back', 'left', 'right']};
+    const bays = [[-hx + T, -hx / 3 - T / 2], [-hx / 3 + T / 2, hx / 3 - T / 2], [hx / 3 + T / 2, hx - T]];
+    const shelves = [.10, .44, .78, 1.12, 1.46], spines = -hy + .025;
+    const covers = [pal.rugRed(2, .12, .78), pal.ochre(3, .12, .82), pal.blue(4, .12, .80), pal.green(5, .12, .82), pal.surface('cloth', 6, .08, .78), pal.darkOak(7, .1, 1.15)];
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [0, h], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
+      ...kit.board(at, [-hx / 3 - T / 2, -hx / 3 + T / 2], [-hy + .01, hy - T], [T, h - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [hx / 3 - T / 2, hx / 3 + T / 2], [-hy + .01, hy - T], [T, h - T], wood, {tuck: ['left', 'right', 'back']}),
+    ]);
+    shelves.forEach((z, k) => {
+      bays.forEach(([x0, x1], b) => {
+        put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
+        const room = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
+        const span = (x1 - x0) * NOOK_BOOK_FILL;
+        if (span > .12) {
+          put(out, 'cloth', kit.books(at, [x0, x0 + span], spines, z, {height: Math.min(.26, room * .8), seed: pal.seed * 13 + k * 3 + b, colours: covers}));
+        }
+      });
+    });
+    return out;
+  },
+  // A bookcase fitted to the upper floor's roof pitch: uprights, back panel and top board follow ceilingHeight(I, 1, d) - 0.04,
+  // and shelves/books clip wherever the slope comes down.
+  'sloped-bookshelf'(kit, e, pal, {interior}) {
+    const [hx, hy] = halves(e), at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .07, .76), topWood = pal.surface('wood', 1, .06, .84);
+    const backWood = p => wood(p).map(c => c * TUCK), shut = {tuck: ['under', 'back', 'left', 'right']};
+    const ceilAt = x => Math.min(ceilingHeight(interior, 1, at(x, -hy, 0)[1]), ceilingHeight(interior, 1, at(x, hy, 0)[1])) - .04;
+    const hL = ceilAt(-hx), hR = ceilAt(hx);
+    const quad = (p00, p10, p01, p11, n, colour) => kit.grid(at, [[p00, p10], [p01, p11]], [[n, n], [n, n]], colour, .9);
+    const dx = 2 * hx, dz = hR - hL, len = Math.hypot(dx, dz) || 1;
+    const nTop = [-dz / len, 0, dx / len], nBot = [dz / len, 0, -dx / len];
+    // uprights, plinth, trapezoid back and bevelled top board
+    put(out, 'wood', [
+      ...kit.board(at, [-hx, -hx + T], [-hy, hy], [0, Math.min(hL, ceilAt(-hx + T)) - T], wood, {tuck: ['right', 'back']}),
+      ...kit.board(at, [hx - T, hx], [-hy, hy], [0, Math.min(hR, ceilAt(hx - T)) - T], wood, {tuck: ['left', 'back']}),
+      ...kit.board(at, [-T / 2, T / 2], [-hy + .01, hy - T], [.10, Math.min(ceilAt(-T / 2), ceilAt(T / 2)) - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [-hx + T, hx - T], [-hy + .008, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
+      quad([-hx + T, hy - T, .10], [hx - T, hy - T, .10], [-hx + T, hy - T, ceilAt(-hx + T) - T], [hx - T, hy - T, ceilAt(hx - T) - T], [0, -1, 0], backWood),
+      quad([-hx, -hy, hL], [hx, -hy, hR], [-hx, hy, hL], [hx, hy, hR], nTop, topWood),
+      quad([-hx, -hy, hL - T], [hx, -hy, hR - T], [-hx, hy, hL - T], [hx, hy, hR - T], nBot, backWood),
+      quad([-hx, -hy, hL - T], [hx, -hy, hR - T], [-hx, -hy, hL], [hx, -hy, hR], [0, -1, 0], topWood),
+      quad([-hx, -hy, hL - T], [-hx, hy, hL - T], [-hx, -hy, hL], [-hx, hy, hL], [-1, 0, 0], topWood),
+      quad([hx, -hy, hR - T], [hx, hy, hR - T], [hx, -hy, hR], [hx, hy, hR], [1, 0, 0], topWood),
+    ]);
+    // clip [x0, x1] to the sub-interval where ceilAt(x) - T >= minZ (ceilAt is linear on one roof slope)
+    const clip = (x0, x1, minZ) => {
+      const z0 = ceilAt(x0) - T, z1 = ceilAt(x1) - T;
+      if (z0 < minZ && z1 < minZ) return null;
+      if (z0 >= minZ && z1 >= minZ) return [x0, x1];
+      const xc = x0 + (minZ - z0) * (x1 - x0) / (z1 - z0);
+      return z0 >= minZ ? [x0, xc] : [xc, x1];
+    };
+    const shelves = [.10, .46, .82, 1.18, 1.54, 1.90], spines = -hy + .025;
+    const bays = [[-hx + T, -T / 2], [T / 2, hx - T]];
+    const covers = [pal.rugRed(2, .12, .78), pal.ochre(3, .12, .82), pal.blue(4, .12, .80), pal.green(5, .12, .82), pal.surface('cloth', 6, .08, .78), pal.darkOak(7, .1, 1.15)];
+    shelves.forEach((z, k) => {
+      bays.forEach(([x0, x1], b) => {
+        if (k > 0) {
+          const sb = clip(x0, x1, z + .04);
+          if (!sb || sb[1] - sb[0] < .16) return;
+          put(out, 'wood', kit.board(at, sb, [-hy + .008, hy - T], [z - .03, z], wood, shut));
+        }
+        const kb = clip(x0, x1, z + .22);
+        if (!kb) return;
+        const span = (kb[1] - kb[0]) * NOOK_BOOK_FILL;
+        if (span < .12) return;
+        const nextRoom = shelves[k + 1] ? shelves[k + 1] - .03 - z : .34;
+        const head = Math.min(nextRoom, Math.min(ceilAt(kb[0]), ceilAt(kb[0] + span)) - T - z);
+        if (head < .18) return;
+        put(out, 'cloth', kit.books(at, [kb[0], kb[0] + span], spines, z, {height: Math.min(.26, head * .78), seed: pal.seed * 17 + k * 2 + b, colours: covers}));
+      });
+    });
     return out;
   },
 };

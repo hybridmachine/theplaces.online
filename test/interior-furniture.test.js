@@ -1460,3 +1460,46 @@ test('bedrooms 2 and 3 build as floor-1 queued sets of at most 5 meshes with per
   }
   inside.dispose();
 });
+
+// ── library nook furniture (Part 4e, Task 6) ──
+test('library nook builds with sloped bookshelves hugging the ceiling pitch, standing-lamp shades following nook dial, 14 sets in total, and deterministic vertex count', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  assert.equal(inside.furniture.sets.length, 14, '14 sets across 15 furnished rooms (9 ground + 5 upper)');
+  const nookSet = inside.furniture.sets.find(s => s.rooms.includes('nook'));
+  assert.ok(nookSet, 'nook set exists');
+  assert.ok(nookSet.meshes >= 1 && nookSet.meshes <= 5, `nook meshes: ${nookSet.meshes}`);
+  const grp = inside.scene.getObjectByName('furniture-nook');
+  assert.ok(grp && grp.getObjectByName('shades'), 'nook has shades');
+
+  // Slope-fit invariant: every vertex of the three bookcases stays below 3.0 + ceilingHeight(I, 1, d) - 0.01,
+  // and each sloped bookcase rises at least 0.30 m from its south end to its north end.
+  for (const id of ['nook-eave-shelves', 'nook-shelves-west', 'nook-shelves-east']) {
+    const verts = [...vertices(inside.scene, id, 'furniture-wood'), ...vertices(inside.scene, id, 'furniture-cloth')];
+    assert.ok(verts.length > 50, `${id} has wood and book vertices`);
+    let northTop = -Infinity, southTop = -Infinity;
+    for (const v of verts) {
+      const ceil = I.floorRise + ceilingHeight(I, 1, v.d);
+      assert.ok(v.z <= ceil - .01, `${id} vertex at d=${v.d.toFixed(3)} z=${v.z.toFixed(3)} exceeds ceiling ${ceil.toFixed(3)}`);
+      if (v.d < 10.3) northTop = Math.max(northTop, v.z);
+      if (v.d > 11.35) southTop = Math.max(southTop, v.z);
+    }
+    if (id !== 'nook-eave-shelves') {
+      assert.ok(northTop - southTop >= .30, `${id} slopes up by ${(northTop - southTop).toFixed(3)} m (north ${northTop.toFixed(3)} vs south ${southTop.toFixed(3)})`);
+    }
+  }
+  for (const e of I.furniture.filter(x => x.room === 'nook' && KINDS[x.kind].standing === 'solid')) {
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+  }
+  const lit = groupShadeColour(inside, 'furniture-nook', dialsFor({nook: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-nook', dialsFor({nook: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
+  const firstCount = nookSet.vertices;
+  inside.dispose();
+
+  const second = build(); second.buildRest();
+  assert.equal(second.furniture.sets.find(s => s.rooms.includes('nook')).vertices, firstCount);
+  second.dispose();
+});

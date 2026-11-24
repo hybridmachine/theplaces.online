@@ -40,6 +40,7 @@ const FURNISHED_TEXT = {
   'second bedroom': 'A single bed stands under the slope, a lamp beside it and a chest opposite. ',
   'third bedroom': 'A single bed stands under the slope and a desk catches the roof light. ',
   'sky room': 'A daybed and cushions lie under the roof window, a small telescope beside them. ',
+  'library nook': 'Shelves climb to the roof slope around a reading chair and lamp. ',
 };
 const furnishedText = room => FURNISHED_TEXT[room] ?? '';
 

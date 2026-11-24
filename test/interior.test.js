@@ -598,3 +598,12 @@ test('bedrooms 2 and 3 pieces are valid and leave existing bedroom check poses s
   }
   for (const p of [[3.5, 5], [14.5, 5], [14.5, 6.6]]) assert.ok(floorArea(I, 1, p), `existing bedroom pose ${p}`);
 });
+test('the library nook pieces are valid and furnishUpper queues all five part 4e rooms in order', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']);
+  assert.deepEqual(new Set(I.furnishUpper), new Set(SLICE_4E));
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['nook-rug', 'nook-eave-shelves', 'nook-shelves-west', 'nook-shelves-east', 'nook-chair', 'nook-lamp']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+});

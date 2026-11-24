@@ -172,6 +172,13 @@ const FURNITURE = [
   setOn('blanket-bed3', 'blanket', 'bedroom-3', 'bed-3'),
   setOn('cup-bed3', 'cup', 'bedroom-3', 'bed3-side-table'),
   ...many(2, 'book-bed3', 'book', 'bedroom-3', 'bed3-desk'),
+  // The library nook: low eave bookcase and two sloped bookcases climbing the roof pitch around a reading chair and standing lamp.
+  standing('nook-rug', 'rug', 'nook', [9.0, 10.3], .02, [2.2, 2.0]),
+  standing('nook-eave-shelves', 'eave-bookshelf', 'nook', [9.0, 11.75]),
+  standing('nook-shelves-west', 'sloped-bookshelf', 'nook', [7.25, 10.825], Math.PI / 2),
+  standing('nook-shelves-east', 'sloped-bookshelf', 'nook', [10.75, 10.825], -Math.PI / 2),
+  standing('nook-chair', 'armchair', 'nook', [8.45, 10.7], .45),
+  standing('nook-lamp', 'standing-lamp', 'nook', [9.55, 11.05]),
 ];
 
 const BLUEPRINT = {
@@ -236,7 +243,7 @@ const BLUEPRINT = {
   breasts: BREASTS,
   furniture: FURNITURE,
   furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
-  furnishUpper: ['landing', 'bedroom-2', 'bedroom-3', 'sky-room'],
+  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,

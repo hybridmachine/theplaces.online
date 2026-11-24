@@ -935,6 +935,7 @@ test('started indoors in the sky room or landing builds floor 1 on frame 1 and e
     [I.upperSpots.skyWindow, 'sky room', /daybed and cushions lie under the roof window, a small telescope beside them/],
     [I.upperSpots.bed2, 'second bedroom', /single bed stands under the slope, a lamp beside it and a chest opposite/],
     [I.upperSpots.bed3, 'third bedroom', /single bed stands under the slope and a desk catches the roof light/],
+    [I.upperSpots.nookChair, 'library nook', /Shelves climb to the roof slope around a reading chair and lamp/],
   ]) {
     const {view, frame} = await rig({state: {place: 'cabin', floor: 1, position: [...spot], yaw: 0, pitch: 0}});
     frame(1);
