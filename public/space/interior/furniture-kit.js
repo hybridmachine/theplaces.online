@@ -290,5 +290,5 @@ export function createKit(THREE, {face, lit}) {
     return [face, behind];
   };
 
-  return {placed, moved, board, box, post, cushion, books, framed, mat, turned, roll, drape};
+  return {placed, moved, board, box, post, cushion, books, framed, mat, grid, turned, roll, drape};
 }

@@ -174,3 +174,28 @@ test('withoutRooms with keepQueue keeps the other rooms queued', () => {
   const emptied = withoutRooms(i, ['study']);
   assert.deepEqual(emptied.furnishLater, []);
 });
+
+test('the bathroom, laundry and pantry kinds have the right standings, heights and footprints', () => {
+  for (const [k, size, h] of [
+    ['basin', [.6, .45], .85], ['toilet', [.45, .7], .8], ['shower', [.9, .9], 2.0], ['bathtub', [1.7, .75], .6],
+    ['wash-tub', [.9, .6], .85], ['drying-rack', [1.0, .45], 1.2], ['basket', [.45, .45], .4],
+    ['pantry-shelf', [2.0, .35], 2.0], ['sack', [.5, .45], .6], ['crate', [.5, .45], .6],
+  ]) {
+    assert.equal(KINDS[k].standing, 'solid', k);
+    assert.deepEqual(KINDS[k].size, size, k);
+    assert.equal(KINDS[k].height, h, k);
+    const f0 = footprint({id: k, kind: k, room: 'living', at: [4, 4], turn: 0});
+    const f90 = footprint({id: k, kind: k, room: 'living', at: [4, 4], turn: Math.PI / 2});
+    near(f0.a[1] - f0.a[0], size[0]); near(f0.d[1] - f0.d[0], size[1]);
+    near(f90.a[1] - f90.a[0], size[1]); near(f90.d[1] - f90.d[0], size[0]);
+  }
+  assert.equal(KINDS['bath-mat'].standing, 'walk-over'); assert.equal(KINDS['bath-mat'].height, .015);
+  const bm0 = footprint({id: 'bm', kind: 'bath-mat', room: 'living', at: [4, 4], turn: 0, size: [.9, .55]});
+  const bm90 = footprint({id: 'bm', kind: 'bath-mat', room: 'living', at: [4, 4], turn: Math.PI / 2, size: [.9, .55]});
+  near(bm0.a[1] - bm0.a[0], .9); near(bm0.d[1] - bm0.d[0], .55);
+  near(bm90.a[1] - bm90.a[0], .55); near(bm90.d[1] - bm90.d[0], .9);
+  assert.equal(KINDS['towel-rail'].standing, 'wall-hung'); assert.equal(KINDS['towel-rail'].height, .05);
+  assert.equal(footprint({id: 'tr', kind: 'towel-rail', room: 'living'}), null);
+  assert.equal(KINDS.towel.standing, 'set-on'); assert.equal(KINDS.towel.height, .6);
+  assert.equal(footprint({id: 'tw', kind: 'towel', room: 'living', on: 'tr'}), null);
+});

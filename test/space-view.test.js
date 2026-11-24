@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SpaceView, hidingSwitch, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_INTERIOR as I, SLICE_4C} from '../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4C, SLICE_4D} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
 import {PainterlyPass, canPaint} from '../public/space/painterly-pass.js';
 import {DIALS, interiorDials} from '../shared/interior-light.js';
@@ -762,14 +762,24 @@ test('furnished is false in a room still queued and true once it is built', asyn
   view.inside.dispose();
 });
 
-test('&furnish=4b with ?check strips SLICE_4C rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
+test('&furnish=4b with ?check strips SLICE_4C and SLICE_4D rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
   const b4 = interiorSwitch('?interior=1&check&furnish=4b');
-  assert.equal(b4.furniture.some(e => SLICE_4C.includes(e.room)), false, 'no SLICE_4C pieces');
+  assert.equal(b4.furniture.some(e => SLICE_4C.includes(e.room) || SLICE_4D.includes(e.room)), false, 'no SLICE_4C or SLICE_4D pieces');
   assert.ok(b4.furniture.some(e => e.room === 'kitchen'), 'kitchen pieces kept');
   assert.deepEqual(b4.furnishLater, ['kitchen', 'dining']);
   assert.equal(interiorSwitch('?interior=1&furnish=4b'), I, 'ignored without ?check');
   const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4b');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4b');
+});
+
+test('&furnish=4c with ?check strips SLICE_4D rooms and keeps master queued; without ?check it is ignored', () => {
+  const c4 = interiorSwitch('?interior=1&check&furnish=4c');
+  assert.equal(c4.furniture.some(e => SLICE_4D.includes(e.room)), false, 'no SLICE_4D pieces');
+  assert.ok(c4.furnishLater.includes('master'), 'master still queued');
+  assert.equal(c4.furnishLater.some(r => SLICE_4D.includes(r)), false, 'no SLICE_4D room queued');
+  assert.equal(interiorSwitch('?interior=1&furnish=4c'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4c');
+  assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4c');
 });
 
 test('hidingSwitch is true unless ?check and hide=0', () => {
@@ -807,14 +817,63 @@ test('SpaceView hides unseen rooms indoors, shows all on the stair, in the yard,
   inPassage.view.inside.dispose();
 });
 
+test('SpaceView passes view planes to showFrom: hides rooms whose doors are out of view, updates on the same frame when paused, and falls back for a zero-size canvas', async () => {
+  const spot = I.spots.speed[2];
+  const yawTo = ([ta, td]) => Math.atan2(ta - spot[0], td - spot[1]);
+  const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [...spot], yaw: yawTo([10, 12]), pitch: 0}});
+  frame(1, {now: 1_000_000});
+  assert.equal(view.inside.shownRooms.includes('passage'), false, 'passage hidden facing dining window');
+  assert.equal(view.inside.shownRooms.includes('study'), false, 'study hidden facing dining window');
+  assert.ok(view.inside.shownRooms.includes('kitchen') && view.inside.shownRooms.includes('dining'));
+  // Turn to face [0, 3.5] through the living opening and draw once with the world paused (same `now`): shownRooms updates on that draw.
+  view.state = {...view.state, yaw: yawTo([0, 3.5]), pitch: 0};
+  frame(1, {now: 1_000_000});
+  assert.equal(view.inside.shownRooms.includes('dining'), false, 'dining hidden immediately on the turned draw');
+  assert.ok(view.inside.shownRooms.includes('kitchen'), 'own room stays shown');
+  // Zero-size canvas: viewPlanes returns null and nothing more is hidden beyond the sight table.
+  view.canvas = {width: 0, height: 0};
+  assert.equal(view.viewPlanes(), null);
+  frame(1, {now: 1_000_000});
+  assert.ok(view.inside.shownRooms.includes('dining') && view.inside.shownRooms.includes('study'), 'table alone when planes are null');
+  // On the stair, in the yard, and with hideUnseen: false, every built room is shown.
+  view.canvas = {width: 1440, height: 810};
+  view.state = {place: 'cabin', floor: 0, position: [10.3, 3.0], yaw: 0, pitch: 0};
+  frame(1, {now: 1_000_000});
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms);
+  view.state = {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch};
+  frame(1, {now: 1_000_000});
+  assert.deepEqual(view.inside.shownRooms, view.inside.furnishedRooms);
+  view.inside.dispose();
+});
+
 test('sceneText includes the furnished clause for study, closet passage and master bedroom only when furnished', () => {
   const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
   for (const [room, phrase] of [
     ['study', /desk stands at the window and books line the back wall/],
     ['closet passage', /Wardrobes stand along one wall/],
     ['master bedroom', /double bed stands against the back wall, a lamp at each side/],
+    ['bathroom', /bathtub stands along one wall, a basin and mirror opposite/],
+    ['laundry', /wash tub and a drying rack stand here/],
+    ['pantry', /Shelves of jars line two walls/],
   ]) {
     assert.match(sceneText(snap, 0, {room, furnished: true}).description, phrase, `${room} furnished`);
     assert.doesNotMatch(sceneText(snap, 0, {room, furnished: false}).description, phrase, `${room} bare`);
+  }
+  assert.doesNotMatch(sceneText(snap, 0, {room: 'upstairs bathroom', furnished: true}).description, /bathtub stands/, 'upstairs bathroom never gets the clause');
+});
+
+test('started indoors at spots.bath or spots.pantry, the first frame has pending empty and the room clause in the description', async () => {
+  const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
+  for (const [spot, room, phrase] of [
+    [I.spots.bath, 'bathroom', /bathtub stands along one wall, a basin and mirror opposite/],
+    [I.spots.pantry, 'pantry', /Shelves of jars line two walls/],
+  ]) {
+    const {view, frame} = await rig({state: {place: 'cabin', floor: 0, position: [...spot], yaw: Math.PI / 2, pitch: 0}});
+    frame(1);
+    assert.deepEqual(view.inside.pending, []);
+    assert.equal(view.furnished, true);
+    assert.equal(view.room, room);
+    assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, phrase);
+    view.inside.dispose();
   }
 });

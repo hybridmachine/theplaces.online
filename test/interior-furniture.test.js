@@ -834,6 +834,9 @@ test('no table or malformed table: nothing hidden and one warning is logged', ()
   assert.equal(warnings.length, 1);
   inside.showFrom('kitchen');
   assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  // Without the table the doorway boxes hide nothing either, as the warning says.
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]}));
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
   inside.dispose();
 
   const [inside2, warnings2] = warned(() => buildQueuedAll({sight: () => ({kitchen: 'not-an-array'})}));
@@ -842,6 +845,84 @@ test('no table or malformed table: nothing hidden and one warning is logged', ()
   inside2.showFrom('kitchen');
   assert.deepEqual(inside2.shownRooms, inside2.furnishedRooms);
   inside2.dispose();
+});
+
+function planesFrom({at, facing, fovH = 100 * Math.PI / 180, aspect = 1440 / 810, pitch = 0}) {
+  const [ea, ed, ez] = at;
+  const ha = facing[0] - ea, hd = facing[1] - ed, len = Math.hypot(ha, hd);
+  const fha = ha / len, fhd = hd / len;
+  const right = [fhd, -fha, 0];
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fwd = [fha * cp, fhd * cp, sp];
+  const up = [
+    right[1] * fwd[2] - right[2] * fwd[1],
+    right[2] * fwd[0] - right[0] * fwd[2],
+    right[0] * fwd[1] - right[1] * fwd[0],
+  ];
+  const hx = fovH / 2, hy = Math.atan(Math.tan(hx) / aspect);
+  const plane = n => {
+    const l = Math.hypot(...n);
+    const u = n.map(v => v / l);
+    return [u[0], u[1], u[2], -(u[0] * ea + u[1] * ed + u[2] * ez)];
+  };
+  const combine = (a, ca, b, cb) => [a[0] * ca + b[0] * cb, a[1] * ca + b[1] * cb, a[2] * ca + b[2] * cb];
+  return [
+    plane(combine(fwd, Math.sin(hx), right, Math.cos(hx))),
+    plane(combine(fwd, Math.sin(hx), right, -Math.cos(hx))),
+    plane(combine(fwd, Math.sin(hy), up, Math.cos(hy))),
+    plane(combine(fwd, Math.sin(hy), up, -Math.cos(hy))),
+  ];
+}
+
+test('a seen room whose door is out of view is hidden, and shown again when its door enters view', () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  const countsBefore = structuredClone(inside.furniture), roomsBefore = [...inside.furnishedRooms], skippedBefore = [...inside.skipped];
+  const eye = [...I.spots.dresser, 1.6];
+  inside.showFrom('kitchen', planesFrom({at: eye, facing: [7, 11.5]}));
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('dining'));
+  assert.equal(inside.shownRooms.includes('study'), false, 'study hidden when facing north-east into dining');
+  assert.deepEqual(inside.furniture, countsBefore);
+  assert.deepEqual(inside.furnishedRooms, roomsBefore);
+  assert.deepEqual(inside.skipped, skippedBefore);
+  inside.showFrom('kitchen', planesFrom({at: eye, facing: [11, .8]}));
+  assert.ok(inside.shownRooms.includes('study'), 'study shown when facing the hall-study door');
+  // no planes: table alone
+  inside.showFrom('kitchen');
+  assert.ok(inside.shownRooms.includes('study') && !inside.shownRooms.includes('master'));
+  // null room shows everything whatever the planes
+  inside.showFrom(null, planesFrom({at: eye, facing: [7, 11.5]}));
+  assert.deepEqual(inside.shownRooms, inside.furnishedRooms);
+  inside.dispose();
+});
+
+test("the visitor's own room is always shown, even facing away from its door", () => {
+  const inside = buildQueuedAll();
+  inside.buildRest();
+  inside.showFrom('master', planesFrom({at: [14.5, 10.0, 1.6], facing: [18, 11.5]}));
+  assert.ok(inside.shownRooms.includes('master'));
+  inside.dispose();
+});
+
+test('a room built after showFrom with planes takes the current answer at once', () => {
+  const inside = buildQueuedAll();
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]}));
+  inside.buildRest();
+  assert.equal(inside.shownRooms.includes('study'), false);
+  assert.ok(inside.shownRooms.includes('kitchen') && inside.shownRooms.includes('dining'));
+  inside.dispose();
+});
+
+test('no door boxes, nothing more hidden beyond the sight table', () => {
+  const [inside, warnings] = warned(() => buildQueuedAll({doors: () => { throw new Error('doors broken'); }}));
+  inside.buildRest();
+  assert.equal(warnings.length, 1);
+  const planes = planesFrom({at: [...I.spots.dresser, 1.6], facing: [7, 11.5]});
+  inside.showFrom('kitchen');
+  const tableOnly = [...inside.shownRooms];
+  inside.showFrom('kitchen', planes);
+  assert.deepEqual(inside.shownRooms, tableOnly);
+  inside.dispose();
 });
 
 // ── kitchen furniture (Task 3) ──
@@ -1127,4 +1208,121 @@ test('the passage and master bedroom build without skipping, stay within their m
   const out = groupShadeColour(inside, 'furniture-master', dialsFor({master: 0, living: 1}));
   assert.ok(out[0] / out[2] < 1.4);
   inside.dispose();
+});
+
+// ── ground-floor bathroom furniture (Task 4) ──
+test('the ground-floor bathroom builds as one queued set of at most four meshes with no shades, carries light weights and grounding, and places towels on rail and tub', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const set = inside.furniture.sets.find(s => s.rooms.includes('bath-ground'));
+  assert.ok(set, 'bath-ground set exists');
+  assert.deepEqual(set.rooms, ['bath-ground']);
+  assert.ok(set.meshes >= 1 && set.meshes <= 4, `bath-ground meshes: ${set.meshes}`);
+  const grp = inside.scene.getObjectByName('furniture-bath-ground');
+  assert.ok(grp, 'furniture-bath-ground group exists');
+  assert.equal(grp.getObjectByName('shades'), undefined, 'bath-ground has no shades');
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const child of grp.children) {
+    assert.ok(allowed.has(child.name), `allowed mesh name ${child.name}`);
+    if (child.name !== 'grounding') {
+      const l = child.geometry.getAttribute('light');
+      assert.ok(l, `${child.name} has light attribute`);
+      for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${child.name} vertex ${i}`);
+    }
+  }
+  const bathRoom = I.rooms.find(r => r.id === 'bath-ground');
+  const solids = I.furniture.filter(e => e.room === 'bath-ground' && KINDS[e.kind].standing === 'solid');
+  assert.equal(solids.length, 4);
+  for (const e of solids) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+    assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+  }
+  // Every bath-ground piece stays within the room's a and d bounds.
+  for (const e of I.furniture.filter(x => x.room === 'bath-ground')) {
+    const box = inside.pieceBox(e.id);
+    assert.ok(box, `${e.id} drawn`);
+    assert.ok(box.a[0] >= bathRoom.a[0] && box.a[1] <= bathRoom.a[1], `${e.id} a ${box.a}`);
+    assert.ok(box.d[0] >= bathRoom.d[0] && box.d[1] <= bathRoom.d[1], `${e.id} d ${box.d}`);
+  }
+  const railTowel = inside.pieceBox('towel-rail-1');
+  assert.ok(railTowel.z[0] < 1.0 && railTowel.z[1] <= 1.24, `towel on rail hangs below 1.2: ${railTowel.z}`);
+  const tubTowel = inside.pieceBox('towel-tub');
+  assert.ok(tubTowel.z[1] >= KINDS.bathtub.height - .01 && tubTowel.z[1] <= KINDS.bathtub.height + .04, `towel on tub rests at rim: ${tubTowel.z}`);
+  inside.dispose();
+
+  // A bathtub recipe that throws skips bathtub and towel-tub together and builds the rest.
+  const [broken, brokenWarnings] = warned(() => {
+    const res = buildInterior(THREE, {interior: I, art: stubArt(), openings, recipes: {...RECIPES, bathtub: () => { throw new Error('tub cracked'); }}});
+    res.buildRest();
+    return res;
+  });
+  assert.equal(brokenWarnings.length, 1);
+  assert.ok(broken.skipped.includes('bathtub') && broken.skipped.includes('towel-tub'));
+  assert.equal(broken.pieceBox('bathtub'), null);
+  assert.equal(broken.pieceBox('towel-tub'), null);
+  assert.ok(broken.pieceBox('basin') && broken.pieceBox('toilet') && broken.pieceBox('shower'));
+  broken.dispose();
+});
+
+// ── laundry and pantry furniture (Task 5) ──
+test('the laundry and pantry build as queued sets (nine sets in all), stay within their room bounds and limits, hang cloths at different heights, and draw deterministic jars on four or more shelves', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  assert.equal(inside.furniture.sets.length, 9, 'nine furniture sets across all ten ground-floor rooms');
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const roomId of ['laundry', 'pantry']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.deepEqual(set.rooms, [roomId]);
+    assert.ok(set.meshes >= 1 && set.meshes <= 4, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp, `furniture-${roomId} group exists`);
+    assert.equal(grp.getObjectByName('shades'), undefined, `${roomId} has no shades`);
+    const room = I.rooms.find(r => r.id === roomId);
+    for (const child of grp.children) {
+      assert.ok(allowed.has(child.name), `${roomId} allowed mesh ${child.name}`);
+      const p = child.geometry.getAttribute('position');
+      for (let i = 0; i < p.count; i++) {
+        const a = p.getX(i), d = -p.getZ(i);
+        assert.ok(a >= room.a[0] - 1e-6 && a <= room.a[1] + 1e-6, `${roomId} ${child.name} a=${a} in ${room.a}`);
+        assert.ok(d >= room.d[0] - 1e-6 && d <= room.d[1] + 1e-6, `${roomId} ${child.name} d=${d} in ${room.d}`);
+      }
+      if (child.name !== 'grounding') {
+        const l = child.geometry.getAttribute('light');
+        assert.ok(l, `${roomId} ${child.name} has light attribute`);
+        for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${roomId} ${child.name} v${i}`);
+      }
+    }
+    const solids = I.furniture.filter(e => e.room === roomId && KINDS[e.kind].standing === 'solid');
+    assert.equal(solids.length, 4);
+    for (const e of solids) {
+      const box = inside.pieceBox(e.id), f = footprint(e);
+      assert.ok(box, `${e.id} drawn`);
+      for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+      assert.ok(Math.abs(box.z[0]) <= .02, `${e.id} stands on floor`);
+      assert.ok(box.z[1] <= KINDS[e.kind].height + .02, `${e.id} height ${box.z[1]}`);
+      assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has a grounding patch`);
+    }
+  }
+  // Cloths on the drying rack hang at different heights along its rails.
+  const clothTops = ['cloth-rack-1', 'cloth-rack-2', 'cloth-rack-3'].map(id => +inside.pieceBox(id).z[1].toFixed(2));
+  assert.equal(new Set(clothTops).size, 3, `cloths at distinct heights: ${clothTops}`);
+  // Pantry shelf draws jars on at least four distinct shelves.
+  const shelfJars = vertices(inside.scene, 'pantry-shelf-1', 'furniture-stone');
+  assert.ok(shelfJars.length > 100, 'pantry-shelf-1 has jars');
+  const bands = new Set(shelfJars.map(v => Math.floor(v.z / .35)));
+  assert.ok(bands.size >= 4, `jars across at least 4 shelves: ${[...bands]}`);
+  const firstCount = inside.furniture.sets.find(s => s.rooms.includes('pantry')).vertices;
+  inside.dispose();
+
+  // Deterministic vertex count over two builds.
+  const second = build(); second.buildRest();
+  assert.equal(second.furniture.sets.find(s => s.rooms.includes('pantry')).vertices, firstCount);
+  second.dispose();
 });

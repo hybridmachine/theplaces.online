@@ -111,6 +111,29 @@ const FURNITURE = [
   ...many(2, 'pillow', 'pillow', 'master', 'bed'),
   setOn('bed-blanket', 'blanket', 'master', 'bed'),
   setOn('book-bedside', 'book', 'master', 'bedside-1'),
+  // The ground-floor bathroom: basin under mirror and toilet flanking the wall lamp, corner shower, roll-top bathtub, bath mat and towel rail.
+  standing('basin', 'basin', 'bath-ground', [15.1, 4.3], Math.PI),
+  standing('toilet', 'toilet', 'bath-ground', [16.7, 4.425], Math.PI),
+  standing('shower', 'shower', 'bath-ground', [17.475, 4.525], Math.PI),
+  standing('bathtub', 'bathtub', 'bath-ground', [16.3, 6.55]),
+  standing('bath-mat', 'bath-mat', 'bath-ground', [16.3, 5.75], .03, [.9, .55]),
+  hung('mirror-bath', 'mirror', 'bath-ground', 'd', 4, [14.8, 15.4], 1.5),
+  hung('towel-rail', 'towel-rail', 'bath-ground', 'a', 18, [5.3, 6.1], 1.2),
+  setOn('towel-rail-1', 'towel', 'bath-ground', 'towel-rail'),
+  setOn('towel-tub', 'towel', 'bath-ground', 'bathtub'),
+  setOn('jug-basin', 'jug', 'bath-ground', 'basin'),
+  // The laundry: copper wash tub on a stand, standing drying rack with cloths, two baskets with folded linen.
+  standing('wash-tub', 'wash-tub', 'laundry', [.9, 7.375], Math.PI),
+  standing('drying-rack', 'drying-rack', 'laundry', [1.3, 9.2]),
+  standing('basket-1', 'basket', 'laundry', [.3, 8.7]),
+  standing('basket-2', 'basket', 'laundry', [.3, 9.2]),
+  ...many(3, 'cloth-rack', 'cloth', 'laundry', 'drying-rack'),
+  setOn('linen-basket', 'towel', 'laundry', 'basket-2'),
+  // The pantry: two tall shelf units of jars facing each other, grain sacks and stacked wooden crates flanking the wall lamp.
+  standing('pantry-shelf-1', 'pantry-shelf', 'pantry', [1.1, 9.75], Math.PI),
+  standing('pantry-shelf-2', 'pantry-shelf', 'pantry', [1.1, 11.75]),
+  standing('sacks', 'sack', 'pantry', [.325, 10.15]),
+  standing('crates', 'crate', 'pantry', [.325, 11.35]),
 ];
 
 const BLUEPRINT = {
@@ -174,16 +197,17 @@ const BLUEPRINT = {
   fireplace: {a: 0, d: 3.5, breast: {width: 2, depth: .5}, mouth: {width: 1.1, height: .9}, slab: .5, mantel: 1.25, upper: {width: 1.2, depth: .4}},
   breasts: BREASTS,
   furniture: FURNITURE,
-  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master'],
+  furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
-  // and the five spots the frame cost is measured from.
+  // in the ground-floor bathroom, laundry and pantry, and the six spots the frame cost is measured from.
   spots: {
     hearth: [1.7, 3.5], casement: [4.2, .95], bookshelf: [1.8, 6.1],
     range: [4.4, 10.9], dresser: [3.5, 9.5], diningWindow: [10, 11.4],
     desk: [15.0, .7], shelves: [14.6, 3.1], wardrobes: [12.5, 5.4], bedFoot: [14.5, 8.8], bedside: [12.7, 11.0],
-    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9]],
+    bath: [15.5, 5.5], laundry: [1.6, 8.3], pantry: [1.5, 10.7],
+    speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9], [14.6, 5.5]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
@@ -199,5 +223,6 @@ const BLUEPRINT = {
   lightSeed: 20261120
 };
 export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
+export const SLICE_4D = Object.freeze(['bath-ground', 'laundry', 'pantry']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});

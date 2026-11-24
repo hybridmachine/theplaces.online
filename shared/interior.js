@@ -146,14 +146,15 @@ function furnitureFit(I, byId) {
 
 // Rule 8's walk is through the furnished rooms: the ground floor cut down to the rooms named, with the openings out of them
 // (so each doorway point is still standable but the way does not go round through rooms outside the set).
-export const FURNISHED = Object.freeze(['hall', 'living', 'kitchen', 'dining', 'study', 'passage', 'master']);
+export const FURNISHED = Object.freeze(['hall', 'living', 'kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry']);
 const FIRST_FURNISHED = ['hall', 'living'];
 export const furnishedWay = (I, rooms = FIRST_FURNISHED) => ({...I, rooms: I.rooms.filter(r => r.floor !== 0 || rooms.includes(r.id)),
   openings: I.openings.filter(o => o.floor !== 0 || o.rooms.some(id => rooms.includes(id)))});
 // What a walker 0.9 m wide must reach from the arrival spot: each doorway point touching those rooms and the stair foot.
 export const wideTargets = (I, rooms = FIRST_FURNISHED) => [...I.openings.filter(o => o.floor === 0 && o.rooms.some(id => rooms.includes(id)))
   .map(doorwayPoint), stairFoot(I)];
-// The ways through the kitchen, dining room and passage, and into the study and master bedroom, each tested at 0.9 m clearance over that room cut down.
+// The ways through the kitchen, dining room and passage, and into the study, master bedroom, ground-floor bathroom, laundry and pantry,
+// each tested at 0.9 m clearance over that room cut down.
 export function throughWays(I) {
   const at = (x, y) => {
     const o = I.openings.find(o => o.floor === 0 && o.rooms.includes(x) && o.rooms.includes(y));
@@ -171,6 +172,9 @@ export function throughWays(I) {
   if (hp && pTo.length) out.push({room: 'passage', from: hp, to: pTo});
   if (hs && I.spots?.shelves) out.push({room: 'study', from: hs, to: [I.spots.shelves]});
   if (pm && I.spots?.bedFoot) out.push({room: 'master', from: pm, to: [I.spots.bedFoot]});
+  if (pb && I.spots?.bath) out.push({room: 'bath-ground', from: pb, to: [I.spots.bath]});
+  if (kl && I.spots?.laundry) out.push({room: 'laundry', from: kl, to: [I.spots.laundry]});
+  if (kp && I.spots?.pantry) out.push({room: 'pantry', from: kp, to: [I.spots.pantry]});
   return out;
 }
 

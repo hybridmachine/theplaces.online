@@ -6,7 +6,7 @@ import {buildInterior} from './interior/index.js';
 import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
-import {LAKESIDE_INTERIOR, SLICE_4C} from '../../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D} from '../../shared/lakeside-interior.js';
 import {onStair, roomAt} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
@@ -56,7 +56,8 @@ export function interiorSwitch(search = typeof location !== 'undefined' ? locati
   if (!params.has('check')) return LAKESIDE_INTERIOR;
   if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
   if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, LAKESIDE_INTERIOR.furnishLater);
-  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4C, {keepQueue: true});
+  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4C, ...SLICE_4D], {keepQueue: true});
+  if (params.get('furnish') === '4c') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4D, {keepQueue: true});
   return LAKESIDE_INTERIOR;
 }
 // With ?check, &hide=0 draws every built room's furniture even when out of sight, to verify hiding changes no pixel; ignored without ?check.
@@ -250,12 +251,35 @@ export class SpaceView {
   // visitor's eye into the same target without clearing it and with the stencil test off, still depth-tested against the rooms;
   // it is drawn so wherever some of it lies over a live pane, and otherwise with the rooms. Through the pass all of it goes into the scene target before the filter: the pass's
   // `views` hook draws the views (and says whether it drew any) and its `over` the added light.
-  // Hides queued rooms' furniture that cannot be seen from the visitor's room; shows everything in the yard, on the stair, or with &hide=0.
+  // The camera's four side frustum planes for this draw, in the interior frame [a, d, z]; null when unavailable.
+  viewPlanes() {
+    const cam = this.camera;
+    if (!cam) return null;
+    if (this.canvas && (this.canvas.width <= 0 || this.canvas.height <= 0)) return null;
+    if (this.renderer?.getContext?.()?.isContextLost?.()) return null;
+    if (!Number.isFinite(cam.aspect) || cam.aspect <= 0 || !Number.isFinite(cam.fov) || cam.fov <= 0) return null;
+    cam.updateMatrixWorld();
+    const vp = (this._viewVp ??= new THREE.Matrix4()).multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    if (this.inside?.scene) {
+      this.inside.scene.updateWorldMatrix(true, false);
+      vp.multiply(this.inside.scene.matrixWorld);
+    }
+    const frustum = (this._viewFrustum ??= new THREE.Frustum()).setFromProjectionMatrix(vp);
+    const out = this._viewPlanes ??= [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+    for (let i = 0; i < 4; i++) {
+      const p = frustum.planes[i], {x, y, z} = p.normal, c = p.constant;
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || !Number.isFinite(c)) return null;
+      const row = out[i];
+      row[0] = x; row[1] = -z; row[2] = y; row[3] = c;
+    }
+    return out;
+  }
+  // Hides queued rooms' furniture that cannot be seen from the visitor's room or whose doorways are out of view; shows everything in the yard, on the stair, or with &hide=0.
   updateSight() {
     if (!this.inside) return;
     const from = this.state.place === 'cabin' && this.hideUnseen !== false && !onStair(this.interior, this.state.position)
       ? roomAt(this.interior, this.state.floor, this.state.position)?.id ?? null : null;
-    this.inside.showFrom(from);
+    this.inside.showFrom(from, from ? this.viewPlanes() : null);
   }
   drawIndoors({flat = false} = {}) {
     this.updateSight();

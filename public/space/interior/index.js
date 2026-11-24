@@ -1,5 +1,5 @@
 import {ceilingHeight, roomAt, wallSegments} from '../../../shared/interior.js';
-import {seenFrom} from '../../../shared/sight.js';
+import {doorBoxes, doorInView, seenFrom} from '../../../shared/sight.js';
 import {piecesIn} from '../../../shared/furniture.js';
 import {createLightField, interiorDials} from '../../../shared/interior-light.js';
 import {mergeGeometries, sheet, V} from '../geometry.js';
@@ -59,7 +59,7 @@ const DAYTIME = {calendar: {light: 1, elevation: 1, hour: 12}, weather: {cloud: 
   cottage: null, pose: {main: 0, second: 0}, now: 0, seconds: 0, motion: false};
 // `recipes` replaces the furniture's recipes by kind (buildFurniture's; its RECIPES unless given), as a test does to make one fail.
 
-export function buildInterior(THREE, {interior: I, art, openings, recipes, sight = seenFrom}) {
+export function buildInterior(THREE, {interior: I, art, openings, recipes, sight = seenFrom, doors = doorBoxes}) {
   const W = I.wall, half = W / 2, rise = I.floorRise, [SA, SD] = I.size;
   const base = floor => floor * rise;
   // The ceiling's height above the ground floor at depth d on that storey.
@@ -358,8 +358,8 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   // The furnished rooms' furniture, from the same faces, tints and materials; any other geometry it makes is weighed by `lit`, in the
   // room it names, as a face is. Rooms listed in `furnishLater` are queued and built one at a time by `buildNext()`.
   const sets = [], setStats = [], builtRooms = [], failedSkipped = [], queuedSets = new Map();
-  // Which rooms can be seen from which: built once; if it throws or is malformed, nothing is ever hidden.
-  let sightSets = null, shownFrom = null;
+  // Which rooms can be seen from which, and each room's doorway boxes: built once. Without the table nothing is ever hidden; without the boxes, rooms are hidden by the table alone.
+  let sightSets = null, boxes = null, shownFrom = null, shownPlanes = null;
   try {
     const table = sight(I);
     if (!table || typeof table !== 'object') throw new Error('sight table is not an object');
@@ -373,10 +373,24 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   } catch (error) {
     console.warn("The cabin's room sight table could not be built; every room's furniture stays drawn.", error);
   }
+  try {
+    const built = doors(I);
+    if (!built || typeof built !== 'object') throw new Error('door boxes is not an object');
+    boxes = built;
+  } catch (error) {
+    console.warn("The cabin's doorway boxes could not be built; rooms are hidden by the sight table alone.", error);
+  }
   const sees = (from, target) => !sightSets || from == null || !sightSets.has(from) || sightSets.get(from).has(target);
-  const showFrom = (roomId = null) => {
+  const shown = (from, target, planes) => {
+    if (!sightSets) return true;
+    if (!sees(from, target)) return false;
+    if (from == null || planes == null || !boxes || target === from) return true;
+    return doorInView(boxes, target, planes, sightSets ? sightSets.get(from) : null);
+  };
+  const showFrom = (roomId = null, planes = null) => {
     shownFrom = roomId ?? null;
-    for (const [room, set] of queuedSets) set.object.visible = sees(shownFrom, room);
+    shownPlanes = Array.isArray(planes) && queue.length ? planes.map(p => (Array.isArray(p) ? [...p] : p)) : planes ?? null;
+    for (const [room, set] of queuedSets) set.object.visible = shown(shownFrom, room, shownPlanes);
   };
   // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.
   let skippedAll = Object.freeze([]);
@@ -423,7 +437,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
       sets.push(set);
       if (set.counts.meshes > 0) {
         queuedSets.set(room, set);
-        set.object.visible = sees(shownFrom, room);
+        set.object.visible = shown(shownFrom, room, shownPlanes);
         scene.add(set.object);
         setStats.push({rooms: [room], vertices: set.counts.vertices, meshes: set.counts.meshes, ms});
         builtRooms.push(room);

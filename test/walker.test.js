@@ -264,3 +264,45 @@ test('walking into the bed\'s side and into a passage wardrobe stops and slides'
   }
   assert.ok(wg.position[0] > wStart.position[0] + .4, `slid along wardrobe to ${wg.position}`);
 });
+
+test('walking from spots.bath toward the bathtub stops at its footprint less eye clearance and slides along it', () => {
+  const tub = I.obstacles.find(o => o.id === 'bathtub');
+  assert.ok(tub, 'bathtub obstacle exists');
+  const inTub = p => p[0] > tub.a[0] && p[0] < tub.a[1] && p[1] > tub.d[0] && p[1] < tub.d[1];
+  const start = {...entry, position: [...I.spots.bath]};
+  assert.ok(standable(start));
+  let s = {...start, yaw: 0};   // straight +d toward the bathtub
+  for (let i = 0; i < 90; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inTub(s.position), `entered bathtub at ${s.position}`);
+  }
+  assert.ok(s.position[1] <= tub.d[0] - I.eyeClear + 1e-9, `stopped at bathtub: ${s.position}`);
+  assert.ok(s.position[1] > tub.d[0] - I.eyeClear - .1, `pressed close to bathtub: ${s.position}`);
+  let g = {...start, yaw: Math.PI / 4};   // diagonal +a / +d, sliding east along the bathtub
+  for (let i = 0; i < 60; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inTub(g.position), `entered bathtub while sliding: ${g.position}`);
+  }
+  assert.ok(g.position[0] > start.position[0] + .5, `slid east along bathtub to ${g.position}`);
+});
+
+test('walking toward a pantry shelf stops at its footprint less eye clearance and slides along it', () => {
+  const shelf = I.obstacles.find(o => o.id === 'pantry-shelf-1');
+  assert.ok(shelf, 'pantry-shelf-1 obstacle exists');
+  const inShelf = p => p[0] > shelf.a[0] && p[0] < shelf.a[1] && p[1] > shelf.d[0] && p[1] < shelf.d[1];
+  const start = {...entry, position: [...I.spots.pantry]};
+  assert.ok(standable(start));
+  let s = {...start, yaw: Math.PI};   // straight -d toward pantry-shelf-1
+  for (let i = 0; i < 90; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inShelf(s.position), `entered pantry shelf at ${s.position}`);
+  }
+  assert.ok(s.position[1] >= shelf.d[1] + I.eyeClear - 1e-9, `stopped at shelf: ${s.position}`);
+  assert.ok(s.position[1] < shelf.d[1] + I.eyeClear + .1, `pressed close to shelf: ${s.position}`);
+  let g = {...start, yaw: Math.PI + Math.PI / 4};   // diagonal -a / -d, sliding west along the shelf
+  for (let i = 0; i < 45; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inShelf(g.position), `entered pantry shelf while sliding: ${g.position}`);
+  }
+  assert.ok(g.position[0] < start.position[0] - .3, `slid west along shelf to ${g.position}`);
+});
