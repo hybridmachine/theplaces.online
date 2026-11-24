@@ -587,3 +587,14 @@ test('the landing and sky room pieces are valid, keep the landing lamp clear, an
   assert.equal(lamp.at[0] >= seat.a[0] && lamp.at[0] <= seat.a[1] && lamp.at[1] >= seat.d[0] && lamp.at[1] <= seat.d[1], false);
   for (const p of [[8, 1], [6.4, 7.6], [3, 9], [3.5, 7.6]]) assert.ok(floorArea(I, 1, p), `existing check pose ${p}`);
 });
+test('bedrooms 2 and 3 pieces are valid and leave existing bedroom check poses standable', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['bed2-rug', 'bed-2', 'bed2-side-table', 'bed2-chest', 'bed2-chair', 'mirror-bed2', 'picture-bed2',
+    'bed2-lamp', 'pillow-bed2', 'blanket-bed2', 'book-bed2', 'jug-bed2',
+    'bed3-rug', 'bed-3', 'bed3-side-table', 'bed3-desk', 'bed3-chair', 'picture-bed3',
+    'bed3-lamp', 'pillow-bed3', 'blanket-bed3', 'cup-bed3', 'book-bed3-1', 'book-bed3-2']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  for (const p of [[3.5, 5], [14.5, 5], [14.5, 6.6]]) assert.ok(floorArea(I, 1, p), `existing bedroom pose ${p}`);
+});

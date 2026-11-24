@@ -4,7 +4,7 @@ import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {KINDS, footprint, corners, bareInterior, withoutPieces, withoutRooms, obstaclesOf} from '../shared/furniture.js';
 import {MANTEL} from '../public/space/interior/fireplace.js';
-import {canStep, floorArea, onStair} from '../shared/interior.js';
+import {canStep, ceilingHeight, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
 import {buildFurniture, RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
@@ -1429,4 +1429,34 @@ test('landing and sky-room build as floor-1 queued sets of at most 4 meshes with
   assert.ok(broken.skipped.includes('daybed') && broken.skipped.includes('cushion-daybed-1') && broken.skipped.includes('throw-daybed'));
   assert.ok(broken.pieceBox('telescope'));
   broken.dispose();
+});
+
+// ── bedrooms 2 and 3 furniture (Part 4e, Task 5) ──
+test('bedrooms 2 and 3 build as floor-1 queued sets of at most 5 meshes with per-room shades, grounding and slope clearance', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  for (const roomId of ['bedroom-2', 'bedroom-3']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.ok(set.meshes >= 1 && set.meshes <= 5, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp && grp.getObjectByName('shades'), `${roomId} has shades`);
+    const room = I.rooms.find(r => r.id === roomId);
+    for (const e of I.furniture.filter(x => x.room === roomId)) {
+      const box = inside.pieceBox(e.id);
+      assert.ok(box, `${e.id} drawn`);
+      assert.ok(box.a[0] >= room.a[0] - .02 && box.a[1] <= room.a[1] + .02, `${e.id} a ${box.a}`);
+      assert.ok(box.d[0] >= room.d[0] - .02 && box.d[1] <= room.d[1] + .02, `${e.id} d ${box.d}`);
+      const minCeil = Math.min(ceilingHeight(I, 1, box.d[0]), ceilingHeight(I, 1, box.d[1]));
+      assert.ok(box.z[1] <= I.floorRise + minCeil + .01, `${e.id} top ${box.z[1]} <= ceil ${I.floorRise + minCeil}`);
+      if (KINDS[e.kind].standing === 'solid') assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+    }
+    // Each bedroom's shade follows its own room's lamp dial, not living's.
+    const lit = groupShadeColour(inside, `furniture-${roomId}`, dialsFor({[roomId]: 1, living: 0}));
+    assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+    const out = groupShadeColour(inside, `furniture-${roomId}`, dialsFor({[roomId]: 0, living: 1}));
+    assert.ok(out[0] / out[2] < 1.4, `${roomId} shade stays pale when only living lamp is lit`);
+  }
+  inside.dispose();
 });

@@ -231,8 +231,9 @@ export const RECIPES = {
   mirror: (kit, e, pal) => ({wood: kit.framed(e, pal.oak(0, .06), {panel: [pal.glass(1, .03), pal.glass(2, .03, .9)], frame: .06})}),
   // Lying on its parent's top, a little askew; on a desk stacked by index, on a side table tucked clear of any lamp.
   book(kit, e, pal) {
-    if (e.parent?.kind === 'desk') {
-      const i = e.index || 0, pos = i === 0 ? [.42, .08, 0] : [.41, .09, .032], turn = i === 0 ? .22 : -.15;
+    if (e.parent?.kind === 'desk' || e.parent?.kind === 'small-desk') {
+      const small = e.parent.kind === 'small-desk';
+      const i = e.index || 0, pos = small ? (i === 0 ? [.34, .06, 0] : [.33, .07, .032]) : (i === 0 ? [.42, .08, 0] : [.41, .09, .032]), turn = i === 0 ? .22 : -.15;
       const at = kit.moved(kit.placed(e), pos, {turn}), out = {};
       put(out, 'cloth', kit.box(at, [-.085, .085], [-.115, .115], [0, .03], pal.surface('cloth', i, .08, i === 0 ? .58 : .74), {skip: ['under'], seed: pal.seed}));
       return out;
@@ -247,10 +248,12 @@ export const RECIPES = {
   },
   // A cup: on the living room's low table a short post with a handle; on the dresser or desk a spun china cup.
   cup(kit, e, pal) {
-    if (e.parent?.kind === 'dresser' || e.parent?.kind === 'desk') {
-      const onDesk = e.parent.kind === 'desk', i = e.index || 0;
-      const offset = onDesk ? [.18, -.14, 0] : [i === 0 ? -.30 : .24, -.05 + (pal.random(1) - .5) * .03, DRESSER_COUNTER - KINDS.dresser.height];
-      const at = kit.moved(kit.placed(e), offset, {turn: onDesk ? .6 : .5 + i * 1.4}), out = {};
+    if (e.parent?.kind === 'dresser' || e.parent?.kind === 'desk' || e.parent?.kind === 'side-table') {
+      const pk = e.parent.kind, i = e.index || 0;
+      const offset = pk === 'desk' ? [.18, -.14, 0]
+        : pk === 'side-table' ? [.11, -.10, 0]
+        : [i === 0 ? -.30 : .24, -.05 + (pal.random(1) - .5) * .03, DRESSER_COUNTER - KINDS.dresser.height];
+      const at = kit.moved(kit.placed(e), offset, {turn: pk === 'dresser' ? .5 + i * 1.4 : .6}), out = {};
       const glaze = pal.surface('china', 0, .05, .96);
       put(out, 'china', [
         ...kit.turned(at, [0, 0], [[0, 0], [.032, 0], [.032, 0], [.038, .02], [.04, .08], [.035, .082], [.032, .076], [.028, .012], [0, .012]], lined(glaze, 6), {segments: 8, tile: STONE_TILE}),
@@ -323,7 +326,8 @@ export const RECIPES = {
       return out;
     }
     if (e.parent?.kind !== 'mantel') {
-      const at = kit.moved(kit.placed(e), [-.45, .02, 0], {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
+      const offset = e.parent?.kind === 'chest-of-drawers' ? [-.26, .04, 0] : [-.45, .02, 0];
+      const at = kit.moved(kit.placed(e), offset, {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
       put(out, 'china', [
         ...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [.07, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]],
           lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
@@ -1267,6 +1271,92 @@ export const RECIPES = {
     put(out, 'brass', kit.turned(tube, [0, 0], prof, lined(brass, 11), {segments: 10}));
     // dark iron finder scope mounted above the main tube
     put(out, 'iron', kit.roll(tube, [0, -.048, -.08], [0, -.048, .10], .009, iron, {sides: 6}));
+    return out;
+  },
+  // ── upstairs bedroom pieces (Part 4e): single bed, chest of drawers, small desk ──
+  // A cottage single bed under the front slope: kit frame, panelled headboard and low footboard, mattress cushion up to `seat`, and draped bedclothes.
+  'single-bed'(kit, e, pal) {
+    const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), out = {};
+    const stain = pal.seed % 2 === 0 ? .84 : .64;
+    const wood = pal.surface('wood', 0, .07, stain), trim = pal.surface('wood', 1, .06, stain * 1.12), panel = pal.surface('wood', 2, .05, stain * .86);
+    const linen = pal.surface('cloth', 3, .06, .96), sheet = pal.surface('cloth', 4, .06, pal.seed % 2 === 0 ? .90 : .82);
+    const footH = .64, post = .028;
+    for (const sx of [-1, 1]) {
+      put(out, 'wood', [
+        ...kit.post(at, [sx * (hx - post), hy - post], [0, h], post, wood),
+        ...kit.post(at, [sx * (hx - post), -hy + post], [0, footH], post, wood),
+      ]);
+    }
+    put(out, 'wood', [
+      ...kit.board(at, [-hx + .02, -hx + .055], [-hy + .055, hy - .055], [.18, .33], wood, {tuck: ['under', 'right']}),
+      ...kit.board(at, [hx - .055, hx - .02], [-hy + .055, hy - .055], [.18, .33], wood, {tuck: ['under', 'left']}),
+      ...kit.board(at, [-hx + .055, hx - .055], [-hy + .02, -hy + .055], [.18, .33], wood, {tuck: ['under', 'back']}),
+      ...kit.board(at, [-hx + .055, hx - .055], [-hy + .055, hy - .055], [.23, .27], wood, {tuck: ['under'], skip: ['top']}),
+      // headboard (at +y)
+      ...kit.box(at, [-hx + .055, hx - .055], [hy - .055, hy - .02], [.33, h - .055], panel, {skip: ['under'], seed: pal.seed}),
+      ...kit.box(at, [-hx + .05, hx - .05], [hy - .062, hy - .015], [h - .055, h - .01], trim, {tuck: ['under'], seed: pal.seed + 1}),
+      // footboard (at -y)
+      ...kit.box(at, [-hx + .055, hx - .055], [-hy + .02, -hy + .052], [.33, footH - .08], panel, {skip: ['under'], seed: pal.seed + 2}),
+      ...kit.box(at, [-hx + .05, hx - .05], [-hy + .015, -hy + .058], [footH - .08, footH - .04], trim, {tuck: ['under'], seed: pal.seed + 3}),
+    ]);
+    put(out, 'cloth', [
+      ...kit.cushion(at, [-hx + .05, hx - .05], [-hy + .06, hy - .06], [.27, seat - .02], linen, {seed: pal.seed + 4, bulge: .35, sag: .2, cuts: 3, skip: ['under']}),
+      ...kit.box(at, [-hx + .045, hx - .045], [.24, .44], [seat - .005, seat + .01], sheet, {skip: ['under'], broken: .005, seed: pal.seed + 5}),
+    ]);
+    const sideY0 = -hy + .10, sideY1 = hy - .14, drop = seat - .24;
+    for (const side of [-1, 1]) {
+      const x = side * (hx - .038);
+      const pt = (s, t) => [x, side < 0 ? sideY1 - (sideY1 - sideY0) * s : sideY0 + (sideY1 - sideY0) * s, seat - drop * t];
+      put(out, 'cloth', kit.drape(at, pt, sideY1 - sideY0, drop, sheet, {seed: pal.seed + (side < 0 ? 10 : 11), folds: .016, cell: .2}));
+    }
+    return out;
+  },
+  // A four-drawer chest of drawers: setback plinth, oak carcass, overhanging top, recessed drawer fronts and turned wooden knobs.
+  'chest-of-drawers'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .06, .74), top = pal.surface('wood', 1, .06, .86);
+    const plinth = pal.surface('wood', 2, .05, .52), front = pal.surface('wood', 3, .06, .80), knob = pal.surface('brass', 4, .05, .90);
+    const fy = -hy + .035;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .025, hx - .025], [fy + .02, hy], [0, .07], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .015, hx - .015], [fy, hy], [.07, h - .035], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    const knobAt = (x, z) => kit.turned(kit.moved(at, [x, fy - .014, z], {tilt: Math.PI / 2}), [0, 0], [[0, 0], [.008, 0], [.008, .012], [.014, .018], [.012, .026], [0, .028]], knob, {segments: 6});
+    for (let k = 0; k < 4; k++) {
+      const z0 = .09 + k * .19, z1 = z0 + .168, zm = (z0 + z1) / 2;
+      if (k === 3) {
+        // top row: two half-width drawers
+        for (const [x0, x1] of [[-hx + .04, -.015], [.015, hx - .04]]) {
+          put(out, 'wood', kit.board(at, [x0, x1], [fy - .014, fy], [z0, z1], front, {skip: ['back']}));
+          put(out, 'brass', knobAt((x0 + x1) / 2, zm));
+        }
+      } else {
+        put(out, 'wood', kit.board(at, [-hx + .04, hx - .04], [fy - .014, fy], [z0, z1], front, {skip: ['back']}));
+        put(out, 'brass', [...knobAt(-hx * .48, zm), ...knobAt(hx * .48, zm)]);
+      }
+    }
+    return out;
+  },
+  // A compact writing desk: overhanging top, apron with two shallow drawers and brass knobs, four square legs.
+  'small-desk'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const top = pal.surface('wood', 0, .07, .82), base = pal.surface('wood', 1, .06, .68);
+    const front = pal.surface('wood', 2, .06, .76), knob = pal.surface('brass', 3, .05, .92);
+    const ix = hx - .055, iy = hy - .055, apronZ = h - .14;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], seed: pal.seed}),
+      ...kit.board(at, [-ix, ix], [-iy, -iy + .025], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [iy - .025, iy], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .025], [-iy + .025, iy - .025], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .025, ix], [-iy + .025, iy - .025], [apronZ, h - .035], base, {tuck: ['under']}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'wood', kit.post(at, [x * ix, y * iy], [0, h - .035], .024, base));
+    for (const [x0, x1] of [[-ix + .04, -.02], [.02, ix - .04]]) {
+      const mid = (x0 + x1) / 2, zm = (apronZ + h - .035) / 2;
+      put(out, 'wood', kit.board(at, [x0, x1], [-iy - .012, -iy], [apronZ + .012, h - .048], front, {skip: ['back']}));
+      put(out, 'brass', kit.roll(at, [mid, -iy - .012, zm], [mid, -iy - .028, zm], .01, knob, {sides: 6}));
+    }
     return out;
   },
 };
