@@ -214,3 +214,16 @@ test('from sky-room facing the roof window hides ground-floor queued rooms', () 
     assert.equal(doorInView(boxes, target, planes, S['sky-room'], 'sky-room'), false, `sky-room -> ${target}`);
   }
 });
+
+test('cross-floor stairwell gate still hides an opposite-floor room that has no doorway boxes', () => {
+  const synth = {
+    ...I,
+    openings: I.openings.filter(o => !o.rooms.includes('box-room')),
+  };
+  const boxes = doorBoxes(synth);
+  assert.equal(boxes['box-room'].length, 0);
+  const away = planesFrom({at: [9, 0.8, 1.6], facing: [9, 0], pitch: 0});
+  assert.equal(doorInView(boxes, 'box-room', away, null, 'hall'), false);
+  const up = planesFrom({at: [9, 0.8, 1.6], facing: [10.3, 4.0], pitch: 0.35});
+  assert.equal(doorInView(boxes, 'box-room', up, null, 'hall'), true);
+});

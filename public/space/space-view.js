@@ -33,6 +33,8 @@ export {toThree};
 const PASS_SCALE = {full: 1, light: .6, off: null};
 const TIER_PASS = {full: 'full', light: 'light', plain: 'off'};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
+// Distance from the stair's foot or top within which the opposite floor's furniture queue flushes (clears the entry spot 1.40 m from stairFoot).
+const STAIR_FLUSH_RADIUS = 1.0;
 // The yard's light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
   night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
@@ -203,6 +205,7 @@ export class SpaceView {
     try {
       this.openings = viewOpenings(this.interior, this.space, this.dressing);
       this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: this.openings});
+      // Flush the visitor's starting floor (and intentionally both queues if an older remembered pose lacks `floor`).
       if (this.state.place === 'cabin') this.inside.buildRest(this.state.floor);
       this.updateSight();
     }
@@ -447,7 +450,7 @@ export class SpaceView {
         if (!move) {
           const pos = this.state.position, I = this.interior;
           const stairEnd = floor === 0 ? stairFoot(I) : stairTop(I);
-          if (onStair(I, pos) || Math.hypot(pos[0] - stairEnd[0], pos[1] - stairEnd[1]) <= 1.0) this.inside.buildRest(1 - floor);
+          if (onStair(I, pos) || Math.hypot(pos[0] - stairEnd[0], pos[1] - stairEnd[1]) <= STAIR_FLUSH_RADIUS) this.inside.buildRest(1 - floor);
           else this.inside.buildNext();
         }
       } else if (hadInside) this.inside?.buildNext();

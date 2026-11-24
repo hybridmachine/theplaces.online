@@ -1069,7 +1069,7 @@ try{
         await stand(p,{place:'cabin',floor:0,position:[4.75,7.9],yaw:0,pitch:0},400);await hold(p,['KeyW'],2000);await p.waitForTimeout(300);look.atKitchenFront=await indoorsState(p);}
       if(kind==='furnished')furnishedLook=look;else if(kind==='first')firstLook=look;else bareLook=look;}
     loadsQuiet=loadsQuiet&&!p.consoleErrors.length&&!p.own.length;await p.context().close();}
-  const sets71=furnishedLook.counts.sets,lampSets=new Set(['study','master','bedroom-2','bedroom-3','nook']);
+  const sets71=furnishedLook.counts.sets,lampSets=new Set(I.furniture.filter(e=>e.kind==='table-lamp'||e.kind==='standing-lamp').map(e=>e.room));
   check('With ?interior=1 the interior reports furnished and draws fourteen sets: at most 5 meshes in sets[0] and in queued rooms with lamps (study, master, bedroom-2, bedroom-3, nook), at most 4 in the others; with &bare=1 it reports none and draws none, and is walked by the bare plan; without ?interior=1 nothing is built (check 32)',
     furnishedLook.furnished===true&&sets71.length===14&&sets71[0].meshes<=5&&sets71.slice(1).every(s=>s.meshes>=1&&s.meshes<=(lampSets.has(s.rooms[0])?5:4))&&
     furnishedLook.counts.meshes===furnishedLook.meshes.filter(m=>m.vertices>0).length&&furnishedLook.counts.vertices>0&&furnishedLook.walk==='furnished'&&
@@ -1800,7 +1800,7 @@ try{
     {lit:wetFellLit,bath:fallBath,laundry:fallLaundry,pantry:fallPantry,sets:wetFall.counts.sets,quiet:c4dQuiet});
 
   // ── Part 4e: upstairs landing, library nook, bedrooms 2 & 3, and sky room checks (checks 116–125) and captures ──
-  const UPPER_FIVE=['landing','nook','bedroom-2','bedroom-3','sky-room'];
+  const UPPER_FIVE=I.furnishUpper;
   const upperSpeedPose0=aim(1,I.upperSpots.speed[0],[9.0,11.7,4.2]);
   const upperSpeedPose1=aim(1,I.upperSpots.speed[1],[3.5,10.5,4.3]);
 
@@ -1808,13 +1808,13 @@ try{
   const skySaved=JSON.stringify({version:2,place:'cabin',floor:1,position:I.upperSpots.skyWindow,yaw:0,pitch:0});
   const startSky=await visitor({width:1440,height:810},{content:`localStorage.setItem('a-view:place:lakeside-cottage',${JSON.stringify(skySaved)});`});
   await startSky.goto(`${base}/?check&interior=1&tier=full`);await ready(startSky);await startSky.waitForTimeout(800);
-  const startedSky=await startSky.evaluate(()=>({
+  const startedSky=await startSky.evaluate(upper=>({
     place:window.__space.state.place,floor:window.__space.state.floor,room:window.__space.room,
     pending:[...window.__space.inside.pending],pending1:[...window.__space.inside.pendingFor(1)],
     furnished:window.__space.furnished,furnishedRooms:[...window.__space.inside.furnishedRooms],
     sets:window.__space.inside.furniture.sets,
-    upperMs:+window.__space.inside.furniture.sets.filter(s=>['landing','nook','bedroom-2','bedroom-3','sky-room'].includes(s.rooms[0])).reduce((t,s)=>t+s.ms,0).toFixed(1),
-    description:document.querySelector('#scene-description')?.textContent||''}));
+    upperMs:+window.__space.inside.furniture.sets.filter(s=>upper.includes(s.rooms[0])).reduce((t,s)=>t+s.ms,0).toFixed(1),
+    description:document.querySelector('#scene-description')?.textContent||''}),UPPER_FIVE);
   const startSkyQuiet=!startSky.consoleErrors.length&&!startSky.own.length;await startSky.context().close();
 
   // 116. Queued builds of the 5 upstairs rooms (median of 3 loads): each <= 35 ms, together <= 120 ms; meshes <= 4 (landing, sky-room) / <= 5 (bed2, bed3, nook); floor 0 < 180 ms.

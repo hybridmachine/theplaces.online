@@ -275,6 +275,6 @@ const BLUEPRINT = {
 };
 export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
 export const SLICE_4D = Object.freeze(['bath-ground', 'laundry', 'pantry']);
-export const SLICE_4E = Object.freeze(['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});
+export const SLICE_4E = LAKESIDE_INTERIOR.furnishUpper;

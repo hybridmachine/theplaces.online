@@ -70,6 +70,15 @@ function clearLine(I, floor, xs, ys, pairOps, p, q) {
   return true;
 }
 
+function stairRooms(I) {
+  if (!I?.stair) return [null, null];
+  const rooms = I.rooms || [];
+  const find = floor => rooms.find(r => r.floor === floor
+    && I.stair.a[0] >= r.a[0] - EPS && I.stair.a[1] <= r.a[1] + EPS
+    && I.stair.d[0] >= r.d[0] - EPS && I.stair.d[1] <= r.d[1] + EPS) ?? null;
+  return [find(0), find(1)];
+}
+
 export function seenFrom(I) {
   const rooms = I.rooms, openings = I.openings || [];
   const adj = new Map(rooms.map(r => [r.id, new Set([r.id])]));
@@ -109,16 +118,11 @@ export function seenFrom(I) {
       }
     }
   }
-  if (I.stair) {
-    const stairRoom = floor => rooms.find(r => r.floor === floor
-      && I.stair.a[0] >= r.a[0] - EPS && I.stair.a[1] <= r.a[1] + EPS
-      && I.stair.d[0] >= r.d[0] - EPS && I.stair.d[1] <= r.d[1] + EPS);
-    const s0 = stairRoom(0), s1 = stairRoom(1);
-    if (s0 && s1) {
-      const from0 = rooms.filter(r => r.floor === 0 && adj.get(r.id).has(s0.id));
-      const from1 = rooms.filter(r => r.floor === 1 && adj.get(r.id).has(s1.id));
-      for (const a of from0) for (const b of from1) link(a.id, b.id);
-    }
+  const [s0, s1] = stairRooms(I);
+  if (s0 && s1) {
+    const from0 = rooms.filter(r => r.floor === 0 && adj.get(r.id).has(s0.id));
+    const from1 = rooms.filter(r => r.floor === 1 && adj.get(r.id).has(s1.id));
+    for (const a of from0) for (const b of from1) link(a.id, b.id);
   }
   const order = rooms.map(r => r.id);
   const out = {};
@@ -168,10 +172,7 @@ export function doorBoxes(I) {
   }
   const well = stairWellBox(I);
   if (well) {
-    const stairRoom = floor => (I.rooms || []).find(r => r.floor === floor
-      && I.stair.a[0] >= r.a[0] - EPS && I.stair.a[1] <= r.a[1] + EPS
-      && I.stair.d[0] >= r.d[0] - EPS && I.stair.d[1] <= r.d[1] + EPS);
-    const s0 = stairRoom(0), s1 = stairRoom(1);
+    const [s0, s1] = stairRooms(I);
     if (s0 && s1) {
       byRoom.get(s0.id).push(well); othersByRoom.get(s0.id).push(s1.id);
       byRoom.get(s1.id).push(well); othersByRoom.get(s1.id).push(s0.id);
@@ -271,13 +272,13 @@ export function boxInView(box, planes) {
 // When `seen` (rooms seen from the visitor's room) is given, openings to rooms outside `seen` are skipped.
 // When `fromRoomId` is given on the opposite floor, the stairwell opening itself must also be in view.
 export function doorInView(boxes, roomId, planes, seen = null, fromRoomId = null) {
-  const list = boxes?.[roomId];
-  if (!list || !list.length) return true;
   const meta = BOX_META.get(boxes);
   if (fromRoomId != null && meta?.well && meta.floors) {
     const fFrom = meta.floors[fromRoomId], fTo = meta.floors[roomId];
     if (fFrom != null && fTo != null && fFrom !== fTo && !boxInView(meta.well, planes)) return false;
   }
+  const list = boxes?.[roomId];
+  if (!list || !list.length) return true;
   const others = seen ? meta?.others?.[roomId] : null;
   const hasSeen = seen ? (typeof seen.has === 'function' ? id => seen.has(id) : id => seen.includes(id)) : null;
   for (let i = 0; i < list.length; i++) {

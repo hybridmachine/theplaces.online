@@ -2,7 +2,7 @@ import test from 'node:test';
 import {KINDS, bareInterior, footprint, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
 import {LAKESIDE_INTERIOR as I, SLICE_4E} from '../shared/lakeside-interior.js';
-import {FURNISHED_UPPER, ceilingHeight, roomAt, stairTop, upperThroughWays, validInterior} from '../shared/interior.js';
+import {ceilingHeight, roomAt, stairTop, upperThroughWays, validInterior} from '../shared/interior.js';
 
 test('each floor is tiled exactly by its rooms: 18 × 12 with no overlap', () => {
   for (const floor of [0, 1]) {
@@ -538,12 +538,12 @@ const withUpperPieces = (extra, upperSpots) => {
   c.obstacles = obstaclesOf(c);
   return c;
 };
-test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / FURNISHED_UPPER / SLICE_4E are valid', () => {
+test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / furnishUpper are valid', () => {
   assert.equal(validInterior(I), true);
   assert.ok(floorArea(I, 1, stairTop(I), I.eyeClear));
   assert.ok(floorArea(I, 1, stairTop(I), .45));
-  assert.deepEqual(new Set(FURNISHED_UPPER), new Set(['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']));
-  assert.deepEqual(new Set(SLICE_4E), new Set(FURNISHED_UPPER));
+  assert.equal(SLICE_4E, I.furnishUpper);
+  assert.deepEqual(new Set(SLICE_4E), new Set(['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']));
   assert.equal(I.upperSpots.speed.length, 2);
   assert.equal(roomAt(I, 1, I.upperSpots.speed[0])?.id, 'landing');
   assert.equal(roomAt(I, 1, I.upperSpots.speed[1])?.id, 'sky-room');
@@ -553,13 +553,29 @@ test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / FURNISHED_UPP
   }
   assert.equal(upperThroughWays(I).length, 5);
 });
-test('rule 10: ceiling clearance rejects tall solids, badly placed sloped shelves, and high wall-hung pieces under the roof slope', () => {
+test('rule 10: ceiling clearance rejects tall solids, badly placed or ridge-straddling sloped shelves, flat-floor sloped pieces, tall set-on pieces, and high wall-hung pieces', () => {
   // Regular bookshelf (h 2.1 m) against d = 0 eave (ceiling 1.92..2.02 m) fails; eave-bookshelf (1.88 m) passes.
   assert.equal(validInterior(withUpperPieces([{id: 'too-tall', kind: 'bookshelf', room: 'bedroom-2', at: [3.5, .25], turn: Math.PI}])), false);
   assert.equal(validInterior(withUpperPieces([{id: 'eave-ok', kind: 'eave-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), true);
+  // Set-on piece poking through the eave ceiling: table-lamp (0.45) on eave-bookshelf (1.88) reaches 2.33 > 1.92 m and fails.
+  assert.equal(validInterior(withUpperPieces([
+    {id: 'eave-ok', kind: 'eave-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0},
+    {id: 'lamp-too-high', kind: 'table-lamp', room: 'nook', on: 'eave-ok'},
+  ])), false);
   // Sloped bookshelf along a = 7 over d 10.1..11.55 (maxC 2.438 >= 2.40, minC 2.028 >= 1.5) passes; placed along d = 11.75 (maxC 2.00 < 2.40) fails.
   assert.equal(validInterior(withUpperPieces([{id: 'sloped-ok', kind: 'sloped-bookshelf', room: 'nook', at: [7.25, 10.825], turn: Math.PI / 2}])), true);
   assert.equal(validInterior(withUpperPieces([{id: 'sloped-low', kind: 'sloped-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), false);
+  // Sloped bookshelf straddling I.ridgeAt (d = 6.0) fails even where ceiling > 2.40 m across its span.
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-ridge', kind: 'sloped-bookshelf', room: 'bedroom-2', at: [.25, 6.0], turn: Math.PI / 2}])), false);
+  // Sloped bookshelf on flat floor 0 fails, while a plain eave-bookshelf at the exact same spot passes.
+  const groundOk = structuredClone(withoutRooms(I, ['study']));
+  groundOk.furniture.push({id: 'study-flat-ok', kind: 'eave-bookshelf', room: 'study', at: [17.7, 2.0], turn: Math.PI / 2, size: [1.45, .35]});
+  groundOk.obstacles = obstaclesOf(groundOk);
+  assert.equal(validInterior(groundOk), true);
+  const groundSloped = structuredClone(withoutRooms(I, ['study']));
+  groundSloped.furniture.push({id: 'study-sloped-bad', kind: 'sloped-bookshelf', room: 'study', at: [17.7, 2.0], turn: Math.PI / 2});
+  groundSloped.obstacles = obstaclesOf(groundSloped);
+  assert.equal(validInterior(groundSloped), false);
   // Wall-hung picture (h 0.6) on d = 0 (ceiling 1.9 m): z = 1.7 (top 2.0) fails, z = 1.5 (top 1.8) passes.
   assert.equal(validInterior(withUpperPieces([{id: 'pic-high', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.7}])), false);
   assert.equal(validInterior(withUpperPieces([{id: 'pic-ok', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.5}])), true);

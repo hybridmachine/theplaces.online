@@ -1385,13 +1385,14 @@ export const RECIPES = {
     });
     return out;
   },
-  // A bookcase fitted to the upper floor's roof pitch: uprights, back panel and top board follow ceilingHeight(I, 1, d) - 0.04,
+  // A bookcase fitted to its room's roof pitch: uprights, back panel and top board follow ceilingHeight(I, floor, d) - 0.04,
   // and shelves/books clip wherever the slope comes down.
   'sloped-bookshelf'(kit, e, pal, {interior}) {
     const [hx, hy] = halves(e), at = kit.placed(e), out = {}, T = .03;
     const wood = pal.surface('wood', 0, .07, .76), topWood = pal.surface('wood', 1, .06, .84);
     const backWood = p => wood(p).map(c => c * TUCK), shut = {tuck: ['under', 'back', 'left', 'right']};
-    const ceilAt = x => Math.min(ceilingHeight(interior, 1, at(x, -hy, 0)[1]), ceilingHeight(interior, 1, at(x, hy, 0)[1])) - .04;
+    const floor = interior.rooms.find(r => r.id === e.room)?.floor ?? 1;
+    const ceilAt = x => Math.min(ceilingHeight(interior, floor, at(x, -hy, 0)[1]), ceilingHeight(interior, floor, at(x, hy, 0)[1])) - .04;
     const hL = ceilAt(-hx), hR = ceilAt(hx);
     const quad = (p00, p10, p01, p11, n, colour) => kit.grid(at, [[p00, p10], [p01, p11]], [[n, n], [n, n]], colour, .9);
     const dx = 2 * hx, dz = hR - hL, len = Math.hypot(dx, dz) || 1;

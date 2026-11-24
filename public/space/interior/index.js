@@ -452,6 +452,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     noteSkipped();
     return room;
   };
+  // Callers flush the visitor's floor first via buildRest(floor); this drains whatever is left.
   const buildNext = () => buildFrom(queue.length ? queue : upperQueue);
   const buildRest = floor => {
     if (floor === 0) { while (buildFrom(queue) !== null) {} return; }
