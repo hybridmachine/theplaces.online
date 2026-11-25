@@ -1,6 +1,6 @@
 # Cabin interior, part 4f: furnishing the upstairs bathroom, box room and linen cupboard — design
 
-Status: approved by owner, November 24, 2026. Ready to plan and build; nothing is built yet.
+Status: built behind `?interior=1`, awaiting owner review (November 25, 2026).
 
 This is the sixth and last slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). Slices `4a` to `4e` are built and merged, and between them they furnish fifteen rooms. Their design and As built sections are the starting point. Everything they settle holds here unless this document says otherwise: how a piece is described, made, lit, grounded, queued in two stages, hidden across floors, checked, and allowed to fail.
 
@@ -294,3 +294,35 @@ The captures, and three questions:
 - Exact geometry, tints, `LINEN_FILL`, and the trunk lid's segment count, within the budgets.
 - Whether check 116 or check 126 owns the eight-room floor-1 total.
 - Updating `README.md` (the furnished-room count and list) and writing the As built section when the work lands.
+
+## As built
+
+Where the build departs from the design above, or settles what it left open.
+
+- **Slices and comparison fixtures (`shared/lakeside-interior.js`, `public/space/space-view.js`):** `SLICE_4E` is now a frozen literal (`['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']`), no longer an alias of `LAKESIDE_INTERIOR.furnishUpper`. `SLICE_4F = Object.freeze(['bath-upper', 'box-room', 'linen'])` was added, `furnishUpper` expanded to all 8 floor-1 rooms (`[...4e order, 'bath-upper', 'linen', 'box-room']`), and `interiorSwitch` gained `&furnish=4e` while `4b`, `4c` and `4d` strip `SLICE_4F` as well.
+- **Kinds, spots and placements (`shared/furniture.js`, `shared/lakeside-interior.js`):** added `trunk` (`[0.9, 0.5]`, `h 0.5`), `linen-press` (`[1.6, 0.45]`, `h 2.0`), and `linen-shelf` (`[2.0, 0.35]`, `h 1.85`); added `upperSpots.bathTub`, `upperSpots.boxRoom`, `upperSpots.linenShelf`, and `upperSpots.speed[2] = [11.8, 9.6]`; placed all 11 `bath-upper` entries (reusing 4d recipes untouched), 4 `box-room` entries, and 4 `linen` entries (using `linen-cupboard-` ids to avoid colliding with the laundry's `linen-basket`). `shared/interior.js`, `shared/sight.js`, and `public/space/interior/index.js` needed no changes: Rule 8, `upperThroughWays`, two-stage queueing, and cross-floor visibility all picked up the three rooms automatically.
+- **Recipes (`public/space/interior/furniture.js`):**
+  - `trunk`: timber skids, boarded chest carcass (seeded wood tone per trunk), smooth 6-step elliptical domed lid with curved end caps via `kit.grid`, two dark straps over body and dome, `brass` corner plates and front lock hasp, and `iron` side carrying handles (`kit.roll`).
+  - `linen-press` and `linen-shelf`: kit carcasses with a shared `linens(...)` helper (`LINEN_FILL = 0.82`), placing 2–3 plush folded cloth layers per stack (`kit.cushion`, `cuts: 2`, `taper: 0.36`, `skip: ['under', 'back']`) in cream/ivory/oatmeal/blue/sage tints plus a 3-roll pyramid of bath towels (`kit.roll`, `sides: 7`) in one bay per unit. `linen-shelf` clamps its top and shelves against `ceilingHeight(interior, floor, d) - 0.04`.
+- **Browser checks and captures (`scripts/check-space-browser.mjs`, `.gitignore`):**
+  - Check 71 updated for 17 sets (all 18 furnished rooms).
+  - `UPPER_FIVE` changed from `I.furnishUpper` to `SLICE_4E`, so check 116 keeps 4e's five-room sum while check 126 owns the 4f three-room sum (`≤ 50 ms`) and eight-room floor-1 total (`≤ 120 ms`).
+  - Check 117 compares `&furnish=4e` against `&furnish=4d` (isolating 4e's `+9` draw-call limit now that `bath-upper` and `linen` are visible through the nook doorway).
+  - Added checks **126–133** and 12 kept captures under `docs/interior-validation/` (including `furnish-bath-upper-basin.jpg` to show the basin, mirror, toilet and shower together; `boxShotPose` stepped back into the doorway at `[16.5, 7.15]` to show the crates alongside both trunks).
+
+### Measured
+
+- **Unit tests & syntax checks:** `896 / 896` passing across the full repository test suite; all syntax checks in `package.json` (`npm run check`) pass.
+- **4f queued builds (awake Chrome/ANGLE, 1440 × 810, median of 3 loads):**
+  - `bath-upper`: **11.6 ms** (`3,067` vertices, `4` meshes; limit `≤ 25 ms`, `≤ 4` meshes)
+  - `box-room`: **8.6 ms** (`2,529` vertices, `2` meshes; limit `≤ 15 ms`, `≤ 3` meshes)
+  - `linen`: **18.8 ms** (`5,120` vertices, `3` meshes; limit `≤ 25 ms`, `≤ 3` meshes)
+  - Three 4f rooms together: **39.0 ms** (limit `≤ 50 ms`).
+  - All eight floor-1 rooms together: **102.1 ms** (limit `≤ 120 ms`; 4e five rooms **63.1 ms**).
+  - All eight floor-0 queued rooms together: **149.6 ms** (limit `< 180 ms`).
+  - Total across all 18 furnished rooms (17 sets): **76,706 vertices in 65 meshes**.
+- **Full 133-check browser suite (`scripts/check-space-browser.mjs`, Chrome/ANGLE, 1440 × 810, tier `full`, 0 page or console errors):**
+  - **Check 127 (`upperSpots.speed[2]` `[11.8, 9.6]`, `bath-upper -> linen door`):** PASS — day **0.962×** (`+0.035`), night **0.912×** (`+0.047`), draw calls **+7** (`20` vs `13`, limit `≤ +7`).
+  - **Check 128 draw calls vs `&furnish=4e`:** **0 added draw calls** at all six ground-floor poses (`s0: 44/44, s1: 52/52, s2: 41/41, s3: 31/31, s4: 14/14, s5: 14/14`) and `u1` (`sky-room`, `34/34`); **+7** at `u0` (`landing -> nook`, `34/27`, where `bath-upper` and `linen` are visible through the open doorway; `u0` speed `-0.008` day, `+0.008` night).
+  - **Hiding, sight, lifecycle, determinism, and fallback (checks 129–133):** all PASSED — hiding changes **0** pixels at `u2` and across all 48 frames (24 each) of 360° turns at `bathTub` and `linenShelf`; `shownRooms` hides all three 4f rooms at all six ground poses and in `sky-room`, shows `linen` from `bath-upper`, and shows `box-room` from `bedroom-3`; climbing the stair finishes all eight floor-1 rooms before reaching `landing`; starting indoors in `linen` builds all eight floor-1 rooms on frame 1 with the linen cupboard clause; determinism shows **0** differing pixels across all three rooms while `&furnish=4e` differs; `fallBack()` keeps every mesh lit above `0.1` luminance with 0 page or console errors.
+  - *Note on overnight timing run:* during the full 133-check run overnight, system power throttling scaled CPU build times ~1.4× across all slices (including untouched ground-floor rooms) and added GPU timing jitter on ABBA checks (`119`, `128` at `s1-night`/`s5-day`/`u1-night`); the awake 3-load build timings above confirm all build budgets hold with margin, and ABBA timing robustness is tracked in the Part 4 close-out hardening step.
