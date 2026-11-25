@@ -765,21 +765,23 @@ test('furnished is false in a room still queued and true once it is built', asyn
   view.inside.dispose();
 });
 
-test('&furnish=4b with ?check strips SLICE_4C and SLICE_4D rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
+test('&furnish=4b with ?check strips SLICE_4C, SLICE_4D, SLICE_4E and SLICE_4F rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
   const b4 = interiorSwitch('?interior=1&check&furnish=4b');
-  assert.equal(b4.furniture.some(e => SLICE_4C.includes(e.room) || SLICE_4D.includes(e.room)), false, 'no SLICE_4C or SLICE_4D pieces');
+  assert.equal(b4.furniture.some(e => [...SLICE_4C, ...SLICE_4D, ...SLICE_4E, ...SLICE_4F].includes(e.room)), false, 'no 4c..4f pieces');
   assert.ok(b4.furniture.some(e => e.room === 'kitchen'), 'kitchen pieces kept');
   assert.deepEqual(b4.furnishLater, ['kitchen', 'dining']);
+  assert.deepEqual(b4.furnishUpper ?? [], [], 'upper queue stripped');
   assert.equal(interiorSwitch('?interior=1&furnish=4b'), I, 'ignored without ?check');
   const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4b');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4b');
 });
 
-test('&furnish=4c with ?check strips SLICE_4D rooms and keeps master queued; without ?check it is ignored', () => {
+test('&furnish=4c with ?check strips SLICE_4D, SLICE_4E and SLICE_4F rooms and keeps master queued; without ?check it is ignored', () => {
   const c4 = interiorSwitch('?interior=1&check&furnish=4c');
-  assert.equal(c4.furniture.some(e => SLICE_4D.includes(e.room)), false, 'no SLICE_4D pieces');
+  assert.equal(c4.furniture.some(e => [...SLICE_4D, ...SLICE_4E, ...SLICE_4F].includes(e.room)), false, 'no 4d..4f pieces');
   assert.ok(c4.furnishLater.includes('master'), 'master still queued');
   assert.equal(c4.furnishLater.some(r => SLICE_4D.includes(r)), false, 'no SLICE_4D room queued');
+  assert.deepEqual(c4.furnishUpper ?? [], [], 'upper queue stripped');
   assert.equal(interiorSwitch('?interior=1&furnish=4c'), I, 'ignored without ?check');
   const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4c');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4c');
@@ -958,4 +960,38 @@ test('started indoors in the sky room or landing builds floor 1 on frame 1 and e
     assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, phrase);
     view.inside.dispose();
   }
+});
+
+test('started indoors in bath-upper, box-room or linen builds all eight floor-1 rooms on frame 1 and gates 4f clauses on build status', async t => {
+  const snap = {world: {epoch: 0, nest: {stage: 'built'}}};
+  for (const [spot, room, phrase] of [
+    [I.upperSpots.bathTub, 'upstairs bathroom', /A bathtub lies under the eaves and a shower stands in the far corner\./],
+    [I.upperSpots.boxRoom, 'box room', /Old trunks and crates are stored here\./],
+    [I.upperSpots.linenShelf, 'linen cupboard', /Shelves of folded linen line the walls\./],
+  ]) {
+    assert.doesNotMatch(sceneText(snap, 0, {room, furnished: false}).description, phrase, `${room} bare has no clause`);
+    const {view, frame} = await rig({state: {place: 'cabin', floor: 1, position: [...spot], yaw: 0, pitch: 0}});
+    frame(1);
+    assert.deepEqual(view.inside.pendingFor(1), []);
+    assert.ok(I.furnishUpper.every(r => view.inside.furnishedRooms.includes(r)), `all 8 floor-1 rooms built when starting in ${room}`);
+    assert.equal(view.furnished, true);
+    assert.equal(view.room, room);
+    assert.match(sceneText(snap, 0, {room: view.room, furnished: view.furnished}).description, phrase);
+    view.inside.dispose();
+  }
+  // Entering by the front door still leaves pendingFor(0) empty and all 8 floor-1 rooms queued, reporting furnished false in an unbuilt 4f room.
+  let clock = 1000;
+  t.mock.method(performance, 'now', () => clock);
+  const entered = await doorRig({motion: false, interior: I});
+  entered.input.forward = 1;
+  entered.frame(1);
+  clock = 2000;
+  entered.frame(1);
+  assert.equal(entered.view.state.place, 'cabin');
+  assert.deepEqual(entered.view.inside.pendingFor(0), []);
+  assert.deepEqual(entered.view.inside.pendingFor(1), [...I.furnishUpper]);
+  entered.view.state = {place: 'cabin', floor: 1, position: [...I.upperSpots.bathTub], yaw: 0, pitch: 0};
+  assert.equal(entered.view.furnished, false, 'bath-upper reports furnished false before floor 1 is built');
+  assert.doesNotMatch(sceneText(snap, 0, {room: entered.view.room, furnished: entered.view.furnished}).description, /bathtub lies/);
+  entered.view.inside.dispose();
 });
