@@ -735,15 +735,30 @@ test('a queued room that fails is dropped from the walk plan, even after a walk 
   view.inside.dispose();
 });
 
+test('interiorSwitch enables the interior by default, disables it with ?interior=0, and keeps ?interior=1 harmless', () => {
+  assert.equal(interiorSwitch(''), I, 'default on');
+  assert.equal(interiorSwitch('?space=1'), I, 'on with ?space=1');
+  assert.equal(interiorSwitch('?interior=1'), I, 'legacy ?interior=1 stays harmless');
+  assert.equal(interiorSwitch('?interior=0'), null, '?interior=0 disables the interior');
+  assert.equal(interiorSwitch('?interior=0&check'), null, '?interior=0 stays off under ?check');
+  assert.equal(interiorSwitch('?interior=0&check&bare=1'), null, '?interior=0 wins over &bare=1');
+  assert.equal(interiorSwitch('?interior=0&check&furnish=first'), null, '?interior=0 wins over &furnish=');
+  assert.equal(interiorSwitch('?bare=1'), I, '&bare=1 ignored without ?check');
+  assert.equal(interiorSwitch('?check&bare=1').furniture.length, 0, '?check&bare=1 works without interior=1');
+  assert.equal(interiorSwitch('?interior=1&check&bare=1').furniture.length, 0, 'legacy ?interior=1&check&bare=1 works');
+});
+
 test('&furnish=first with ?check furnishes only the first rooms and walks without the others\' pieces; without ?check it is ignored', async () => {
-  const first = interiorSwitch('?interior=1&check&furnish=first');
+  const first = interiorSwitch('?check&furnish=first');
   assert.deepEqual(first.furnishLater, []);
   assert.equal(first.furniture.some(e => e.room === 'kitchen' || e.room === 'dining'), false);
   assert.equal(floorArea(first, 0, [4.75, 9.5]), true, 'kitchen table absent from walk plan');
   assert.equal(floorArea(first, 0, [9, 9.5]), true, 'dining table absent from walk plan');
   assert.equal(floorArea(first, 0, [4.95, 3.5]), false, 'living room sofa still blocks');
-  assert.equal(interiorSwitch('?interior=1&furnish=first'), I, 'ignored without ?check');
-  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=first');
+  assert.equal(interiorSwitch('?furnish=first'), I, 'ignored without ?check');
+  assert.equal(interiorSwitch('?interior=1&furnish=first'), I, 'ignored without ?check (legacy param)');
+  assert.deepEqual(interiorSwitch('?interior=1&check&furnish=first').furnishLater, [], 'legacy ?interior=1 still works');
+  const bare = interiorSwitch('?check&bare=1&furnish=first');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=first');
   const {view} = await rig({interior: first, state: {place: 'cabin', floor: 0, position: [4.4, 10.9], yaw: 0, pitch: 0}});
   assert.deepEqual(view.inside.pending, []);
@@ -766,50 +781,50 @@ test('furnished is false in a room still queued and true once it is built', asyn
 });
 
 test('&furnish=4b with ?check strips SLICE_4C, SLICE_4D, SLICE_4E and SLICE_4F rooms and keeps the kitchen and dining queue; without ?check it is ignored', () => {
-  const b4 = interiorSwitch('?interior=1&check&furnish=4b');
+  const b4 = interiorSwitch('?check&furnish=4b');
   assert.equal(b4.furniture.some(e => [...SLICE_4C, ...SLICE_4D, ...SLICE_4E, ...SLICE_4F].includes(e.room)), false, 'no 4c..4f pieces');
   assert.ok(b4.furniture.some(e => e.room === 'kitchen'), 'kitchen pieces kept');
   assert.deepEqual(b4.furnishLater, ['kitchen', 'dining']);
   assert.deepEqual(b4.furnishUpper ?? [], [], 'upper queue stripped');
-  assert.equal(interiorSwitch('?interior=1&furnish=4b'), I, 'ignored without ?check');
-  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4b');
+  assert.equal(interiorSwitch('?furnish=4b'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?check&bare=1&furnish=4b');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4b');
 });
 
 test('&furnish=4c with ?check strips SLICE_4D, SLICE_4E and SLICE_4F rooms and keeps master queued; without ?check it is ignored', () => {
-  const c4 = interiorSwitch('?interior=1&check&furnish=4c');
+  const c4 = interiorSwitch('?check&furnish=4c');
   assert.equal(c4.furniture.some(e => [...SLICE_4D, ...SLICE_4E, ...SLICE_4F].includes(e.room)), false, 'no 4d..4f pieces');
   assert.ok(c4.furnishLater.includes('master'), 'master still queued');
   assert.equal(c4.furnishLater.some(r => SLICE_4D.includes(r)), false, 'no SLICE_4D room queued');
   assert.deepEqual(c4.furnishUpper ?? [], [], 'upper queue stripped');
-  assert.equal(interiorSwitch('?interior=1&furnish=4c'), I, 'ignored without ?check');
-  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4c');
+  assert.equal(interiorSwitch('?furnish=4c'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?check&bare=1&furnish=4c');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4c');
 });
 
 test('&furnish=4d with ?check strips SLICE_4E and SLICE_4F rooms and keeps the ground-floor queue; without ?check it is ignored', () => {
-  const f4d = interiorSwitch('?interior=1&check&furnish=4d');
+  const f4d = interiorSwitch('?check&furnish=4d');
   assert.ok(!f4d.furniture.some(e => SLICE_4E.includes(e.room) || SLICE_4F.includes(e.room)), 'no SLICE_4E or SLICE_4F piece');
   assert.ok(f4d.furnishLater.includes('bath-ground') && f4d.furnishLater.includes('pantry'), 'ground-floor queue kept');
   assert.deepEqual(f4d.furnishUpper ?? [], [], 'upper queue stripped');
-  assert.equal(interiorSwitch('?interior=1&furnish=4d'), I, 'ignored without ?check');
+  assert.equal(interiorSwitch('?furnish=4d'), I, 'ignored without ?check');
 });
 
 test('&furnish=4e with ?check strips SLICE_4F rooms and keeps SLICE_4E queued; without ?check it is ignored', () => {
-  const f4e = interiorSwitch('?interior=1&check&furnish=4e');
+  const f4e = interiorSwitch('?check&furnish=4e');
   assert.ok(!f4e.furniture.some(e => SLICE_4F.includes(e.room)), 'no SLICE_4F piece');
   assert.ok(!(f4e.furnishUpper ?? []).some(r => SLICE_4F.includes(r)), 'no SLICE_4F room queued');
   assert.deepEqual(f4e.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']);
-  assert.equal(interiorSwitch('?interior=1&furnish=4e'), I, 'ignored without ?check');
-  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4e');
+  assert.equal(interiorSwitch('?furnish=4e'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?check&bare=1&furnish=4e');
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4e');
 });
 
 test('hidingSwitch is true unless ?check and hide=0', () => {
   assert.equal(hidingSwitch(''), true);
-  assert.equal(hidingSwitch('?interior=1&hide=0'), true, 'ignored without ?check');
-  assert.equal(hidingSwitch('?interior=1&check'), true);
-  assert.equal(hidingSwitch('?interior=1&check&hide=0'), false);
+  assert.equal(hidingSwitch('?hide=0'), true, 'ignored without ?check');
+  assert.equal(hidingSwitch('?check'), true);
+  assert.equal(hidingSwitch('?check&hide=0'), false);
 });
 
 test('SpaceView hides unseen rooms indoors, shows all on the stair, in the yard, or with ?check&hide=0, and shows master on first frame from passage', async () => {
