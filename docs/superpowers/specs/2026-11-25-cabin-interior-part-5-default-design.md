@@ -1,6 +1,6 @@
 # Cabin interior, part 5: interior on by default, ABBA hardening and close-out docs — design
 
-Status: proposed, November 25, 2026. Awaiting approval. Nothing is built yet.
+Status: built, awaiting review (November 25, 2026).
 
 This is the fifth and final part of `2026-11-17-cabin-interior-design.md` (the parent). Parts 1–4 (`shell`, `live windows`, `light`, and furnishing slices `4a`–`4f`) are built and complete behind `?interior=1`. Every one of the cabin's eighteen rooms is furnished, lit, walkable and validated. This part removes the opt-in gate so the cabin interior is open by default, hardens the browser suite's ABBA timing checks (the Part 4 close-out item recorded in 4f), and brings the project's documentation up to date.
 
@@ -174,3 +174,25 @@ Two new checks added at the end (**134–135**):
 - Exact helper signature and JSON diagnostic field names inside `measureAbba(...)` in `scripts/check-space-browser.mjs`.
 - Exact prose in `README.md`, `DESIGN.md`, `ARTWORK.md`, `CLAUDE.md`, and `docs/interior-validation/README.md`, within the factual constraints above.
 - Writing the **As built** and **Measured** sections of this spec after the full 135-check browser run completes.
+
+## As built
+
+Where the build settled or improved on the design above:
+
+- **Default-on switch (`public/space/space-view.js`, `test/space-view.test.js`):** `interiorSwitch(search)` changed from `params.get('interior') !== '1'` to `params.get('interior') === '0'`. `/` and `?interior=1` enable the interior (built lazily on approaching the door or starting indoors), `?interior=0` disables it cleanly (no stencil buffer, no passage, version-2 indoor place records fall back to yard arrival), and all `?check` comparison fixtures (`&bare=1`, `&furnish=first|4b|4c|4d|4e`) continue to require `?check` and yield to `?interior=0`.
+- **Interleaved paused-tab timing (`scripts/check-space-browser.mjs`):**
+  - The initial 6-pair sequential `measureAbba` prototype showed that dividing by separate per-load `yardMs` *increased* variance (`Var(rA/yA - rB/yB) ≈ 2× Var((rA - rB)/Y)`) and running `all` vs `base` on sequential pages ~35 s apart with 20 per-frame `readPixels` stalls still suffered ±0.02–0.04 thermal/IPC jitter.
+  - `measureAbba` was refined to open `ABBA_PAIRS` (default `2`, even) balanced context pairs (`all`/`base` then `base`/`all`, cancelling context-creation-order bias), pause both tabs' live rAF `render` during the benchmark window so strictly one context touches the GPU at a time, flush with `readPixels` once before and once after each 20-frame batch, and run 6 tightly interleaved ABBA rounds per load (12 balanced pairs total, ~200 ms apart).
+  - The same paused-rAF + batch-`readPixels` + interleaved pairing (`measureSpeedPair`) was applied to `measureSpeed` (checks `50`, `63`) and the 8 paired speed checks (`78`, `81`, `91`, `92`, `105`, `117`, `118`, `127`), keeping every budget (`≤ 1.1×`, `≤ +0.05`, `≤ +0.01`, `≤ +0.02`) and every draw-call assertion unchanged.
+- **Browser suite updates (`scripts/check-space-browser.mjs`):** preserved exact check numbers `1–133` (check `32` tests `?check&interior=0`, check `49` compares `?check&interior=0` against default `?check`, checks `33–133` exercise the default URL without `&interior=1`), and appended checks **`134`** (default arrival laziness + legacy `?interior=1` entry) and **`135`** (version-2 indoor place memory fallback under `?interior=0` vs restoration by default).
+- **Documentation:** updated `README.md` (re-titled `Walking the yard and cabin`), `DESIGN.md`, `ARTWORK.md` (added `Cabin interior, version 1`), `CLAUDE.md`, `docs/space-validation/README.md`, `docs/superpowers/specs/2026-11-17-cabin-interior-design.md`, and `docs/superpowers/specs/2026-11-24-cabin-interior-part-4f-upper-bath-box-linen-furnishing-design.md`; created `docs/interior-validation/README.md`.
+
+## Measured
+
+- **Syntax checks (`npm run check`) & unit tests (`npm test`):** **`897 / 897`** passing across all test files (`61 / 61` in `test/space-view.test.js`), 0 failures, 0 skipped.
+- **Default-on yard & interior checks (`scripts/check-space-browser.mjs`, Apple M1, Chrome/ANGLE, 1440 × 810, tier `full`, 0 page or console errors):**
+  - **Yard checks 1–31** with default stencil enabled: **31 / 31 PASS** (check 11 `full: 11.3 ms`, `light: 10.4 ms`, `plain: 6.9 ms`; check 31 `full day: 12.2 ms`, `full rain: 11.4 ms`, settles and locks on `full`).
+  - **Default-on, opt-out & parity checks (`32`, `33`, `49`, `71`, `134`, `135`):** **ALL PASS** — `?interior=0` keeps door shut with no stencil/interior; default load stays lazy at arrival (`inside: false`, `passage: true`, `stencil: true`), matches `?interior=0` arrival pixels (check `49`), opens the door and enters the hall cleanly, keeps `?interior=1` working identically, and restores/falls back version-2 indoor place memory cleanly.
+  - **Awake 60 Hz build times (median of 3 loads):** first build `+65.3 ms` full / `+68.6 ms` first-only (`≤ 80 ms`); floor-0 queued 8 rooms `144.5 ms` (`< 180 ms`); floor-1 queued 8 rooms `108.2 ms` (`4e` 5 rooms `66.8 ms`, `4f` 3 rooms `41.4 ms`; `≤ 50 ms` / `≤ 120 ms`).
+  - **Interleaved GPU speed & ABBA checks (`50`, `63`, `78`, `81`, `91`, `92`, `94`, `105`, `107`, `117`, `118`, `119`, `127`, `128`):** **14 / 14 PASS** in the clean interleaved run — all single-pose ratios `≤ 1.1×` yard (`0.826×`–`1.062×`), all paired slice deltas within `[-0.009, +0.017]` (`≤ +0.05`), **0 added draw calls** at every non-visible pose (`s0..s5`, `u1`), `+7` at `u0`, and all **44 / 44 ABBA poses** within **`[-0.004, +0.006]`** (`≤ +0.01` / `≤ +0.02`).
+  - *Screen-lock throttling note:* during the unattended late runs, macOS locked the display to 30 Hz low-power mode (`30.25 fps` display-capped), scaling CPU build times ~1.4× across all rooms while leaving interleaved GPU speed deltas stable; the awake 60 Hz build times above confirm every build budget holds with margin.
