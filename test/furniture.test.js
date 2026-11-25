@@ -199,3 +199,50 @@ test('the bathroom, laundry and pantry kinds have the right standings, heights a
   assert.equal(KINDS.towel.standing, 'set-on'); assert.equal(KINDS.towel.height, .6);
   assert.equal(footprint({id: 'tw', kind: 'towel', room: 'living', on: 'tr'}), null);
 });
+
+test('withoutRooms filters furnishUpper alongside furnishLater', () => {
+  const i = {
+    rooms: [{id: 'living', floor: 0, a: [0, 7], d: [0, 7]}, {id: 'kitchen', floor: 0, a: [2.5, 7], d: [7, 12]},
+      {id: 'landing', floor: 1, a: [7, 11], d: [0, 7]}, {id: 'nook', floor: 1, a: [7, 11], d: [7, 12]}],
+    breasts: [],
+    furniture: [
+      {id: 's', kind: 'sofa', room: 'living', at: [4, 4]},
+      {id: 'kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5]},
+      {id: 'ls', kind: 'window-seat', room: 'landing', at: [9.8, .315]},
+      {id: 'nc', kind: 'armchair', room: 'nook', at: [8.45, 10.7]},
+    ],
+    furnishLater: ['kitchen'],
+    furnishUpper: ['landing', 'nook'],
+  };
+  i.obstacles = obstaclesOf(i);
+  const kept = withoutRooms(i, ['nook'], {keepQueue: true});
+  assert.deepEqual(kept.furniture.map(e => e.id), ['s', 'kt', 'ls']);
+  assert.deepEqual(kept.furnishLater, ['kitchen']);
+  assert.deepEqual(kept.furnishUpper, ['landing']);
+  assert.ok(Object.isFrozen(kept.furnishUpper));
+  const emptied = withoutRooms(i, ['nook']);
+  assert.deepEqual(emptied.furnishLater, []);
+  assert.deepEqual(emptied.furnishUpper, []);
+});
+
+test('the part 4e upstairs kinds have the right standings, sizes, heights, extras and footprints', () => {
+  for (const [k, size, h, extra] of [
+    ['single-bed', [1.05, 2.0], 1.0, {seat: .55}],
+    ['chest-of-drawers', [1.0, .5], .9, {}],
+    ['small-desk', [1.2, .6], .75, {}],
+    ['daybed', [2.0, .9], .75, {seat: .45}],
+    ['floor-cushion', [.55, .55], .16, {}],
+    ['telescope', [.65, .65], 1.45, {}],
+    ['eave-bookshelf', [3.0, .35], 1.88, {}],
+    ['sloped-bookshelf', [1.45, .35], 2.40, {sloped: true, minHeight: 1.5}],
+  ]) {
+    assert.equal(KINDS[k].standing, 'solid', k);
+    assert.deepEqual(KINDS[k].size, size, k);
+    assert.equal(KINDS[k].height, h, k);
+    for (const [ek, ev] of Object.entries(extra)) assert.equal(KINDS[k][ek], ev, `${k}.${ek}`);
+    const f0 = footprint({id: k, kind: k, room: 'landing', at: [8.5, 3], turn: 0});
+    const f90 = footprint({id: k, kind: k, room: 'landing', at: [8.5, 3], turn: Math.PI / 2});
+    near(f0.a[1] - f0.a[0], size[0]); near(f0.d[1] - f0.d[0], size[1]);
+    near(f90.a[1] - f90.a[0], size[1]); near(f90.d[1] - f90.d[0], size[0]);
+  }
+});

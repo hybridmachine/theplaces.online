@@ -6,8 +6,8 @@ import {buildInterior} from './interior/index.js';
 import {createPassage} from './passage.js';
 import {LAKESIDE_SPACE} from '../../shared/lakeside-space.js';
 import {LAKESIDE_DRESSING, cabinFrame} from '../../shared/lakeside-dressing.js';
-import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D} from '../../shared/lakeside-interior.js';
-import {onStair, roomAt} from '../../shared/interior.js';
+import {LAKESIDE_INTERIOR, SLICE_4C, SLICE_4D, SLICE_4E} from '../../shared/lakeside-interior.js';
+import {onStair, roomAt, stairFoot, stairTop} from '../../shared/interior.js';
 import {bareInterior, withoutPieces, withoutRooms} from '../../shared/furniture.js';
 import {DIALS, interiorDials} from '../../shared/interior-light.js';
 import {liveOpenings, viewOpenings} from '../../shared/window-views.js';
@@ -33,6 +33,8 @@ export {toThree};
 const PASS_SCALE = {full: 1, light: .6, off: null};
 const TIER_PASS = {full: 'full', light: 'light', plain: 'off'};
 const MAX_VERTICAL_FOV = 75, FOG_DENSITY = .0009, LOOK_PER_PIXEL = .004;
+// Distance from the stair's foot or top within which the opposite floor's furniture queue flushes (clears the entry spot 1.40 m from stairFoot).
+const STAIR_FLUSH_RADIUS = 1.0;
 // The yard's light, day and night, mixed by calendar.light. Night stays dim and blue rather than black.
 const LIGHT = {day: {sky: '#dfe7ea', ground: '#7d7660', hemisphere: 1.7, sun: '#fff3dc', direct: 2.3},
   night: {sky: '#5d74a6', ground: '#262c3a', hemisphere: 1.1, moon: '#a9b8d6', direct: .7}};
@@ -55,9 +57,10 @@ export function interiorSwitch(search = typeof location !== 'undefined' ? locati
   if (params.get('interior') !== '1') return null;
   if (!params.has('check')) return LAKESIDE_INTERIOR;
   if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
-  if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, LAKESIDE_INTERIOR.furnishLater);
-  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4C, ...SLICE_4D], {keepQueue: true});
-  if (params.get('furnish') === '4c') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4D, {keepQueue: true});
+  if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, [...LAKESIDE_INTERIOR.furnishLater, ...(LAKESIDE_INTERIOR.furnishUpper ?? [])]);
+  if (params.get('furnish') === '4b') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4C, ...SLICE_4D, ...SLICE_4E], {keepQueue: true});
+  if (params.get('furnish') === '4c') return withoutRooms(LAKESIDE_INTERIOR, [...SLICE_4D, ...SLICE_4E], {keepQueue: true});
+  if (params.get('furnish') === '4d') return withoutRooms(LAKESIDE_INTERIOR, SLICE_4E, {keepQueue: true});
   return LAKESIDE_INTERIOR;
 }
 // With ?check, &hide=0 draws every built room's furniture even when out of sight, to verify hiding changes no pixel; ignored without ?check.
@@ -202,7 +205,8 @@ export class SpaceView {
     try {
       this.openings = viewOpenings(this.interior, this.space, this.dressing);
       this.inside = buildInterior(THREE, {interior: this.interior, art: this.art, openings: this.openings});
-      if (this.state.place === 'cabin') this.inside.buildRest();
+      // Flush the visitor's starting floor (and intentionally both queues if an older remembered pose lacks `floor`).
+      if (this.state.place === 'cabin') this.inside.buildRest(this.state.floor);
       this.updateSight();
     }
     catch (error) {
@@ -439,9 +443,17 @@ export class SpaceView {
       if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
       const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
       if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
-      // (both are nothing once the queue is empty)
-      if (this.state.place === 'cabin') this.inside?.buildRest();
-      else if (hadInside) this.inside?.buildNext();
+      // (floor 0 flushes on entry; floor 1 drains quietly in background frames and flushes when approaching or climbing the stair)
+      if (this.state.place === 'cabin' && this.inside) {
+        const floor = this.state.floor;
+        this.inside.buildRest(floor);
+        if (!move) {
+          const pos = this.state.position, I = this.interior;
+          const stairEnd = floor === 0 ? stairFoot(I) : stairTop(I);
+          if (onStair(I, pos) || Math.hypot(pos[0] - stairEnd[0], pos[1] - stairEnd[1]) <= STAIR_FLUSH_RADIUS) this.inside.buildRest(1 - floor);
+          else this.inside.buildNext();
+        }
+      } else if (hadInside) this.inside?.buildNext();
       this.door = this.inside ? door : 0; this.yard.setDoor(this.door);
       this.canvas.style.opacity = String(1 - veil);
     }

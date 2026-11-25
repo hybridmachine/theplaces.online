@@ -127,3 +127,23 @@ test('a remembered place inside or against a pantry shelf falls back to the arri
   assert.equal(at([1.1, 9.95]), null, 'against pantry-shelf-1');
   assert.deepEqual(at([...I.spots.pantry]).position, [...I.spots.pantry]);
 });
+
+test('a floor-1 remembered place inside the daybed falls back to arrival; upperSpots.skyWindow is kept', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 1, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at([3.5, 10.7]), null, 'inside daybed');
+  const loaded = at([...I.upperSpots.skyWindow]);
+  assert.equal(loaded.floor, 1);
+  assert.deepEqual(loaded.position, [...I.upperSpots.skyWindow]);
+});
+
+test('a floor-1 remembered place inside bed-2 falls back to arrival; upperSpots.bed2 is kept', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 1, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at([2.4, 1.075]), null, 'inside bed-2');
+  assert.deepEqual(at([...I.upperSpots.bed2]).position, [...I.upperSpots.bed2]);
+});
+
+test('a floor-1 remembered place inside nook-eave-shelves falls back to arrival; upperSpots.nookChair is kept', () => {
+  const at = position => { const storage = store(); storage.setItem(PLACE_KEY, JSON.stringify({version: 2, place: 'cabin', floor: 1, position, yaw: 0, pitch: 0})); return new PlaceMemory({storage, space: S, interior: I}).load(); };
+  assert.equal(at([9.0, 11.75]), null, 'inside nook-eave-shelves');
+  assert.deepEqual(at([...I.upperSpots.nookChair]).position, [...I.upperSpots.nookChair]);
+});

@@ -385,19 +385,21 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     if (!sightSets) return true;
     if (!sees(from, target)) return false;
     if (from == null || planes == null || !boxes || target === from) return true;
-    return doorInView(boxes, target, planes, sightSets ? sightSets.get(from) : null);
+    return doorInView(boxes, target, planes, sightSets ? sightSets.get(from) : null, from);
   };
   const showFrom = (roomId = null, planes = null) => {
     shownFrom = roomId ?? null;
-    shownPlanes = Array.isArray(planes) && queue.length ? planes.map(p => (Array.isArray(p) ? [...p] : p)) : planes ?? null;
+    shownPlanes = Array.isArray(planes) && (queue.length || upperQueue.length) ? planes.map(p => (Array.isArray(p) ? [...p] : p)) : planes ?? null;
     for (const [room, set] of queuedSets) set.object.visible = shown(shownFrom, room, shownPlanes);
   };
   // Every piece passed over so far: one array, replaced only when a build changes it, so a reader can tell by identity that it has.
   let skippedAll = Object.freeze([]);
   const noteSkipped = () => { const all = [...sets.flatMap(s => s.skipped), ...failedSkipped]; if (all.length !== skippedAll.length) skippedAll = Object.freeze(all); };
   let firstSet = null, firstFailed = false, flatMaterials = null, disposed = false;
-  const later = Array.isArray(I.furnishLater) && Array.isArray(I.furniture) && I.furniture.length ? [...I.furnishLater] : [];
-  const laterSet = new Set(later), queue = [...later];
+  const hasFurn = Array.isArray(I.furniture) && I.furniture.length > 0;
+  const later = hasFurn && Array.isArray(I.furnishLater) ? [...I.furnishLater] : [];
+  const upper = hasFurn && Array.isArray(I.furnishUpper) ? [...I.furnishUpper] : [];
+  const laterSet = new Set([...later, ...upper]), queue = [...later], upperQueue = [...upper];
   const buildSet = (only, name) => {
     const t0 = performance.now(), weigh = coarseWeigh();
     const set = buildFurniture(THREE, {interior: I, art, light, flat: flatMaterials,
@@ -417,7 +419,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     builtRooms.push(...firstRooms); noteSkipped();
   } catch (error) {
     console.warn("The cabin's furniture could not be built; its rooms stay bare.", error);
-    firstFailed = true; queue.length = 0;
+    firstFailed = true; queue.length = 0; upperQueue.length = 0;
   }
   // The added light (the lamps' halos, the flames and the fire's glow), a scene of its own that the view draws after the yard seen
   // through the live panes, into the same target, depth-tested against the rooms and with no stencil: drawn with the rooms it would
@@ -428,9 +430,9 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   const daytime = interiorDials({interior: I, ...DAYTIME}); fittings.setLight(daytime);
   let lastDials = daytime;
   if (light) light.set(daytime); else scene.add(new THREE.HemisphereLight(SKY, GROUND, LIGHT));
-  const buildNext = () => {
-    if (disposed || !queue.length) return null;
-    const room = queue.shift(), ids = piecesIn(I, [room]);
+  const buildFrom = list => {
+    if (disposed || !list.length) return null;
+    const room = list.shift(), ids = piecesIn(I, [room]);
     if (!ids.length) return room;
     try {
       const {set, ms} = buildSet(new Set([room]), `furniture-${room}`);
@@ -450,7 +452,13 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     noteSkipped();
     return room;
   };
-  const buildRest = () => { while (buildNext() !== null) {} };
+  // Callers flush the visitor's floor first via buildRest(floor); this drains whatever is left.
+  const buildNext = () => buildFrom(queue.length ? queue : upperQueue);
+  const buildRest = floor => {
+    if (floor === 0) { while (buildFrom(queue) !== null) {} return; }
+    if (floor === 1) { while (buildFrom(upperQueue) !== null) {} return; }
+    while (buildNext() !== null) {}
+  };
   const clamp01 = x => Math.min(1, Math.max(0, x));
   // Which of the flat light's materials each of the shell's lit meshes takes when the lit surfaces are given up.
   const FLAT = {floors: 'surface', stair: 'surface', frames: 'surface', ceilings: 'plastered', walls: 'plastered', casement: 'casement', 'door-leaf': 'leafed'};
@@ -483,7 +491,8 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
   return {scene, overlay, overlayNeed, overlayWithRooms, field, get lit() { return !!light; },
     // Whether furniture was built and drawn (false for a blueprint with none, as when it failed), its vertex and mesh counts (or null), and for tests a piece's box in the interior frame.
     furnished: !!firstSet && I.furniture.length > 0,
-    get pending() { return [...queue]; },
+    get pending() { return [...queue, ...upperQueue]; },
+    pendingFor: floor => floor === 0 ? [...queue] : floor === 1 ? [...upperQueue] : [...queue, ...upperQueue],
     buildNext, buildRest, showFrom,
     get furnishedRooms() { return [...builtRooms]; },
     get shownRooms() { return builtRooms.filter(r => { const q = queuedSets.get(r); return !q || q.object.visible; }); },
@@ -526,7 +535,7 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     setFire: fireplace.setFire,
     setDoor(open) { doorLeaf.rotation.y = doorTurn * clamp01(open) * DOOR_SWING; },
     dispose() {
-      disposed = true; queue.length = 0;
+      disposed = true; queue.length = 0; upperQueue.length = 0;
       const materials = new Set(markers.values());
       scene.traverse(o => { o.geometry?.dispose(); if (o.material) materials.add(o.material); });
       for (const m of materials) m.dispose();

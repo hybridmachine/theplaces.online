@@ -1,6 +1,6 @@
 import {KINDS, withDependents} from '../../../shared/furniture.js';
 import {lightSum} from '../../../shared/interior-light.js';
-import {roomAt} from '../../../shared/interior.js';
+import {ceilingHeight, roomAt} from '../../../shared/interior.js';
 import {SPACE_ART} from '../../../shared/lakeside-space-art.js';
 import {mergeGeometries} from '../geometry.js';
 import {hash} from '../scene/noise.js';
@@ -22,7 +22,7 @@ import {MANTEL} from './fireplace.js';
 // `slate` the hall's runner, a worn grey-blue)
 export const COLOURS = {oak: [1.05, .78, .5], darkOak: [.6, .42, .28], walnut: [.26, .17, .11], rugRed: [.86, .46, .36], ochre: [1.05, .84, .5], green: [.52, .62, .5],
   blue: [.54, .6, .7], slate: [.6, .62, .64], linen: [1.2, 1.12, .95], glass: [.82, .9, .98],
-  iron: [.24, .23, .24], copper: [1.02, .54, .34], china: [1.22, 1.18, 1.08], enamel: [.96, .98, .92]};
+  iron: [.24, .23, .24], copper: [1.02, .54, .34], brass: [1.08, .86, .42], china: [1.22, 1.18, 1.08], enamel: [.96, .98, .92]};
 // Named surfaces for new recipes: each maps to an existing mesh and palette tint so a later texture pass can find surfaces by name.
 export const SURFACES = Object.freeze({
   wood: Object.freeze({mesh: 'wood', colour: 'oak'}),
@@ -30,6 +30,7 @@ export const SURFACES = Object.freeze({
   stone: Object.freeze({mesh: 'stone', colour: 'slate'}),
   iron: Object.freeze({mesh: 'wood', colour: 'iron'}),
   copper: Object.freeze({mesh: 'wood', colour: 'copper'}),
+  brass: Object.freeze({mesh: 'wood', colour: 'brass'}),
   china: Object.freeze({mesh: 'stone', colour: 'china'}),
   enamel: Object.freeze({mesh: 'stone', colour: 'enamel'}),
   wicker: Object.freeze({mesh: 'wood', colour: 'ochre'}),
@@ -39,6 +40,8 @@ const DRESSER_COUNTER = .86, DRESSER_SHELVES = [1.24, 1.62];
 const RACK_RAILS = [[0, 1.18], [-.08, .96], [.08, .96], [-.14, .72], [.14, .72], [-.17, .48]];
 // How many jars/crocks/tins each pantry shelf carries; one edit adjusts the pantry's vertex budget.
 const PANTRY_JARS_PER_SHELF = 6;
+// Book density trim (fraction of bay width filled) for library nook bookcases; one edit adjusts the nook's vertex budget.
+const NOOK_BOOK_FILL = .78;
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -230,8 +233,9 @@ export const RECIPES = {
   mirror: (kit, e, pal) => ({wood: kit.framed(e, pal.oak(0, .06), {panel: [pal.glass(1, .03), pal.glass(2, .03, .9)], frame: .06})}),
   // Lying on its parent's top, a little askew; on a desk stacked by index, on a side table tucked clear of any lamp.
   book(kit, e, pal) {
-    if (e.parent?.kind === 'desk') {
-      const i = e.index || 0, pos = i === 0 ? [.42, .08, 0] : [.41, .09, .032], turn = i === 0 ? .22 : -.15;
+    if (e.parent?.kind === 'desk' || e.parent?.kind === 'small-desk') {
+      const small = e.parent.kind === 'small-desk';
+      const i = e.index || 0, pos = small ? (i === 0 ? [.34, .06, 0] : [.33, .07, .032]) : (i === 0 ? [.42, .08, 0] : [.41, .09, .032]), turn = i === 0 ? .22 : -.15;
       const at = kit.moved(kit.placed(e), pos, {turn}), out = {};
       put(out, 'cloth', kit.box(at, [-.085, .085], [-.115, .115], [0, .03], pal.surface('cloth', i, .08, i === 0 ? .58 : .74), {skip: ['under'], seed: pal.seed}));
       return out;
@@ -246,10 +250,12 @@ export const RECIPES = {
   },
   // A cup: on the living room's low table a short post with a handle; on the dresser or desk a spun china cup.
   cup(kit, e, pal) {
-    if (e.parent?.kind === 'dresser' || e.parent?.kind === 'desk') {
-      const onDesk = e.parent.kind === 'desk', i = e.index || 0;
-      const offset = onDesk ? [.18, -.14, 0] : [i === 0 ? -.30 : .24, -.05 + (pal.random(1) - .5) * .03, DRESSER_COUNTER - KINDS.dresser.height];
-      const at = kit.moved(kit.placed(e), offset, {turn: onDesk ? .6 : .5 + i * 1.4}), out = {};
+    if (e.parent?.kind === 'dresser' || e.parent?.kind === 'desk' || e.parent?.kind === 'side-table') {
+      const pk = e.parent.kind, i = e.index || 0;
+      const offset = pk === 'desk' ? [.18, -.14, 0]
+        : pk === 'side-table' ? [.11, -.10, 0]
+        : [i === 0 ? -.30 : .24, -.05 + (pal.random(1) - .5) * .03, DRESSER_COUNTER - KINDS.dresser.height];
+      const at = kit.moved(kit.placed(e), offset, {turn: pk === 'dresser' ? .5 + i * 1.4 : .6}), out = {};
       const glaze = pal.surface('china', 0, .05, .96);
       put(out, 'china', [
         ...kit.turned(at, [0, 0], [[0, 0], [.032, 0], [.032, 0], [.038, .02], [.04, .08], [.035, .082], [.032, .076], [.028, .012], [0, .012]], lined(glaze, 6), {segments: 8, tile: STONE_TILE}),
@@ -322,7 +328,8 @@ export const RECIPES = {
       return out;
     }
     if (e.parent?.kind !== 'mantel') {
-      const at = kit.moved(kit.placed(e), [-.45, .02, 0], {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
+      const offset = e.parent?.kind === 'chest-of-drawers' ? [-.26, .04, 0] : [-.45, .02, 0];
+      const at = kit.moved(kit.placed(e), offset, {turn: .35}), out = {}, glaze = pal.surface('china', 0, .06, .95);
       put(out, 'china', [
         ...kit.turned(at, [0, 0], [[0, 0], [.05, 0], [.05, 0], [.062, .03], [.07, .09], [.064, .15], [.048, .2], [.046, .225], [.054, .25], [.046, .25], [.04, .23], [0, .23]],
           lined(glaze, 9), {segments: 10, tile: STONE_TILE}),
@@ -373,6 +380,15 @@ export const RECIPES = {
   // outside, resting on the roll and folding where it hangs.
   throw(kit, e, pal) {
     const parent = e.parent;
+    if (parent?.kind === 'daybed') {
+      const [hx, hy] = halves(parent), at = kit.placed(e), out = {};
+      const x0 = hx - .56, x1 = hx - .14, topY = hy - .12, frontY = -hy + .01, hang = .26, across = topY - frontY, total = across + hang;
+      const path = l => l < across ? [topY - l, .022] : [frontY, .022 - (l - across)];
+      const pt = (s, t) => { const [y, z] = path(t * total); return [x0 + (x1 - x0) * s, y, z]; };
+      const free = (s, t) => { const l = t * total; return l <= across ? 0 : (l - across) / hang; };
+      put(out, 'cloth', kit.drape(at, pt, x1 - x0, total, pal.surface('cloth', 0, .09, .62), {seed: pal.seed, free, folds: .035, cell: .09}));
+      return out;
+    }
     if (!UPHOLSTERY[parent?.kind]) throw new Error('a throw goes over a sofa\'s or chair\'s arm');
     const [hx, hy] = halves(parent), seat = KINDS[parent.kind].seat, {armR, armTop} = upholsteryOf(parent), at = kit.moved(kit.placed(e), [0, 0, -seat]);
     const off = .012, R = armR + off, cx = hx - armR, inside = armTop - seat - .04, over = Math.PI * R, hang = .32, length = inside + over + hang, [y0, y1] = [-hy + .08, .06];
@@ -396,8 +412,13 @@ export const RECIPES = {
   // A cushion on its parent: lying flat on a window seat (or anything else), standing up against the back on a sofa or chair.
   cushion(kit, e, pal) {
     const kind = e.parent?.kind, n = e.count || 1, i = e.index || 0, at = kit.placed(e), jitter = k => (pal.random(k) - .5);
-    const colours = {sofa: ['ochre', 'rugRed', 'linen'], armchair: ['blue', 'ochre'], 'window-seat': ['blue', 'green']}[kind] ?? ['linen'];
+    const colours = {sofa: ['ochre', 'rugRed', 'linen'], armchair: ['blue', 'ochre'], 'window-seat': ['blue', 'green'], daybed: ['blue', 'ochre']}[kind] ?? ['linen'];
     const colour = pal[colours[(i + pal.seed) % colours.length]](0, .1, .9);
+    if (kind === 'daybed') {
+      const hy = halves(e.parent)[1], x = (i - (n - 1) / 2) * .72 - .12 + jitter(1) * .06;
+      const pose = kit.moved(at, [x, hy - .26, 0], {turn: jitter(2) * .18, tilt: .95 + jitter(3) * .12});
+      return {cloth: kit.cushion(pose, [-.22, .22], [0, .38], [0, .14], colour, {seed: pal.seed, bulge: .8, sag: .4, taper: .6, cuts: 3})};
+    }
     if (kind === 'sofa' || kind === 'armchair') {
       // (leaning on the back cushions' fronts, which stand about 0.1 m in front of the middle)
       const spread = kind === 'sofa' ? .58 : 0, x = (i - (n - 1) / 2) * spread + jitter(1) * .06, back = -.03;
@@ -1177,6 +1198,246 @@ export const RECIPES = {
     };
     makeCrate(at, .24, .21, .30, 0, .78);
     makeCrate(kit.moved(at, [0, 0, .30], {turn: .18}), .19, .16, .29, 3, .88);
+    return out;
+  },
+  // ── upstairs landing and sky room pieces (Part 4e): tints through pal.surface, emitted under SURFACES[name].mesh ──
+  // A timber daybed under the sky-room roof window: four square legs, slatted oak back and low end rails, tucked underside,
+  // plump mattress top at `seat`, and two cylindrical end bolsters.
+  daybed(kit, e, pal) {
+    const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .07, .78), trim = pal.surface('wood', 1, .06, .66);
+    const fabric = pal.surface('cloth', 2, .08, .76), bolster = pal.surface('cloth', 3, .08, .68);
+    const armH = .62, railZ0 = .22, railZ1 = .31, leg = .028;
+    // four corner posts, side rails, tucked mattress deck
+    for (const sx of [-1, 1]) {
+      put(out, 'wood', [
+        ...kit.post(at, [sx * (hx - leg), -hy + leg], [0, armH], leg, trim),
+        ...kit.post(at, [sx * (hx - leg), hy - leg], [0, h], leg, trim),
+        ...kit.board(at, [sx * (hx - .05), sx * (hx - .015)].sort((a, b) => a - b), [-hy + .05, hy - .05], [railZ0, railZ1], wood, {tuck: ['under']}),
+        ...kit.board(at, [sx * (hx - .055), sx * (hx - .01)].sort((a, b) => a - b), [-hy + .02, hy - .02], [armH - .035, armH], trim, {tuck: ['under']}),
+      ]);
+      for (const y of [-.22, 0, .22]) {
+        put(out, 'wood', kit.board(at, [sx * (hx - .044), sx * (hx - .022)].sort((a, b) => a - b), [y - .02, y + .02], [railZ1, armH - .035], wood));
+      }
+    }
+    put(out, 'wood', [
+      ...kit.board(at, [-hx + .05, hx - .05], [-hy + .015, -hy + .05], [railZ0, railZ1], wood, {tuck: ['under']}),
+      ...kit.board(at, [-hx + .05, hx - .05], [hy - .05, hy - .015], [railZ0, railZ1], wood, {tuck: ['under']}),
+      ...kit.board(at, [-hx + .05, hx - .05], [hy - .055, hy - .01], [h - .045, h], trim, {tuck: ['under']}),
+      ...kit.board(at, [-hx + .05, hx - .05], [-hy + .05, hy - .05], [railZ0 + .02, railZ0 + .055], trim, {tuck: ['under'], skip: ['top']}),
+    ]);
+    for (let i = -3; i <= 3; i++) {
+      const x = i * .24;
+      put(out, 'wood', kit.board(at, [x - .022, x + .022], [hy - .045, hy - .02], [railZ1, h - .045], wood));
+    }
+    // sculpted mattress up to `seat` and two rolled end bolsters
+    put(out, 'cloth', [
+      ...kit.cushion(at, [-hx + .055, hx - .055], [-hy + .04, hy - .055], [railZ1 - .01, seat], fabric, {seed: pal.seed, bulge: .5, sag: .35, cuts: 3, skip: ['under']}),
+      ...kit.roll(at, [-hx + .14, -hy + .12, seat + .065], [-hx + .14, hy - .12, seat + .065], .075, bolster, {sides: 8}),
+      ...kit.roll(at, [hx - .14, -hy + .12, seat + .065], [hx - .14, hy - .12, seat + .065], .075, bolster, {sides: 8}),
+    ]);
+    return out;
+  },
+  // A plump woven floor cushion in the sky room.
+  'floor-cushion'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const times = pal.seed % 2 === 0 ? .68 : .82;
+    put(out, 'cloth', kit.cushion(at, [-hx + .01, hx - .01], [-hy + .01, hy - .01], [0, h * .78], pal.surface('cloth', 0, .1, times),
+      {seed: pal.seed, bulge: .75, sag: .25, taper: .15, cuts: 3}));
+    return out;
+  },
+  // A small brass refractor telescope on a three-legged wooden tripod, aimed upward along its local -y facing direction.
+  telescope(kit, e, pal) {
+    const at = kit.placed(e), out = {};
+    const wood = pal.surface('wood', 0, .07, .66), iron = pal.surface('iron', 1, .04), brass = pal.surface('brass', 2, .06, .95);
+    const hubZ = 1.06, rFoot = .27, rMid = .15, spreadZ = .44;
+    for (let k = 0; k < 3; k++) {
+      const ang = Math.PI / 2 + k * 2 * Math.PI / 3, ca = Math.cos(ang), sa = Math.sin(ang);
+      put(out, 'wood', kit.roll(at, [rFoot * ca, rFoot * sa, 0], [.025 * ca, .025 * sa, hubZ], .014, wood, {sides: 6}));
+      put(out, 'iron', kit.roll(at, [rMid * ca, rMid * sa, spreadZ], [0, 0, spreadZ + .02], .007, iron, {sides: 5}));
+    }
+    // central iron hub, spreader boss and alt-azimuth yoke
+    put(out, 'iron', [
+      ...kit.turned(at, [0, 0], [[0, spreadZ], [.022, spreadZ], [.022, spreadZ + .04], [0, spreadZ + .04]], iron, {segments: 6}),
+      ...kit.turned(at, [0, 0], [[0, hubZ - .03], [.045, hubZ - .03], [.045, hubZ + .02], [.022, hubZ + .03], [.022, hubZ + .08], [0, hubZ + .08]], iron, {segments: 8}),
+      ...kit.board(at, [-.055, .055], [-.015, .015], [hubZ + .07, hubZ + .095], iron),
+      ...kit.board(at, [-.055, -.035], [-.015, .015], [hubZ + .095, hubZ + .17], iron),
+      ...kit.board(at, [.035, .055], [-.015, .015], [hubZ + .095, hubZ + .17], iron),
+    ]);
+    // brass refractor optical tube tilted upward ~38° toward local -y (z from -0.24 eyepiece to +0.36 dew shield)
+    const tube = kit.moved(at, [0, 0, hubZ + .13], {tilt: .90});
+    const prof = [
+      [0, -.24], [.014, -.24], [.014, -.21], [.018, -.20], [.018, -.16],
+      [.028, -.15], [.032, -.02], [.036, .18], [.042, .20], [.042, .36], [.036, .36], [.034, .29], [0, .29],
+    ];
+    put(out, 'brass', kit.turned(tube, [0, 0], prof, lined(brass, 11), {segments: 10}));
+    // dark iron finder scope mounted above the main tube
+    put(out, 'iron', kit.roll(tube, [0, -.048, -.08], [0, -.048, .10], .009, iron, {sides: 6}));
+    return out;
+  },
+  // ── upstairs bedroom pieces (Part 4e): single bed, chest of drawers, small desk ──
+  // A cottage single bed under the front slope: kit frame, panelled headboard and low footboard, mattress cushion up to `seat`, and draped bedclothes.
+  'single-bed'(kit, e, pal) {
+    const [hx, hy] = halves(e), {height: h, seat} = KINDS[e.kind], at = kit.placed(e), out = {};
+    const stain = pal.seed % 2 === 0 ? .84 : .64;
+    const wood = pal.surface('wood', 0, .07, stain), trim = pal.surface('wood', 1, .06, stain * 1.12), panel = pal.surface('wood', 2, .05, stain * .86);
+    const linen = pal.surface('cloth', 3, .06, .96), sheet = pal.surface('cloth', 4, .06, pal.seed % 2 === 0 ? .90 : .82);
+    const footH = .64, post = .028;
+    for (const sx of [-1, 1]) {
+      put(out, 'wood', [
+        ...kit.post(at, [sx * (hx - post), hy - post], [0, h], post, wood),
+        ...kit.post(at, [sx * (hx - post), -hy + post], [0, footH], post, wood),
+      ]);
+    }
+    put(out, 'wood', [
+      ...kit.board(at, [-hx + .02, -hx + .055], [-hy + .055, hy - .055], [.18, .33], wood, {tuck: ['under', 'right']}),
+      ...kit.board(at, [hx - .055, hx - .02], [-hy + .055, hy - .055], [.18, .33], wood, {tuck: ['under', 'left']}),
+      ...kit.board(at, [-hx + .055, hx - .055], [-hy + .02, -hy + .055], [.18, .33], wood, {tuck: ['under', 'back']}),
+      ...kit.board(at, [-hx + .055, hx - .055], [-hy + .055, hy - .055], [.23, .27], wood, {tuck: ['under'], skip: ['top']}),
+      // headboard (at +y)
+      ...kit.box(at, [-hx + .055, hx - .055], [hy - .055, hy - .02], [.33, h - .055], panel, {skip: ['under'], seed: pal.seed}),
+      ...kit.box(at, [-hx + .05, hx - .05], [hy - .062, hy - .015], [h - .055, h - .01], trim, {tuck: ['under'], seed: pal.seed + 1}),
+      // footboard (at -y)
+      ...kit.box(at, [-hx + .055, hx - .055], [-hy + .02, -hy + .052], [.33, footH - .08], panel, {skip: ['under'], seed: pal.seed + 2}),
+      ...kit.box(at, [-hx + .05, hx - .05], [-hy + .015, -hy + .058], [footH - .08, footH - .04], trim, {tuck: ['under'], seed: pal.seed + 3}),
+    ]);
+    put(out, 'cloth', [
+      ...kit.cushion(at, [-hx + .05, hx - .05], [-hy + .06, hy - .06], [.27, seat - .02], linen, {seed: pal.seed + 4, bulge: .35, sag: .2, cuts: 3, skip: ['under']}),
+      ...kit.box(at, [-hx + .045, hx - .045], [.24, .44], [seat - .005, seat + .01], sheet, {skip: ['under'], broken: .005, seed: pal.seed + 5}),
+    ]);
+    const sideY0 = -hy + .10, sideY1 = hy - .14, drop = seat - .24;
+    for (const side of [-1, 1]) {
+      const x = side * (hx - .038);
+      const pt = (s, t) => [x, side < 0 ? sideY1 - (sideY1 - sideY0) * s : sideY0 + (sideY1 - sideY0) * s, seat - drop * t];
+      put(out, 'cloth', kit.drape(at, pt, sideY1 - sideY0, drop, sheet, {seed: pal.seed + (side < 0 ? 10 : 11), folds: .016, cell: .2}));
+    }
+    return out;
+  },
+  // A four-drawer chest of drawers: setback plinth, oak carcass, overhanging top, recessed drawer fronts and turned wooden knobs.
+  'chest-of-drawers'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const body = pal.surface('wood', 0, .06, .74), top = pal.surface('wood', 1, .06, .86);
+    const plinth = pal.surface('wood', 2, .05, .52), front = pal.surface('wood', 3, .06, .80), knob = pal.surface('brass', 4, .05, .90);
+    const fy = -hy + .035;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx + .025, hx - .025], [fy + .02, hy], [0, .07], plinth, {tuck: ['front', 'left', 'right'], skip: ['under', 'back', 'top'], broken: 0}),
+      ...kit.box(at, [-hx + .015, hx - .015], [fy, hy], [.07, h - .035], body, {skip: ['under', 'back', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], skip: ['back'], seed: pal.seed + 1}),
+    ]);
+    const knobAt = (x, z) => kit.turned(kit.moved(at, [x, fy - .014, z], {tilt: Math.PI / 2}), [0, 0], [[0, 0], [.008, 0], [.008, .012], [.014, .018], [.012, .026], [0, .028]], knob, {segments: 6});
+    for (let k = 0; k < 4; k++) {
+      const z0 = .09 + k * .19, z1 = z0 + .168, zm = (z0 + z1) / 2;
+      if (k === 3) {
+        // top row: two half-width drawers
+        for (const [x0, x1] of [[-hx + .04, -.015], [.015, hx - .04]]) {
+          put(out, 'wood', kit.board(at, [x0, x1], [fy - .014, fy], [z0, z1], front, {skip: ['back']}));
+          put(out, 'brass', knobAt((x0 + x1) / 2, zm));
+        }
+      } else {
+        put(out, 'wood', kit.board(at, [-hx + .04, hx - .04], [fy - .014, fy], [z0, z1], front, {skip: ['back']}));
+        put(out, 'brass', [...knobAt(-hx * .48, zm), ...knobAt(hx * .48, zm)]);
+      }
+    }
+    return out;
+  },
+  // A compact writing desk: overhanging top, apron with two shallow drawers and brass knobs, four square legs.
+  'small-desk'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const top = pal.surface('wood', 0, .07, .82), base = pal.surface('wood', 1, .06, .68);
+    const front = pal.surface('wood', 2, .06, .76), knob = pal.surface('brass', 3, .05, .92);
+    const ix = hx - .055, iy = hy - .055, apronZ = h - .14;
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .035, h], top, {tuck: ['under'], seed: pal.seed}),
+      ...kit.board(at, [-ix, ix], [-iy, -iy + .025], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, ix], [iy - .025, iy], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [-ix, -ix + .025], [-iy + .025, iy - .025], [apronZ, h - .035], base, {tuck: ['under']}),
+      ...kit.board(at, [ix - .025, ix], [-iy + .025, iy - .025], [apronZ, h - .035], base, {tuck: ['under']}),
+    ]);
+    for (const x of [-1, 1]) for (const y of [-1, 1]) put(out, 'wood', kit.post(at, [x * ix, y * iy], [0, h - .035], .024, base));
+    for (const [x0, x1] of [[-ix + .04, -.02], [.02, ix - .04]]) {
+      const mid = (x0 + x1) / 2, zm = (apronZ + h - .035) / 2;
+      put(out, 'wood', kit.board(at, [x0, x1], [-iy - .012, -iy], [apronZ + .012, h - .048], front, {skip: ['back']}));
+      put(out, 'brass', kit.roll(at, [mid, -iy - .012, zm], [mid, -iy - .028, zm], .01, knob, {sides: 6}));
+    }
+    return out;
+  },
+  // ── library nook bookshelves (Part 4e): low eave bookcase and roof-pitch sloped bookcases ──
+  'eave-bookshelf'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .07, .76), shut = {tuck: ['under', 'back', 'left', 'right']};
+    const bays = [[-hx + T, -hx / 3 - T / 2], [-hx / 3 + T / 2, hx / 3 - T / 2], [hx / 3 + T / 2, hx - T]];
+    const shelves = [.10, .44, .78, 1.12, 1.46], spines = -hy + .025;
+    const covers = [pal.rugRed(2, .12, .78), pal.ochre(3, .12, .82), pal.blue(4, .12, .80), pal.green(5, .12, .82), pal.surface('cloth', 6, .08, .78), pal.darkOak(7, .1, 1.15)];
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [0, h], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
+      ...kit.board(at, [-hx / 3 - T / 2, -hx / 3 + T / 2], [-hy + .01, hy - T], [T, h - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [hx / 3 - T / 2, hx / 3 + T / 2], [-hy + .01, hy - T], [T, h - T], wood, {tuck: ['left', 'right', 'back']}),
+    ]);
+    shelves.forEach((z, k) => {
+      bays.forEach(([x0, x1], b) => {
+        put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
+        const room = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
+        const span = (x1 - x0) * NOOK_BOOK_FILL;
+        if (span > .12) {
+          put(out, 'cloth', kit.books(at, [x0, x0 + span], spines, z, {height: Math.min(.26, room * .8), seed: pal.seed * 13 + k * 3 + b, colours: covers}));
+        }
+      });
+    });
+    return out;
+  },
+  // A bookcase fitted to its room's roof pitch: uprights, back panel and top board follow ceilingHeight(I, floor, d) - 0.04,
+  // and shelves/books clip wherever the slope comes down.
+  'sloped-bookshelf'(kit, e, pal, {interior}) {
+    const [hx, hy] = halves(e), at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .07, .76), topWood = pal.surface('wood', 1, .06, .84);
+    const backWood = p => wood(p).map(c => c * TUCK), shut = {tuck: ['under', 'back', 'left', 'right']};
+    const floor = interior.rooms.find(r => r.id === e.room)?.floor ?? 1;
+    const ceilAt = x => Math.min(ceilingHeight(interior, floor, at(x, -hy, 0)[1]), ceilingHeight(interior, floor, at(x, hy, 0)[1])) - .04;
+    const hL = ceilAt(-hx), hR = ceilAt(hx);
+    const quad = (p00, p10, p01, p11, n, colour) => kit.grid(at, [[p00, p10], [p01, p11]], [[n, n], [n, n]], colour, .9);
+    const dx = 2 * hx, dz = hR - hL, len = Math.hypot(dx, dz) || 1;
+    const nTop = [-dz / len, 0, dx / len], nBot = [dz / len, 0, -dx / len];
+    // uprights, plinth, trapezoid back and bevelled top board
+    put(out, 'wood', [
+      ...kit.board(at, [-hx, -hx + T], [-hy, hy], [0, Math.min(hL, ceilAt(-hx + T)) - T], wood, {tuck: ['right', 'back']}),
+      ...kit.board(at, [hx - T, hx], [-hy, hy], [0, Math.min(hR, ceilAt(hx - T)) - T], wood, {tuck: ['left', 'back']}),
+      ...kit.board(at, [-T / 2, T / 2], [-hy + .01, hy - T], [.10, Math.min(ceilAt(-T / 2), ceilAt(T / 2)) - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [-hx + T, hx - T], [-hy + .008, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
+      quad([-hx + T, hy - T, .10], [hx - T, hy - T, .10], [-hx + T, hy - T, ceilAt(-hx + T) - T], [hx - T, hy - T, ceilAt(hx - T) - T], [0, -1, 0], backWood),
+      quad([-hx, -hy, hL], [hx, -hy, hR], [-hx, hy, hL], [hx, hy, hR], nTop, topWood),
+      quad([-hx, -hy, hL - T], [hx, -hy, hR - T], [-hx, hy, hL - T], [hx, hy, hR - T], nBot, backWood),
+      quad([-hx, -hy, hL - T], [hx, -hy, hR - T], [-hx, -hy, hL], [hx, -hy, hR], [0, -1, 0], topWood),
+      quad([-hx, -hy, hL - T], [-hx, hy, hL - T], [-hx, -hy, hL], [-hx, hy, hL], [-1, 0, 0], topWood),
+      quad([hx, -hy, hR - T], [hx, hy, hR - T], [hx, -hy, hR], [hx, hy, hR], [1, 0, 0], topWood),
+    ]);
+    // clip [x0, x1] to the sub-interval where ceilAt(x) - T >= minZ (ceilAt is linear on one roof slope)
+    const clip = (x0, x1, minZ) => {
+      const z0 = ceilAt(x0) - T, z1 = ceilAt(x1) - T;
+      if (z0 < minZ && z1 < minZ) return null;
+      if (z0 >= minZ && z1 >= minZ) return [x0, x1];
+      const xc = x0 + (minZ - z0) * (x1 - x0) / (z1 - z0);
+      return z0 >= minZ ? [x0, xc] : [xc, x1];
+    };
+    const shelves = [.10, .46, .82, 1.18, 1.54, 1.90], spines = -hy + .025;
+    const bays = [[-hx + T, -T / 2], [T / 2, hx - T]];
+    const covers = [pal.rugRed(2, .12, .78), pal.ochre(3, .12, .82), pal.blue(4, .12, .80), pal.green(5, .12, .82), pal.surface('cloth', 6, .08, .78), pal.darkOak(7, .1, 1.15)];
+    shelves.forEach((z, k) => {
+      bays.forEach(([x0, x1], b) => {
+        if (k > 0) {
+          const sb = clip(x0, x1, z + .04);
+          if (!sb || sb[1] - sb[0] < .16) return;
+          put(out, 'wood', kit.board(at, sb, [-hy + .008, hy - T], [z - .03, z], wood, shut));
+        }
+        const kb = clip(x0, x1, z + .22);
+        if (!kb) return;
+        const span = (kb[1] - kb[0]) * NOOK_BOOK_FILL;
+        if (span < .12) return;
+        const nextRoom = shelves[k + 1] ? shelves[k + 1] - .03 - z : .34;
+        const head = Math.min(nextRoom, Math.min(ceilAt(kb[0]), ceilAt(kb[0] + span)) - T - z);
+        if (head < .18) return;
+        put(out, 'cloth', kit.books(at, [kb[0], kb[0] + span], spines, z, {height: Math.min(.26, head * .78), seed: pal.seed * 17 + k * 2 + b, colours: covers}));
+      });
+    });
     return out;
   },
 };

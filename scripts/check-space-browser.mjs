@@ -1042,13 +1042,13 @@ try{
   // The sofa's front (its −a side, toward the fire) from its own obstacle, where the walker should stop (its eye clearance short of it), and the start.
   const sofaFront72=I.obstacles.find(o=>o.id==='sofa').a[0],sofaStop=sofaFront72-I.eyeClear,sofaFrom=[+(sofaStop-1).toFixed(3),I.spots.speed[0][1]],STOP_NEAR=.03;
   const kitchenTable=I.obstacles.find(o=>o.id==='kitchen-table');
-  const loads={furnished:[],first:[],bare:[]},queuedMs={kitchen:[],dining:[],study:[],passage:[],master:[],'bath-ground':[],laundry:[],pantry:[]};let furnishedLook=null,firstLook=null,bareLook=null,loadsQuiet=true;
+  const loads={furnished:[],first:[],bare:[]},queuedMs={kitchen:[],dining:[],study:[],passage:[],master:[],'bath-ground':[],laundry:[],pantry:[],landing:[],nook:[],'bedroom-2':[],'bedroom-3':[],'sky-room':[]};let furnishedLook=null,firstLook=null,bareLook=null,loadsQuiet=true;
   for(let k=0;k<3;k++)for(const [kind,query] of [['furnished',''],['first','&furnish=first'],['bare','&bare=1']]){
     const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&interior=1&tier=full${query}`);await ready(p);await studyLight(p,'day');
     await p.evaluate(()=>{const s=window.__space,build=s.buildInside.bind(s);s.buildInside=()=>{if(s.inside||s.insideFailed||s.__buildMs!==undefined)return build();const t=performance.now();build();s.__buildMs=performance.now()-t;};});
     await walkIn(p);const buildMs=await p.evaluate(()=>window.__space.__buildMs);loads[kind].push(+buildMs.toFixed(1));
-    if(kind==='furnished'){const sets=await p.evaluate(()=>window.__space.inside.furniture.sets);
-      for(const r of ['kitchen','dining','study','passage','master','bath-ground','laundry','pantry']){const s=sets.find(x=>x.rooms.includes(r));if(s)queuedMs[r].push(+s.ms.toFixed(1));}}
+    if(kind==='furnished'){await p.evaluate(()=>window.__space.inside.buildRest());const sets=await p.evaluate(()=>window.__space.inside.furniture.sets);
+      for(const r of Object.keys(queuedMs)){const s=sets.find(x=>x.rooms.includes(r));if(s)queuedMs[r].push(+s.ms.toFixed(1));}}
     if(k===0){const look={...await furnitureOf(p)};await stand(p,livingShot,1200);look.draw=await drawCalls(p);
       await stand(p,speedPose2,900);look.speed2Draw=await drawCalls(p);
       if(kind==='furnished'){await stand(p,speedPose3,700);look.speed3Draw=await drawCalls(p);
@@ -1069,9 +1069,9 @@ try{
         await stand(p,{place:'cabin',floor:0,position:[4.75,7.9],yaw:0,pitch:0},400);await hold(p,['KeyW'],2000);await p.waitForTimeout(300);look.atKitchenFront=await indoorsState(p);}
       if(kind==='furnished')furnishedLook=look;else if(kind==='first')firstLook=look;else bareLook=look;}
     loadsQuiet=loadsQuiet&&!p.consoleErrors.length&&!p.own.length;await p.context().close();}
-  const sets71=furnishedLook.counts.sets,lampSets=new Set(['study','master']);
-  check('With ?interior=1 the interior reports furnished and draws nine sets: at most 5 meshes in sets[0] and in queued rooms with lamps (study, master), at most 4 in the others; with &bare=1 it reports none and draws none, and is walked by the bare plan; without ?interior=1 nothing is built (check 32)',
-    furnishedLook.furnished===true&&sets71.length===9&&sets71[0].meshes<=5&&sets71.slice(1).every(s=>s.meshes>=1&&s.meshes<=(lampSets.has(s.rooms[0])?5:4))&&
+  const sets71=furnishedLook.counts.sets,lampSets=new Set(I.furniture.filter(e=>e.kind==='table-lamp'||e.kind==='standing-lamp').map(e=>e.room));
+  check('With ?interior=1 the interior reports furnished and draws fourteen sets: at most 5 meshes in sets[0] and in queued rooms with lamps (study, master, bedroom-2, bedroom-3, nook), at most 4 in the others; with &bare=1 it reports none and draws none, and is walked by the bare plan; without ?interior=1 nothing is built (check 32)',
+    furnishedLook.furnished===true&&sets71.length===14&&sets71[0].meshes<=5&&sets71.slice(1).every(s=>s.meshes>=1&&s.meshes<=(lampSets.has(s.rooms[0])?5:4))&&
     furnishedLook.counts.meshes===furnishedLook.meshes.filter(m=>m.vertices>0).length&&furnishedLook.counts.vertices>0&&furnishedLook.walk==='furnished'&&
     bareLook.furnished===false&&bareLook.counts?.meshes===0&&bareLook.meshes.every(m=>m.vertices===0)&&bareLook.walk==='bare'&&!shutBuilt,
     {furnished:{furnished:furnishedLook.furnished,counts:furnishedLook.counts,meshes:furnishedLook.meshes,walk:furnishedLook.walk},bare:{furnished:bareLook.furnished,counts:bareLook.counts,meshes:bareLook.meshes,walk:bareLook.walk},withoutInteriorBuilt:shutBuilt});
@@ -1198,27 +1198,27 @@ try{
     const p=await visitor({width:1440,height:810},null,reducedMotion?{reducedMotion:'reduce'}:{});
     await p.goto(`${base}/?check&interior=1&tier=full`);await ready(p);await studyLight(p,'day');
     await p.evaluate(()=>{const s=window.__space,draw=s.drawIndoors.bind(s);s.__firstCabin=null;
-      s.drawIndoors=o=>{if(!s.__firstCabin&&s.state.place==='cabin')s.__firstCabin={pending:[...s.inside.pending],
+      s.drawIndoors=o=>{if(!s.__firstCabin&&s.state.place==='cabin')s.__firstCabin={pending:[...s.inside.pending],pending0:[...s.inside.pendingFor(0)],pending1:[...s.inside.pendingFor(1)],
         kitchen:!!s.inside.scene.getObjectByName('furniture-kitchen'),dining:!!s.inside.scene.getObjectByName('furniture-dining'),
         furnishedRooms:[...s.inside.furnishedRooms]};return draw(o);};});
     await setPose(p,atDoor(.6));await p.waitForTimeout(1500);await hold(p,['KeyW'],900);await p.waitForTimeout(600);
     const got=await p.evaluate(()=>window.__space.__firstCabin),quiet=!p.consoleErrors.length&&!p.own.length;
     await p.context().close();return {reducedMotion,got,quiet};};
   const enterNormal=await entryCheck(false),enterReduced=await entryCheck(true);
-  const entryOk=e=>e.got&&e.got.pending.length===0&&e.got.kitchen&&e.got.dining&&e.quiet;
-  check('Entering through the door by holding W (normal and reduced motion): on the first indoor frame, inside.pending is empty and both queued rooms\' meshes are in the scene',
+  const entryOk=e=>e.got&&e.got.pending0.length===0&&e.got.kitchen&&e.got.dining&&e.quiet;
+  check('Entering through the door by holding W (normal and reduced motion): on the first indoor frame, floor-0 pending is empty and both queued rooms\' meshes are in the scene',
     entryOk(enterNormal)&&entryOk(enterReduced),{normal:enterNormal,reducedMotion:enterReduced});
 
-  // 85. A load that starts indoors (stored place in the kitchen): pending empty at the first frame, and the description carries the kitchen's clause.
+  // 85. A load that starts indoors (stored place in the kitchen): floor-0 pending empty at the first frame, and the description carries the kitchen's clause.
   const kitchenSaved=JSON.stringify({version:2,place:'cabin',floor:0,position:I.spots.range,yaw:0,pitch:0});
   const startKitchen=await visitor({width:1440,height:810},{content:`localStorage.setItem('a-view:place:lakeside-cottage',${JSON.stringify(kitchenSaved)});`});
   await startKitchen.goto(`${base}/?check&interior=1&tier=full`);await ready(startKitchen);await startKitchen.waitForTimeout(800);
-  const started=await startKitchen.evaluate(()=>({place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],
+  const started=await startKitchen.evaluate(()=>({place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],pending0:[...window.__space.inside.pendingFor(0)],
     furnished:window.__space.furnished,kitchen:!!window.__space.inside.scene.getObjectByName('furniture-kitchen'),
     dining:!!window.__space.inside.scene.getObjectByName('furniture-dining'),description:document.querySelector('#scene-description')?.textContent||''}));
   const startKitchenQuiet=!startKitchen.consoleErrors.length&&!startKitchen.own.length;await startKitchen.context().close();
-  check('A load starting indoors in the kitchen has pending empty at the first frame, both rooms\' meshes in the scene, and the kitchen\'s clause in the description',
-    started.place==='cabin'&&started.room==='kitchen'&&started.pending.length===0&&started.furnished===true&&started.kitchen&&started.dining&&
+  check('A load starting indoors in the kitchen has floor-0 pending empty at the first frame, both rooms\' meshes in the scene, and the kitchen\'s clause in the description',
+    started.place==='cabin'&&started.room==='kitchen'&&started.pending0.length===0&&started.furnished===true&&started.kitchen&&started.dining&&
     /A range stands on the back wall and a table in the middle\./.test(started.description)&&startKitchenQuiet,
     {...started,quiet:startKitchenQuiet});
 
@@ -1292,7 +1292,7 @@ try{
   const startMaster=await visitor({width:1440,height:810},{content:`localStorage.setItem('a-view:place:lakeside-cottage',${JSON.stringify(masterSaved)});`});
   await startMaster.goto(`${base}/?check&interior=1&tier=full`);await ready(startMaster);await startMaster.waitForTimeout(800);
   const startedMaster=await startMaster.evaluate(()=>({
-    place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],
+    place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],pending0:[...window.__space.inside.pendingFor(0)],
     furnished:window.__space.furnished,furnishedRooms:[...window.__space.inside.furnishedRooms],
     sets:window.__space.inside.furniture.sets,
     totalFurnitureMs:+window.__space.inside.furniture.sets.reduce((t,s)=>t+s.ms,0).toFixed(1),
@@ -1472,18 +1472,18 @@ try{
     shownYard.built.every(r=>shownYard.shown.includes(r))&&shownYard.shown.length===shownYard.built.length,
     {kitchen:shownKitchen,passage:shownPassage,yard:shownYard});
 
-  // 99–100. Entering through the door (normal and reduced motion): on the first indoor frame, pending is [] and all seven rooms are in furnishedRooms.
+  // 99–100. Entering through the door (normal and reduced motion): on the first indoor frame, floor-0 pending is [] and all seven rooms are in furnishedRooms.
   const ALL_SEVEN=['hall','living','kitchen','dining','study','passage','master'];
-  check('Entering through the door (normal motion): on the first indoor frame, pending is [] and all seven furnished rooms are built',
-    enterNormal.got&&enterNormal.got.pending.length===0&&ALL_SEVEN.every(r=>enterNormal.got.furnishedRooms.includes(r))&&enterNormal.quiet,
+  check('Entering through the door (normal motion): on the first indoor frame, floor-0 pending is [] and all seven furnished rooms are built',
+    enterNormal.got&&enterNormal.got.pending0.length===0&&ALL_SEVEN.every(r=>enterNormal.got.furnishedRooms.includes(r))&&enterNormal.quiet,
     {normal:enterNormal,want:ALL_SEVEN});
-  check('Entering through the door (reduced motion): on the first indoor frame, pending is [] and all seven furnished rooms are built',
-    enterReduced.got&&enterReduced.got.pending.length===0&&ALL_SEVEN.every(r=>enterReduced.got.furnishedRooms.includes(r))&&enterReduced.quiet,
+  check('Entering through the door (reduced motion): on the first indoor frame, floor-0 pending is [] and all seven furnished rooms are built',
+    enterReduced.got&&enterReduced.got.pending0.length===0&&ALL_SEVEN.every(r=>enterReduced.got.furnishedRooms.includes(r))&&enterReduced.quiet,
     {reducedMotion:enterReduced,want:ALL_SEVEN});
 
-  // 101. Started indoors in the master bedroom: pending: [], furnished: true, description holds master bedroom's clause.
-  check('A load starting indoors in the master bedroom has pending empty, furnished true, all seven rooms built, and the master bedroom\'s clause in the description',
-    startedMaster.place==='cabin'&&startedMaster.room==='master bedroom'&&startedMaster.pending.length===0&&startedMaster.furnished===true&&
+  // 101. Started indoors in the master bedroom: floor-0 pending: [], furnished: true, description holds master bedroom's clause.
+  check('A load starting indoors in the master bedroom has floor-0 pending empty, furnished true, all seven rooms built, and the master bedroom\'s clause in the description',
+    startedMaster.place==='cabin'&&startedMaster.room==='master bedroom'&&startedMaster.pending0.length===0&&startedMaster.furnished===true&&
     ALL_SEVEN.every(r=>startedMaster.furnishedRooms.includes(r))&&
     /A double bed stands against the back wall, a lamp at each side\./.test(startedMaster.description)&&startMasterQuiet,
     {...startedMaster,quiet:startMasterQuiet});
@@ -1555,7 +1555,7 @@ try{
   const startBath=await visitor({width:1440,height:810},{content:`localStorage.setItem('a-view:place:lakeside-cottage',${JSON.stringify(bathSaved)});`});
   await startBath.goto(`${base}/?check&interior=1&tier=full`);await ready(startBath);await startBath.waitForTimeout(800);
   const startedBath=await startBath.evaluate(()=>({
-    place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],
+    place:window.__space.state.place,room:window.__space.room,pending:[...window.__space.inside.pending],pending0:[...window.__space.inside.pendingFor(0)],
     furnished:window.__space.furnished,furnishedRooms:[...window.__space.inside.furnishedRooms],
     sets:window.__space.inside.furniture.sets,
     totalFurnitureMs:+window.__space.inside.furniture.sets.reduce((t,s)=>t+s.ms,0).toFixed(1),
@@ -1713,18 +1713,18 @@ try{
     shown110Bath.includes('bath-ground')&&shown110Yard.built.every(r=>shown110Yard.shown.includes(r))&&shown110Yard.shown.length===shown110Yard.built.length,
     {kitchen:shown110Kitchen,living:shown110Living,bath:shown110Bath,yard:shown110Yard});
 
-  // 111–112. Entering through the door (normal and reduced motion): on the first indoor frame, pending is [] and all ten rooms are in furnishedRooms.
+  // 111–112. Entering through the door (normal and reduced motion): on the first indoor frame, floor-0 pending is [] and all ten ground-floor rooms are in furnishedRooms.
   const ALL_TEN=['hall','living','kitchen','dining','study','passage','master','bath-ground','laundry','pantry'];
-  check('Entering through the door (normal motion): on the first indoor frame, pending is [] and all ten ground-floor rooms are built',
-    enterNormal.got&&enterNormal.got.pending.length===0&&ALL_TEN.every(r=>enterNormal.got.furnishedRooms.includes(r))&&enterNormal.quiet,
+  check('Entering through the door (normal motion): on the first indoor frame, floor-0 pending is [] and all ten ground-floor rooms are built',
+    enterNormal.got&&enterNormal.got.pending0.length===0&&ALL_TEN.every(r=>enterNormal.got.furnishedRooms.includes(r))&&enterNormal.quiet,
     {normal:enterNormal,want:ALL_TEN});
-  check('Entering through the door (reduced motion): on the first indoor frame, pending is [] and all ten ground-floor rooms are built',
-    enterReduced.got&&enterReduced.got.pending.length===0&&ALL_TEN.every(r=>enterReduced.got.furnishedRooms.includes(r))&&enterReduced.quiet,
+  check('Entering through the door (reduced motion): on the first indoor frame, floor-0 pending is [] and all ten ground-floor rooms are built',
+    enterReduced.got&&enterReduced.got.pending0.length===0&&ALL_TEN.every(r=>enterReduced.got.furnishedRooms.includes(r))&&enterReduced.quiet,
     {reducedMotion:enterReduced,want:ALL_TEN});
 
-  // 113. Started indoors in the bathroom: pending: [], furnished: true, all ten rooms built, description holds the bathroom's clause.
-  check('A load starting indoors in the bathroom has pending empty, furnished true, all ten ground-floor rooms built, and the bathroom\'s clause in the description',
-    startedBath.place==='cabin'&&startedBath.room==='bathroom'&&startedBath.pending.length===0&&startedBath.furnished===true&&
+  // 113. Started indoors in the bathroom: floor-0 pending: [], furnished: true, all ten rooms built, description holds the bathroom's clause.
+  check('A load starting indoors in the bathroom has floor-0 pending empty, furnished true, all ten ground-floor rooms built, and the bathroom\'s clause in the description',
+    startedBath.place==='cabin'&&startedBath.room==='bathroom'&&startedBath.pending0.length===0&&startedBath.furnished===true&&
     ALL_TEN.every(r=>startedBath.furnishedRooms.includes(r))&&
     /A bathtub stands along one wall, a basin and mirror opposite\./.test(startedBath.description)&&startBathQuiet,
     {...startedBath,quiet:startBathQuiet});
@@ -1798,6 +1798,262 @@ try{
     wetFellLit===false&&fallBath.lum>.1&&fallLaundry.lum>.1&&fallPantry.lum>.1&&
     wetHasMeshes('furniture-bath-ground')&&wetHasMeshes('furniture-laundry')&&wetHasMeshes('furniture-pantry')&&c4dQuiet,
     {lit:wetFellLit,bath:fallBath,laundry:fallLaundry,pantry:fallPantry,sets:wetFall.counts.sets,quiet:c4dQuiet});
+
+  // ── Part 4e: upstairs landing, library nook, bedrooms 2 & 3, and sky room checks (checks 116–125) and captures ──
+  const UPPER_FIVE=I.furnishUpper;
+  const upperSpeedPose0=aim(1,I.upperSpots.speed[0],[9.0,11.7,4.2]);
+  const upperSpeedPose1=aim(1,I.upperSpots.speed[1],[3.5,10.5,4.3]);
+
+  // Start-indoors load on floor 1 (sky room), used by checks 116 and 123.
+  const skySaved=JSON.stringify({version:2,place:'cabin',floor:1,position:I.upperSpots.skyWindow,yaw:0,pitch:0});
+  const startSky=await visitor({width:1440,height:810},{content:`localStorage.setItem('a-view:place:lakeside-cottage',${JSON.stringify(skySaved)});`});
+  await startSky.goto(`${base}/?check&interior=1&tier=full`);await ready(startSky);await startSky.waitForTimeout(800);
+  const startedSky=await startSky.evaluate(upper=>({
+    place:window.__space.state.place,floor:window.__space.state.floor,room:window.__space.room,
+    pending:[...window.__space.inside.pending],pending1:[...window.__space.inside.pendingFor(1)],
+    furnished:window.__space.furnished,furnishedRooms:[...window.__space.inside.furnishedRooms],
+    sets:window.__space.inside.furniture.sets,
+    upperMs:+window.__space.inside.furniture.sets.filter(s=>upper.includes(s.rooms[0])).reduce((t,s)=>t+s.ms,0).toFixed(1),
+    description:document.querySelector('#scene-description')?.textContent||''}),UPPER_FIVE);
+  const startSkyQuiet=!startSky.consoleErrors.length&&!startSky.own.length;await startSky.context().close();
+
+  // 116. Queued builds of the 5 upstairs rooms (median of 3 loads): each <= 35 ms, together <= 120 ms; meshes <= 4 (landing, sky-room) / <= 5 (bed2, bed3, nook); floor 0 < 180 ms.
+  const UPPER_EACH=35,UPPER_SUM=120;
+  const upMeds=Object.fromEntries(UPPER_FIVE.map(r=>[r,+med3(queuedMs[r]).toFixed(1)]));
+  const upSum=+UPPER_FIVE.reduce((t,r)=>t+upMeds[r],0).toFixed(1);
+  const upSets=Object.fromEntries(UPPER_FIVE.map(r=>[r,sets71.find(s=>s.rooms.includes(r))]));
+  const upMeshesOk=UPPER_FIVE.every(r=>upSets[r]?.meshes>=1&&upSets[r]?.meshes<=(lampSets.has(r)?5:4));
+  check(`Queued builds of landing, nook, bedroom-2, bedroom-3 and sky-room (median of three loads): each at most ${UPPER_EACH} ms, together at most ${UPPER_SUM} ms, all eight floor-0 queued rooms under ${ALL_EIGHT_LIMIT} ms; meshes within limits`,
+    UPPER_FIVE.every(r=>queuedMs[r].length===3&&upMeds[r]<=UPPER_EACH)&&upSum<=UPPER_SUM&&allEightSum<ALL_EIGHT_LIMIT&&upMeshesOk,
+    {rooms:Object.fromEntries(UPPER_FIVE.map(r=>[r,{median:upMeds[r],loads:queuedMs[r],meshes:upSets[r]?.meshes,vertices:upSets[r]?.vertices}])),
+      fiveTogetherMs:upSum,allEightFloor0Ms:allEightSum,limits:{each:UPPER_EACH,five:UPPER_SUM,floor0:ALL_EIGHT_LIMIT},
+      startedIndoorsFloor1UpperMs:startedSky.upperMs});
+  console.log(`  4e queued medians: ${UPPER_FIVE.map(r=>`${r} ${upMeds[r]}ms (${upSets[r]?.vertices}v,${upSets[r]?.meshes}m)`).join(', ')}; 5 sum ${upSum}ms`);
+
+  // 117–118. Upstairs speed poses & draw calls vs &furnish=4d (and collect draw calls across all 8 speed poses for check 119).
+  const nookLampFix={lamps:fixtureLamps({nook:1}),hearth:{fire:0,embers:0}};
+  const skyLampFix={lamps:fixtureLamps({'sky-room':1}),hearth:{fire:0,embers:0}};
+  const up0DayAll=await measureSpeed('day',{spot:upperSpeedPose0}),up0Day4d=await measureSpeed('day',{query:'&furnish=4d',spot:upperSpeedPose0});
+  const up0NightAll=await measureSpeed('night',{spot:upperSpeedPose0,fixture:nookLampFix}),up0Night4d=await measureSpeed('night',{query:'&furnish=4d',spot:upperSpeedPose0,fixture:nookLampFix});
+  const up1DayAll=await measureSpeed('day',{spot:upperSpeedPose1}),up1Day4d=await measureSpeed('day',{query:'&furnish=4d',spot:upperSpeedPose1});
+  const up1NightAll=await measureSpeed('night',{spot:upperSpeedPose1,fixture:skyLampFix}),up1Night4d=await measureSpeed('night',{query:'&furnish=4d',spot:upperSpeedPose1,fixture:skyLampFix});
+  const readEightCalls=async page=>{const out={};for(const [k,pose] of [['s0',rainPose],['s1',lampPose],['s2',speedPose2],['s3',speedPose3],['s4',speedPose4],['s5',speedPose5],['u0',upperSpeedPose0],['u1',upperSpeedPose1]]){await stand(page,pose,500);out[k]=await drawCalls(page);}return out;};
+  const p4dCalls=await visitor({width:1440,height:810});await p4dCalls.goto(`${base}/?check&interior=1&tier=full&furnish=4d`);await ready(p4dCalls);await studyLight(p4dCalls,'day');await walkIn(p4dCalls);
+  const calls4d=await readEightCalls(p4dCalls);const p4dCallsQuiet=!p4dCalls.consoleErrors.length&&!p4dCalls.own.length;await p4dCalls.context().close();
+  const pAll8Calls=await visitor({width:1440,height:810});await pAll8Calls.goto(`${base}/?check&interior=1&tier=full`);await ready(pAll8Calls);await studyLight(pAll8Calls,'day');await walkIn(pAll8Calls);
+  await pAll8Calls.evaluate(()=>window.__space.inside.buildRest());
+  const callsAll8=await readEightCalls(pAll8Calls);const pAll8CallsQuiet=!pAll8Calls.consoleErrors.length&&!pAll8Calls.own.length;await pAll8Calls.context().close();
+  const up0DayAdded=+(up0DayAll.costRatio-up0Day4d.costRatio).toFixed(3),up0NightAdded=+(up0NightAll.costRatio-up0Night4d.costRatio).toFixed(3);
+  const up0CallsAdded=callsAll8.u0.calls-calls4d.u0.calls,UP0_CALLS_BUDGET=9;
+  check(`Speed at upperSpots.speed[0] [${I.upperSpots.speed[0]}] (landing -> nook), day and night: <= 1.1x yard, <= +${ADDED} over &furnish=4d, <= +${UP0_CALLS_BUDGET} draw calls`,
+    up0DayAll.costRatio<=1.1&&up0DayAdded<=ADDED&&up0NightAll.costRatio<=1.1&&up0NightAdded<=ADDED&&up0CallsAdded<=UP0_CALLS_BUDGET,
+    {spot:I.upperSpots.speed[0],day:{all:up0DayAll.costRatio,base4d:up0Day4d.costRatio,added:up0DayAdded},
+      night:{all:up0NightAll.costRatio,base4d:up0Night4d.costRatio,added:up0NightAdded},calls:{all:callsAll8.u0.calls,base4d:calls4d.u0.calls,added:up0CallsAdded,limit:UP0_CALLS_BUDGET}});
+  console.log(`  speed at u0 (landing->nook): day ${up0DayAll.costRatio}x (+${up0DayAdded}), night ${up0NightAll.costRatio}x (+${up0NightAdded}), calls +${up0CallsAdded} (${callsAll8.u0.calls}/${calls4d.u0.calls})`);
+  const up1DayAdded=+(up1DayAll.costRatio-up1Day4d.costRatio).toFixed(3),up1NightAdded=+(up1NightAll.costRatio-up1Night4d.costRatio).toFixed(3);
+  const up1CallsAdded=callsAll8.u1.calls-calls4d.u1.calls,UP1_CALLS_BUDGET=4;
+  check(`Speed at upperSpots.speed[1] [${I.upperSpots.speed[1]}] (sky-room -> daybed & roof window), day and night: <= 1.1x yard, <= +${ADDED} over &furnish=4d, <= +${UP1_CALLS_BUDGET} draw calls`,
+    up1DayAll.costRatio<=1.1&&up1DayAdded<=ADDED&&up1NightAll.costRatio<=1.1&&up1NightAdded<=ADDED&&up1CallsAdded<=UP1_CALLS_BUDGET,
+    {spot:I.upperSpots.speed[1],day:{all:up1DayAll.costRatio,base4d:up1Day4d.costRatio,added:up1DayAdded},
+      night:{all:up1NightAll.costRatio,base4d:up1Night4d.costRatio,added:up1NightAdded},calls:{all:callsAll8.u1.calls,base4d:calls4d.u1.calls,added:up1CallsAdded,limit:UP1_CALLS_BUDGET}});
+  console.log(`  speed at u1 (sky-room): day ${up1DayAll.costRatio}x (+${up1DayAdded}), night ${up1NightAll.costRatio}x (+${up1NightAdded}), calls +${up1CallsAdded} (${callsAll8.u1.calls}/${calls4d.u1.calls})`);
+
+  // 119. All six ground-floor speed poses, day and night, ABBA paired vs &furnish=4d: <= +0.01 and 0 added draw calls.
+  const ex6Specs=[...ex5Specs,{k:'s5-day',p:'s5',study:'day',spot:speedPose5,fixture:null},{k:'s5-night',p:'s5',study:'night',spot:speedPose5,fixture:bathLampFix}];
+  const ex6Runs={all:Object.fromEntries(ex6Specs.map(s=>[s.k,[]])),d4:Object.fromEntries(ex6Specs.map(s=>[s.k,[]]))};
+  let ex6Quiet=true;
+  for(let pair=0;pair<5;pair++)for(const [tag,query] of (pair%2===0?[['all',''],['d4','&furnish=4d']]:[['d4','&furnish=4d'],['all','']])){
+    const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&interior=1&tier=full${query}`);await ready(p);
+    await p.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
+    await studyLight(p,'day');await walkIn(p);await p.evaluate(()=>window.__space.inside.buildRest());await p.waitForTimeout(600);
+    for(const study of ['day','night']){
+      await studyLight(p,study);
+      for(const spec of ex6Specs.filter(s=>s.study===study)){
+        const r=await p.evaluate(async({spot,fixture})=>{
+          const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
+          const raf2=()=>new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));
+          const draw=ind=>{if(ind)s.drawIndoors();
+            else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});
+            g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
+          const ys=[],rs=[];
+          for(let k=0;k<6;k++){
+            if(fixture)s.fixture=null;
+            s.state=structuredClone(window.__arrival);await raf2();
+            draw(false);draw(false);const t0=performance.now();for(let i=0;i<20;i++)draw(false);ys.push((performance.now()-t0)/20);
+            if(fixture)s.fixture=fixture;
+            s.state=structuredClone(spot);await raf2();
+            draw(true);draw(true);const t1=performance.now();for(let i=0;i<20;i++)draw(true);rs.push((performance.now()-t1)/20);
+          }
+          if(fixture)s.fixture=null;
+          const med=a=>[...a].sort((x,y)=>x-y)[a.length>>1];
+          const yMs=+med(ys.slice(1)).toFixed(3),rMs=+med(rs.slice(1)).toFixed(3);
+          return {ratio:+(rMs/yMs).toFixed(3),roomMs:rMs,yardMs:yMs};
+        },{spot:spec.spot,fixture:spec.fixture});
+        ex6Runs[tag][spec.k].push(r);
+      }
+    }
+    ex6Quiet=ex6Quiet&&!p.consoleErrors.length&&!p.own.length;await p.context().close();
+  }
+  const ex6Diffs=ex6Specs.map(({k,p})=>{
+    const pairDiffs=ex6Runs.all[k].map((a,i)=>{const b=ex6Runs.d4[k][i];return +((a.roomMs-b.roomMs)/((a.yardMs+b.yardMs)/2)).toFixed(3);});
+    const diff=+median(pairDiffs).toFixed(3);
+    return {k,pose:p,all:+median(ex6Runs.all[k].map(x=>x.ratio)).toFixed(3),base4d:+median(ex6Runs.d4[k].map(x=>x.ratio)).toFixed(3),diff,limit:NOISE,pairDiffs};
+  });
+  const sixKeys=['s0','s1','s2','s3','s4','s5'];
+  const ex6CallsOk=sixKeys.every(k=>callsAll8[k].calls<=calls4d[k].calls);
+  check('All six ground-floor speed poses, day and night (ABBA pairing vs &furnish=4d): at most +0.01 of a yard frame and 0 added draw calls',
+    ex6Diffs.every(d=>d.diff<=d.limit)&&ex6CallsOk&&ex6Quiet,
+    {speed:ex6Diffs,calls:Object.fromEntries(sixKeys.map(k=>[k,[callsAll8[k].calls,calls4d[k].calls]])),callsOk:ex6CallsOk,quiet:ex6Quiet});
+  console.log(`  six ground poses vs 4d: ${ex6Diffs.map(d=>`${d.k} ${d.diff>=0?'+':''}${d.diff}`).join(', ')}; calls ${sixKeys.map(k=>`${k}:${callsAll8[k].calls}/${calls4d[k].calls}`).join(' ')}`);
+
+  // 120. Upstairs lamp shades (bed2-lamp, bed3-lamp, nook-lamp) follow their own room's lamp, not living's.
+  const upVisitor=await visitor({width:1440,height:810});await upVisitor.goto(`${base}/?check&interior=1&tier=full`);await ready(upVisitor);await studyLight(upVisitor,'night');await walkIn(upVisitor);
+  await upVisitor.evaluate(()=>window.__space.inside.buildRest());
+  const shadeCheck4e=[];
+  for(const [roomId,pieceId,spot] of [['bedroom-2','bed2-lamp',[3.5,1.6]],['bedroom-3','bed3-lamp',[14.7,1.6]],['nook','nook-lamp',[9.0,9.6]]]){
+    const box=await upVisitor.evaluate(id=>window.__space.inside.pieceBox(id),pieceId);
+    const at=boxMid(box);
+    await setFixture(upVisitor,{lamps:fixtureLamps({living:1}),hearth:{fire:0,embers:0}});
+    await stand(upVisitor,aim(1,spot,at),800);const outLivOn=await patches(upVisitor,[at],3);
+    await setFixture(upVisitor,{lamps:fixtureLamps({[roomId]:1}),hearth:{fire:0,embers:0}});
+    await stand(upVisitor,aim(1,spot,at),800);const onLivOut=await patches(upVisitor,[at],3);
+    shadeCheck4e.push({roomId,pieceId,spot,at:at.map(r3),standable:floorArea(I,1,spot),seen:outLivOn.seen&&onLivOut.seen,
+      outRgb:outLivOn.rgb[0],litRgb:onLivOut.rgb[0],
+      warmthOut:r3(warmth(outLivOn.rgb[0])),warmthLit:r3(warmth(onLivOut.rgb[0])),
+      lumOut:r3(lum(outLivOn.rgb[0])),lumLit:r3(lum(onLivOut.rgb[0])),
+      ok:floorArea(I,1,spot)&&outLivOn.seen&&onLivOut.seen&&warmth(onLivOut.rgb[0])>warmth(outLivOn.rgb[0])&&lum(onLivOut.rgb[0])>lum(outLivOn.rgb[0])&&
+        Math.abs(warmth(onLivOut.rgb[0])-warmRefWarmth)<=warmRefWarmth*.35});
+  }
+  await setFixture(upVisitor,null);
+  check('Upstairs lamp shades (bedroom-2, bedroom-3, nook) follow their own room\'s lamp dial and ignore living room\'s lamp',
+    shadeCheck4e.every(x=>x.ok),{shades:shadeCheck4e,refLivingWarmth:r3(warmRefWarmth)});
+
+  // 121. Hiding changes 0 pixels vs &hide=0 at all 6 ground poses, both upstairs speed poses, and 360° turns at nookChair and landingSeat.
+  const hide4ePoses=[['speed0',rainPose],['speed1',lampPose],['speed2',speedPose2],['speed3',speedPose3],['speed4',speedPose4],['speed5',speedPose5],['upper0',upperSpeedPose0],['upper1',upperSpeedPose1]];
+  const captureHide4e=async query=>{
+    const m=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});
+    await m.goto(`${base}/?check&interior=1&tier=full${query}`);await ready(m);await studyLight(m,'day');
+    await m.evaluate(()=>{window.__space.frozenMotion=1234;});await walkIn(m);await m.evaluate(()=>window.__space.inside.buildRest());
+    const out={};for(const [k,pose] of hide4ePoses){await stand(m,pose,700);out[k]=await indoorPixels(m,momentGrid);}
+    const turns={};
+    for(const [name,spot] of [['nookChair',I.upperSpots.nookChair],['landingSeat',I.upperSpots.landingSeat]]){
+      turns[name]=[];
+      for(let deg=0;deg<360;deg+=15){
+        const yaw=deg*Math.PI/180;
+        await m.evaluate(([pos,y,rise])=>{const s=window.__space;s.state={place:'cabin',floor:1,position:[...pos],yaw:y,pitch:0};
+          s.camera.position.set(pos[0],rise+s.space.eyeHeight,-pos[1]);s.camera.rotation.y=-y;s.camera.rotation.x=0;s.drawIndoors();},[spot,yaw,I.floorRise]);
+        turns[name].push(await indoorPixels(m,momentGrid));
+      }
+    }
+    const quiet=!m.consoleErrors.length&&!m.own.length;await m.context().close();return {out,turns,quiet};};
+  const hide4eOn=await captureHide4e(''),hide4eOff=await captureHide4e('&hide=0');
+  const hide4eDiffs=Object.fromEntries(hide4ePoses.map(([k])=>[k,hide4eOn.out[k].filter((p,i)=>differ(p,hide4eOff.out[k][i])).length]));
+  const upTurnDiffs={};
+  for(const name of ['nookChair','landingSeat'])upTurnDiffs[name]=hide4eOn.turns[name].map((f,idx)=>f.filter((p,i)=>differ(p,hide4eOff.turns[name][idx][i])).length);
+  check('Hiding changes 0 pixels vs &hide=0 at all six ground poses, both upstairs speed poses, and every 15° of 360° turns at nookChair and landingSeat',
+    Object.values(hide4eDiffs).every(n=>n===0)&&Object.values(upTurnDiffs).every(a=>a.length===24&&a.every(n=>n===0))&&hide4eOn.quiet&&hide4eOff.quiet,
+    {poses:hide4eDiffs,turns:upTurnDiffs,pointsPerPose:momentGrid.length});
+
+  // 122. shownRooms cross-floor checks: all 5 upper rooms hidden at s0..s5; landing shown from hall looking up stairwell; ground queued hidden at sky-room; yard shows all.
+  await studyLight(upVisitor,'day');
+  const shownGround={};
+  for(const [k,pose] of [['s0',rainPose],['s1',lampPose],['s2',speedPose2],['s3',speedPose3],['s4',speedPose4],['s5',speedPose5]]){
+    await stand(upVisitor,pose,400);shownGround[k]=await upVisitor.evaluate(()=>window.__space.inside.shownRooms);
+  }
+  const hallUpStairPose=aim(0,[9.0,1.0],[10.3,4.2,3.4]);
+  await stand(upVisitor,hallUpStairPose,400);const shownHallUp=await upVisitor.evaluate(()=>window.__space.inside.shownRooms);
+  await stand(upVisitor,upperSpeedPose1,400);const shownSky=await upVisitor.evaluate(()=>window.__space.inside.shownRooms);
+  await stand(upVisitor,structuredClone(S.arrival),400);const shownYard4e=await upVisitor.evaluate(()=>({shown:window.__space.inside.shownRooms,built:window.__space.inside.furnishedRooms}));
+  const noUpperOnGround=Object.values(shownGround).every(list=>UPPER_FIVE.every(r=>!list.includes(r)));
+  const noGroundInSky=I.furnishLater.every(r=>!shownSky.includes(r))&&shownSky.includes('sky-room');
+  check('shownRooms hides all five upstairs rooms at all six ground-floor speed poses, shows landing when looking up the stairwell from hall, hides ground queued rooms in sky-room, and shows all built rooms in the yard',
+    noUpperOnGround&&shownHallUp.includes('landing')&&noGroundInSky&&shownYard4e.built.every(r=>shownYard4e.shown.includes(r))&&shownYard4e.shown.length===shownYard4e.built.length,
+    {ground:shownGround,hallUpStair:shownHallUp,skyRoom:shownSky,yard:shownYard4e});
+
+  // 123. Two-stage build lifecycle: quick reduced-motion entry builds floor 0 without blocking on floor 1; walking up the stair finishes floor 1 before reaching landing; start-indoors in sky-room builds floor 1 on frame 1 with sky room clause.
+  const stageP=await visitor({width:1440,height:810},null,{reducedMotion:'reduce'});
+  await stageP.goto(`${base}/?check&interior=1&tier=full`);await ready(stageP);await studyLight(stageP,'day');
+  await stageP.evaluate(()=>{const s=window.__space,draw=s.drawIndoors.bind(s);s.__firstEnter=null;
+    s.drawIndoors=o=>{if(!s.__firstEnter&&s.state.place==='cabin')s.__firstEnter={pending0:[...s.inside.pendingFor(0)],pending1:[...s.inside.pendingFor(1)],rooms:[...s.inside.furnishedRooms]};return draw(o);};});
+  await setPose(stageP,atDoor(.6));await hold(stageP,['KeyW'],900);await stageP.waitForTimeout(400);
+  const stageEnter=await stageP.evaluate(()=>window.__space.__firstEnter);
+  // Walk up the stair from stair foot to landing
+  await setPose(stageP,{place:'cabin',floor:0,position:[10.3,1.0],yaw:0,pitch:0});await hold(stageP,['KeyW'],4500);await stageP.waitForTimeout(400);
+  const stageTop=await stageP.evaluate(()=>({floor:window.__space.state.floor,room:window.__space.room,pending1:[...window.__space.inside.pendingFor(1)],furnishedRooms:[...window.__space.inside.furnishedRooms]}));
+  const stageQuiet=!stageP.consoleErrors.length&&!stageP.own.length;await stageP.context().close();
+  check('Two-stage build: reduced-motion entry flushes floor 0 (pending0 empty), climbing the stair finishes all five upstairs rooms before reaching landing, and starting indoors in sky-room builds floor 1 on frame 1 with its clause',
+    stageEnter&&stageEnter.pending0.length===0&&ALL_TEN.every(r=>stageEnter.rooms.includes(r))&&
+    stageTop.floor===1&&stageTop.pending1.length===0&&UPPER_FIVE.every(r=>stageTop.furnishedRooms.includes(r))&&
+    startedSky.place==='cabin'&&startedSky.floor===1&&startedSky.room==='sky room'&&startedSky.pending1.length===0&&startedSky.furnished===true&&
+    UPPER_FIVE.every(r=>startedSky.furnishedRooms.includes(r))&&
+    /A daybed and cushions lie under the roof window, a small telescope beside them\./.test(startedSky.description)&&stageQuiet&&startSkyQuiet,
+    {enter:stageEnter,top:stageTop,startedSky,stageQuiet,startSkyQuiet});
+
+  // 124. Determinism: two loads at the same world moment draw identical pixels in all five upstairs rooms (0 difference), and &furnish=4d differs in each.
+  const landingShotPose=aim(1,[8.0,2.2],[9.8,.315,3.7]);
+  const nookShotPose=upperSpeedPose0;
+  const bed2ShotPose=aim(1,[6.0,3.5],[2.4,1.6,3.7]);
+  const bed3ShotPose=aim(1,[11.9,5.6],[15.2,1.6,3.7]);
+  const skyShotPose=upperSpeedPose1;
+  const upDetPoses=[['landing',landingShotPose],['nook',nookShotPose],['bedroom-2',bed2ShotPose],['bedroom-3',bed3ShotPose],['sky-room',skyShotPose]];
+  const det4e=Object.fromEntries(upDetPoses.map(([k])=>[k,[]]));let det4eQuiet=true;
+  for(const query of ['','','&furnish=4d']){
+    const m=await visitor({width:viewport.width,height:viewport.height},null,{reducedMotion:'reduce'});
+    await m.goto(`${base}/?check&interior=1&tier=full${query}`);await ready(m);await studyLight(m,'day');
+    await m.evaluate(()=>{window.__space.frozenMotion=1234;});await walkIn(m);await m.evaluate(()=>window.__space.inside.buildRest());
+    for(const [k,pose] of upDetPoses){await stand(m,pose,800);det4e[k].push(await indoorPixels(m,momentGrid));}
+    det4eQuiet=det4eQuiet&&!m.consoleErrors.length&&!m.own.length;await m.context().close();}
+  const det4eRes=Object.fromEntries(upDetPoses.map(([k])=>[k,{
+    sameDiffPixels:det4e[k][0].filter((p,i)=>differ(p,det4e[k][1][i])).length,
+    vs4dShare:fig(momentShare(det4e[k][0],det4e[k][2])),
+  }]));
+  check('Two loads at the same world moment draw identical landing, nook, bedroom-2, bedroom-3 and sky-room (0 pixel difference), and &furnish=4d differs in each',
+    Object.values(det4eRes).every(x=>x.sameDiffPixels===0&&x.vs4dShare>=BARE_MIN)&&det4eQuiet,
+    {...det4eRes,minShare:BARE_MIN,points:momentGrid.length});
+
+  // Captures of the five upstairs rooms (day, lit, details, stairwell sightline), then inside.fallBack() (check 125).
+  const nookSlopeClosePose=aim(1,[8.9,9.6],[7.25,10.8,4.7]);
+  const skyClosePose=aim(1,[5.4,8.3],[3.9,9.8,4.0]);
+  const bed2ChestPose=aim(1,[4.5,3.5],[2.2,6.65,3.9]);
+  const bed3DeskPose=aim(1,[14.2,3.4],[11.4,3.0,3.8]);
+  await studyLight(upVisitor,'day');await setFixture(upVisitor,null);
+  const upDayShots=[
+    ['landing-day',landingShotPose],
+    ['nook-day',nookShotPose],
+    ['nook-slope-close',nookSlopeClosePose],
+    ['bedroom2-day',bed2ShotPose],
+    ['bedroom2-chest',bed2ChestPose],
+    ['bedroom3-day',bed3ShotPose],
+    ['bedroom3-desk',bed3DeskPose],
+    ['skyroom-day',skyShotPose],
+    ['skyroom-close',skyClosePose],
+    ['hall-up-stairwell',hallUpStairPose],
+  ];
+  for(const [name,pose] of upDayShots){await stand(upVisitor,pose,900);await furnishShot(upVisitor,name);}
+  await studyLight(upVisitor,'night');
+  await setFixture(upVisitor,{lamps:fixtureLamps({landing:1}),hearth:{fire:0,embers:0}});await stand(upVisitor,landingShotPose,900);await furnishShot(upVisitor,'landing-lit');
+  await setFixture(upVisitor,{lamps:fixtureLamps({landing:1,nook:1}),hearth:{fire:0,embers:0}});await stand(upVisitor,nookShotPose,900);await furnishShot(upVisitor,'nook-lit');
+  await setFixture(upVisitor,{lamps:fixtureLamps({'bedroom-2':1}),hearth:{fire:0,embers:0}});await stand(upVisitor,bed2ShotPose,900);await furnishShot(upVisitor,'bedroom2-lit');
+  await setFixture(upVisitor,{lamps:fixtureLamps({'bedroom-3':1}),hearth:{fire:0,embers:0}});await stand(upVisitor,bed3ShotPose,900);await furnishShot(upVisitor,'bedroom3-lit');
+  await setFixture(upVisitor,{lamps:fixtureLamps({'sky-room':1}),hearth:{fire:0,embers:0}});await stand(upVisitor,skyShotPose,900);await furnishShot(upVisitor,'skyroom-lit');
+  await setFixture(upVisitor,null);
+
+  // 125. After inside.fallBack(), all five upstairs rooms keep every mesh with mean luminance > 0.1; 0 page or console errors across all 4e visitors.
+  await studyLight(upVisitor,'day');await stand(upVisitor,landingShotPose,900);
+  await upVisitor.evaluate(()=>window.__space.inside.fallBack());await upVisitor.waitForTimeout(800);
+  const upFall=await furnitureOf(upVisitor),upFellLit=await upVisitor.evaluate(()=>window.__space.inside.lit);
+  const upFallMeans={};
+  for(const [name,pose] of [['landing',landingShotPose],['nook',nookShotPose],['bedroom-2',bed2ShotPose],['bedroom-3',bed3ShotPose],['sky-room',skyShotPose]]){
+    await stand(upVisitor,pose,800);upFallMeans[name]=await frameMean(upVisitor);await furnishShot(upVisitor,`fallback-${name}`);
+  }
+  const upVisitorQuiet=!upVisitor.consoleErrors.length&&!upVisitor.own.length;await upVisitor.context().close();
+  const c4eQuiet=startSkyQuiet&&up0DayAll.quiet&&up0Day4d.quiet&&up0NightAll.quiet&&up0Night4d.quiet&&
+    up1DayAll.quiet&&up1Day4d.quiet&&up1NightAll.quiet&&up1Night4d.quiet&&p4dCallsQuiet&&pAll8CallsQuiet&&
+    ex6Quiet&&hide4eOn.quiet&&hide4eOff.quiet&&stageQuiet&&det4eQuiet&&upVisitorQuiet;
+  const upHasMeshes=r=>{const name=`furniture-${r}`,want=sets71.find(s=>`furniture-${s.rooms[0]}`===name)?.meshes;return want>0&&upFall.meshes.filter(m=>m.set===name&&m.visible&&m.vertices>0).length===want;};
+  check('After inside.fallBack() landing, nook, bedroom-2, bedroom-3 and sky-room keep every mesh with mean luminance above 0.1, and no page or console errors occurred in part 4e visitors',
+    upFellLit===false&&Object.values(upFallMeans).every(x=>x.lum>.1)&&UPPER_FIVE.every(upHasMeshes)&&c4eQuiet,
+    {lit:upFellLit,means:upFallMeans,sets:upFall.counts.sets,quiet:c4eQuiet});
   }
   if(errors.length)console.log(`Page errors: ${errors.join(' | ')}`);
 }finally{await browser.close();stopNoon();await writeFile(`${directory}/space-browser-results.json`,JSON.stringify({results,errors},null,2)+'\n');

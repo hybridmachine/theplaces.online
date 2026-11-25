@@ -36,6 +36,11 @@ const FURNISHED_TEXT = {
   'bathroom': 'A bathtub stands along one wall, a basin and mirror opposite. ',
   'laundry': 'A wash tub and a drying rack stand here. ',
   'pantry': 'Shelves of jars line two walls. ',
+  'landing': 'A cushioned seat stands against the front wall above the stair. ',
+  'second bedroom': 'A single bed stands under the slope, a lamp beside it and a chest opposite. ',
+  'third bedroom': 'A single bed stands under the slope and a desk catches the roof light. ',
+  'sky room': 'A daybed and cushions lie under the roof window, a small telescope beside them. ',
+  'library nook': 'Shelves climb to the roof slope around a reading chair and lamp. ',
 };
 const furnishedText = room => FURNISHED_TEXT[room] ?? '';
 

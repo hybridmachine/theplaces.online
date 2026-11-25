@@ -45,6 +45,14 @@ export const KINDS = Object.freeze({
   'pantry-shelf': solid([2.0, .35], 2.0),
   sack: solid([.5, .45], .6),
   crate: solid([.5, .45], .6),
+  'single-bed': solid([1.05, 2.0], 1.0, {seat: .55}),
+  'chest-of-drawers': solid([1.0, .5], .9),
+  'small-desk': solid([1.2, .6], .75),
+  daybed: solid([2.0, .9], .75, {seat: .45}),
+  'floor-cushion': solid([.55, .55], .16),
+  telescope: solid([.65, .65], 1.45),
+  'eave-bookshelf': solid([3.0, .35], 1.88),
+  'sloped-bookshelf': solid([1.45, .35], 2.40, {sloped: true, minHeight: 1.5}),
   rug: walkOver(.02),
   runner: walkOver(.015),
   doormat: walkOver(.015),
@@ -141,10 +149,12 @@ export function piecesIn(interior, roomIds) {
   return (interior?.furniture || []).filter(e => e && rooms.has(e.room)).map(e => e.id);
 }
 
-// The same interior without those rooms' pieces (and whatever is set on them), its queue emptied unless keepQueue is set.
+// The same interior without those rooms' pieces (and whatever is set on them), its queues emptied unless keepQueue is set.
 export function withoutRooms(interior, roomIds, {keepQueue = false} = {}) {
   const drop = new Set(roomIds || []);
-  const furnishLater = keepQueue && Array.isArray(interior?.furnishLater)
-    ? Object.freeze(interior.furnishLater.filter(id => !drop.has(id))) : Object.freeze([]);
-  return Object.freeze({...withoutPieces(interior, piecesIn(interior, roomIds)), furnishLater});
+  const filterQueue = list => keepQueue && Array.isArray(list)
+    ? Object.freeze(list.filter(id => !drop.has(id))) : Object.freeze([]);
+  const furnishLater = filterQueue(interior?.furnishLater);
+  const furnishUpper = Array.isArray(interior?.furnishUpper) ? {furnishUpper: filterQueue(interior.furnishUpper)} : {};
+  return Object.freeze({...withoutPieces(interior, piecesIn(interior, roomIds)), furnishLater, ...furnishUpper});
 }

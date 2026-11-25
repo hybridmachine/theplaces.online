@@ -1,8 +1,8 @@
 import test from 'node:test';
 import {KINDS, bareInterior, footprint, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
-import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
-import {ceilingHeight, roomAt, validInterior} from '../shared/interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4E} from '../shared/lakeside-interior.js';
+import {ceilingHeight, roomAt, stairTop, upperThroughWays, validInterior} from '../shared/interior.js';
 
 test('each floor is tiled exactly by its rooms: 18 × 12 with no overlap', () => {
   for (const floor of [0, 1]) {
@@ -527,5 +527,99 @@ test('the real blueprint with the laundry and pantry furnished is valid, queues 
       const inside = lamp.at[0] >= f.a[0] && lamp.at[0] <= f.a[1] && lamp.at[1] >= f.d[0] && lamp.at[1] <= f.d[1];
       assert.equal(inside, false, `${e.id} does not hold the ${room} lamp point`);
     }
+  }
+});
+
+// ── Part 4e: ceiling-slope rule (Rule 10), floor-1 walks, upperSpots and SLICE_4E ──
+const withUpperPieces = (extra, upperSpots) => {
+  const c = structuredClone(withoutRooms(I, SLICE_4E));
+  c.furniture.push(...extra);
+  if (upperSpots) c.upperSpots = {...c.upperSpots, ...upperSpots};
+  c.obstacles = obstaclesOf(c);
+  return c;
+};
+test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / furnishUpper are valid', () => {
+  assert.equal(validInterior(I), true);
+  assert.ok(floorArea(I, 1, stairTop(I), I.eyeClear));
+  assert.ok(floorArea(I, 1, stairTop(I), .45));
+  assert.equal(SLICE_4E, I.furnishUpper);
+  assert.deepEqual(new Set(SLICE_4E), new Set(['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']));
+  assert.equal(I.upperSpots.speed.length, 2);
+  assert.equal(roomAt(I, 1, I.upperSpots.speed[0])?.id, 'landing');
+  assert.equal(roomAt(I, 1, I.upperSpots.speed[1])?.id, 'sky-room');
+  for (const [k, p] of Object.entries(I.upperSpots)) {
+    if (k === 'speed') continue;
+    assert.ok(Array.isArray(p) && floorArea(I, 1, p), `upperSpots.${k}`);
+  }
+  assert.equal(upperThroughWays(I).length, 5);
+});
+test('rule 10: ceiling clearance rejects tall solids, badly placed or ridge-straddling sloped shelves, flat-floor sloped pieces, tall set-on pieces, and high wall-hung pieces', () => {
+  // Regular bookshelf (h 2.1 m) against d = 0 eave (ceiling 1.92..2.02 m) fails; eave-bookshelf (1.88 m) passes.
+  assert.equal(validInterior(withUpperPieces([{id: 'too-tall', kind: 'bookshelf', room: 'bedroom-2', at: [3.5, .25], turn: Math.PI}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'eave-ok', kind: 'eave-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), true);
+  // Set-on piece poking through the eave ceiling: table-lamp (0.45) on eave-bookshelf (1.88) reaches 2.33 > 1.92 m and fails.
+  assert.equal(validInterior(withUpperPieces([
+    {id: 'eave-ok', kind: 'eave-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0},
+    {id: 'lamp-too-high', kind: 'table-lamp', room: 'nook', on: 'eave-ok'},
+  ])), false);
+  // Sloped bookshelf along a = 7 over d 10.1..11.55 (maxC 2.438 >= 2.40, minC 2.028 >= 1.5) passes; placed along d = 11.75 (maxC 2.00 < 2.40) fails.
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-ok', kind: 'sloped-bookshelf', room: 'nook', at: [7.25, 10.825], turn: Math.PI / 2}])), true);
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-low', kind: 'sloped-bookshelf', room: 'nook', at: [9.0, 11.75], turn: 0}])), false);
+  // Sloped bookshelf straddling I.ridgeAt (d = 6.0) fails even where ceiling > 2.40 m across its span.
+  assert.equal(validInterior(withUpperPieces([{id: 'sloped-ridge', kind: 'sloped-bookshelf', room: 'bedroom-2', at: [.25, 6.0], turn: Math.PI / 2}])), false);
+  // Sloped bookshelf on flat floor 0 fails, while a plain eave-bookshelf at the exact same spot passes.
+  const groundOk = structuredClone(withoutRooms(I, ['study']));
+  groundOk.furniture.push({id: 'study-flat-ok', kind: 'eave-bookshelf', room: 'study', at: [17.7, 2.0], turn: Math.PI / 2, size: [1.45, .35]});
+  groundOk.obstacles = obstaclesOf(groundOk);
+  assert.equal(validInterior(groundOk), true);
+  const groundSloped = structuredClone(withoutRooms(I, ['study']));
+  groundSloped.furniture.push({id: 'study-sloped-bad', kind: 'sloped-bookshelf', room: 'study', at: [17.7, 2.0], turn: Math.PI / 2});
+  groundSloped.obstacles = obstaclesOf(groundSloped);
+  assert.equal(validInterior(groundSloped), false);
+  // Wall-hung picture (h 0.6) on d = 0 (ceiling 1.9 m): z = 1.7 (top 2.0) fails, z = 1.5 (top 1.8) passes.
+  assert.equal(validInterior(withUpperPieces([{id: 'pic-high', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.7}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'pic-ok', kind: 'picture', room: 'bedroom-2', wall: 'd', line: 0, along: [1.5, 2.3], z: 1.5}])), true);
+});
+test('rule 7 & 8 on floor 1: covering an upper spot or blocking any upper room way fails', () => {
+  for (const [k, room] of [['landingSeat', 'landing'], ['bed2', 'bedroom-2'], ['bed3', 'bedroom-3'], ['skyWindow', 'sky-room'], ['nookChair', 'nook']]) {
+    assert.equal(validInterior(withUpperPieces([{id: `on-${k}`, kind: 'floor-cushion', room, at: [...I.upperSpots[k]]}])), false, k);
+  }
+  assert.equal(validInterior(withUpperPieces([{id: 'on-us0', kind: 'floor-cushion', room: 'landing', at: [...I.upperSpots.speed[0]]}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'on-us1', kind: 'floor-cushion', room: 'sky-room', at: [...I.upperSpots.speed[1]]}])), false);
+  // Blocking nook between landing opening (d=7) and sky-room/bath doors (d=9.5) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'nook-bar', kind: 'chest-of-drawers', room: 'nook', at: [9.0, 8.2], turn: 0, size: [3.6, .5]}])), false);
+  // Blocking bedroom-3 between landing door (a=11, d=6.2) and box-room door (d=7, a=16.5) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'bed3-bar', kind: 'chest-of-drawers', room: 'bedroom-3', at: [14.0, 3.5], turn: Math.PI / 2, size: [6.4, .5]}])), false);
+});
+test('the landing and sky room pieces are valid, keep the landing lamp clear, and leave existing upstairs check poses standable', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['landing-seat', 'landing-runner', 'picture-landing', 'cushion-landing-1', 'cushion-landing-2',
+    'sky-rug', 'daybed', 'floor-cushion-1', 'floor-cushion-2', 'telescope', 'cushion-daybed-1', 'cushion-daybed-2', 'throw-daybed']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  const lamp = I.fittings.find(f => f.room === 'landing');
+  const seat = footprint(I.furniture.find(e => e.id === 'landing-seat'));
+  assert.equal(lamp.at[0] >= seat.a[0] && lamp.at[0] <= seat.a[1] && lamp.at[1] >= seat.d[0] && lamp.at[1] <= seat.d[1], false);
+  for (const p of [[8, 1], [6.4, 7.6], [3, 9], [3.5, 7.6]]) assert.ok(floorArea(I, 1, p), `existing check pose ${p}`);
+});
+test('bedrooms 2 and 3 pieces are valid and leave existing bedroom check poses standable', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['bed2-rug', 'bed-2', 'bed2-side-table', 'bed2-chest', 'bed2-chair', 'mirror-bed2', 'picture-bed2',
+    'bed2-lamp', 'pillow-bed2', 'blanket-bed2', 'book-bed2', 'jug-bed2',
+    'bed3-rug', 'bed-3', 'bed3-side-table', 'bed3-desk', 'bed3-chair', 'picture-bed3',
+    'bed3-lamp', 'pillow-bed3', 'blanket-bed3', 'cup-bed3', 'book-bed3-1', 'book-bed3-2']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  for (const p of [[3.5, 5], [14.5, 5], [14.5, 6.6]]) assert.ok(floorArea(I, 1, p), `existing bedroom pose ${p}`);
+});
+test('the library nook pieces are valid and furnishUpper queues all five part 4e rooms in order', () => {
+  assert.equal(validInterior(I), true);
+  assert.deepEqual(I.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']);
+  assert.deepEqual(new Set(I.furnishUpper), new Set(SLICE_4E));
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['nook-rug', 'nook-eave-shelves', 'nook-shelves-west', 'nook-shelves-east', 'nook-chair', 'nook-lamp']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
   }
 });

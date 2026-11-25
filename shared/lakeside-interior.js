@@ -134,6 +134,51 @@ const FURNITURE = [
   standing('pantry-shelf-2', 'pantry-shelf', 'pantry', [1.1, 11.75]),
   standing('sacks', 'sack', 'pantry', [.325, 10.15]),
   standing('crates', 'crate', 'pantry', [.325, 11.35]),
+  // The landing: cushioned window seat on the front wall east of the wall lamp, runner along the west walk, framed picture.
+  standing('landing-seat', 'window-seat', 'landing', [9.8, .315], Math.PI),
+  standing('landing-runner', 'runner', 'landing', [8.3, 3.5], .02, [.9, 3.8]),
+  hung('picture-landing', 'picture', 'landing', 'a', 7, [1.2, 2.0], 1.5),
+  ...many(2, 'cushion-landing', 'cushion', 'landing', 'landing-seat'),
+  // The sky room: daybed with cushions and throw under the back roof window, rug, floor cushions and a brass tripod telescope aimed at the glass.
+  standing('sky-rug', 'rug', 'sky-room', [3.5, 9.6], .01, [3.2, 2.8]),
+  standing('daybed', 'daybed', 'sky-room', [3.5, 10.7]),
+  standing('floor-cushion-1', 'floor-cushion', 'sky-room', [1.9, 9.5], .2),
+  standing('floor-cushion-2', 'floor-cushion', 'sky-room', [2.4, 8.6], -.3),
+  standing('telescope', 'telescope', 'sky-room', [4.9, 9.0], -1.91),
+  ...many(2, 'cushion-daybed', 'cushion', 'sky-room', 'daybed'),
+  setOn('throw-daybed', 'throw', 'sky-room', 'daybed'),
+  // Bedroom 2: single bed under the front slope, bedside table and lamp, rug, chest of drawers under a mirror, corner chair and gable picture.
+  standing('bed2-rug', 'rug', 'bedroom-2', [2.8, 1.9], .02, [2.2, 2.4]),
+  standing('bed-2', 'single-bed', 'bedroom-2', [2.4, 1.075], Math.PI),
+  standing('bed2-side-table', 'side-table', 'bedroom-2', [3.3, .35], Math.PI),
+  standing('bed2-chest', 'chest-of-drawers', 'bedroom-2', [2.2, 6.65]),
+  standing('bed2-chair', 'chair', 'bedroom-2', [5.9, 1.4], Math.PI - .5),
+  hung('mirror-bed2', 'mirror', 'bedroom-2', 'd', 7, [1.9, 2.5], 1.5),
+  hung('picture-bed2', 'picture', 'bedroom-2', 'a', 0, [5.0, 5.8], 1.5),
+  setOn('bed2-lamp', 'table-lamp', 'bedroom-2', 'bed2-side-table'),
+  setOn('pillow-bed2', 'pillow', 'bedroom-2', 'bed-2'),
+  setOn('blanket-bed2', 'blanket', 'bedroom-2', 'bed-2'),
+  setOn('book-bed2', 'book', 'bedroom-2', 'bed2-side-table'),
+  setOn('jug-bed2', 'jug', 'bedroom-2', 'bed2-chest'),
+  // Bedroom 3: single bed under the front slope, bedside table and lamp, rug, small writing desk and chair in roof light, gable picture.
+  standing('bed3-rug', 'rug', 'bedroom-3', [15.3, 1.9], -.02, [2.2, 2.4]),
+  standing('bed-3', 'single-bed', 'bedroom-3', [15.8, 1.075], Math.PI),
+  standing('bed3-side-table', 'side-table', 'bedroom-3', [14.9, .35], Math.PI),
+  standing('bed3-desk', 'small-desk', 'bedroom-3', [11.375, 3.0], Math.PI / 2),
+  standing('bed3-chair', 'chair', 'bedroom-3', [12.05, 3.0], -Math.PI / 2 - .08),
+  hung('picture-bed3', 'picture', 'bedroom-3', 'a', 18, [3.0, 3.8], 1.5),
+  setOn('bed3-lamp', 'table-lamp', 'bedroom-3', 'bed3-side-table'),
+  setOn('pillow-bed3', 'pillow', 'bedroom-3', 'bed-3'),
+  setOn('blanket-bed3', 'blanket', 'bedroom-3', 'bed-3'),
+  setOn('cup-bed3', 'cup', 'bedroom-3', 'bed3-side-table'),
+  ...many(2, 'book-bed3', 'book', 'bedroom-3', 'bed3-desk'),
+  // The library nook: low eave bookcase and two sloped bookcases climbing the roof pitch around a reading chair and standing lamp.
+  standing('nook-rug', 'rug', 'nook', [9.0, 10.3], .02, [2.2, 2.0]),
+  standing('nook-eave-shelves', 'eave-bookshelf', 'nook', [9.0, 11.75]),
+  standing('nook-shelves-west', 'sloped-bookshelf', 'nook', [7.25, 10.825], Math.PI / 2),
+  standing('nook-shelves-east', 'sloped-bookshelf', 'nook', [10.75, 10.825], -Math.PI / 2),
+  standing('nook-chair', 'armchair', 'nook', [8.45, 10.7], .45),
+  standing('nook-lamp', 'standing-lamp', 'nook', [9.55, 11.05]),
 ];
 
 const BLUEPRINT = {
@@ -198,6 +243,7 @@ const BLUEPRINT = {
   breasts: BREASTS,
   furniture: FURNITURE,
   furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
+  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
@@ -208,6 +254,11 @@ const BLUEPRINT = {
     desk: [15.0, .7], shelves: [14.6, 3.1], wardrobes: [12.5, 5.4], bedFoot: [14.5, 8.8], bedside: [12.7, 11.0],
     bath: [15.5, 5.5], laundry: [1.6, 8.3], pantry: [1.5, 10.7],
     speed: [[4.2, 3], [3.8, 5.5], [5.2, 7.9], [11.9, .8], [12.5, 7.9], [14.6, 5.5]],
+  },
+  // Named standable spots and speed poses on the upper floor (floor 1).
+  upperSpots: {
+    landingSeat: [8.4, 1.0], bed2: [3.5, 4.0], bed3: [14.5, 4.0], skyWindow: [3.5, 8.2], nookChair: [9.0, 9.2],
+    speed: [[8.4, 5.8], [5.8, 9.5]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
@@ -226,3 +277,4 @@ export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
 export const SLICE_4D = Object.freeze(['bath-ground', 'laundry', 'pantry']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});
+export const SLICE_4E = LAKESIDE_INTERIOR.furnishUpper;

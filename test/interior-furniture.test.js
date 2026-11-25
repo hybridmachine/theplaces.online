@@ -4,7 +4,7 @@ import * as THREE from '../public/assets/vendor/three-0.170.0.module.js';
 import {LAKESIDE_INTERIOR as I} from '../shared/lakeside-interior.js';
 import {KINDS, footprint, corners, bareInterior, withoutPieces, withoutRooms, obstaclesOf} from '../shared/furniture.js';
 import {MANTEL} from '../public/space/interior/fireplace.js';
-import {canStep, floorArea, onStair} from '../shared/interior.js';
+import {canStep, ceilingHeight, floorArea, onStair} from '../shared/interior.js';
 import {buildInterior} from '../public/space/interior/index.js';
 import {TUCK, createKit} from '../public/space/interior/furniture-kit.js';
 import {buildFurniture, RECIPES, GROUND, SHADE_PALE, SHADE_WARM, SURFACES, COLOURS} from '../public/space/interior/furniture.js';
@@ -32,7 +32,8 @@ const vertices = (scene, id, meshName) => {
 };
 const mean = xs => xs.reduce((t, x) => t + x, 0) / xs.length;
 const room = id => I.rooms.find(r => r.id === id);
-const laterRooms = new Set(I.furnishLater || []);
+const laterRooms = new Set([...(I.furnishLater || []), ...(I.furnishUpper || [])]);
+const allQueued = () => [...(I.furnishLater || []), ...(I.furnishUpper || [])];
 // The solid pieces of the first build, each inside its own footprint; not the newel, which carries the stair's rail up the flight.
 const DRAWN_SOLID = I.furniture.filter(e => !laterRooms.has(e.room) && KINDS[e.kind].standing === 'solid' && RECIPES[e.kind] && e.kind !== 'newel');
 // A standing piece's vertices (from every mesh) in its own frame: x across, y deep (it faces −y), z up from its floor; normals likewise.
@@ -524,7 +525,7 @@ const dialsFor = (levels = {}) => ({
   lamps: I.rooms.map(r => levels[r.id] ?? 0),
 });
 const studyLampBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['study'];
   c.furniture.push(
     {id: 'test-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
@@ -575,7 +576,7 @@ test('a missing or non-finite lamp level leaves the shade pale and finite, and a
 });
 
 test('shades in two rooms are refused', () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furniture.push(
     {id: 'two-study-table', kind: 'side-table', room: 'study', at: [16.1, .5], turn: 0},
     {id: 'two-study-lamp', kind: 'table-lamp', room: 'study', on: 'two-study-table'},
@@ -640,7 +641,7 @@ test('a rug in another room over the same plan position does not lift a piece\'s
 
 // ── furniture built by room, from a queue ──
 const queuedBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['kitchen', 'dining'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -783,7 +784,7 @@ test('a blueprint built bare has nothing pending', () => {
 
 // ── out of sight, not drawn (Task 6) ──
 const queuedAllBlueprint = () => {
-  const c = structuredClone(withoutRooms(I, I.furnishLater));
+  const c = structuredClone(withoutRooms(I, allQueued()));
   c.furnishLater = ['kitchen', 'dining', 'study', 'passage', 'master'];
   c.furniture.push(
     {id: 'q-kitchen-chair', kind: 'chair', room: 'kitchen', at: [4.75, 8.5], turn: 0},
@@ -1274,7 +1275,7 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
   assert.deepEqual(inside.skipped, []);
   assert.equal(warnings.length, 0);
-  assert.equal(inside.furniture.sets.length, 9, 'nine furniture sets across all ten ground-floor rooms');
+  assert.equal(inside.furniture.sets.length, 14, 'fourteen furniture sets across all fifteen furnished rooms');
   const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
   for (const roomId of ['laundry', 'pantry']) {
     const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
@@ -1324,5 +1325,182 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
   // Deterministic vertex count over two builds.
   const second = build(); second.buildRest();
   assert.equal(second.furniture.sets.find(s => s.rooms.includes('pantry')).vertices, firstCount);
+  second.dispose();
+});
+
+// ── two-stage build queue and cross-floor showFrom (Part 4e, Task 2) ──
+test('two-stage queue: buildRest(0) leaves furnishUpper pending, buildNext drains floor 0 then floor 1, buildRest(1) flushes floor 1, and cross-floor showFrom uses the stairwell gate', () => {
+  const c = structuredClone(withoutRooms(I, allQueued()));
+  c.furnishLater = ['kitchen'];
+  c.furnishUpper = ['landing', 'nook'];
+  c.furniture.push(
+    {id: 't-kt', kind: 'kitchen-table', room: 'kitchen', at: [4.75, 9.5], turn: 0},
+    {id: 't-ls', kind: 'window-seat', room: 'landing', at: [9.8, .315], turn: Math.PI},
+    {id: 't-nc', kind: 'armchair', room: 'nook', at: [8.45, 10.7], turn: .45},
+  );
+  c.obstacles = obstaclesOf(c);
+
+  const inside = build(c);
+  assert.deepEqual(inside.pending, ['kitchen', 'landing', 'nook']);
+  assert.deepEqual(inside.pendingFor(0), ['kitchen']);
+  assert.deepEqual(inside.pendingFor(1), ['landing', 'nook']);
+
+  inside.buildRest(0);
+  assert.deepEqual(inside.pendingFor(0), []);
+  assert.deepEqual(inside.pendingFor(1), ['landing', 'nook']);
+  assert.deepEqual(inside.pending, ['landing', 'nook']);
+  assert.ok(inside.furnishedRooms.includes('kitchen') && !inside.furnishedRooms.includes('landing'));
+
+  assert.equal(inside.buildNext(), 'landing');
+  assert.deepEqual(inside.pendingFor(1), ['nook']);
+  inside.buildRest(1);
+  assert.deepEqual(inside.pending, []);
+  assert.ok(inside.furnishedRooms.includes('landing') && inside.furnishedRooms.includes('nook'));
+
+  // Cross-floor showFrom: facing the dining window from kitchen hides both upper rooms.
+  inside.showFrom('kitchen', planesFrom({at: [...I.spots.speed[2], 1.6], facing: [10, 12]}));
+  assert.equal(inside.shownRooms.includes('landing'), false);
+  assert.equal(inside.shownRooms.includes('nook'), false);
+  // Looking up the stairwell from hall shows landing.
+  inside.showFrom('hall', planesFrom({at: [9, .8, 1.6], facing: [10.3, 4.0], pitch: .35}));
+  assert.equal(inside.shownRooms.includes('landing'), true);
+  // Facing away toward the front door from hall hides landing.
+  inside.showFrom('hall', planesFrom({at: [9, .8, 1.6], facing: [9, 0], pitch: 0}));
+  assert.equal(inside.shownRooms.includes('landing'), false);
+  inside.dispose();
+
+  // buildRest(1) can flush floor 1 without flushing floor 0 first (e.g. starting indoors on floor 1).
+  const upperStart = build(c);
+  upperStart.buildRest(1);
+  assert.deepEqual(upperStart.pendingFor(1), []);
+  assert.deepEqual(upperStart.pendingFor(0), ['kitchen']);
+  assert.ok(upperStart.furnishedRooms.includes('landing') && upperStart.furnishedRooms.includes('nook'));
+  assert.equal(upperStart.furnishedRooms.includes('kitchen'), false);
+  upperStart.buildRest();
+  assert.deepEqual(upperStart.pending, []);
+  upperStart.dispose();
+});
+
+// ── landing and sky room furniture (Part 4e, Task 4) ──
+test('landing and sky-room build as floor-1 queued sets of at most 4 meshes without shades, lifted to floor 1 with grounding and light weights', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  for (const roomId of ['landing', 'sky-room']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.ok(set.meshes >= 1 && set.meshes <= 4, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp, `furniture-${roomId} exists`);
+    assert.equal(grp.getObjectByName('shades'), undefined, `${roomId} has no shades`);
+    for (const child of grp.children) {
+      assert.ok(allowed.has(child.name), `${roomId} allowed mesh ${child.name}`);
+      const p = child.geometry.getAttribute('position');
+      for (let i = 0; i < p.count; i++) assert.ok(p.getY(i) >= I.floorRise - .01, `${roomId} ${child.name} z=${p.getY(i)}`);
+      if (child.name !== 'grounding') {
+        const l = child.geometry.getAttribute('light');
+        assert.ok(l, `${roomId} ${child.name} has light attribute`);
+        for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `${roomId} ${child.name} v${i}`);
+      }
+    }
+    const solids = I.furniture.filter(e => e.room === roomId && KINDS[e.kind].standing === 'solid');
+    for (const e of solids) {
+      const box = inside.pieceBox(e.id), f = footprint(e);
+      assert.ok(box, `${e.id} drawn`);
+      for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .03 && box[k][1] <= f[k][1] + .03, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+      assert.ok(Math.abs(box.z[0] - I.floorRise) <= .02, `${e.id} stands on floor 1: ${box.z[0]}`);
+      assert.ok(box.z[1] <= I.floorRise + KINDS[e.kind].height + .02, `${e.id} height ${box.z[1] - I.floorRise}`);
+      assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+    }
+  }
+  const c1 = inside.pieceBox('cushion-daybed-1'), th = inside.pieceBox('throw-daybed'), tele = inside.pieceBox('telescope');
+  assert.ok(c1.z[0] >= I.floorRise + KINDS.daybed.seat - .03, `daybed cushion on seat: ${c1.z}`);
+  assert.ok(th.z[1] >= I.floorRise + KINDS.daybed.seat, `daybed throw over seat: ${th.z}`);
+  assert.ok(tele.z[1] > I.floorRise + 1.1 && tele.z[1] <= I.floorRise + KINDS.telescope.height + .02, `telescope height: ${tele.z}`);
+  inside.dispose();
+
+  // A daybed recipe that throws skips its cushions and throw while keeping telescope built.
+  const [broken, brokenWarnings] = warned(() => {
+    const res = buildInterior(THREE, {interior: I, art: stubArt(), openings, recipes: {...RECIPES, daybed: () => { throw new Error('slat broke'); }}});
+    res.buildRest();
+    return res;
+  });
+  assert.equal(brokenWarnings.length, 1);
+  assert.ok(broken.skipped.includes('daybed') && broken.skipped.includes('cushion-daybed-1') && broken.skipped.includes('throw-daybed'));
+  assert.ok(broken.pieceBox('telescope'));
+  broken.dispose();
+});
+
+// ── bedrooms 2 and 3 furniture (Part 4e, Task 5) ──
+test('bedrooms 2 and 3 build as floor-1 queued sets of at most 5 meshes with per-room shades, grounding and slope clearance', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  for (const roomId of ['bedroom-2', 'bedroom-3']) {
+    const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
+    assert.ok(set, `${roomId} set exists`);
+    assert.ok(set.meshes >= 1 && set.meshes <= 5, `${roomId} meshes: ${set.meshes}`);
+    const grp = inside.scene.getObjectByName(`furniture-${roomId}`);
+    assert.ok(grp && grp.getObjectByName('shades'), `${roomId} has shades`);
+    const room = I.rooms.find(r => r.id === roomId);
+    for (const e of I.furniture.filter(x => x.room === roomId)) {
+      const box = inside.pieceBox(e.id);
+      assert.ok(box, `${e.id} drawn`);
+      assert.ok(box.a[0] >= room.a[0] - .02 && box.a[1] <= room.a[1] + .02, `${e.id} a ${box.a}`);
+      assert.ok(box.d[0] >= room.d[0] - .02 && box.d[1] <= room.d[1] + .02, `${e.id} d ${box.d}`);
+      const minCeil = Math.min(ceilingHeight(I, 1, box.d[0]), ceilingHeight(I, 1, box.d[1]));
+      assert.ok(box.z[1] <= I.floorRise + minCeil + .01, `${e.id} top ${box.z[1]} <= ceil ${I.floorRise + minCeil}`);
+      if (KINDS[e.kind].standing === 'solid') assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+    }
+    // Each bedroom's shade follows its own room's lamp dial, not living's.
+    const lit = groupShadeColour(inside, `furniture-${roomId}`, dialsFor({[roomId]: 1, living: 0}));
+    assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+    const out = groupShadeColour(inside, `furniture-${roomId}`, dialsFor({[roomId]: 0, living: 1}));
+    assert.ok(out[0] / out[2] < 1.4, `${roomId} shade stays pale when only living lamp is lit`);
+  }
+  inside.dispose();
+});
+
+// ── library nook furniture (Part 4e, Task 6) ──
+test('library nook builds with sloped bookshelves hugging the ceiling pitch, standing-lamp shades following nook dial, 14 sets in total, and deterministic vertex count', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  assert.equal(inside.furniture.sets.length, 14, '14 sets across 15 furnished rooms (9 ground + 5 upper)');
+  const nookSet = inside.furniture.sets.find(s => s.rooms.includes('nook'));
+  assert.ok(nookSet, 'nook set exists');
+  assert.ok(nookSet.meshes >= 1 && nookSet.meshes <= 5, `nook meshes: ${nookSet.meshes}`);
+  const grp = inside.scene.getObjectByName('furniture-nook');
+  assert.ok(grp && grp.getObjectByName('shades'), 'nook has shades');
+
+  // Slope-fit invariant: every vertex of the three bookcases stays below 3.0 + ceilingHeight(I, 1, d) - 0.01,
+  // and each sloped bookcase rises at least 0.30 m from its south end to its north end.
+  for (const id of ['nook-eave-shelves', 'nook-shelves-west', 'nook-shelves-east']) {
+    const verts = [...vertices(inside.scene, id, 'furniture-wood'), ...vertices(inside.scene, id, 'furniture-cloth')];
+    assert.ok(verts.length > 50, `${id} has wood and book vertices`);
+    let northTop = -Infinity, southTop = -Infinity;
+    for (const v of verts) {
+      const ceil = I.floorRise + ceilingHeight(I, 1, v.d);
+      assert.ok(v.z <= ceil - .01, `${id} vertex at d=${v.d.toFixed(3)} z=${v.z.toFixed(3)} exceeds ceiling ${ceil.toFixed(3)}`);
+      if (v.d < 10.3) northTop = Math.max(northTop, v.z);
+      if (v.d > 11.35) southTop = Math.max(southTop, v.z);
+    }
+    if (id !== 'nook-eave-shelves') {
+      assert.ok(northTop - southTop >= .30, `${id} slopes up by ${(northTop - southTop).toFixed(3)} m (north ${northTop.toFixed(3)} vs south ${southTop.toFixed(3)})`);
+    }
+  }
+  for (const e of I.furniture.filter(x => x.room === 'nook' && KINDS[x.kind].standing === 'solid')) {
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+  }
+  const lit = groupShadeColour(inside, 'furniture-nook', dialsFor({nook: 1, living: 0}));
+  assert.deepEqual(lit.map(v => +v.toFixed(6)), SHADE_WARM.map(v => +v.toFixed(6)));
+  const out = groupShadeColour(inside, 'furniture-nook', dialsFor({nook: 0, living: 1}));
+  assert.ok(out[0] / out[2] < 1.4);
+  const firstCount = nookSet.vertices;
+  inside.dispose();
+
+  const second = build(); second.buildRest();
+  assert.equal(second.furniture.sets.find(s => s.rooms.includes('nook')).vertices, firstCount);
   second.dispose();
 });

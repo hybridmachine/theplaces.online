@@ -70,6 +70,15 @@ function clearLine(I, floor, xs, ys, pairOps, p, q) {
   return true;
 }
 
+function stairRooms(I) {
+  if (!I?.stair) return [null, null];
+  const rooms = I.rooms || [];
+  const find = floor => rooms.find(r => r.floor === floor
+    && I.stair.a[0] >= r.a[0] - EPS && I.stair.a[1] <= r.a[1] + EPS
+    && I.stair.d[0] >= r.d[0] - EPS && I.stair.d[1] <= r.d[1] + EPS) ?? null;
+  return [find(0), find(1)];
+}
+
 export function seenFrom(I) {
   const rooms = I.rooms, openings = I.openings || [];
   const adj = new Map(rooms.map(r => [r.id, new Set([r.id])]));
@@ -109,16 +118,11 @@ export function seenFrom(I) {
       }
     }
   }
-  if (I.stair) {
-    const stairRoom = floor => rooms.find(r => r.floor === floor
-      && I.stair.a[0] >= r.a[0] - EPS && I.stair.a[1] <= r.a[1] + EPS
-      && I.stair.d[0] >= r.d[0] - EPS && I.stair.d[1] <= r.d[1] + EPS);
-    const s0 = stairRoom(0), s1 = stairRoom(1);
-    if (s0 && s1) {
-      const from0 = rooms.filter(r => r.floor === 0 && adj.get(r.id).has(s0.id));
-      const from1 = rooms.filter(r => r.floor === 1 && adj.get(r.id).has(s1.id));
-      for (const a of from0) for (const b of from1) link(a.id, b.id);
-    }
+  const [s0, s1] = stairRooms(I);
+  if (s0 && s1) {
+    const from0 = rooms.filter(r => r.floor === 0 && adj.get(r.id).has(s0.id));
+    const from1 = rooms.filter(r => r.floor === 1 && adj.get(r.id).has(s1.id));
+    for (const a of from0) for (const b of from1) link(a.id, b.id);
   }
   const order = rooms.map(r => r.id);
   const out = {};
@@ -132,8 +136,18 @@ export function seenFrom(I) {
 // Each opening as a box in the interior frame [a, d, z], stored under both of its rooms:
 // span along the wall, the outside half of the wall's thickness (from the opening's line to the neighbour's face,
 // which every sight line into the room from outside must cross), and floor to doorHead in height.
-// Each room's box list is also paired (via a WeakMap) with the neighbour room on the far side of each opening.
-const BOX_OTHERS = new WeakMap();
+// The stairwell opening joins the lower and upper stair rooms as an additional opening box and gates cross-floor sight lines.
+// Each room's box list is also paired (via a WeakMap) with its neighbour rooms, room floors and stairwell box.
+const BOX_META = new WeakMap();
+
+export function stairWellBox(I) {
+  if (!I?.stair) return null;
+  return Object.freeze({
+    a: Object.freeze([I.stair.a[0], I.stair.a[1]]),
+    d: Object.freeze([I.stair.d[0], I.stair.d[1]]),
+    z: Object.freeze([I.groundCeiling, I.floorRise]),
+  });
+}
 
 export function doorBoxes(I) {
   const half = I.wall / 2;
@@ -156,13 +170,22 @@ export function doorBoxes(I) {
       othersByRoom.get(id).push(other);
     }
   }
-  const out = {}, others = {};
+  const well = stairWellBox(I);
+  if (well) {
+    const [s0, s1] = stairRooms(I);
+    if (s0 && s1) {
+      byRoom.get(s0.id).push(well); othersByRoom.get(s0.id).push(s1.id);
+      byRoom.get(s1.id).push(well); othersByRoom.get(s1.id).push(s0.id);
+    }
+  }
+  const out = {}, others = {}, floors = {};
+  for (const r of I.rooms || []) floors[r.id] = r.floor;
   for (const [id, list] of byRoom) {
     out[id] = Object.freeze(list);
     others[id] = Object.freeze(othersByRoom.get(id));
   }
   const frozen = Object.freeze(out);
-  BOX_OTHERS.set(frozen, others);
+  BOX_META.set(frozen, {others, floors, well});
   return frozen;
 }
 
@@ -247,10 +270,16 @@ export function boxInView(box, planes) {
 
 // True when any of `roomId`'s doorway boxes touches the view, or the room has no boxes.
 // When `seen` (rooms seen from the visitor's room) is given, openings to rooms outside `seen` are skipped.
-export function doorInView(boxes, roomId, planes, seen = null) {
+// When `fromRoomId` is given on the opposite floor, the stairwell opening itself must also be in view.
+export function doorInView(boxes, roomId, planes, seen = null, fromRoomId = null) {
+  const meta = BOX_META.get(boxes);
+  if (fromRoomId != null && meta?.well && meta.floors) {
+    const fFrom = meta.floors[fromRoomId], fTo = meta.floors[roomId];
+    if (fFrom != null && fTo != null && fFrom !== fTo && !boxInView(meta.well, planes)) return false;
+  }
   const list = boxes?.[roomId];
   if (!list || !list.length) return true;
-  const others = seen ? BOX_OTHERS.get(boxes)?.[roomId] : null;
+  const others = seen ? meta?.others?.[roomId] : null;
   const hasSeen = seen ? (typeof seen.has === 'function' ? id => seen.has(id) : id => seen.includes(id)) : null;
   for (let i = 0; i < list.length; i++) {
     if (others && others[i] && hasSeen && !hasSeen(others[i])) continue;
