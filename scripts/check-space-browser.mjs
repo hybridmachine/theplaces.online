@@ -33,8 +33,8 @@ const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4190';
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE?{executablePath:process.env.BROWSER_EXECUTABLE}:{}),
   args:process.env.SKY_GPU==='metal'?['--enable-gpu','--use-gl=angle','--use-angle=metal']:['--use-gl=angle']});
 const results=[],errors=[],viewport={width:1672,height:941};
-const envAbbaPairs=process.env.ABBA_PAIRS?Number(process.env.ABBA_PAIRS):6;
-const ABBA_PAIRS=Number.isInteger(envAbbaPairs)&&envAbbaPairs>=2&&envAbbaPairs%2===0?envAbbaPairs:6;
+const envAbbaPairs=process.env.ABBA_PAIRS?Number(process.env.ABBA_PAIRS):2;
+const ABBA_PAIRS=Number.isInteger(envAbbaPairs)&&envAbbaPairs>=2&&envAbbaPairs%2===0?envAbbaPairs:2;
 // Checks are numbered in the order they run; the number is kept in the results, matching the comments below.
 const check=(name,pass,detail)=>{const n=results.length+1;results.push({n,name,pass,detail});console.log(`${pass?'PASS':'FAIL'} ${n}. ${name}`);};
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -691,33 +691,91 @@ try{
   // median of 20, at the arrival pose (the pass drawing the yard) and in the living room at [4.2, 3] facing the window (SpaceView's
   // own indoor draw, drawIndoors, with the live views). Frame intervals cannot tell them apart: headless frames are locked to the display.
   const median=a=>[...a].sort((p,q)=>p-q)[a.length>>1];
-  const timeFrames=(page,indoors)=>page.evaluate(indoors=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
-    const draw=()=>{if(indoors)s.drawIndoors();
-      else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});
-      g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
-    draw();draw();const times=[];for(let k=0;k<20;k++){const t0=performance.now();draw();times.push(performance.now()-t0);}return {times,live:[...s.live],tier:s.tier,passMode:s.passMode};},indoors);
-  // Six rounds of yard then room on the one warmed page (each switch given time to settle), the first round discarded: each place's
-  // figure is the median of its rounds' medians, so a slow patch of the machine falls on both places alike. The whole measurement is one
-  // function of the study the page is under, so the day figure (check 50) and the night figure (check 63) are the same method.
-  const roomSpot=rainPose,speedMethod='Six rounds of 20 forced frames at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds\' medians. A frame is timed synchronously, forced to finish with readPixels; indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  const trueMedian=a=>{const s=[...a].sort((p,q)=>p-q),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+  const timeFrames=(page,indoors)=>page.evaluate(indoors=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4),orig=s.render;
+    s.render=()=>{};
+    try{
+      const draw=()=>{if(indoors)s.drawIndoors();
+        else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});};
+      draw();draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      const t0=performance.now();for(let k=0;k<20;k++)draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      const ms=(performance.now()-t0)/20;
+      return {ms,times:[ms],live:[...s.live],tier:s.tier,passMode:s.passMode};
+    }finally{s.render=orig;}},indoors);
+  // Six rounds of yard then room on the one warmed page (each switch given 2 rAFs to settle), the first round discarded: each place's
+  // figure is the median of its rounds, pausing the live rAF loop during each 20-frame batch and flushing once before and after with readPixels.
+  const roomSpot=rainPose,speedMethod='Six rounds of 20 forced frames (pausing live rAF, flushed with readPixels before and after the batch) at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds. Indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
+  const raf2=page=>page.evaluate(()=>new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res))));
   // (`query` is added to the page's address, as &bare=1 or &furnish=first; `spot` is the room's pose; `fixture` is applied indoors)
   const measureSpeed=async(study,{query='',spot=roomSpot,fixture=null,roundsCount=6}={})=>{
     const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&tier=full${query}`);await ready(speed);await studyLight(speed,study);
     const rounds=[];
     await speed.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
-    await setPose(speed,atDoor(.6));await speed.waitForTimeout(1500);await hold(speed,['KeyW'],900);await speed.waitForTimeout(900);
+    await setPose(speed,atDoor(.6));await speed.waitForTimeout(1500);await hold(speed,['KeyW'],900);await speed.waitForTimeout(600);
+    await speed.evaluate(()=>window.__space.inside?.buildRest());
     for(let k=0;k<roundsCount;k++){
-      if(fixture)await setFixture(speed,null);
-      await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await speed.waitForTimeout(700);const y=await timeFrames(speed,false);
-      if(fixture)await setFixture(speed,fixture);
-      await moveTo(speed,spot);await speed.waitForTimeout(400);const r=await timeFrames(speed,true);
-      rounds.push({yardMs:+median(y.times).toFixed(2),roomMs:+median(r.times).toFixed(2),yardTier:y.tier,roomLive:r.live,roomLit:await speed.evaluate(()=>window.__space.lit)});}
+      const yardFirst=k%2===0;
+      let y,r,roomLit;
+      if(yardFirst){
+        if(fixture)await setFixture(speed,null);
+        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await raf2(speed);y=await timeFrames(speed,false);
+        if(fixture)await setFixture(speed,fixture);
+        await setPose(speed,spot);await raf2(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
+      }else{
+        if(fixture)await setFixture(speed,fixture);
+        await setPose(speed,spot);await raf2(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
+        if(fixture)await setFixture(speed,null);
+        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await raf2(speed);y=await timeFrames(speed,false);
+      }
+      rounds.push({yardMs:+y.ms.toFixed(2),roomMs:+r.ms.toFixed(2),yardTier:y.tier,roomLive:r.live,roomLit});}
     if(fixture)await setFixture(speed,null);
     const kept=rounds.slice(1),yardMs=+median(kept.map(r=>r.yardMs)).toFixed(2),roomMs=+median(kept.map(r=>r.roomMs)).toFixed(2),costRatio=+(roomMs/yardMs).toFixed(3);
     const roundRatios=kept.map(r=>+(r.roomMs/r.yardMs).toFixed(3));
-    await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+median(hallTime.times).toFixed(2);
+    await moveTo(speed,twoPose);await speed.waitForTimeout(1500);const hallTime=await timeFrames(speed,true),hallMs=+hallTime.ms.toFixed(2);
     const quiet=!speed.consoleErrors.length&&!speed.own.length;await speed.context().close();
     return {study,rounds,kept,yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,quiet};};
+  // Paired interleaved speed comparison for a target slice vs its baseline (checks 78, 81, 91, 92, 105, 117, 118, 127):
+  // keeps both tabs paused when idle so only one touches the GPU, and interleaves yard and room batches ~200 ms apart.
+  const measureSpeedPair=async(study,{targetQuery='',baseQuery,spot,fixture=null,rounds=6}={})=>{
+    const open=async query=>{
+      const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&tier=full${query}`);await ready(p);await studyLight(p,study);
+      await p.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
+      await setPose(p,atDoor(.6));await p.waitForTimeout(1500);await hold(p,['KeyW'],900);await p.waitForTimeout(600);
+      await p.evaluate(()=>{window.__space.inside?.buildRest();window.__origRender=window.__space.render.bind(window.__space);});
+      return p;
+    };
+    const pause=(p,on)=>p.evaluate(on=>{window.__space.render=on?()=>{}:window.__origRender;},on);
+    const prep=async(p,pose,fix)=>{await pause(p,false);await setFixture(p,fix);await setPose(p,pose);await raf2(p);await pause(p,true);};
+    const batch=(p,ind)=>p.evaluate(ind=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
+      const draw=()=>{if(ind)s.drawIndoors();else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});};
+      draw();draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      const t0=performance.now();for(let i=0;i<20;i++)draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      return {ms:(performance.now()-t0)/20,live:[...s.live],tier:s.tier,lit:s.lit};},ind);
+    const pT=await open(targetQuery),pB=await open(baseQuery);
+    await pause(pT,true);await pause(pB,true);
+    await prep(pT,S.arrival,null);await prep(pB,S.arrival,null);
+    const yT=[],yB=[];
+    for(let k=0;k<5;k++){
+      const [a,b]=k%2===0?[await batch(pT,false),await batch(pB,false)]:(x=>[x[1],x[0]])([await batch(pB,false),await batch(pT,false)]);
+      if(k>0){yT.push(a);yB.push(b);}
+    }
+    const yardMsT=+trueMedian(yT.map(x=>x.ms)).toFixed(2),yardMsB=+trueMedian(yB.map(x=>x.ms)).toFixed(2),yardAvg=(yardMsT+yardMsB)/2;
+    await prep(pT,spot,fixture);await prep(pB,spot,fixture);
+    const rT=[],rB=[],pairDiffs=[];
+    for(let k=0;k<rounds+1;k++){
+      const [a,b]=k%2===0?[await batch(pT,true),await batch(pB,true)]:(x=>[x[1],x[0]])([await batch(pB,true),await batch(pT,true)]);
+      if(k>0){rT.push(a);rB.push(b);pairDiffs.push(+((a.ms-b.ms)/yardAvg).toFixed(4));}
+    }
+    await pause(pT,false);await pause(pB,false);
+    const tQuiet=!pT.consoleErrors.length&&!pT.own.length,bQuiet=!pB.consoleErrors.length&&!pB.own.length;
+    await pT.context().close();await pB.context().close();
+    const roomMsT=+trueMedian(rT.map(x=>x.ms)).toFixed(2),roomMsB=+trueMedian(rB.map(x=>x.ms)).toFixed(2);
+    const pack=(rArr,yArr,rMs,yMs,quiet)=>({study,yardMs:yMs,roomMs:rMs,costRatio:+(rMs/yMs).toFixed(3),
+      roundRatios:rArr.map(x=>+(x.ms/yMs).toFixed(3)),
+      kept:rArr.map(x=>({yardMs:yMs,roomMs:+x.ms.toFixed(2),yardTier:yArr[0].tier,roomLive:x.live,roomLit:x.lit})),quiet});
+    const target=pack(rT,yT,roomMsT,yardMsT,tQuiet),baseOut=pack(rB,yB,roomMsB,yardMsB,bQuiet);
+    return {target,base:baseOut,added:+trueMedian(pairDiffs).toFixed(3),pairDiffs,quiet:tQuiet&&bQuiet};
+  };
   const daySpeed=await measureSpeed('day'),{yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,rounds,kept}=daySpeed;
   check('Speed on &tier=full: a frame in the living room facing the window costs at most 1.1 times a frame at the yard\'s arrival pose (median of rounds, yard and room alternating)',
     kept.every(r=>r.yardTier==='full'&&r.roomLive.includes('living'))&&costRatio<=1.1,{yardMs,roomMs,ratio:costRatio,limit:1.1,roundRatios,ratioSpread:[Math.min(...roundRatios),Math.max(...roundRatios)],rounds,discardedFirstRound:true,method:speedMethod,hallDoorOpenMs:hallMs,hallLive:hallTime.live,hallNote:'recorded only, not a pass/fail: the hall pose of check 44, 20 frames, door open',
@@ -1151,9 +1209,10 @@ try{
   check('The same moment draws the same furnished living room: with the world held still, two other loads draw it within 2% of the first over a dense grid, and the room loaded bare differs by more',
     furnishedMoment.AB<=STILL&&furnishedMoment.AC<=STILL&&furnishedMoment.bare>=BARE_MIN&&roomQuiet,{...furnishedMoment,limit:STILL,bareLeast:BARE_MIN,points:momentGrid.length,pose:livingShot,pinned:'frozenMotion = 1234, reduced motion, day study'});
 
-  // 78. Speed at [3.8, 5.5] facing the living window under the night study, the lamp lit: furnished and &bare=1, both measured by check 50's method in this run.
-  const lampSpot=I.spots.speed[1],lampPose=facing(living,lampSpot),furnishedSpeed=await measureSpeed('night',{spot:lampPose}),bareSpeed=await measureSpeed('night',{query:'&bare=1',spot:lampPose});
-  const ADDED=.05,speedAdded=+(furnishedSpeed.costRatio-bareSpeed.costRatio).toFixed(3),bothLit=[furnishedSpeed,bareSpeed].every(x=>x.kept.every(r=>r.roomLit?.lamp===true&&r.roomLive.includes('living')));
+  // 78. Speed at [3.8, 5.5] facing the living window under the night study, the lamp lit: furnished and &bare=1, paired interleaved.
+  const lampSpot=I.spots.speed[1],lampPose=facing(living,lampSpot);
+  const {target:furnishedSpeed,base:bareSpeed,added:speedAdded}=await measureSpeedPair('night',{baseQuery:'&bare=1',spot:lampPose});
+  const ADDED=.05,bothLit=[furnishedSpeed,bareSpeed].every(x=>x.kept.every(r=>r.roomLit?.lamp===true&&r.roomLive.includes('living')));
   check(`Speed at [${lampSpot}] facing the living window under the night study with the lamp lit: the furnished frame costs at most ${ADDED} of a yard frame more than the bare one, both measured in this run as check 50 measures`,
     bothLit&&speedAdded<=ADDED,{furnished:{ratio:furnishedSpeed.costRatio,yardMs:furnishedSpeed.yardMs,roomMs:furnishedSpeed.roomMs,roundRatios:furnishedSpeed.roundRatios},
       bare:{ratio:bareSpeed.costRatio,yardMs:bareSpeed.yardMs,roomMs:bareSpeed.roomMs,roundRatios:bareSpeed.roundRatios},added:speedAdded,limit:ADDED,lit:bothLit,pose:lampPose,method:speedMethod.replace('[4.2, 3]',`[${lampSpot}]`)});
@@ -1170,9 +1229,8 @@ try{
   // 81. Speed at spots.speed[2] ([5.2, 7.9]) facing the dining window, by day and under the night study with both lamps lit by fixture:
   // at most 1.1x a yard frame, and at most +0.05 above &furnish=first on the same run.
   const kdLamps={lamps:fixtureLamps({kitchen:1,dining:1}),hearth:{fire:0,embers:0}};
-  const kdDayAll=await measureSpeed('day',{spot:speedPose2}),kdDayFirst=await measureSpeed('day',{query:'&furnish=first',spot:speedPose2});
-  const kdNightAll=await measureSpeed('night',{spot:speedPose2,fixture:kdLamps}),kdNightFirst=await measureSpeed('night',{query:'&furnish=first',spot:speedPose2,fixture:kdLamps});
-  const kdDayAdded=+(kdDayAll.costRatio-kdDayFirst.costRatio).toFixed(3),kdNightAdded=+(kdNightAll.costRatio-kdNightFirst.costRatio).toFixed(3);
+  const {target:kdDayAll,base:kdDayFirst,added:kdDayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=first',spot:speedPose2});
+  const {target:kdNightAll,base:kdNightFirst,added:kdNightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=first',spot:speedPose2,fixture:kdLamps});
   const kdNightLit=[kdNightAll,kdNightFirst].every(x=>x.kept.every(r=>r.roomLit?.lamp===true&&r.roomLive.includes('dining')));
   check(`Speed at [${I.spots.speed[2]}] facing the dining window, day and night (both lamps lit): at most 1.1 times a yard frame and at most ${ADDED} above &furnish=first on the same run`,
     kdDayAll.costRatio<=1.1&&kdDayAdded<=ADDED&&kdNightAll.costRatio<=1.1&&kdNightAdded<=ADDED&&kdNightLit,
@@ -1318,9 +1376,8 @@ try{
 
   // 91. Speed at [11.9, 0.8] (study, facing the reading chair with study window live), day and night (study lamp lit): <= 1.1x yard and <= +0.05 over &furnish=4b.
   const studyLampFix={lamps:fixtureLamps({study:1}),hearth:{fire:0,embers:0}};
-  const stDayAll=await measureSpeed('day',{spot:speedPose3}),stDay4b=await measureSpeed('day',{query:'&furnish=4b',spot:speedPose3});
-  const stNightAll=await measureSpeed('night',{spot:speedPose3,fixture:studyLampFix}),stNight4b=await measureSpeed('night',{query:'&furnish=4b',spot:speedPose3,fixture:studyLampFix});
-  const stDayAdded=+(stDayAll.costRatio-stDay4b.costRatio).toFixed(3),stNightAdded=+(stNightAll.costRatio-stNight4b.costRatio).toFixed(3);
+  const {target:stDayAll,base:stDay4b,added:stDayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=4b',spot:speedPose3});
+  const {target:stNightAll,base:stNight4b,added:stNightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=4b',spot:speedPose3,fixture:studyLampFix});
   const stLiveOk=[stDayAll,stNightAll].every(x=>x.kept.every(r=>r.roomLive.includes('study')));
   const stNightLit=[stNightAll,stNight4b].every(x=>x.kept.every(r=>r.roomLit?.lamp===true));
   check(`Speed at [${I.spots.speed[3]}] (study, facing reading chair, window live), day and night (study lamp lit): at most 1.1 times a yard frame and at most ${ADDED} above &furnish=4b`,
@@ -1332,9 +1389,8 @@ try{
 
   // 92. Speed at [12.5, 7.9] (master bedroom, facing the bed), day and night (master lamp lit): <= 1.1x yard and <= +0.05 over &furnish=4b.
   const masterLampFix={lamps:fixtureLamps({master:1}),hearth:{fire:0,embers:0}};
-  const msDayAll=await measureSpeed('day',{spot:speedPose4}),msDay4b=await measureSpeed('day',{query:'&furnish=4b',spot:speedPose4});
-  const msNightAll=await measureSpeed('night',{spot:speedPose4,fixture:masterLampFix}),msNight4b=await measureSpeed('night',{query:'&furnish=4b',spot:speedPose4,fixture:masterLampFix});
-  const msDayAdded=+(msDayAll.costRatio-msDay4b.costRatio).toFixed(3),msNightAdded=+(msNightAll.costRatio-msNight4b.costRatio).toFixed(3);
+  const {target:msDayAll,base:msDay4b,added:msDayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=4b',spot:speedPose4});
+  const {target:msNightAll,base:msNight4b,added:msNightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=4b',spot:speedPose4,fixture:masterLampFix});
   const msNightLit=[msNightAll,msNight4b].every(x=>x.kept.every(r=>r.roomLit?.lamp===true));
   check(`Speed at [${I.spots.speed[4]}] (master bedroom, facing bed), day and night (master lamp lit): at most 1.1 times a yard frame and at most ${ADDED} above &furnish=4b`,
     msDayAll.costRatio<=1.1&&msDayAdded<=ADDED&&msNightAll.costRatio<=1.1&&msNightAdded<=ADDED&&msNightLit,
@@ -1356,58 +1412,81 @@ try{
   console.log(`  4c draw calls vs 4b: study +${studyCallsAdded} (${callsAll.s3.calls} vs ${calls4b.s3.calls}), master +${masterCallsAdded} (${callsAll.s4.calls} vs ${calls4b.s4.calls})`);
 
   // Shared ABBA speed-regression helper (checks 94, 107, 119, 128).
-  // Runs an even number of balanced pairs (AB, BA, ...; default 6 = 3 AB + 3 BA) so monotonic thermal drift cancels.
-  // Inside each load, each round times 20 yard frames and 20 room frames back-to-back and stores the per-round ratio (rMs / yMs),
-  // discarding warmup round 0; pair diffs compare `a.ratio - b.ratio` so CPU/GPU frequency scaling between loads cancels too.
-  const trueMedian=a=>{const s=[...a].sort((p,q)=>p-q),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
-  const measureAbba=async(specs,baseQuery,{pairs=ABBA_PAIRS,buildRest=false}={})=>{
+  // Opens an even number of balanced context pairs (default 2: all-first/base-second, then base-first/all-second) so context-order
+  // bias cancels. During each pose's timing window, both tabs pause their live rAF render (only one context touches the GPU at a time)
+  // and run 6 tightly interleaved ABBA rounds (AB, BA, ...; 12 balanced pairs total, ~200 ms apart instead of tens of seconds apart),
+  // flushing with readPixels once before and once after each 20-frame batch so per-frame IPC jitter does not swamp the 0.01 budget.
+  const measureAbba=async(specs,baseQuery,{loads=ABBA_PAIRS,roundsPerLoad=6,buildRest=false}={})=>{
     const runs={all:Object.fromEntries(specs.map(s=>[s.k,[]])),base:Object.fromEntries(specs.map(s=>[s.k,[]]))};
+    const pairDiffsByKey=Object.fromEntries(specs.map(s=>[s.k,[]]));
+    const yardSamples={day:[],night:[]};
     let quiet=true;
-    for(let pair=0;pair<pairs;pair++)for(const [tag,query] of (pair%2===0?[['all',''],['base',baseQuery]]:[['base',baseQuery],['all','']])){
+    const openAbbaPage=async query=>{
       const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&tier=full${query}`);await ready(p);
       await p.evaluate(async()=>{window.__arrival=structuredClone((await import('/shared/lakeside-space.js')).LAKESIDE_SPACE.arrival);});
       await studyLight(p,'day');await walkIn(p);
       if(buildRest)await p.evaluate(()=>window.__space.inside.buildRest());
-      await p.waitForTimeout(buildRest?600:800);
+      await p.waitForTimeout(buildRest?500:700);
+      await p.evaluate(()=>{window.__origRender=window.__space.render.bind(window.__space);});
+      return p;
+    };
+    const setPaused=(p,on)=>p.evaluate(on=>{window.__space.render=on?()=>{}:window.__origRender;},on);
+    const preparePose=async(p,study,spot,fixture)=>{
+      await setPaused(p,false);
+      await studyLight(p,study);
+      await p.evaluate(({spot,fixture})=>{window.__space.fixture=fixture;window.__space.state=structuredClone(spot);},{spot,fixture});
+      await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+      await setPaused(p,true);
+    };
+    const benchBatch=(p,ind)=>p.evaluate(ind=>{
+      const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
+      const draw=()=>{if(ind)s.drawIndoors();
+        else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});};
+      draw();draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      const t0=performance.now();for(let i=0;i<20;i++)draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
+      return (performance.now()-t0)/20;
+    },ind);
+    for(let load=0;load<loads;load++){
+      const firstIsAll=load%2===0;
+      const pFirst=await openAbbaPage(firstIsAll?'':baseQuery);
+      const pSecond=await openAbbaPage(firstIsAll?baseQuery:'');
+      const pAll=firstIsAll?pFirst:pSecond,pBase=firstIsAll?pSecond:pFirst;
+      await setPaused(pAll,true);await setPaused(pBase,true);
       for(const study of ['day','night']){
         const studySpecs=specs.filter(s=>s.study===study);
         if(!studySpecs.length)continue;
-        await studyLight(p,study);
+        await preparePose(pAll,study,S.arrival,null);await preparePose(pBase,study,S.arrival,null);
+        const yPair=[];
+        for(let k=0;k<5;k++){
+          const [ya,yb]=(k+load)%2===0?[await benchBatch(pAll,false),await benchBatch(pBase,false)]:(a=>[a[1],a[0]])([await benchBatch(pBase,false),await benchBatch(pAll,false)]);
+          if(k>0)yPair.push((ya+yb)/2);
+        }
+        const yMs=trueMedian(yPair);yardSamples[study].push(+yMs.toFixed(3));
         for(const spec of studySpecs){
-          const r=await p.evaluate(async({spot,fixture})=>{
-            const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
-            const raf2=()=>new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));
-            const draw=ind=>{if(ind)s.drawIndoors();
-              else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});
-              g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);};
-            const ys=[],rs=[],ratios=[];
-            for(let k=0;k<6;k++){
-              if(fixture)s.fixture=null;
-              s.state=structuredClone(window.__arrival);await raf2();
-              draw(false);draw(false);const t0=performance.now();for(let i=0;i<20;i++)draw(false);const y=(performance.now()-t0)/20;
-              if(fixture)s.fixture=fixture;
-              s.state=structuredClone(spot);await raf2();
-              draw(true);draw(true);const t1=performance.now();for(let i=0;i<20;i++)draw(true);const rm=(performance.now()-t1)/20;
-              ys.push(y);rs.push(rm);ratios.push(rm/y);
-            }
-            if(fixture)s.fixture=null;
-            const med=a=>[...a].sort((x,y)=>x-y)[a.length>>1];
-            return {ratio:+med(ratios.slice(1)).toFixed(4),roomMs:+med(rs.slice(1)).toFixed(3),yardMs:+med(ys.slice(1)).toFixed(3)};
-          },{spot:spec.spot,fixture:spec.fixture});
-          runs[tag][spec.k].push(r);
+          await preparePose(pAll,study,spec.spot,spec.fixture);await preparePose(pBase,study,spec.spot,spec.fixture);
+          const aMs=[],bMs=[];
+          for(let k=0;k<roundsPerLoad+1;k++){
+            let a,b;
+            if((k+load)%2===0){a=await benchBatch(pAll,true);b=await benchBatch(pBase,true);}
+            else{b=await benchBatch(pBase,true);a=await benchBatch(pAll,true);}
+            if(k>0){aMs.push(a);bMs.push(b);pairDiffsByKey[spec.k].push(+((a-b)/yMs).toFixed(4));}
+          }
+          const aMed=+trueMedian(aMs).toFixed(3),bMed=+trueMedian(bMs).toFixed(3);
+          runs.all[spec.k].push({ratio:+(aMed/yMs).toFixed(3),roomMs:aMed,yardMs:+yMs.toFixed(3)});
+          runs.base[spec.k].push({ratio:+(bMed/yMs).toFixed(3),roomMs:bMed,yardMs:+yMs.toFixed(3)});
         }
       }
-      quiet=quiet&&!p.consoleErrors.length&&!p.own.length;await p.context().close();
+      await setPaused(pAll,false);await setPaused(pBase,false);
+      quiet=quiet&&!pAll.consoleErrors.length&&!pAll.own.length&&!pBase.consoleErrors.length&&!pBase.own.length;
+      await pFirst.context().close();await pSecond.context().close();
     }
     const diffs=specs.map(spec=>{
-      const {k}=spec,allLoads=runs.all[k],baseLoads=runs.base[k];
-      const pairDiffs=allLoads.map((a,i)=>+(a.ratio-baseLoads[i].ratio).toFixed(3));
-      const rawPairDiffs=allLoads.map((a,i)=>{const b=baseLoads[i];return +((a.roomMs-b.roomMs)/((a.yardMs+b.yardMs)/2)).toFixed(3);});
+      const {k}=spec,allLoads=runs.all[k],baseLoads=runs.base[k],pairDiffs=pairDiffsByKey[k];
       return {k,pose:spec.p,all:+trueMedian(allLoads.map(x=>x.ratio)).toFixed(3),base:+trueMedian(baseLoads.map(x=>x.ratio)).toFixed(3),
         allRoomMs:+trueMedian(allLoads.map(x=>x.roomMs)).toFixed(3),baseRoomMs:+trueMedian(baseLoads.map(x=>x.roomMs)).toFixed(3),
-        diff:+trueMedian(pairDiffs).toFixed(3),rawDiff:+trueMedian(rawPairDiffs).toFixed(3),pairDiffs,rawPairDiffs,allLoads,baseLoads,quiet};
+        diff:+trueMedian(pairDiffs).toFixed(3),pairDiffs,allLoads,baseLoads,quiet};
     });
-    return {runs,diffs,quiet,pairs};
+    return {runs,diffs,quiet,pairs:loads*roundsPerLoad,loads,roundsPerLoad,yardSamples};
   };
 
   // 94. The three existing speed poses, day and night: all-furnished no more than +0.01 over &furnish=4b, draw calls not higher.
@@ -1596,9 +1675,8 @@ try{
 
   // 105. Speed at [14.6, 5.5] facing [17.9, 5.5] (bathroom), day and night (bathroom lamp lit by fixtureLamps): <= 1.1x yard and <= +0.05 over &furnish=4c.
   const bathLampFix={lamps:fixtureLamps({'bath-ground':1}),hearth:{fire:0,embers:0}};
-  const btDayAll=await measureSpeed('day',{spot:speedPose5}),btDay4c=await measureSpeed('day',{query:'&furnish=4c',spot:speedPose5});
-  const btNightAll=await measureSpeed('night',{spot:speedPose5,fixture:bathLampFix}),btNight4c=await measureSpeed('night',{query:'&furnish=4c',spot:speedPose5,fixture:bathLampFix});
-  const btDayAdded=+(btDayAll.costRatio-btDay4c.costRatio).toFixed(3),btNightAdded=+(btNightAll.costRatio-btNight4c.costRatio).toFixed(3);
+  const {target:btDayAll,base:btDay4c,added:btDayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=4c',spot:speedPose5});
+  const {target:btNightAll,base:btNight4c,added:btNightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=4c',spot:speedPose5,fixture:bathLampFix});
   const btNightLit=[btNightAll,btNight4c].every(x=>x.kept.every(r=>r.roomLit?.lamp===true));
   check(`Speed at [${I.spots.speed[5]}] (bathroom, facing gable), day and night (bathroom lamp lit): at most 1.1 times a yard frame and at most ${ADDED} above &furnish=4c`,
     btDayAll.costRatio<=1.1&&btDayAdded<=ADDED&&btNightAll.costRatio<=1.1&&btNightAdded<=ADDED&&btNightLit,
@@ -1638,9 +1716,9 @@ try{
     {k:'s4-day',p:'s4',study:'day',spot:speedPose4,fixture:null},{k:'s4-night',p:'s4',study:'night',spot:speedPose4,fixture:masterLampFix},
   ];
   const ex5Abba=await measureAbba(ex5Specs,'&furnish=4c'),ex5Quiet=ex5Abba.quiet;
-  const ex5Diffs=ex5Abba.diffs.map(({k,pose:p,all,base:base4c,allRoomMs,baseRoomMs:base4cRoomMs,diff,rawDiff,pairDiffs,rawPairDiffs,quiet})=>{
+  const ex5Diffs=ex5Abba.diffs.map(({k,pose:p,all,base:base4c,allRoomMs,baseRoomMs:base4cRoomMs,diff,pairDiffs,quiet})=>{
     const visibleNew=fiveDiffs[p]>0,limit=visibleNew?.02:NOISE;
-    return {k,pose:p,all,base4c,allRoomMs,base4cRoomMs,diff,rawDiff,limit,visibleNew,pairDiffs,rawPairDiffs,quiet};
+    return {k,pose:p,all,base4c,allRoomMs,base4cRoomMs,diff,limit,visibleNew,pairDiffs,quiet};
   });
   const ex5CallsOk=fivePoses.every(([k])=>callsAll6[k].calls<=calls4c[k].calls+(fiveDiffs[k]>0?4:0));
   check('The five existing speed poses, day and night (ABBA pairing vs &furnish=4c): at most +0.01 of a yard frame and no added draw calls (or at most +0.02 and the new room\'s meshes where new pieces are in view)',
@@ -1814,10 +1892,10 @@ try{
   // 117–118. Upstairs speed poses & draw calls vs &furnish=4d (check 117 isolates 4e via &furnish=4e; also collect draw calls across all 9 speed poses for checks 119, 127 & 128).
   const nookLampFix={lamps:fixtureLamps({nook:1}),hearth:{fire:0,embers:0}};
   const skyLampFix={lamps:fixtureLamps({'sky-room':1}),hearth:{fire:0,embers:0}};
-  const up0Day4e=await measureSpeed('day',{query:'&furnish=4e',spot:upperSpeedPose0}),up0Day4d=await measureSpeed('day',{query:'&furnish=4d',spot:upperSpeedPose0});
-  const up0Night4e=await measureSpeed('night',{query:'&furnish=4e',spot:upperSpeedPose0,fixture:nookLampFix}),up0Night4d=await measureSpeed('night',{query:'&furnish=4d',spot:upperSpeedPose0,fixture:nookLampFix});
-  const up1DayAll=await measureSpeed('day',{spot:upperSpeedPose1}),up1Day4d=await measureSpeed('day',{query:'&furnish=4d',spot:upperSpeedPose1});
-  const up1NightAll=await measureSpeed('night',{spot:upperSpeedPose1,fixture:skyLampFix}),up1Night4d=await measureSpeed('night',{query:'&furnish=4d',spot:upperSpeedPose1,fixture:skyLampFix});
+  const {target:up0Day4e,base:up0Day4d,added:up0DayAdded}=await measureSpeedPair('day',{targetQuery:'&furnish=4e',baseQuery:'&furnish=4d',spot:upperSpeedPose0});
+  const {target:up0Night4e,base:up0Night4d,added:up0NightAdded}=await measureSpeedPair('night',{targetQuery:'&furnish=4e',baseQuery:'&furnish=4d',spot:upperSpeedPose0,fixture:nookLampFix});
+  const {target:up1DayAll,base:up1Day4d,added:up1DayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=4d',spot:upperSpeedPose1});
+  const {target:up1NightAll,base:up1Night4d,added:up1NightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=4d',spot:upperSpeedPose1,fixture:skyLampFix});
   const readNineCalls=async page=>{const out={};for(const [k,pose] of [['s0',rainPose],['s1',lampPose],['s2',speedPose2],['s3',speedPose3],['s4',speedPose4],['s5',speedPose5],['u0',upperSpeedPose0],['u1',upperSpeedPose1],['u2',upperSpeedPose2]]){await stand(page,pose,500);out[k]=await drawCalls(page);}return out;};
   const p4dCalls=await visitor({width:1440,height:810});await p4dCalls.goto(`${base}/?check&tier=full&furnish=4d`);await ready(p4dCalls);await studyLight(p4dCalls,'day');await walkIn(p4dCalls);
   const calls4d=await readNineCalls(p4dCalls);const p4dCallsQuiet=!p4dCalls.consoleErrors.length&&!p4dCalls.own.length;await p4dCalls.context().close();
@@ -1827,14 +1905,12 @@ try{
   const pAll8Calls=await visitor({width:1440,height:810});await pAll8Calls.goto(`${base}/?check&tier=full`);await ready(pAll8Calls);await studyLight(pAll8Calls,'day');await walkIn(pAll8Calls);
   await pAll8Calls.evaluate(()=>window.__space.inside.buildRest());
   const callsAll8=await readNineCalls(pAll8Calls);const pAll8CallsQuiet=!pAll8Calls.consoleErrors.length&&!pAll8Calls.own.length;await pAll8Calls.context().close();
-  const up0DayAdded=+(up0Day4e.costRatio-up0Day4d.costRatio).toFixed(3),up0NightAdded=+(up0Night4e.costRatio-up0Night4d.costRatio).toFixed(3);
   const up0CallsAdded=calls4e.u0.calls-calls4d.u0.calls,UP0_CALLS_BUDGET=9;
   check(`Speed at upperSpots.speed[0] [${I.upperSpots.speed[0]}] (landing -> nook, &furnish=4e vs &furnish=4d), day and night: <= 1.1x yard, <= +${ADDED} over &furnish=4d, <= +${UP0_CALLS_BUDGET} draw calls`,
     up0Day4e.costRatio<=1.1&&up0DayAdded<=ADDED&&up0Night4e.costRatio<=1.1&&up0NightAdded<=ADDED&&up0CallsAdded<=UP0_CALLS_BUDGET,
     {spot:I.upperSpots.speed[0],day:{f4e:up0Day4e.costRatio,base4d:up0Day4d.costRatio,added:up0DayAdded},
       night:{f4e:up0Night4e.costRatio,base4d:up0Night4d.costRatio,added:up0NightAdded},calls:{f4e:calls4e.u0.calls,base4d:calls4d.u0.calls,added:up0CallsAdded,limit:UP0_CALLS_BUDGET}});
   console.log(`  speed at u0 (landing->nook, 4e vs 4d): day ${up0Day4e.costRatio}x (+${up0DayAdded}), night ${up0Night4e.costRatio}x (+${up0NightAdded}), calls +${up0CallsAdded} (${calls4e.u0.calls}/${calls4d.u0.calls})`);
-  const up1DayAdded=+(up1DayAll.costRatio-up1Day4d.costRatio).toFixed(3),up1NightAdded=+(up1NightAll.costRatio-up1Night4d.costRatio).toFixed(3);
   const up1CallsAdded=callsAll8.u1.calls-calls4d.u1.calls,UP1_CALLS_BUDGET=4;
   check(`Speed at upperSpots.speed[1] [${I.upperSpots.speed[1]}] (sky-room -> daybed & roof window), day and night: <= 1.1x yard, <= +${ADDED} over &furnish=4d, <= +${UP1_CALLS_BUDGET} draw calls`,
     up1DayAll.costRatio<=1.1&&up1DayAdded<=ADDED&&up1NightAll.costRatio<=1.1&&up1NightAdded<=ADDED&&up1CallsAdded<=UP1_CALLS_BUDGET,
@@ -1845,7 +1921,7 @@ try{
   // 119. All six ground-floor speed poses, day and night, ABBA paired vs &furnish=4d: <= +0.01 and 0 added draw calls.
   const ex6Specs=[...ex5Specs,{k:'s5-day',p:'s5',study:'day',spot:speedPose5,fixture:null},{k:'s5-night',p:'s5',study:'night',spot:speedPose5,fixture:bathLampFix}];
   const ex6Abba=await measureAbba(ex6Specs,'&furnish=4d',{buildRest:true}),ex6Quiet=ex6Abba.quiet;
-  const ex6Diffs=ex6Abba.diffs.map(({k,pose:p,all,base:base4d,diff,rawDiff,pairDiffs,rawPairDiffs})=>({k,pose:p,all,base4d,diff,rawDiff,limit:NOISE,pairDiffs,rawPairDiffs}));
+  const ex6Diffs=ex6Abba.diffs.map(({k,pose:p,all,base:base4d,diff,pairDiffs})=>({k,pose:p,all,base4d,diff,limit:NOISE,pairDiffs}));
   const sixKeys=['s0','s1','s2','s3','s4','s5'];
   const ex6CallsOk=sixKeys.every(k=>callsAll8[k].calls<=calls4d[k].calls);
   check('All six ground-floor speed poses, day and night (ABBA pairing vs &furnish=4d): at most +0.01 of a yard frame and 0 added draw calls',
@@ -2035,9 +2111,8 @@ try{
 
   // 127. Speed at upperSpots.speed[2] (bath-upper -> tub & linen door), day and night (bath-upper & linen lamps lit): <= 1.1x yard, <= +0.05 over &furnish=4e, <= +7 draw calls.
   const bathUpLampFix={lamps:fixtureLamps({'bath-upper':1,linen:1}),hearth:{fire:0,embers:0}};
-  const up2DayAll=await measureSpeed('day',{spot:upperSpeedPose2}),up2Day4e=await measureSpeed('day',{query:'&furnish=4e',spot:upperSpeedPose2});
-  const up2NightAll=await measureSpeed('night',{spot:upperSpeedPose2,fixture:bathUpLampFix}),up2Night4e=await measureSpeed('night',{query:'&furnish=4e',spot:upperSpeedPose2,fixture:bathUpLampFix});
-  const up2DayAdded=+(up2DayAll.costRatio-up2Day4e.costRatio).toFixed(3),up2NightAdded=+(up2NightAll.costRatio-up2Night4e.costRatio).toFixed(3);
+  const {target:up2DayAll,base:up2Day4e,added:up2DayAdded}=await measureSpeedPair('day',{baseQuery:'&furnish=4e',spot:upperSpeedPose2});
+  const {target:up2NightAll,base:up2Night4e,added:up2NightAdded}=await measureSpeedPair('night',{baseQuery:'&furnish=4e',spot:upperSpeedPose2,fixture:bathUpLampFix});
   const up2CallsAdded=callsAll8.u2.calls-calls4e.u2.calls,UP2_CALLS_BUDGET=7;
   check(`Speed at upperSpots.speed[2] [${I.upperSpots.speed[2]}] (bath-upper -> linen door), day and night: <= 1.1x yard, <= +${ADDED} over &furnish=4e, <= +${UP2_CALLS_BUDGET} draw calls`,
     up2DayAll.costRatio<=1.1&&up2DayAdded<=ADDED&&up2NightAll.costRatio<=1.1&&up2NightAdded<=ADDED&&up2CallsAdded<=UP2_CALLS_BUDGET,
@@ -2054,9 +2129,9 @@ try{
     {k:'u1-day',p:'u1',study:'day',spot:upperSpeedPose1,fixture:null,limit:NOISE},
     {k:'u1-night',p:'u1',study:'night',spot:upperSpeedPose1,fixture:skyLampFix,limit:NOISE}];
   const ex8Abba=await measureAbba(ex8Specs,'&furnish=4e',{buildRest:true}),ex8Quiet=ex8Abba.quiet;
-  const ex8Diffs=ex8Abba.diffs.map(({k,pose:p,all,base:base4e,diff,rawDiff,pairDiffs,rawPairDiffs},idx)=>{
+  const ex8Diffs=ex8Abba.diffs.map(({k,pose:p,all,base:base4e,diff,pairDiffs},idx)=>{
     const limit=ex8Specs[idx].limit??NOISE;
-    return {k,pose:p,all,base4e,diff,rawDiff,limit,pairDiffs,rawPairDiffs};
+    return {k,pose:p,all,base4e,diff,limit,pairDiffs};
   });
   const eightZeroKeys=['s0','s1','s2','s3','s4','s5','u1'];
   const ex8CallsOk=eightZeroKeys.every(k=>callsAll8[k].calls<=calls4e[k].calls)&&(callsAll8.u0.calls-calls4e.u0.calls)<=UP2_CALLS_BUDGET;
