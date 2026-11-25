@@ -243,7 +243,7 @@ const BLUEPRINT = {
   breasts: BREASTS,
   furniture: FURNITURE,
   furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
-  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room'],
+  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room', 'bath-upper', 'linen', 'box-room'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
@@ -258,7 +258,8 @@ const BLUEPRINT = {
   // Named standable spots and speed poses on the upper floor (floor 1).
   upperSpots: {
     landingSeat: [8.4, 1.0], bed2: [3.5, 4.0], bed3: [14.5, 4.0], skyWindow: [3.5, 8.2], nookChair: [9.0, 9.2],
-    speed: [[8.4, 5.8], [5.8, 9.5]],
+    bathTub: [12.0, 10.3], boxRoom: [16.5, 8.2], linenShelf: [16.5, 10.8],
+    speed: [[8.4, 5.8], [5.8, 9.5], [11.8, 9.6]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [

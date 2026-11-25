@@ -532,13 +532,13 @@ test('the real blueprint with the laundry and pantry furnished is valid, queues 
 
 // ── Part 4e: ceiling-slope rule (Rule 10), floor-1 walks, upperSpots and SLICE_4E ──
 const withUpperPieces = (extra, upperSpots) => {
-  const c = structuredClone(withoutRooms(I, SLICE_4E));
+  const c = structuredClone(withoutRooms(I, [...SLICE_4E, ...SLICE_4F]));
   c.furniture.push(...extra);
   if (upperSpots) c.upperSpots = {...c.upperSpots, ...upperSpots};
   c.obstacles = obstaclesOf(c);
   return c;
 };
-test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / furnishUpper are valid', () => {
+test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / SLICE_4F / furnishUpper are valid', () => {
   assert.equal(validInterior(I), true);
   assert.ok(floorArea(I, 1, stairTop(I), I.eyeClear));
   assert.ok(floorArea(I, 1, stairTop(I), .45));
@@ -547,14 +547,15 @@ test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / fu
   assert.deepEqual(SLICE_4E, ['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']);
   assert.ok(Object.isFrozen(SLICE_4F));
   assert.deepEqual(SLICE_4F, ['bath-upper', 'box-room', 'linen']);
-  assert.equal(I.upperSpots.speed.length, 2);
+  assert.equal(I.upperSpots.speed.length, 3);
   assert.equal(roomAt(I, 1, I.upperSpots.speed[0])?.id, 'landing');
   assert.equal(roomAt(I, 1, I.upperSpots.speed[1])?.id, 'sky-room');
+  assert.equal(roomAt(I, 1, I.upperSpots.speed[2])?.id, 'bath-upper');
   for (const [k, p] of Object.entries(I.upperSpots)) {
     if (k === 'speed') continue;
     assert.ok(Array.isArray(p) && floorArea(I, 1, p), `upperSpots.${k}`);
   }
-  assert.equal(upperThroughWays(I).length, 5);
+  assert.equal(upperThroughWays(I).length, 8);
 });
 test('rule 10: ceiling clearance rejects tall solids, badly placed or ridge-straddling sloped shelves, flat-floor sloped pieces, tall set-on pieces, and high wall-hung pieces', () => {
   // Regular bookshelf (h 2.1 m) against d = 0 eave (ceiling 1.92..2.02 m) fails; eave-bookshelf (1.88 m) passes.
@@ -617,12 +618,32 @@ test('bedrooms 2 and 3 pieces are valid and leave existing bedroom check poses s
   }
   for (const p of [[3.5, 5], [14.5, 5], [14.5, 6.6]]) assert.ok(floorArea(I, 1, p), `existing bedroom pose ${p}`);
 });
-test('the library nook pieces are valid and furnishUpper queues all five part 4e rooms in order', () => {
+test('the library nook pieces are valid and furnishUpper queues all eight upstairs rooms in order', () => {
   assert.equal(validInterior(I), true);
-  assert.deepEqual(I.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']);
-  assert.deepEqual(new Set(I.furnishUpper), new Set(SLICE_4E));
+  assert.deepEqual(I.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room', 'bath-upper', 'linen', 'box-room']);
+  assert.deepEqual(new Set(I.furnishUpper), new Set([...SLICE_4E, ...SLICE_4F]));
   const ids = new Set(I.furniture.map(e => e.id));
   for (const id of ['nook-rug', 'nook-eave-shelves', 'nook-shelves-west', 'nook-shelves-east', 'nook-chair', 'nook-lamp']) {
     assert.ok(ids.has(id), `blueprint has ${id}`);
   }
+});
+
+// ── Part 4f: upstairs bathroom, box room and linen cupboard spots, slope checks and through-ways ──
+test('part 4f spots, back-slope Rule 10 checks, and upperThroughWays for bath-upper, box-room and linen', () => {
+  for (const [k, room] of [['bathTub', 'bath-upper'], ['boxRoom', 'box-room'], ['linenShelf', 'linen']]) {
+    assert.equal(roomAt(I, 1, I.upperSpots[k])?.id, room, `upperSpots.${k} in ${room}`);
+    assert.equal(validInterior(withUpperPieces([{id: `on-${k}`, kind: 'floor-cushion', room, at: [...I.upperSpots[k]]}])), false, k);
+  }
+  assert.equal(validInterior(withUpperPieces([{id: 'on-us2', kind: 'floor-cushion', room: 'bath-upper', at: [...I.upperSpots.speed[2]]}])), false);
+  // Rule 10 under the back slope: 2 m shower against d = 12 eave fails; mirror at z = 1.5 on d = 12 fails, z = 1.4 passes;
+  // linen-shelf (1.85 m) fits under the eave while linen-press (2.0 m) does not.
+  assert.equal(validInterior(withUpperPieces([{id: 'shower-eave', kind: 'shower', room: 'bath-upper', at: [14.475, 11.475], turn: 0}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'mirror-eave-hi', kind: 'mirror', room: 'bath-upper', wall: 'd', line: 12, along: [11.6, 12.2], z: 1.5}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'mirror-eave-lo', kind: 'mirror', room: 'bath-upper', wall: 'd', line: 12, along: [11.6, 12.2], z: 1.4}])), true);
+  assert.equal(validInterior(withUpperPieces([{id: 'shelf-eave-ok', kind: 'linen-shelf', room: 'linen', at: [16.5, 11.75], turn: 0}])), true);
+  assert.equal(validInterior(withUpperPieces([{id: 'press-eave-bad', kind: 'linen-press', room: 'linen', at: [16.5, 11.70], turn: 0}])), false);
+  const ways = new Map(upperThroughWays(I).map(w => [w.room, w]));
+  assert.ok(ways.has('bath-upper') && ways.get('bath-upper').to.length === 2, 'bath-upper way reaches linen door and bathTub');
+  assert.ok(ways.has('box-room') && ways.get('box-room').to.length === 1, 'box-room way reaches boxRoom');
+  assert.ok(ways.has('linen') && ways.get('linen').to.length === 1, 'linen way reaches linenShelf');
 });
