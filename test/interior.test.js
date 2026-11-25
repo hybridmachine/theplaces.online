@@ -635,9 +635,10 @@ test('part 4f spots, back-slope Rule 10 checks, and upperThroughWays for bath-up
     assert.equal(validInterior(withUpperPieces([{id: `on-${k}`, kind: 'floor-cushion', room, at: [...I.upperSpots[k]]}])), false, k);
   }
   assert.equal(validInterior(withUpperPieces([{id: 'on-us2', kind: 'floor-cushion', room: 'bath-upper', at: [...I.upperSpots.speed[2]]}])), false);
-  // Rule 10 under the back slope: 2 m shower against d = 12 eave fails; mirror at z = 1.5 on d = 12 fails, z = 1.4 passes;
-  // linen-shelf (1.85 m) fits under the eave while linen-press (2.0 m) does not.
-  assert.equal(validInterior(withUpperPieces([{id: 'shower-eave', kind: 'shower', room: 'bath-upper', at: [14.475, 11.475], turn: 0}])), false);
+  // Rule 10 under the back slope: 2 m shower against d = 12 eave (clear of doorways and lamp) fails, while on the tall d = 7 wall it passes;
+  // mirror at z = 1.5 on d = 12 fails, z = 1.4 passes; linen-shelf (1.85 m) fits under the eave while linen-press (2.0 m) does not.
+  assert.equal(validInterior(withUpperPieces([{id: 'shower-eave', kind: 'shower', room: 'bath-upper', at: [12.0, 11.475], turn: 0}])), false);
+  assert.equal(validInterior(withUpperPieces([{id: 'shower-tall', kind: 'shower', room: 'bath-upper', at: [12.0, 7.525], turn: Math.PI}])), true);
   assert.equal(validInterior(withUpperPieces([{id: 'mirror-eave-hi', kind: 'mirror', room: 'bath-upper', wall: 'd', line: 12, along: [11.6, 12.2], z: 1.5}])), false);
   assert.equal(validInterior(withUpperPieces([{id: 'mirror-eave-lo', kind: 'mirror', room: 'bath-upper', wall: 'd', line: 12, along: [11.6, 12.2], z: 1.4}])), true);
   assert.equal(validInterior(withUpperPieces([{id: 'shelf-eave-ok', kind: 'linen-shelf', room: 'linen', at: [16.5, 11.75], turn: 0}])), true);
@@ -658,8 +659,11 @@ test('the upstairs bathroom pieces are valid, keep the eave lamp clear, and Rule
   const lamp = I.fittings.find(f => f.room === 'bath-upper');
   const tub = footprint(I.furniture.find(e => e.id === 'bath-upper-tub'));
   assert.equal(lamp.at[0] >= tub.a[0] && lamp.at[0] <= tub.a[1] && lamp.at[1] >= tub.d[0] && lamp.at[1] <= tub.d[1], false);
-  // Blocking bath-upper between the nook door (a=11, d=9..10) and linen door (a=15, d=10.2..11.2) fails Rule 8.
-  assert.equal(validInterior(withUpperPieces([{id: 'bath-upper-bar', kind: 'chest-of-drawers', room: 'bath-upper', at: [13.0, 9.6], turn: Math.PI / 2, size: [3.6, .5]}])), false);
+  // Blocking bath-upper between the nook door (a=11, d=9..10) and linen door (a=15, d=10.2..11.2) passes Rule 7 (0.5 m) but fails Rule 8 (0.9 m).
+  const bathBar = withUpperPieces([{id: 'bath-upper-bar', kind: 'chest-of-drawers', room: 'bath-upper', at: [13.0, 9.6], turn: Math.PI / 2, size: [3.6, .5]}]);
+  assert.equal(reachable(bathBar, 1, stairTop(bathBar), [15, 10.7], I.eyeClear), true);
+  assert.equal(reachable(bathBar, 1, stairTop(bathBar), [15, 10.7], .45), false);
+  assert.equal(validInterior(bathBar), false);
 });
 
 test('the box room and linen cupboard pieces are valid, keep their wall lamps clear, and Rule 8 rejects blocking either room', () => {
@@ -669,8 +673,29 @@ test('the box room and linen cupboard pieces are valid, keep their wall lamps cl
     'linen-press', 'linen-eave-shelf', 'linen-cupboard-basket', 'linen-cupboard-towel']) {
     assert.ok(ids.has(id), `blueprint has ${id}`);
   }
-  // Blocking inside the box room doorway (d=7, a=16..17) fails Rule 8.
-  assert.equal(validInterior(withUpperPieces([{id: 'box-block', kind: 'trunk', room: 'box-room', at: [16.5, 7.9], turn: 0, size: [1.6, .5]}])), false);
-  // Blocking the clear band across the linen cupboard fails Rule 8.
-  assert.equal(validInterior(withUpperPieces([{id: 'linen-bar', kind: 'trunk', room: 'linen', at: [16.1, 10.8], turn: Math.PI / 2, size: [1.6, .5]}])), false);
+  // Rotated trunk-2 stays inside the south wall face (9.5 - wall / 2 = 9.425).
+  assert.ok(footprint(I.furniture.find(e => e.id === 'trunk-2')).d[1] <= 9.5 - I.wall / 2 + 1e-9);
+  for (const roomId of ['box-room', 'linen']) {
+    const lamp = I.fittings.find(f => f.room === roomId);
+    for (const e of I.furniture.filter(x => x.room === roomId && KINDS[x.kind].standing === 'solid')) {
+      const f = footprint(e);
+      assert.equal(lamp.at[0] >= f.a[0] && lamp.at[0] <= f.a[1] && lamp.at[1] >= f.d[0] && lamp.at[1] <= f.d[1], false, `${e.id} clear of ${roomId} lamp`);
+    }
+  }
+  // Narrowing the entry into the box room to 0.7 m leaves boxRoom standable & reachable at 0.5 m (Rule 7) but fails Rule 8 (0.9 m).
+  const boxBlock = withUpperPieces([
+    {id: 'box-gate-w', kind: 'trunk', room: 'box-room', at: [15.625, 7.62], turn: 0, size: [1.05, .2]},
+    {id: 'box-gate-e', kind: 'trunk', room: 'box-room', at: [17.375, 7.62], turn: 0, size: [1.05, .2]},
+  ]);
+  assert.equal(reachable(boxBlock, 1, stairTop(boxBlock), I.upperSpots.boxRoom, I.eyeClear), true);
+  assert.equal(reachable(boxBlock, 1, stairTop(boxBlock), I.upperSpots.boxRoom, .45), false);
+  assert.equal(validInterior(boxBlock), false);
+  // Narrowing the clear band across the linen cupboard to 0.7 m leaves linenShelf standable & reachable at 0.5 m (Rule 7) but fails Rule 8 (0.9 m).
+  const linenBar = withUpperPieces([
+    {id: 'linen-gate-n', kind: 'trunk', room: 'linen', at: [15.75, 10.015], turn: Math.PI / 2, size: [.87, .4]},
+    {id: 'linen-gate-s', kind: 'trunk', room: 'linen', at: [15.75, 11.535], turn: Math.PI / 2, size: [.77, .4]},
+  ]);
+  assert.equal(reachable(linenBar, 1, stairTop(linenBar), I.upperSpots.linenShelf, I.eyeClear), true);
+  assert.equal(reachable(linenBar, 1, stairTop(linenBar), I.upperSpots.linenShelf, .45), false);
+  assert.equal(validInterior(linenBar), false);
 });

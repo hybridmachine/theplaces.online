@@ -1449,17 +1449,17 @@ export const RECIPES = {
     const bodyTone = .56 + (pal.random(1) - .5) * .14;
     const body = pal.surface('wood', 0, .08, bodyTone), lid = pal.surface('wood', 2, .07, bodyTone * 1.12);
     const strap = pal.surface('wood', 3, .05, .34), brass = pal.surface('brass', 4, .06, .95), iron = pal.surface('iron', 5, .04);
-    const lidZ = .36, rise = h - lidZ, bx = hx - .015, by = hy - .015;
+    const lidZ = .36, rise = h - lidZ - .006, bx = hx - .015, by = hy - .015, lidY = hy - .005;
     // timber bottom runners and boarded chest carcass
     put(out, 'wood', [
       ...kit.board(at, [-bx + .04, -bx + .10], [-by + .02, by - .02], [0, .025], strap, {skip: ['under', 'top']}),
       ...kit.board(at, [bx - .10, bx - .04], [-by + .02, by - .02], [0, .025], strap, {skip: ['under', 'top']}),
-      ...kit.box(at, [-bx, bx], [-by, by], [.025, lidZ], body, {skip: ['under', 'top'], seed: pal.seed}),
+      ...kit.box(at, [-bx, bx], [-by, by], [.025, lidZ], body, {skip: ['under', 'top'], broken: .004, seed: pal.seed}),
     ]);
-    // domed lid across y ∈ [-hy, hy], arched up to h along the centre line, with closed curved side end-caps
+    // domed lid across y ∈ [-lidY, lidY], arched up so the straps top out at h, with closed curved side end-caps
     const steps = 6, arch = Array.from({length: steps + 1}, (_, i) => {
-      const a = Math.PI * i / steps, cy = -hy * Math.cos(a), cz = lidZ + rise * Math.sin(a);
-      const ny = -Math.cos(a) / hy, nz = Math.sin(a) / rise, l = Math.hypot(ny, nz) || 1;
+      const a = Math.PI * i / steps, cy = -lidY * Math.cos(a), cz = lidZ + rise * Math.sin(a);
+      const ny = -Math.cos(a) / lidY, nz = Math.sin(a) / rise, l = Math.hypot(ny, nz) || 1;
       return {y: cy, z: cz, ny: ny / l, nz: nz / l};
     });
     const lidRows = [arch.map(p => [-hx, p.y, p.z]), arch.map(p => [hx, p.y, p.z])];
@@ -1476,25 +1476,25 @@ export const RECIPES = {
       const sRows = [arch.map(p => [cx - sw, p.y * 1.015, p.z + .006]), arch.map(p => [cx + sw, p.y * 1.015, p.z + .006])];
       put(out, 'wood', [
         kit.grid(at, sRows, lidNorms, strap, .9),
-        ...kit.board(at, [cx - sw, cx + sw], [-by - .008, -by], [.03, lidZ], strap, {skip: ['back']}),
-        ...kit.board(at, [cx - sw, cx + sw], [by, by + .008], [.03, lidZ], strap, {skip: ['front']}),
+        ...kit.board(at, [cx - sw, cx + sw], [-by - .008, -by + .005], [.03, lidZ], strap, {skip: ['back']}),
+        ...kit.board(at, [cx - sw, cx + sw], [by - .005, by + .008], [.03, lidZ], strap, {skip: ['front']}),
       ]);
     }
     // brass corner irons on the front corners and a central brass lock plate & hasp
     for (const sx of [-1, 1]) {
       const x0 = sx < 0 ? -bx - .005 : bx - .055, x1 = sx < 0 ? -bx + .055 : bx + .005;
       put(out, 'brass', [
-        ...kit.board(at, [x0, x1], [-by - .009, -by], [.03, .085], brass, {skip: ['back']}),
-        ...kit.board(at, [x0, x1], [-by - .009, -by], [lidZ - .055, lidZ], brass, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [-by - .009, -by + .005], [.03, .085], brass, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [-by - .009, -by + .005], [lidZ - .055, lidZ], brass, {skip: ['back']}),
       ]);
     }
     put(out, 'brass', [
-      ...kit.board(at, [-.045, .045], [-by - .01, -by], [lidZ - .065, lidZ + .02], brass, {skip: ['back']}),
-      ...kit.board(at, [-.018, .018], [-by - .016, -by - .008], [lidZ - .04, lidZ + .03], brass, {skip: ['back']}),
+      ...kit.board(at, [-.045, .045], [-by - .01, -by + .005], [lidZ - .065, lidZ + .02], brass, {skip: ['back']}),
+      ...kit.board(at, [-.018, .018], [-by - .014, -by - .006], [lidZ - .04, lidZ + .03], brass, {skip: ['back']}),
     ]);
     // iron side carrying handles
     for (const sx of [-1, 1]) {
-      const x = sx * (bx + .008);
+      const x = sx * (bx + .005);
       put(out, 'iron', [
         ...kit.roll(at, [x, -.07, .24], [x, .07, .24], .009, iron, {sides: 5}),
         ...kit.roll(at, [x - sx * .01, -.07, .24], [x, -.07, .24], .008, iron, {sides: 5}),
@@ -1505,23 +1505,23 @@ export const RECIPES = {
   },
   // A tall open-shelved linen press: plinth, cornice, two bays of five shelves filled with folded sheets and rolled towels.
   'linen-press'(kit, e, pal) {
-    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03;
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03, bx = hx - .015, fy = -hy + .015;
     const wood = pal.surface('wood', 0, .06, .76), topWood = pal.surface('wood', 1, .06, .84);
     const shut = {tuck: ['under', 'back', 'left', 'right']};
     put(out, 'wood', [
-      ...kit.box(at, [-hx, hx], [-hy, hy], [0, h - .04], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
-      ...kit.board(at, [-hx - .015, hx + .015], [-hy - .015, hy + .005], [h - .04, h], topWood, {tuck: ['under', 'back'], seed: pal.seed + 1}),
-      ...kit.board(at, [-T / 2, T / 2], [-hy + .012, hy - T], [.10, h - .04 - T], wood, {tuck: ['left', 'right', 'back']}),
-      ...kit.board(at, [-hx + T, hx - T], [-hy + .01, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
+      ...kit.box(at, [-bx, bx], [fy, hy], [0, h - .04], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
+      ...kit.box(at, [-hx, hx], [-hy, hy], [h - .04, h], topWood, {tuck: ['under', 'back'], seed: pal.seed + 1}),
+      ...kit.board(at, [-T / 2, T / 2], [fy + .012, hy - T], [.10, h - .04 - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [-bx + T, bx - T], [fy + .01, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
     ]);
-    const bays = [[-hx + T, -T / 2], [T / 2, hx - T]];
+    const bays = [[-bx + T, -T / 2], [T / 2, bx - T]];
     const shelves = [.10, .46, .82, 1.18, 1.54];
     const tints = linenPalette(pal);
     shelves.forEach((z, k) => {
-      const head = (shelves[k + 1] ?? h - .04 - T) - z - (k + 1 < shelves.length ? .03 : 0);
+      const head = (shelves[k + 1] ?? h - .04 - T) - z - (k + 1 < shelves.length ? T : 0);
       bays.forEach(([x0, x1], b) => {
-        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
-        put(out, 'cloth', linens(kit, at, [x0, x1], -hy + .03, hy - T - .01, z, {
+        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [fy + .008, hy - T], [z - T, z], wood, shut));
+        put(out, 'cloth', linens(kit, at, [x0, x1], fy + .025, hy - T - .01, z, {
           head, seed: pal.seed * 19 + k * 5 + b, colours: tints, rolled: k === 2 && b === 1,
         }));
       });
@@ -1548,10 +1548,11 @@ export const RECIPES = {
     const shelves = [.10, .44, .78, 1.12, 1.46];
     const tints = linenPalette(pal);
     shelves.forEach((z, k) => {
-      const head = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
+      const nextTop = k + 1 < shelves.length ? Math.min(shelves[k + 1] - T, h - T) : h - T;
+      const head = nextTop - z;
       if (head < .14) return;
       bays.forEach(([x0, x1], b) => {
-        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .028, z], wood, shut));
+        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - T, z], wood, shut));
         put(out, 'cloth', linens(kit, at, [x0, x1], -hy + .025, hy - T - .01, z, {
           head, seed: pal.seed * 23 + k * 7 + b, colours: tints, rolled: k === 1 && b === 1,
         }));

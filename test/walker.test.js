@@ -397,6 +397,12 @@ test('walking on floor 1 stops at trunk-1 in box-room and slides along linen-pre
   }
   assert.ok(s.position[1] <= trunk.d[0] - I.eyeClear + 1e-9, `stopped at trunk-1: ${s.position}`);
   assert.ok(s.position[1] > trunk.d[0] - I.eyeClear - .1, `pressed close to trunk-1: ${s.position}`);
+  let gt = {place: 'cabin', floor: 1, position: [15.85, 8.2], yaw: Math.PI / 4, pitch: 0};
+  for (let i = 0; i < 60; i++) {
+    gt = stepIndoors(I, gt, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(gt) && !inTrunk(gt.position), `entered trunk-1 while sliding: ${gt.position}`);
+  }
+  assert.ok(gt.position[0] > 15.85 + .4, `slid east along trunk-1 to ${gt.position}`);
 
   const press = I.obstacles.find(o => o.id === 'linen-press');
   assert.ok(press, 'linen-press obstacle exists');
@@ -409,6 +415,7 @@ test('walking on floor 1 stops at trunk-1 in box-room and slides along linen-pre
     assert.ok(standable(l) && !inPress(l.position), `entered linen-press at ${l.position}`);
   }
   assert.ok(l.position[1] >= press.d[1] + I.eyeClear - 1e-9, `stopped at linen-press: ${l.position}`);
+  assert.ok(l.position[1] < press.d[1] + I.eyeClear + .1, `pressed close to linen-press: ${l.position}`);
   let g = {...startL, yaw: Math.PI + Math.PI / 4};   // diagonal -a / -d sliding west
   for (let i = 0; i < 45; i++) {
     g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);

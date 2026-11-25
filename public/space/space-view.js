@@ -50,7 +50,7 @@ const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
 // The interior, until the owner approves it, only behind ?interior=1.
 // With ?check, &bare=1 builds the view from the bare blueprint (no furniture), &furnish=first strips the queued rooms and
-// &furnish=4b strips part 4c's rooms while keeping kitchen and dining queued, to compare captures; without ?check all are ignored.
+// &furnish=4b..4e strip later slices while keeping earlier queues, to compare captures; without ?check all are ignored.
 // &bare=1 wins over &furnish=.
 export function interiorSwitch(search = typeof location !== 'undefined' ? location.search : '') {
   const params = new URLSearchParams(search);
