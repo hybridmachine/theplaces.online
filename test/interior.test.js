@@ -1,7 +1,7 @@
 import test from 'node:test';
 import {KINDS, bareInterior, footprint, obstaclesOf, solidObstacles, withoutRooms} from '../shared/furniture.js';
 import assert from 'node:assert/strict';
-import {LAKESIDE_INTERIOR as I, SLICE_4E} from '../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4E, SLICE_4F} from '../shared/lakeside-interior.js';
 import {ceilingHeight, roomAt, stairTop, upperThroughWays, validInterior} from '../shared/interior.js';
 
 test('each floor is tiled exactly by its rooms: 18 × 12 with no overlap', () => {
@@ -542,8 +542,11 @@ test('stairTop is standable at 0.25 m and 0.45 m, and upperSpots / SLICE_4E / fu
   assert.equal(validInterior(I), true);
   assert.ok(floorArea(I, 1, stairTop(I), I.eyeClear));
   assert.ok(floorArea(I, 1, stairTop(I), .45));
-  assert.equal(SLICE_4E, I.furnishUpper);
-  assert.deepEqual(new Set(SLICE_4E), new Set(['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']));
+  assert.notEqual(SLICE_4E, I.furnishUpper);
+  assert.ok(Object.isFrozen(SLICE_4E));
+  assert.deepEqual(SLICE_4E, ['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']);
+  assert.ok(Object.isFrozen(SLICE_4F));
+  assert.deepEqual(SLICE_4F, ['bath-upper', 'box-room', 'linen']);
   assert.equal(I.upperSpots.speed.length, 2);
   assert.equal(roomAt(I, 1, I.upperSpots.speed[0])?.id, 'landing');
   assert.equal(roomAt(I, 1, I.upperSpots.speed[1])?.id, 'sky-room');

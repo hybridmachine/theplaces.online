@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SpaceView, hidingSwitch, interiorSwitch, lightLevels, verticalFov} from '../public/space/space-view.js';
 import {LAKESIDE_SPACE as S} from '../shared/lakeside-space.js';
-import {LAKESIDE_INTERIOR as I, SLICE_4C, SLICE_4D, SLICE_4E} from '../shared/lakeside-interior.js';
+import {LAKESIDE_INTERIOR as I, SLICE_4C, SLICE_4D, SLICE_4E, SLICE_4F} from '../shared/lakeside-interior.js';
 import {skyColours, weatherSky} from '../public/space/sky-dome.js';
 import {PainterlyPass, canPaint} from '../public/space/painterly-pass.js';
 import {DIALS, interiorDials} from '../shared/interior-light.js';
@@ -785,12 +785,22 @@ test('&furnish=4c with ?check strips SLICE_4D rooms and keeps master queued; wit
   assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4c');
 });
 
-test('&furnish=4d with ?check strips SLICE_4E rooms and keeps the ground-floor queue; without ?check it is ignored', () => {
+test('&furnish=4d with ?check strips SLICE_4E and SLICE_4F rooms and keeps the ground-floor queue; without ?check it is ignored', () => {
   const f4d = interiorSwitch('?interior=1&check&furnish=4d');
-  assert.ok(!f4d.furniture.some(e => SLICE_4E.includes(e.room)), 'no SLICE_4E piece');
+  assert.ok(!f4d.furniture.some(e => SLICE_4E.includes(e.room) || SLICE_4F.includes(e.room)), 'no SLICE_4E or SLICE_4F piece');
   assert.ok(f4d.furnishLater.includes('bath-ground') && f4d.furnishLater.includes('pantry'), 'ground-floor queue kept');
   assert.deepEqual(f4d.furnishUpper ?? [], [], 'upper queue stripped');
   assert.equal(interiorSwitch('?interior=1&furnish=4d'), I, 'ignored without ?check');
+});
+
+test('&furnish=4e with ?check strips SLICE_4F rooms and keeps SLICE_4E queued; without ?check it is ignored', () => {
+  const f4e = interiorSwitch('?interior=1&check&furnish=4e');
+  assert.ok(!f4e.furniture.some(e => SLICE_4F.includes(e.room)), 'no SLICE_4F piece');
+  assert.ok(!(f4e.furnishUpper ?? []).some(r => SLICE_4F.includes(r)), 'no SLICE_4F room queued');
+  assert.deepEqual(f4e.furnishUpper, ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room']);
+  assert.equal(interiorSwitch('?interior=1&furnish=4e'), I, 'ignored without ?check');
+  const bare = interiorSwitch('?interior=1&check&bare=1&furnish=4e');
+  assert.equal(bare.furniture.length, 0, '&bare=1 wins over &furnish=4e');
 });
 
 test('hidingSwitch is true unless ?check and hide=0', () => {
