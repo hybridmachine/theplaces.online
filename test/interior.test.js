@@ -647,3 +647,17 @@ test('part 4f spots, back-slope Rule 10 checks, and upperThroughWays for bath-up
   assert.ok(ways.has('box-room') && ways.get('box-room').to.length === 1, 'box-room way reaches boxRoom');
   assert.ok(ways.has('linen') && ways.get('linen').to.length === 1, 'linen way reaches linenShelf');
 });
+
+test('the upstairs bathroom pieces are valid, keep the eave lamp clear, and Rule 8 rejects a bar across its open band', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['bath-upper-tub', 'bath-upper-mat', 'bath-upper-shower', 'bath-upper-basin', 'bath-upper-toilet',
+    'bath-upper-basket', 'bath-upper-mirror', 'bath-upper-rail', 'bath-upper-rail-towel', 'bath-upper-tub-towel', 'bath-upper-jug']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  const lamp = I.fittings.find(f => f.room === 'bath-upper');
+  const tub = footprint(I.furniture.find(e => e.id === 'bath-upper-tub'));
+  assert.equal(lamp.at[0] >= tub.a[0] && lamp.at[0] <= tub.a[1] && lamp.at[1] >= tub.d[0] && lamp.at[1] <= tub.d[1], false);
+  // Blocking bath-upper between the nook door (a=11, d=9..10) and linen door (a=15, d=10.2..11.2) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'bath-upper-bar', kind: 'chest-of-drawers', room: 'bath-upper', at: [13.0, 9.6], turn: Math.PI / 2, size: [3.6, .5]}])), false);
+});

@@ -1262,8 +1262,9 @@ test('the ground-floor bathroom builds as one queued set of at most four meshes 
     res.buildRest();
     return res;
   });
-  assert.equal(brokenWarnings.length, 1);
+  assert.equal(brokenWarnings.length, 2);
   assert.ok(broken.skipped.includes('bathtub') && broken.skipped.includes('towel-tub'));
+  assert.ok(broken.skipped.includes('bath-upper-tub') && broken.skipped.includes('bath-upper-tub-towel'));
   assert.equal(broken.pieceBox('bathtub'), null);
   assert.equal(broken.pieceBox('towel-tub'), null);
   assert.ok(broken.pieceBox('basin') && broken.pieceBox('toilet') && broken.pieceBox('shower'));
@@ -1275,7 +1276,7 @@ test('the laundry and pantry build as queued sets (nine sets in all), stay withi
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
   assert.deepEqual(inside.skipped, []);
   assert.equal(warnings.length, 0);
-  assert.equal(inside.furniture.sets.length, 14, 'fourteen furniture sets across all fifteen furnished rooms');
+  assert.equal(inside.furniture.sets.length, 15, 'fifteen furniture sets across sixteen furnished rooms');
   const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
   for (const roomId of ['laundry', 'pantry']) {
     const set = inside.furniture.sets.find(s => s.rooms.includes(roomId));
@@ -1467,7 +1468,7 @@ test('library nook builds with sloped bookshelves hugging the ceiling pitch, sta
   const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
   assert.deepEqual(inside.skipped, []);
   assert.equal(warnings.length, 0);
-  assert.equal(inside.furniture.sets.length, 14, '14 sets across 15 furnished rooms (9 ground + 5 upper)');
+  assert.equal(inside.furniture.sets.length, 15, '15 sets across 16 furnished rooms (9 ground + 6 upper)');
   const nookSet = inside.furniture.sets.find(s => s.rooms.includes('nook'));
   assert.ok(nookSet, 'nook set exists');
   assert.ok(nookSet.meshes >= 1 && nookSet.meshes <= 5, `nook meshes: ${nookSet.meshes}`);
@@ -1503,4 +1504,44 @@ test('library nook builds with sloped bookshelves hugging the ceiling pitch, sta
   const second = build(); second.buildRest();
   assert.equal(second.furniture.sets.find(s => s.rooms.includes('nook')).vertices, firstCount);
   second.dispose();
+});
+
+// ── upstairs bathroom furniture (Part 4f, Task 3) ──
+test('upstairs bathroom builds as a floor-1 queued set of at most 4 meshes without shades, lifted to floor 1 and clear of the back roof slope', () => {
+  const [inside, warnings] = warned(() => { const res = build(); res.buildRest(); return res; });
+  assert.deepEqual(inside.skipped, []);
+  assert.equal(warnings.length, 0);
+  const allowed = new Set(['furniture-wood', 'furniture-cloth', 'furniture-stone', 'grounding']);
+  const set = inside.furniture.sets.find(s => s.rooms.includes('bath-upper'));
+  assert.ok(set, 'bath-upper set exists');
+  assert.ok(set.meshes >= 1 && set.meshes <= 4, `bath-upper meshes: ${set.meshes}`);
+  const grp = inside.scene.getObjectByName('furniture-bath-upper');
+  assert.ok(grp, 'furniture-bath-upper group exists');
+  assert.equal(grp.getObjectByName('shades'), undefined, 'bath-upper has no shades');
+  const room = I.rooms.find(r => r.id === 'bath-upper');
+  for (const child of grp.children) {
+    assert.ok(allowed.has(child.name), `bath-upper allowed mesh ${child.name}`);
+    const p = child.geometry.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const a = p.getX(i), d = -p.getZ(i), z = p.getY(i);
+      assert.ok(a >= room.a[0] - .02 && a <= room.a[1] + .02, `bath-upper ${child.name} a=${a}`);
+      assert.ok(d >= room.d[0] - .02 && d <= room.d[1] + .02, `bath-upper ${child.name} d=${d}`);
+      assert.ok(z >= I.floorRise - .01, `bath-upper ${child.name} z=${z}`);
+      assert.ok(z <= I.floorRise + ceilingHeight(I, 1, d) + .01, `bath-upper ${child.name} z=${z} <= ceil at d=${d}`);
+    }
+    if (child.name !== 'grounding') {
+      const l = child.geometry.getAttribute('light');
+      assert.ok(l, `bath-upper ${child.name} has light attribute`);
+      for (let i = 0; i < l.count; i++) assert.ok(l.getX(i) + l.getY(i) + l.getZ(i) > 0, `bath-upper ${child.name} v${i}`);
+    }
+  }
+  for (const e of I.furniture.filter(x => x.room === 'bath-upper' && KINDS[x.kind].standing === 'solid')) {
+    const box = inside.pieceBox(e.id), f = footprint(e);
+    assert.ok(box, `${e.id} drawn`);
+    for (const k of ['a', 'd']) assert.ok(box[k][0] >= f[k][0] - .02 && box[k][1] <= f[k][1] + .02, `${e.id} ${k} ${box[k]} within ${f[k]}`);
+    assert.ok(Math.abs(box.z[0] - I.floorRise) <= .02, `${e.id} stands on floor 1`);
+    assert.ok(box.z[1] <= I.floorRise + KINDS[e.kind].height + .02, `${e.id} height ${box.z[1] - I.floorRise}`);
+    assert.ok(patch(inside.scene, e.id).length > 0, `${e.id} has grounding`);
+  }
+  inside.dispose();
 });

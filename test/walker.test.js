@@ -363,3 +363,24 @@ test('walking in the library nook toward nook-eave-shelves stops at its footprin
   assert.ok(s.position[1] <= shelf.d[0] - I.eyeClear + 1e-9, `stopped at nook-eave-shelves: ${s.position}`);
   assert.ok(s.position[1] > shelf.d[0] - I.eyeClear - .1, `pressed close to nook-eave-shelves: ${s.position}`);
 });
+
+test('walking on floor 1 from upperSpots.bathTub toward bath-upper-tub stops at its footprint less eye clearance and slides along it', () => {
+  const tub = I.obstacles.find(o => o.id === 'bath-upper-tub');
+  assert.ok(tub, 'bath-upper-tub obstacle exists');
+  const inTub = p => p[0] > tub.a[0] && p[0] < tub.a[1] && p[1] > tub.d[0] && p[1] < tub.d[1];
+  const start = {place: 'cabin', floor: 1, position: [...I.upperSpots.bathTub], yaw: 0, pitch: 0};
+  assert.ok(standable(start));
+  let s = {...start};
+  for (let i = 0; i < 90; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inTub(s.position), `entered bath-upper-tub at ${s.position}`);
+  }
+  assert.ok(s.position[1] <= tub.d[0] - I.eyeClear + 1e-9, `stopped at tub: ${s.position}`);
+  assert.ok(s.position[1] > tub.d[0] - I.eyeClear - .1, `pressed close to tub: ${s.position}`);
+  let g = {...start, yaw: Math.PI / 4};
+  for (let i = 0; i < 60; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inTub(g.position), `entered bath-upper-tub while sliding: ${g.position}`);
+  }
+  assert.ok(g.position[0] > start.position[0] + .4, `slid east along bath-upper-tub to ${g.position}`);
+});

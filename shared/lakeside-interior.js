@@ -179,6 +179,18 @@ const FURNITURE = [
   standing('nook-shelves-east', 'sloped-bookshelf', 'nook', [10.75, 10.825], -Math.PI / 2),
   standing('nook-chair', 'armchair', 'nook', [8.45, 10.7], .45),
   standing('nook-lamp', 'standing-lamp', 'nook', [9.55, 11.05]),
+  // The upstairs bathroom: roll-top bath under the back eave, corner shower where the ceiling is tall, basin under mirror, toilet, towel rail and basket.
+  standing('bath-upper-tub', 'bathtub', 'bath-upper', [12.0, 11.55]),
+  standing('bath-upper-mat', 'bath-mat', 'bath-upper', [12.0, 10.85], -.03, [.9, .55]),
+  standing('bath-upper-shower', 'shower', 'bath-upper', [14.475, 7.525], Math.PI),
+  standing('bath-upper-basin', 'basin', 'bath-upper', [12.3, 7.3], Math.PI),
+  standing('bath-upper-toilet', 'toilet', 'bath-upper', [13.3, 7.425], Math.PI),
+  standing('bath-upper-basket', 'basket', 'bath-upper', [14.5, 11.6]),
+  hung('bath-upper-mirror', 'mirror', 'bath-upper', 'd', 7, [12.0, 12.6], 1.5),
+  hung('bath-upper-rail', 'towel-rail', 'bath-upper', 'a', 15, [8.4, 9.2], 1.2),
+  setOn('bath-upper-rail-towel', 'towel', 'bath-upper', 'bath-upper-rail'),
+  setOn('bath-upper-tub-towel', 'towel', 'bath-upper', 'bath-upper-tub'),
+  setOn('bath-upper-jug', 'jug', 'bath-upper', 'bath-upper-basin'),
 ];
 
 const BLUEPRINT = {
