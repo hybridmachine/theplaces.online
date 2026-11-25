@@ -42,6 +42,8 @@ const RACK_RAILS = [[0, 1.18], [-.08, .96], [.08, .96], [-.14, .72], [.14, .72],
 const PANTRY_JARS_PER_SHELF = 6;
 // Book density trim (fraction of bay width filled) for library nook bookcases; one edit adjusts the nook's vertex budget.
 const NOOK_BOOK_FILL = .78;
+// Folded-linen stack fill (fraction of shelf bay filled) for the linen press and low linen shelf; one edit tunes vertex budget.
+const LINEN_FILL = .82;
 const FLAT = .89;
 const MESHES = {wood: 'furniture-wood', cloth: 'furniture-cloth', stone: 'furniture-stone', shades: 'shades'};
 // The grounding: each solid piece's patch is its turned footprint grown by `reach` metres, drawn in by `inner` at its dark middle, which is
@@ -1440,7 +1442,173 @@ export const RECIPES = {
     });
     return out;
   },
+  // ── box room and linen cupboard pieces (Part 4f): travelling trunk, tall linen press, low eave linen shelf ──
+  // A domed travelling trunk on timber skids, with dark binding straps, brass corner irons, front lock hasp and iron side handles.
+  trunk(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {};
+    const bodyTone = .56 + (pal.random(1) - .5) * .14;
+    const body = pal.surface('wood', 0, .08, bodyTone), lid = pal.surface('wood', 2, .07, bodyTone * 1.12);
+    const strap = pal.surface('wood', 3, .05, .34), brass = pal.surface('brass', 4, .06, .95), iron = pal.surface('iron', 5, .04);
+    const lidZ = .36, rise = h - lidZ, bx = hx - .015, by = hy - .015;
+    // timber bottom runners and boarded chest carcass
+    put(out, 'wood', [
+      ...kit.board(at, [-bx + .04, -bx + .10], [-by + .02, by - .02], [0, .025], strap, {skip: ['under', 'top']}),
+      ...kit.board(at, [bx - .10, bx - .04], [-by + .02, by - .02], [0, .025], strap, {skip: ['under', 'top']}),
+      ...kit.box(at, [-bx, bx], [-by, by], [.025, lidZ], body, {skip: ['under', 'top'], seed: pal.seed}),
+    ]);
+    // domed lid across y ∈ [-hy, hy], arched up to h along the centre line, with closed curved side end-caps
+    const steps = 6, arch = Array.from({length: steps + 1}, (_, i) => {
+      const a = Math.PI * i / steps, cy = -hy * Math.cos(a), cz = lidZ + rise * Math.sin(a);
+      const ny = -Math.cos(a) / hy, nz = Math.sin(a) / rise, l = Math.hypot(ny, nz) || 1;
+      return {y: cy, z: cz, ny: ny / l, nz: nz / l};
+    });
+    const lidRows = [arch.map(p => [-hx, p.y, p.z]), arch.map(p => [hx, p.y, p.z])];
+    const lidNorms = [arch.map(p => [0, p.ny, p.nz]), arch.map(p => [0, p.ny, p.nz])];
+    put(out, 'wood', [kit.grid(at, lidRows, lidNorms, lid, .9)]);
+    for (const sx of [-1, 1]) {
+      const x = sx * hx, capRows = [arch.map(p => [x, p.y, lidZ]), arch.map(p => [x, p.y, p.z])];
+      const capNorms = [arch.map(() => [sx, 0, 0]), arch.map(() => [sx, 0, 0])];
+      put(out, 'wood', [kit.grid(at, capRows, capNorms, lid, .9)]);
+    }
+    // two dark leather/timber binding straps wrapping front, back and over the domed lid
+    for (const sx of [-1, 1]) {
+      const cx = sx * (hx * .52), sw = .026;
+      const sRows = [arch.map(p => [cx - sw, p.y * 1.015, p.z + .006]), arch.map(p => [cx + sw, p.y * 1.015, p.z + .006])];
+      put(out, 'wood', [
+        kit.grid(at, sRows, lidNorms, strap, .9),
+        ...kit.board(at, [cx - sw, cx + sw], [-by - .008, -by], [.03, lidZ], strap, {skip: ['back']}),
+        ...kit.board(at, [cx - sw, cx + sw], [by, by + .008], [.03, lidZ], strap, {skip: ['front']}),
+      ]);
+    }
+    // brass corner irons on the front corners and a central brass lock plate & hasp
+    for (const sx of [-1, 1]) {
+      const x0 = sx < 0 ? -bx - .005 : bx - .055, x1 = sx < 0 ? -bx + .055 : bx + .005;
+      put(out, 'brass', [
+        ...kit.board(at, [x0, x1], [-by - .009, -by], [.03, .085], brass, {skip: ['back']}),
+        ...kit.board(at, [x0, x1], [-by - .009, -by], [lidZ - .055, lidZ], brass, {skip: ['back']}),
+      ]);
+    }
+    put(out, 'brass', [
+      ...kit.board(at, [-.045, .045], [-by - .01, -by], [lidZ - .065, lidZ + .02], brass, {skip: ['back']}),
+      ...kit.board(at, [-.018, .018], [-by - .016, -by - .008], [lidZ - .04, lidZ + .03], brass, {skip: ['back']}),
+    ]);
+    // iron side carrying handles
+    for (const sx of [-1, 1]) {
+      const x = sx * (bx + .008);
+      put(out, 'iron', [
+        ...kit.roll(at, [x, -.07, .24], [x, .07, .24], .009, iron, {sides: 5}),
+        ...kit.roll(at, [x - sx * .01, -.07, .24], [x, -.07, .24], .008, iron, {sides: 5}),
+        ...kit.roll(at, [x - sx * .01, .07, .24], [x, .07, .24], .008, iron, {sides: 5}),
+      ]);
+    }
+    return out;
+  },
+  // A tall open-shelved linen press: plinth, cornice, two bays of five shelves filled with folded sheets and rolled towels.
+  'linen-press'(kit, e, pal) {
+    const [hx, hy] = halves(e), h = KINDS[e.kind].height, at = kit.placed(e), out = {}, T = .03;
+    const wood = pal.surface('wood', 0, .06, .76), topWood = pal.surface('wood', 1, .06, .84);
+    const shut = {tuck: ['under', 'back', 'left', 'right']};
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [0, h - .04], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
+      ...kit.board(at, [-hx - .015, hx + .015], [-hy - .015, hy + .005], [h - .04, h], topWood, {tuck: ['under', 'back'], seed: pal.seed + 1}),
+      ...kit.board(at, [-T / 2, T / 2], [-hy + .012, hy - T], [.10, h - .04 - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [-hx + T, hx - T], [-hy + .01, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
+    ]);
+    const bays = [[-hx + T, -T / 2], [T / 2, hx - T]];
+    const shelves = [.10, .46, .82, 1.18, 1.54];
+    const tints = linenPalette(pal);
+    shelves.forEach((z, k) => {
+      const head = (shelves[k + 1] ?? h - .04 - T) - z - (k + 1 < shelves.length ? .03 : 0);
+      bays.forEach(([x0, x1], b) => {
+        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .03, z], wood, shut));
+        put(out, 'cloth', linens(kit, at, [x0, x1], -hy + .03, hy - T - .01, z, {
+          head, seed: pal.seed * 19 + k * 5 + b, colours: tints, rolled: k === 2 && b === 1,
+        }));
+      });
+    });
+    return out;
+  },
+  // Low open linen shelving under the back eave: three bays of folded linen whose top clears ceilingHeight(I, floor, d) - 0.04.
+  'linen-shelf'(kit, e, pal, {interior}) {
+    const [hx, hy] = halves(e), at = kit.placed(e), out = {}, T = .028;
+    const floor = interior.rooms.find(r => r.id === e.room)?.floor ?? 1;
+    const ceil = Math.min(
+      ceilingHeight(interior, floor, at(-hx, -hy, 0)[1]), ceilingHeight(interior, floor, at(-hx, hy, 0)[1]),
+      ceilingHeight(interior, floor, at(hx, -hy, 0)[1]), ceilingHeight(interior, floor, at(hx, hy, 0)[1]),
+    ) - .04;
+    const h = Math.min(KINDS[e.kind].height, ceil);
+    const wood = pal.surface('wood', 0, .06, .80), shut = {tuck: ['under', 'back', 'left', 'right']};
+    const bays = [[-hx + T, -hx / 3 - T / 2], [-hx / 3 + T / 2, hx / 3 - T / 2], [hx / 3 + T / 2, hx - T]];
+    put(out, 'wood', [
+      ...kit.box(at, [-hx, hx], [-hy, hy], [0, h], wood, {hollow: T, tuck: ['inside', 'back'], seed: pal.seed}),
+      ...kit.board(at, [-hx / 3 - T / 2, -hx / 3 + T / 2], [-hy + .01, hy - T], [.10, h - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [hx / 3 - T / 2, hx / 3 + T / 2], [-hy + .01, hy - T], [.10, h - T], wood, {tuck: ['left', 'right', 'back']}),
+      ...kit.board(at, [-hx + T, hx - T], [-hy + .01, hy - T], [0, .10], wood, {tuck: ['under', 'back'], skip: ['under']}),
+    ]);
+    const shelves = [.10, .44, .78, 1.12, 1.46];
+    const tints = linenPalette(pal);
+    shelves.forEach((z, k) => {
+      const head = (shelves[k + 1] ?? h - T) - z - (k + 1 < shelves.length ? .03 : 0);
+      if (head < .14) return;
+      bays.forEach(([x0, x1], b) => {
+        if (k > 0) put(out, 'wood', kit.board(at, [x0, x1], [-hy + .008, hy - T], [z - .028, z], wood, shut));
+        put(out, 'cloth', linens(kit, at, [x0, x1], -hy + .025, hy - T - .01, z, {
+          head, seed: pal.seed * 23 + k * 7 + b, colours: tints, rolled: k === 1 && b === 1,
+        }));
+      });
+    });
+    return out;
+  },
 };
+
+// Soft domestic cloth tints for folded linen: cream, warm ivory, oatmeal, faded blue, sage-grey.
+function linenPalette(pal) {
+  return [
+    pal.surface('cloth', 1, .05, 1.02),
+    pal.surface('cloth', 2, .05, .92),
+    pal.surface('cloth', 3, .06, .82),
+    pal.blue(4, .08, .92),
+    pal.green(5, .08, .90),
+  ];
+}
+
+// Stacks of folded sheets/towels across [x0, x1] on shelf z0 (reaching from y0 back to y1): horizontal layered cushions with softly
+// rounded tapered front edges so each stack reads as folded cloth, with an optional triangle of three rolled towels on one side.
+function linens(kit, at, [x0, x1], y0, y1, z0, {head = .30, seed = 1, colours, rolled = false} = {}) {
+  const gs = [], span = (x1 - x0) * LINEN_FILL, rng = i => hash(seed * 31 + i, 17);
+  const avail = Math.max(.08, head - .03);
+  let x = x0 + .025 + rng(1) * .018, end = x0 + .02 + span, stackIdx = 0;
+  if (rolled && end - x > .28 && avail >= .16) {
+    // a neat pyramid of three rolled bath towels lying front-to-back along y
+    const r = .044, rx = x + .10, ry0 = y0 + .01, ry1 = Math.min(y1 - .01, y0 + .24);
+    const tone = colours[Math.floor(rng(2) * colours.length) % colours.length];
+    const tone2 = colours[(Math.floor(rng(3) * colours.length) + 1) % colours.length];
+    gs.push(
+      ...kit.roll(at, [rx - r - .004, ry0, z0 + r], [rx - r - .004, ry1, z0 + r], r, tone, {sides: 7}),
+      ...kit.roll(at, [rx + r + .004, ry0, z0 + r], [rx + r + .004, ry1, z0 + r], r, tone, {sides: 7}),
+      ...kit.roll(at, [rx, ry0 + .006, z0 + r * 2.65], [rx, ry1 - .006, z0 + r * 2.65], r, tone2, {sides: 7}),
+    );
+    x += .23;
+  }
+  while (x + .22 < end) {
+    const k = stackIdx++ * 19 + 10;
+    const w = Math.min(end - x, .28 + rng(k) * .09);
+    const layers = Math.min(3, Math.max(2, Math.floor((avail * (.70 + rng(k + 1) * .26)) / .072)));
+    const baseTone = Math.floor(rng(k + 2) * colours.length);
+    let z = z0;
+    for (let li = 0; li < layers; li++) {
+      const thick = .062 + rng(k + 3 + li) * .018;
+      if (z + thick > z0 + avail) break;
+      const jx = (rng(k + 9 + li) - .5) * .014, jy = rng(k + 14 + li) * .015;
+      const colour = colours[(baseTone + (li === layers - 1 ? 1 : 0)) % colours.length];
+      gs.push(...kit.cushion(at, [x + jx, x + w + jx], [y0 + jy, y1], [z, z + thick], colour,
+        {seed: seed * 13 + stackIdx * 7 + li, bulge: .48, sag: .12, taper: .36, cuts: 2, skip: ['under', 'back']}));
+      z += thick * .95;
+    }
+    x += w + .04 + rng(k + 18) * .025;
+  }
+  return gs;
+}
 
 // A stadium-plan lofted vessel (straight sides along x, semicircular ends of radius ry): `profile` is [[rx, ry, z], ...] from bottom to inside.
 function stadiumLoft(kit, at, profile, colourOf, {ends = 6, tile = STONE_TILE} = {}) {

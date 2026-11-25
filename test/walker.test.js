@@ -384,3 +384,35 @@ test('walking on floor 1 from upperSpots.bathTub toward bath-upper-tub stops at 
   }
   assert.ok(g.position[0] > start.position[0] + .4, `slid east along bath-upper-tub to ${g.position}`);
 });
+
+test('walking on floor 1 stops at trunk-1 in box-room and slides along linen-press in linen', () => {
+  const trunk = I.obstacles.find(o => o.id === 'trunk-1');
+  assert.ok(trunk, 'trunk-1 obstacle exists');
+  const inTrunk = p => p[0] > trunk.a[0] && p[0] < trunk.a[1] && p[1] > trunk.d[0] && p[1] < trunk.d[1];
+  let s = {place: 'cabin', floor: 1, position: [15.85, 8.2], yaw: 0, pitch: 0};
+  assert.ok(standable(s));
+  for (let i = 0; i < 60; i++) {
+    s = stepIndoors(I, s, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(s) && !inTrunk(s.position), `entered trunk-1 at ${s.position}`);
+  }
+  assert.ok(s.position[1] <= trunk.d[0] - I.eyeClear + 1e-9, `stopped at trunk-1: ${s.position}`);
+  assert.ok(s.position[1] > trunk.d[0] - I.eyeClear - .1, `pressed close to trunk-1: ${s.position}`);
+
+  const press = I.obstacles.find(o => o.id === 'linen-press');
+  assert.ok(press, 'linen-press obstacle exists');
+  const inPress = p => p[0] > press.a[0] && p[0] < press.a[1] && p[1] > press.d[0] && p[1] < press.d[1];
+  const startL = {place: 'cabin', floor: 1, position: [...I.upperSpots.linenShelf], yaw: Math.PI, pitch: 0};
+  assert.ok(standable(startL));
+  let l = {...startL};
+  for (let i = 0; i < 60; i++) {
+    l = stepIndoors(I, l, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(l) && !inPress(l.position), `entered linen-press at ${l.position}`);
+  }
+  assert.ok(l.position[1] >= press.d[1] + I.eyeClear - 1e-9, `stopped at linen-press: ${l.position}`);
+  let g = {...startL, yaw: Math.PI + Math.PI / 4};   // diagonal -a / -d sliding west
+  for (let i = 0; i < 45; i++) {
+    g = stepIndoors(I, g, {...still, forward: 1}, 1 / 30);
+    assert.ok(standable(g) && !inPress(g.position), `entered linen-press while sliding: ${g.position}`);
+  }
+  assert.ok(g.position[0] < startL.position[0] - .4, `slid west along linen-press to ${g.position}`);
+});

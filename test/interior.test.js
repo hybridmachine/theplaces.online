@@ -661,3 +661,16 @@ test('the upstairs bathroom pieces are valid, keep the eave lamp clear, and Rule
   // Blocking bath-upper between the nook door (a=11, d=9..10) and linen door (a=15, d=10.2..11.2) fails Rule 8.
   assert.equal(validInterior(withUpperPieces([{id: 'bath-upper-bar', kind: 'chest-of-drawers', room: 'bath-upper', at: [13.0, 9.6], turn: Math.PI / 2, size: [3.6, .5]}])), false);
 });
+
+test('the box room and linen cupboard pieces are valid, keep their wall lamps clear, and Rule 8 rejects blocking either room', () => {
+  assert.equal(validInterior(I), true);
+  const ids = new Set(I.furniture.map(e => e.id));
+  for (const id of ['trunk-1', 'trunk-2', 'box-crates', 'box-chair',
+    'linen-press', 'linen-eave-shelf', 'linen-cupboard-basket', 'linen-cupboard-towel']) {
+    assert.ok(ids.has(id), `blueprint has ${id}`);
+  }
+  // Blocking inside the box room doorway (d=7, a=16..17) fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'box-block', kind: 'trunk', room: 'box-room', at: [16.5, 7.9], turn: 0, size: [1.6, .5]}])), false);
+  // Blocking the clear band across the linen cupboard fails Rule 8.
+  assert.equal(validInterior(withUpperPieces([{id: 'linen-bar', kind: 'trunk', room: 'linen', at: [16.1, 10.8], turn: Math.PI / 2, size: [1.6, .5]}])), false);
+});

@@ -191,6 +191,16 @@ const FURNITURE = [
   setOn('bath-upper-rail-towel', 'towel', 'bath-upper', 'bath-upper-rail'),
   setOn('bath-upper-tub-towel', 'towel', 'bath-upper', 'bath-upper-tub'),
   setOn('bath-upper-jug', 'jug', 'bath-upper', 'bath-upper-basin'),
+  // The box room: two travelling trunks against the back wall, stacked wooden crates and an old chair tucked in the corner.
+  standing('trunk-1', 'trunk', 'box-room', [15.6, 9.175]),
+  standing('trunk-2', 'trunk', 'box-room', [16.6, 9.175], .04),
+  standing('box-crates', 'crate', 'box-room', [15.3, 7.9], Math.PI / 2),
+  standing('box-chair', 'chair', 'box-room', [17.4, 7.6], -Math.PI / 2 + .3),
+  // The linen cupboard: tall open linen press on the north wall, low linen shelf under the back eave, and a linen basket with towel.
+  standing('linen-press', 'linen-press', 'linen', [16.6, 9.8], Math.PI),
+  standing('linen-eave-shelf', 'linen-shelf', 'linen', [16.5, 11.75]),
+  standing('linen-cupboard-basket', 'basket', 'linen', [17.6, 11.2]),
+  setOn('linen-cupboard-towel', 'towel', 'linen', 'linen-cupboard-basket'),
 ];
 
 const BLUEPRINT = {
