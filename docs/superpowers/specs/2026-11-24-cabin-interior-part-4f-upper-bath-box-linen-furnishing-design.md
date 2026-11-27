@@ -1,6 +1,6 @@
 # Cabin interior, part 4f: furnishing the upstairs bathroom, box room and linen cupboard — design
 
-Status: built behind `?interior=1`, awaiting owner review (November 25, 2026).
+Status: built and approved (November 25, 2026); `?interior=1` switch removed in part 5.
 
 This is the sixth and last slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). Slices `4a` to `4e` are built and merged, and between them they furnish fifteen rooms. Their design and As built sections are the starting point. Everything they settle holds here unless this document says otherwise: how a piece is described, made, lit, grounded, queued in two stages, hidden across floors, checked, and allowed to fail.
 

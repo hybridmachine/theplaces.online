@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-"A View": a full-window living painting of one shared, persistent world (The Lakeside Cottage), served by a small Node server. The page opens a walkable 3D yard by default (three.js) and falls back to the original 2D painting (`?space=0`). The cabin interior is still behind `?interior=1`.
+"A View": a full-window living painting of one shared, persistent world (The Lakeside Cottage), served by a small Node server. The page opens a walkable 3D yard and enterable two-storey cabin interior by default (three.js), falling back to the original 2D painting (`?space=0`). `?interior=0` keeps the cabin door shut (yard only, no stencil buffer).
 
 Node.js 24 or newer. There are **no runtime dependencies and no build step**: the browser loads the ES modules in `public/` and `shared/` as written, SQLite is `node:sqlite`, and three.js is vendored at `public/assets/vendor/`. Playwright and Sharp are optional development tools only; do not add runtime packages.
 
@@ -34,7 +34,7 @@ node scripts/check-space-browser.mjs
 
 Shared environment options: `SKY_PREVIEW_URL` (another base URL), `BROWSER_EXECUTABLE` (an existing Chromium), `SKY_GPU=metal`, and a per-suite `*_VALIDATION_DIR`. They need `npx playwright install chromium` once. Checks in `check-space-browser.mjs` are numbered in run order and the specs and PR descriptions refer to them by number, so add new checks at the end.
 
-The pages take `?check` for fixtures: `?check&tier=full|light|plain` locks a render tier, and with the interior `&bare=1` (no furniture) and `&furnish=first` (first-built rooms only) exist for comparison captures. Unlinked developer studies live under `/dev/` (for example `/dev/sky-study.html`) and are refused when `NODE_ENV=production`.
+The pages take `?check` for fixtures: `?check&tier=full|light|plain` locks a render tier, `&interior=0` disables the cabin interior, `&hide=0` disables unseen-room furniture hiding, and `&bare=1` (no furniture) and `&furnish=first|4b|4c|4d|4e` (slice baselines) exist for comparison captures. Unlinked developer studies live under `/dev/` (for example `/dev/sky-study.html`) and are refused when `NODE_ENV=production`.
 
 `scripts/prepare-*-assets.mjs` regenerate the art bundles (Sharp); the 3D art in `public/assets/lakeside-space-v1/` is painted in code from fixed seeds by `scripts/space-painter/`, so exports are reproducible.
 

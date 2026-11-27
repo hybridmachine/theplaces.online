@@ -1,6 +1,6 @@
 # Cabin interior — design
 
-Status: parts 1–4 built behind `?interior=1` (part 4f awaiting owner review, November 25, 2026); switch removal (part 5) remaining.
+Status: parts 1–5 built; cabin interior on by default (`?interior=0` keeps the door shut), November 25, 2026.
 
 Items marked **(call)** were decided by the author of this document, not by the project owner, and are open to correction.
 
@@ -202,3 +202,13 @@ Then the switch is removed and README, `DESIGN.md` and `ARTWORK.md` are updated.
 - How rooms are lit, within the rules above.
 - Colours, materials and small dressing of each room.
 - The door's swing, the fade's exact timing, storage record shape.
+
+## As built (parts 1–5)
+
+All five parts are implemented and merged/enabled by default:
+
+- **Part 1 (Shell):** `shared/lakeside-interior.js`, `shared/interior.js`, `shared/threshold.js`, `public/space/passage.js`, `public/space/interior/index.js`, and version-2 `PlaceMemory` (`public/space/place-memory.js`).
+- **Part 2 (Live windows & open door):** `shared/window-views.js`, `public/space/window-views.js`, `public/space/view-budget.js`, stencil-masked live yard views into the frame (`2026-11-17-cabin-interior-part-2-windows-design.md`).
+- **Part 3 (Light):** vertex-authored light field (`shared/interior-light.js`, `public/space/interior/light.js`), fireplace (`fireplace.js`), and lamp fittings (`fittings.js`) with zero scene light sources (`2026-11-20-cabin-interior-part-3-light-design.md`).
+- **Part 4 (Furnishing, slices 4a–4f):** `shared/furniture.js`, `shared/sight.js`, `public/space/interior/furniture-kit.js`, `public/space/interior/furniture.js`, furnishing all 18 rooms across 17 merged sets (`76,627` vertices in `65` meshes) with two-stage lazy queuing and unseen-room hiding (`2026-11-21` through `2026-11-24` specs `4a`–`4f`).
+- **Part 5 (Default on, ABBA hardening & close-out docs):** `interiorSwitch` flipped to on-by-default with `?interior=0` opt-out (mirroring `?space=0`), interleaved paused-tab speed/ABBA timing in `scripts/check-space-browser.mjs` (135 checks), and updated `README.md`, `DESIGN.md`, `ARTWORK.md`, `CLAUDE.md`, and `docs/interior-validation/README.md` (`2026-11-25-cabin-interior-part-5-default-design.md`).

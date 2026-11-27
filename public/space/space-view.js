@@ -48,13 +48,13 @@ const clamp01 = x => Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 // For the scene description: above LAMP_SEEN of full a room's lamp counts as lit (the hall's night lamp burning low is), and below
 // these the fire counts as out (by its level, not its flickering light) and its embers as cold.
 const LAMP_SEEN = .15, FIRE_SEEN = .05, EMBERS_SEEN = .1;
-// The interior, until the owner approves it, only behind ?interior=1.
+// The cabin interior is on by default; ?interior=0 leaves the door shut (mirroring ?space=0).
 // With ?check, &bare=1 builds the view from the bare blueprint (no furniture), &furnish=first strips the queued rooms and
 // &furnish=4b..4e strip later slices while keeping earlier queues, to compare captures; without ?check all are ignored.
 // &bare=1 wins over &furnish=.
 export function interiorSwitch(search = typeof location !== 'undefined' ? location.search : '') {
   const params = new URLSearchParams(search);
-  if (params.get('interior') !== '1') return null;
+  if (params.get('interior') === '0') return null;
   if (!params.has('check')) return LAKESIDE_INTERIOR;
   if (params.get('bare') === '1') return bareInterior(LAKESIDE_INTERIOR);
   if (params.get('furnish') === 'first') return withoutRooms(LAKESIDE_INTERIOR, [...LAKESIDE_INTERIOR.furnishLater, ...(LAKESIDE_INTERIOR.furnishUpper ?? [])]);

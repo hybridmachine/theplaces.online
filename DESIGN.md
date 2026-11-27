@@ -2,7 +2,7 @@
 
 Status: proposal for discussion, September 18, 2026. This is a design brief, not an implemented system. “A View” is a working title taken from the project directory.
 
-Implementation checkpoint: the initial scene prototype is now available. See [README.md](README.md) for what is implemented and its explicit limits. It uses a small WebGL art renderer and local SQLite persistence to test the visual direction and continuity; the broader architecture below remains the target design.
+Implementation checkpoint: The Lakeside Cottage is now implemented and defaults to a walkable painterly 3D yard with an enterable, lit and furnished two-storey cabin interior (with live windows onto the shared yard and remembered indoor/outdoor place), while preserving the original fixed-camera 2D living painting as an automatic fallback and via `?space=0`. See [README.md](README.md) for what is implemented and its explicit limits, and `docs/superpowers/specs/` for the 3D yard and cabin interior design records. The broader multi-region architecture below remains the original September 18 proposal.
 
 The experience is a place to return to: an oil painting that quietly lives, remembers what happened, and offers new things to notice. The landscape occupies the browser viewport. Its composition must be satisfying when nothing dramatic is happening.
 
@@ -19,7 +19,7 @@ Additional working assumptions:
 
 - Visitors observe and follow places. They do not initially feed animals, place objects, or alter events.
 - The first region is a fictional temperate lake valley. Species, latitude, architectural references, and painting style will be selected together before production art.
-- Each scene has an authored camera and composition. Browsing the world moves between views.
+- Each scene originally assumed a fixed authored camera and composition. For The Lakeside Cottage this evolved into a walkable 3D yard and enterable two-storey cabin interior arriving at the painting's viewpoint, with the fixed-camera 2D painting retained as the fallback (`?space=0`). Browsing the world still moves between places.
 
 The architecture below incorporates the confirmed shared-world and lasting-change decisions. The additional assumptions remain open for discussion.
 
