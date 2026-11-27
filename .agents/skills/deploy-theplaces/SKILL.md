@@ -20,7 +20,8 @@ edits**. Always verify before running:
 
 ```sh
 git status -sb
-bash -n scripts/deploy.sh deploy/*.sh && shellcheck scripts/deploy.sh deploy/*.sh
+(for f in scripts/deploy.sh deploy/*.sh; do bash -n "$f" || exit 1; done)
+shellcheck scripts/deploy.sh deploy/*.sh
 npm run check
 npm test
 node --test test/deploy.test.js
@@ -75,11 +76,19 @@ sudo systemctl list-timers a-view-backup.timer
 
 ## 4. SQLite WAL Backup & Rollback Rules
 
-- **Never copy `world.sqlite` directly with `cp`/`scp`** while the app runs;
-  committed data may live in `-wal`. Always use SQLite's online backup API:
+- **Production pre-migration or on-demand backup:** Always back up the live host
+  world (`/var/lib/a-view/world.sqlite`) using the deploy script—never point
+  `sqlite3` at a local checkout's `data/world.sqlite` thinking it protects
+  production:
   ```sh
-  sqlite3 data/world.sqlite ".backup '/tmp/a-view-snapshot.sqlite'"
+  bash scripts/deploy.sh backup YOUR_SSH_TARGET
   ```
+  Then copy the backup off-host following the download procedure in
+  `docs/deployment.md` (`Backups and recovery`).
+- **Local/initial-world snapshots:** Never copy a running `world.sqlite` directly
+  with `cp`/`scp` because committed data may live in `-wal`; use SQLite's online
+  backup API (`sqlite3 data/world.sqlite ".backup '/tmp/a-view-initial.sqlite'"`)
+  as shown in `docs/deployment.md` (`Choose the initial world`).
 - `rollback` swaps **application releases only**; it does **not** rewind world
   state. Rolling back across a breaking schema migration requires restoring a
   compatible backup using the locked restore procedure in `docs/deployment.md`.

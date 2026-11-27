@@ -39,11 +39,14 @@ description: >-
 
 Run all three CI stages before pushing:
 ```sh
-bash -n scripts/deploy.sh deploy/*.sh && shellcheck scripts/deploy.sh deploy/*.sh
+(for f in scripts/deploy.sh deploy/*.sh; do bash -n "$f" || exit 1; done)
+shellcheck scripts/deploy.sh deploy/*.sh
 npm run check
 npm test
 ```
-*(If `shellcheck` is not installed locally, at minimum run `bash -n scripts/deploy.sh deploy/*.sh`.)*
+*(Note: `bash -n` only parses its first file argument, so always loop per file;
+if `shellcheck` is not installed locally, still run that per-file `bash -n`
+loop.)*
 
 ## 4. Documentation Sync Checklist
 

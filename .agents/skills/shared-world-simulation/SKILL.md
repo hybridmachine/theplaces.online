@@ -57,15 +57,22 @@ clients never simulate or mutate the world.
 ## 3. Forward-Only Schema Migrations
 
 World state is currently **version 5** in `src/store.js`. When introducing a new
-persisted subsystem:
-1. Increment the version inside `WorldStore`'s constructor transaction
-   (`BEGIN IMMEDIATE` … `COMMIT`), initializing the new state at
-   `Math.max(now, current.updatedAt)` **without backfilling history**.
+persisted subsystem (e.g. version 6):
+1. Update the fresh-world initial state in `WorldStore`'s constructor and add the
+   forward migration step inside the constructor transaction (`BEGIN IMMEDIATE` …
+   `COMMIT`), initializing the new state at `Math.max(now, current.updatedAt)`
+   **without backfilling history**.
 2. Preserve `epoch`, existing subsystems, `events`, and `notesId`.
-3. Add a strict `valid<Feature>State(...)` guard to the constructor's version
-   check so corrupt or incompatible databases fail fast.
+3. Update **all three version gates**:
+   - `WorldStore` constructor guard (`current.version !== <N>`) plus a strict
+     `valid<Feature>State(...)` check in `src/store.js`
+   - `WorldStore.advance` guard (`state.version !== <N>`) in `src/store.js`
+   - `validSnapshot` in `public/world-client.js` (rejects `data.world.version`
+     above the supported max and validates version-gated sub-states)
 4. Keep `data/world.sqlite` untouched locally—always test migrations on temporary
-   copies or in-memory/temp-dir SQLite files.
+   copies or temp-dir SQLite files, and add tests verifying both that a migrated
+   world can `advance()` without throwing and that its snapshot passes
+   `validSnapshot` in `public/world-client.js`.
 5. Document in `README.md` and `docs/deployment.md` that older releases cannot
    open the migrated version and require a pre-upgrade SQLite backup for manual
    rollback.
