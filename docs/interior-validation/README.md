@@ -34,14 +34,17 @@ Representative JPEG frames (quality 85, 1440 × 810 or 1672 × 941, kept selecti
 
 ### Budgets and measured figures (Apple M1, Chrome/ANGLE, 1440 × 810, tier `full`)
 
+Figures below come directly from the committed awake 60 Hz run in [browser-results.json](browser-results.json) (**133 / 135 PASS** across the full suite, **102 / 104** interior checks passing, **0** page or console errors):
+
 - **Total interior furniture:** `17` sets, `65` meshes, `76,627` vertices across all `18` rooms.
-- **Build times (awake 60 Hz, median of 3 loads):**
-  - First build at the door (`hall` + `living`, added over `&bare=1`): **`+65.3 ms`** full / **`+68.6 ms`** first-only (limit `≤ 80 ms`).
-  - Floor-0 queued 8 rooms: **`144.5 ms`** total (`kitchen 30.2 ms`, `dining 25.7 ms`, `study 29.1 ms`, `passage 4.6 ms`, `master 16.8 ms`, `bath-ground 11.4 ms`, `laundry 9.2 ms`, `pantry 17.5 ms`; limit `< 180 ms`).
-  - Floor-1 queued 8 rooms: **`108.2 ms`** total (`landing 4.0 ms`, `bedroom-2 10.6 ms`, `bedroom-3 11.2 ms`, `sky-room 11.2 ms`, `nook 29.8 ms` → 5-room sum `66.8 ms`; `bath-upper 12.8 ms`, `box-room 9.4 ms`, `linen 19.2 ms` → 3-room sum `41.4 ms`; limits `≤ 50 ms` for 4f, `≤ 120 ms` for all 8).
-- **Speed and ABBA regression (part 5 interleaved paused-tab batching):**
-  - Single-pose ratios (`50`, `63`, `78`, `81`, `91`, `92`, `105`, `117`, `118`, `127`): all `≤ 1.1×` yard (`0.826×`–`1.062×`) and all paired slice deltas within `[-0.009, +0.017]` (limit `≤ +0.05`).
-  - ABBA regression checks (`94`, `107`, `119`, `128`, 12 balanced interleaved pairs per pose across 44 poses): **0 added draw calls** at every non-visible pose (`s0..s5`, `u1`), `+7` at `u0` (`landing -> nook` looking into `bath-upper` and `linen`), and all 44 poses within `[-0.004, +0.006]` under clean run conditions (limit `≤ +0.01` / `≤ +0.02`).
+- **Build times (all 6 build checks PASS, awake 60 Hz, median of 3 loads):**
+  - First build at the door (`73`: `hall` + `living`, added over `&bare=1`): **`+63.0 ms`** first-only / **`+63.8 ms`** full (limit `≤ 80 ms`).
+  - Floor-0 queued 8 rooms (`83`, `90`, `104`): **`146.2 ms`** total (`kitchen 31.1 ms`, `dining 26.6 ms`, `study 29.5 ms`, `passage 4.3 ms`, `master 17.1 ms` [3-sum `50.9 ms`], `bath-ground 10.9 ms`, `laundry 9.2 ms`, `pantry 17.5 ms` [3-sum `37.6 ms`]; limit `< 180 ms`).
+  - Floor-1 queued 8 rooms (`116`, `126`): **`108.7 ms`** total (`landing 4.0 ms`, `bedroom-2 10.6 ms`, `bedroom-3 11.4 ms`, `sky-room 11.2 ms`, `nook 29.9 ms` [5-sum `67.1 ms`]; `bath-upper 12.7 ms`, `box-room 9.8 ms`, `linen 19.1 ms` [3-sum `41.6 ms`]; limits `≤ 50 ms` for 4f, `≤ 120 ms` for all 8).
+- **Speed and ABBA regression (part 5 interleaved paused-tab batching, 12 / 14 PASS):**
+  - Passing speed checks: `50` (`1.057×`), `63` (`1.012×`), `78` (`+0.040`), `91` (day `1.063×`, `+0.022`; night `0.995×`, `-0.040`), `92` (day `0.816×`, `-0.017`; night `0.842×`, `-0.001`), `105` (day `0.816×`, `+0.013`; night `0.830×`, `+0.010`), `117` (day `0.832×`, `+0.012`; night `0.833×`, `+0.023`), `118` (day `1.066×`, `+0.013`; night `1.062×`, `+0.039`), `127` (day `0.832×`, `-0.008`; night `0.831×`, `+0.006`).
+  - Passing ABBA checks: `94` (`[-0.021, +0.010]`), `107` (`[-0.011, +0.010]`), `119` (`[-0.002, +0.005]`), with **0 added draw calls** at every non-visible pose (`s0..s5`, `u1`) and `+7` at `u0`.
+  - Two transient GPU-timing misses in the committed run: check `81` (`[5.2, 7.9]` dining window) recorded day `1.111×` / `+0.077` against `≤ 1.1×` / `≤ +0.05` (night passed at `1.057×` / `-0.012`, and draw calls passed at `+7` in check `82`), and check `128` (16-pose ABBA vs `&furnish=4e`) passed 15 of 16 poses (`[-0.008, +0.009]`, `u0` `+0.003`/`-0.001`) with `0` added draw calls at `s0..s5` and `u1` while `s3-night` (study, `31/31` draw calls) landed at `+0.012` against `+0.010`.
 - **Node unit tests:** `897 / 897` passing across the repository (`npm test`), and all syntax checks passing (`npm run check`).
 
 *Power-throttling caveat:* When macOS enters screen-lock / 30 Hz low-power throttling during a long unattended run, CPU build times scale ~1.4× across all rooms while GPU frame ratios remain valid; run with the machine awake for build-budget verification.

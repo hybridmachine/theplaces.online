@@ -702,10 +702,13 @@ try{
       const ms=(performance.now()-t0)/20;
       return {ms,times:[ms],live:[...s.live],tier:s.tier,passMode:s.passMode};
     }finally{s.render=orig;}},indoors);
-  // Six rounds of yard then room on the one warmed page (each switch given 2 rAFs to settle), the first round discarded: each place's
-  // figure is the median of its rounds, pausing the live rAF loop during each 20-frame batch and flushing once before and after with readPixels.
+  // Six rounds of yard then room on the one warmed page (waiting for a completed render after each pose switch), the first round discarded:
+  // each place's figure is the median of its rounds, pausing the live rAF loop during each 20-frame batch and flushing once before and after with readPixels.
   const roomSpot=rainPose,speedMethod='Six rounds of 20 forced frames (pausing live rAF, flushed with readPixels before and after the batch) at the yard\'s arrival pose then in the living room at [4.2, 3] on one warmed page, tier=full, 1440 x 810; the first round is discarded and each place\'s figure is the median of the other five rounds. Indoors it is SpaceView.drawIndoors, the indoor draw render itself calls (openWindows, then pass.render(inside.scene, camera, {water: false, views})).';
-  const raf2=page=>page.evaluate(()=>new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res))));
+  // Waits for a full SpaceView.render (where lastStep advances) so the camera, dials and sight reflect the new pose/fixture before pausing.
+  // Two rAFs are not enough: app.js caps render at 30 fps, so on 60–120 Hz displays both callbacks can skip rendering.
+  const waitRender=page=>page.evaluate(()=>new Promise(res=>{const s=window.__space,orig=s.render,before=s.lastStep;
+    s.render=function(...args){try{return orig.apply(this,args);}finally{if(s.lastStep!==before){s.render=orig;res();}}};}));
   // (`query` is added to the page's address, as &bare=1 or &furnish=first; `spot` is the room's pose; `fixture` is applied indoors)
   const measureSpeed=async(study,{query='',spot=roomSpot,fixture=null,roundsCount=6}={})=>{
     const speed=await visitor({width:1440,height:810});await speed.goto(`${base}/?check&tier=full${query}`);await ready(speed);await studyLight(speed,study);
@@ -718,14 +721,14 @@ try{
       let y,r,roomLit;
       if(yardFirst){
         if(fixture)await setFixture(speed,null);
-        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await raf2(speed);y=await timeFrames(speed,false);
+        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await waitRender(speed);y=await timeFrames(speed,false);
         if(fixture)await setFixture(speed,fixture);
-        await setPose(speed,spot);await raf2(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
+        await setPose(speed,spot);await waitRender(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
       }else{
         if(fixture)await setFixture(speed,fixture);
-        await setPose(speed,spot);await raf2(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
+        await setPose(speed,spot);await waitRender(speed);r=await timeFrames(speed,true);roomLit=await speed.evaluate(()=>window.__space.lit);
         if(fixture)await setFixture(speed,null);
-        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await raf2(speed);y=await timeFrames(speed,false);
+        await speed.evaluate(()=>{window.__space.state=structuredClone(window.__arrival);});await waitRender(speed);y=await timeFrames(speed,false);
       }
       rounds.push({yardMs:+y.ms.toFixed(2),roomMs:+r.ms.toFixed(2),yardTier:y.tier,roomLive:r.live,roomLit});}
     if(fixture)await setFixture(speed,null);
@@ -735,7 +738,8 @@ try{
     const quiet=!speed.consoleErrors.length&&!speed.own.length;await speed.context().close();
     return {study,rounds,kept,yardMs,roomMs,costRatio,roundRatios,hallTime,hallMs,quiet};};
   // Paired interleaved speed comparison for a target slice vs its baseline (checks 78, 81, 91, 92, 105, 117, 118, 127):
-  // keeps both tabs paused when idle so only one touches the GPU, and interleaves yard and room batches ~200 ms apart.
+  // keeps both tabs paused when idle so only one touches the GPU, interleaves yard and room batches ~200 ms apart,
+  // and normalizes each tab against its own yard time (a.ms / yardMsT - b.ms / yardMsB) so tab-speed differences cannot hide a regression.
   const measureSpeedPair=async(study,{targetQuery='',baseQuery,spot,fixture=null,rounds=6}={})=>{
     const open=async query=>{
       const p=await visitor({width:1440,height:810});await p.goto(`${base}/?check&tier=full${query}`);await ready(p);await studyLight(p,study);
@@ -745,7 +749,7 @@ try{
       return p;
     };
     const pause=(p,on)=>p.evaluate(on=>{window.__space.render=on?()=>{}:window.__origRender;},on);
-    const prep=async(p,pose,fix)=>{await pause(p,false);await setFixture(p,fix);await setPose(p,pose);await raf2(p);await pause(p,true);};
+    const prep=async(p,pose,fix)=>{await pause(p,false);await setFixture(p,fix);await setPose(p,pose);await waitRender(p);await pause(p,true);};
     const batch=(p,ind)=>p.evaluate(ind=>{const s=window.__space,g=s.renderer.getContext(),b=new Uint8Array(4);
       const draw=()=>{if(ind)s.drawIndoors();else if(s.passMode==='off'||!s.pass)s.renderer.render(s.scene,s.camera);else s.pass.render(s.scene,s.camera,{water:true,views:null});};
       draw();draw();g.readPixels(0,0,1,1,g.RGBA,g.UNSIGNED_BYTE,b);
@@ -755,16 +759,16 @@ try{
     await pause(pT,true);await pause(pB,true);
     await prep(pT,S.arrival,null);await prep(pB,S.arrival,null);
     const yT=[],yB=[];
-    for(let k=0;k<5;k++){
+    for(let k=0;k<7;k++){
       const [a,b]=k%2===0?[await batch(pT,false),await batch(pB,false)]:(x=>[x[1],x[0]])([await batch(pB,false),await batch(pT,false)]);
       if(k>0){yT.push(a);yB.push(b);}
     }
-    const yardMsT=+trueMedian(yT.map(x=>x.ms)).toFixed(2),yardMsB=+trueMedian(yB.map(x=>x.ms)).toFixed(2),yardAvg=(yardMsT+yardMsB)/2;
+    const yardMsT=+trueMedian(yT.map(x=>x.ms)).toFixed(2),yardMsB=+trueMedian(yB.map(x=>x.ms)).toFixed(2);
     await prep(pT,spot,fixture);await prep(pB,spot,fixture);
     const rT=[],rB=[],pairDiffs=[];
     for(let k=0;k<rounds+1;k++){
       const [a,b]=k%2===0?[await batch(pT,true),await batch(pB,true)]:(x=>[x[1],x[0]])([await batch(pB,true),await batch(pT,true)]);
-      if(k>0){rT.push(a);rB.push(b);pairDiffs.push(+((a.ms-b.ms)/yardAvg).toFixed(4));}
+      if(k>0){rT.push(a);rB.push(b);pairDiffs.push(+(a.ms/yardMsT-b.ms/yardMsB).toFixed(4));}
     }
     await pause(pT,false);await pause(pB,false);
     const tQuiet=!pT.consoleErrors.length&&!pT.own.length,bQuiet=!pB.consoleErrors.length&&!pB.own.length;
@@ -1435,7 +1439,7 @@ try{
       await setPaused(p,false);
       await studyLight(p,study);
       await p.evaluate(({spot,fixture})=>{window.__space.fixture=fixture;window.__space.state=structuredClone(spot);},{spot,fixture});
-      await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+      await waitRender(p);
       await setPaused(p,true);
     };
     const benchBatch=(p,ind)=>p.evaluate(ind=>{
