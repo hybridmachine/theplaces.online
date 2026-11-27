@@ -1,6 +1,6 @@
 # Cabin interior, part 4e: furnishing the upstairs bedrooms, landing, sky room and library nook — design
 
-Status: built behind `?interior=1`, awaiting owner review (November 24, 2026).
+Status: built behind `?interior=1`, approved by owner as built (November 24, 2026).
 
 This is the fifth slice of part 4 of `2026-11-17-cabin-interior-design.md` (the parent). The first four (`4a` living room and hall, `4b` kitchen and dining, `4c` study, closet passage and master bedroom, `4d` ground-floor bathroom, laundry and pantry) are built and merged, finishing the ground floor. Their design and As built sections are the starting point: everything there about how a piece is described, made, lit, grounded, queued, hidden, checked and allowed to fail holds here unless this document says otherwise.
 
@@ -365,4 +365,10 @@ Where the build departs from the design above, or settles what it left open.
     - Check 118 (`upperSpots.speed[1]` `[5.8, 9.5]`, `sky-room -> daybed & roof window`): day **1.026×** (`−0.010`), night **1.035×** (`+0.009`), draw calls **+3** (`34` vs `31`, limit `≤ +4`).
   - **Ground-floor speed & draw calls vs `&furnish=4d` (check 119):** **0 added draw calls** across all six poses (`s0: 44/44, s1: 52/52, s2: 41/41, s3: 31/31, s4: 14/14, s5: 14/14`). In the non-Metal run all 12 day/night ABBA pairs passed within `+0.01` (`max +0.009`); in the Metal run 10 of 12 were within `+0.005` while `s0-day` (`+0.013`) and `s2-night` (`+0.012`) showed ~0.002–0.003 of GPU timing jitter (and check 73's `full` first build was `+69.1 ms` against the `80 ms` budget).
   - **Shades, hiding, lifecycle, determinism and fallback (checks 120–125):** all passed — upstairs shades follow their own room's lamp dial; hiding changes **0** pixels across all 8 speed poses and full 360° turns (24 frames each) at `upperSpots.nookChair` and `upperSpots.landingSeat`; `shownRooms` hides all 5 upper rooms at all 6 ground poses, shows `landing` looking up the stairwell from `hall`, and hides ground queued rooms in `sky-room`; reduced-motion entry flushes floor 0 only while climbing the stair finishes floor 1 before reaching `landing`; start-indoors in `sky-room` builds floor 1 on frame 1 with its clause; determinism shows **0** differing pixels across all 5 rooms; `fallBack()` keeps every mesh lit above `0.1` luminance with 0 errors.
+
+### Owner review
+
+Approved as built on November 24, 2026; all five rooms accepted without changes.
+
+- **Future block note (owner):** add the ability to look through the sky room's telescope to see the sky, including stars and planets. Deferred to a later block after the cabin interior finishes.
 

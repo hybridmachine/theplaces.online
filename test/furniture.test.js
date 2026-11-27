@@ -246,3 +246,19 @@ test('the part 4e upstairs kinds have the right standings, sizes, heights, extra
     near(f90.a[1] - f90.a[0], size[1]); near(f90.d[1] - f90.d[0], size[0]);
   }
 });
+
+test('the part 4f upstairs kinds have the right standings, sizes, heights and footprints', () => {
+  for (const [k, size, h] of [
+    ['trunk', [.9, .5], .5],
+    ['linen-press', [1.6, .45], 2.0],
+    ['linen-shelf', [2.0, .35], 1.85],
+  ]) {
+    assert.equal(KINDS[k].standing, 'solid', k);
+    assert.deepEqual(KINDS[k].size, size, k);
+    assert.equal(KINDS[k].height, h, k);
+    const f0 = footprint({id: k, kind: k, room: 'linen', at: [16.5, 10.7], turn: 0});
+    const f90 = footprint({id: k, kind: k, room: 'linen', at: [16.5, 10.7], turn: Math.PI / 2});
+    near(f0.a[1] - f0.a[0], size[0]); near(f0.d[1] - f0.d[0], size[1]);
+    near(f90.a[1] - f90.a[0], size[1]); near(f90.d[1] - f90.d[0], size[0]);
+  }
+});

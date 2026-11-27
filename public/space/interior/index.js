@@ -404,9 +404,12 @@ export function buildInterior(THREE, {interior: I, art, openings, recipes, sight
     const t0 = performance.now(), weigh = coarseWeigh();
     const set = buildFurniture(THREE, {interior: I, art, light, flat: flatMaterials,
       face: (f, across, up, outward, colour, options) => face(f, across, up, outward, colour, {weigh, ...options}),
-      lit: (g, room) => weighed(g, into(roomOf(room)), storey, weigh), tint,
+      lit: (g, room) => {
+        const r = roomOf(room), place = into(r);
+        return weighed(g, r ? p => { const q = place(p); return [q[0], q[1], Math.max(base(r.floor), q[2])]; } : place, r ? () => r.floor : storey, weigh);
+      }, tint,
       materials: flatMaterials ?? {surface, leafed}, treads: TREADS, recipes, only, name,
-      weightsAt: (point, normal, id) => field.weigh(storey(point[2]), into(roomOf(id))(point), normal)});
+      weightsAt: (point, normal, id) => { const r = roomOf(id); return field.weigh(r ? r.floor : storey(point[2]), into(r)(point), normal); }});
     return {set, ms: performance.now() - t0};
   };
   try {

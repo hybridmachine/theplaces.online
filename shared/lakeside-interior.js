@@ -179,6 +179,28 @@ const FURNITURE = [
   standing('nook-shelves-east', 'sloped-bookshelf', 'nook', [10.75, 10.825], -Math.PI / 2),
   standing('nook-chair', 'armchair', 'nook', [8.45, 10.7], .45),
   standing('nook-lamp', 'standing-lamp', 'nook', [9.55, 11.05]),
+  // The upstairs bathroom: roll-top bath under the back eave, corner shower where the ceiling is tall, basin under mirror, toilet, towel rail and basket.
+  standing('bath-upper-tub', 'bathtub', 'bath-upper', [12.0, 11.55]),
+  standing('bath-upper-mat', 'bath-mat', 'bath-upper', [12.0, 10.85], -.03, [.9, .55]),
+  standing('bath-upper-shower', 'shower', 'bath-upper', [14.475, 7.525], Math.PI),
+  standing('bath-upper-basin', 'basin', 'bath-upper', [12.3, 7.3], Math.PI),
+  standing('bath-upper-toilet', 'toilet', 'bath-upper', [13.3, 7.425], Math.PI),
+  standing('bath-upper-basket', 'basket', 'bath-upper', [14.5, 11.6]),
+  hung('bath-upper-mirror', 'mirror', 'bath-upper', 'd', 7, [12.0, 12.6], 1.5),
+  hung('bath-upper-rail', 'towel-rail', 'bath-upper', 'a', 15, [8.4, 9.2], 1.2),
+  setOn('bath-upper-rail-towel', 'towel', 'bath-upper', 'bath-upper-rail'),
+  setOn('bath-upper-tub-towel', 'towel', 'bath-upper', 'bath-upper-tub'),
+  setOn('bath-upper-jug', 'jug', 'bath-upper', 'bath-upper-basin'),
+  // The box room: two travelling trunks against the back wall, stacked wooden crates and an old chair tucked in the corner.
+  standing('trunk-1', 'trunk', 'box-room', [15.6, 9.175]),
+  standing('trunk-2', 'trunk', 'box-room', [16.6, 9.155], .04),
+  standing('box-crates', 'crate', 'box-room', [15.3, 7.9], Math.PI / 2),
+  standing('box-chair', 'chair', 'box-room', [17.4, 7.6], -Math.PI / 2 + .3),
+  // The linen cupboard: tall open linen press on the north wall, low linen shelf under the back eave, and a linen basket with towel.
+  standing('linen-press', 'linen-press', 'linen', [16.6, 9.8], Math.PI),
+  standing('linen-eave-shelf', 'linen-shelf', 'linen', [16.5, 11.75]),
+  standing('linen-cupboard-basket', 'basket', 'linen', [17.6, 11.2]),
+  setOn('linen-cupboard-towel', 'towel', 'linen', 'linen-cupboard-basket'),
 ];
 
 const BLUEPRINT = {
@@ -243,7 +265,7 @@ const BLUEPRINT = {
   breasts: BREASTS,
   furniture: FURNITURE,
   furnishLater: ['kitchen', 'dining', 'study', 'passage', 'master', 'bath-ground', 'laundry', 'pantry'],
-  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room'],
+  furnishUpper: ['landing', 'nook', 'bedroom-2', 'bedroom-3', 'sky-room', 'bath-upper', 'linen', 'box-room'],
   stairRail: STAIR_RAIL,
   // Where the rules say the visitor can stand: on the hearth rug facing the fire, at the casement, before the bookshelf, at the range,
   // before the dresser, at the dining window, beside the desk, before the study shelves, in the passage, at the foot and side of the bed,
@@ -258,7 +280,8 @@ const BLUEPRINT = {
   // Named standable spots and speed poses on the upper floor (floor 1).
   upperSpots: {
     landingSeat: [8.4, 1.0], bed2: [3.5, 4.0], bed3: [14.5, 4.0], skyWindow: [3.5, 8.2], nookChair: [9.0, 9.2],
-    speed: [[8.4, 5.8], [5.8, 9.5]],
+    bathTub: [12.0, 10.3], boxRoom: [16.5, 8.2], linenShelf: [16.5, 10.8],
+    speed: [[8.4, 5.8], [5.8, 9.5], [11.8, 9.6]],
   },
   // One lamp for every room: `at` is the glass's centre [a, d, z], z above the ground floor.
   fittings: [
@@ -275,6 +298,7 @@ const BLUEPRINT = {
 };
 export const SLICE_4C = Object.freeze(['study', 'passage', 'master']);
 export const SLICE_4D = Object.freeze(['bath-ground', 'laundry', 'pantry']);
+export const SLICE_4E = Object.freeze(['landing', 'bedroom-2', 'bedroom-3', 'sky-room', 'nook']);
+export const SLICE_4F = Object.freeze(['bath-upper', 'box-room', 'linen']);
 // What the walker keeps clear of: the breasts and one rectangle per solid piece, worked out before the blueprint is frozen.
 export const LAKESIDE_INTERIOR = deep({...BLUEPRINT, obstacles: obstaclesOf(BLUEPRINT)});
-export const SLICE_4E = LAKESIDE_INTERIOR.furnishUpper;

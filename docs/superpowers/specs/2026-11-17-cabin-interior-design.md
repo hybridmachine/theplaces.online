@@ -1,6 +1,6 @@
 # Cabin interior — design
 
-Status: proposed, November 17, 2026. Awaiting approval. Nothing is built.
+Status: parts 1–4 built behind `?interior=1` (part 4f awaiting owner review, November 25, 2026); switch removal (part 5) remaining.
 
 Items marked **(call)** were decided by the author of this document, not by the project owner, and are open to correction.
 
