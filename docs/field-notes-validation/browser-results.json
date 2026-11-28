@@ -1,5 +1,5 @@
 {
-  "browser": "140.0.7339.186",
+  "browser": "158.0.8127.38",
   "results": [
     {
       "name": "HTTP notes contract and no-store",
@@ -18,10 +18,12 @@
       "pass": true
     },
     {
-      "name": "first-visit: factual recap",
+      "name": "first-visit: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "This browser will remember your visit. Small changes will be gathered here when you return."
+        "text": "This browser will remember your visit. Small changes will be gathered here when you return.",
+        "headerEntry": true,
+        "recapVisible": false
       }
     },
     {
@@ -37,10 +39,12 @@
       "pass": true
     },
     {
-      "name": "nest-progress: factual recap",
+      "name": "nest-progress: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The bird brought another strand to the nest."
+        "text": "The bird brought another strand to the nest.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -56,10 +60,12 @@
       "pass": true
     },
     {
-      "name": "nest-complete: factual recap",
+      "name": "nest-complete: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The nest was finished."
+        "text": "The nest was finished.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -75,10 +81,12 @@
       "pass": true
     },
     {
-      "name": "bird-habit: factual recap",
+      "name": "bird-habit: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The bird returned to the same branch on three days. The main-room light came on."
+        "text": "The bird returned to the same branch on three days. The main-room light came on.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -94,10 +102,12 @@
       "pass": true
     },
     {
-      "name": "cottage-only: factual recap",
+      "name": "cottage-only: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The bird paused on the cottage roof. The main-room light came on."
+        "text": "The bird paused on the cottage roof. The main-room light came on.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -109,14 +119,44 @@
       "pass": true
     },
     {
+      "name": "cottage-only: repeated lights form one collapsed entry with a count",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: expanding keeps the notebook and disclosure anchored",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: clicking the same spot collapses the dates",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: expanding preserves every original timestamp in order",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: Close stays visible and clickable at the bottom of a long notebook",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: closing from the bottom returns focus to Field notes",
+      "pass": true
+    },
+    {
+      "name": "cottage-only: reopening starts at the current visit recap",
+      "pass": true
+    },
+    {
       "name": "quiet-return: no automatic panel",
       "pass": true
     },
     {
-      "name": "quiet-return: factual recap",
+      "name": "quiet-return: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "No new field notes since your last visit."
+        "text": "No new field notes since your last visit.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -132,10 +172,12 @@
       "pass": true
     },
     {
-      "name": "long-absence: factual recap",
+      "name": "long-absence: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The nest was finished. The bird returned to the same branch on three days."
+        "text": "The nest was finished. The bird returned to the same branch on three days.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -170,10 +212,12 @@
       "pass": true
     },
     {
-      "name": "portrait: factual recap",
+      "name": "portrait: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The nest was finished. The bird returned to the same branch on three days."
+        "text": "The nest was finished. The bird returned to the same branch on three days.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -185,14 +229,44 @@
       "pass": true
     },
     {
+      "name": "portrait: repeated lights form one collapsed entry with a count",
+      "pass": true
+    },
+    {
+      "name": "portrait: expanding keeps the notebook and disclosure anchored",
+      "pass": true
+    },
+    {
+      "name": "portrait: clicking the same spot collapses the dates",
+      "pass": true
+    },
+    {
+      "name": "portrait: expanding preserves every original timestamp in order",
+      "pass": true
+    },
+    {
+      "name": "portrait: Close stays visible and clickable at the bottom of a long notebook",
+      "pass": true
+    },
+    {
+      "name": "portrait: closing from the bottom returns focus to Field notes",
+      "pass": true
+    },
+    {
+      "name": "portrait: reopening starts at the current visit recap",
+      "pass": true
+    },
+    {
       "name": "narrow-portrait: no automatic panel",
       "pass": true
     },
     {
-      "name": "narrow-portrait: factual recap",
+      "name": "narrow-portrait: factual recap and notebook hierarchy",
       "pass": true,
       "detail": {
-        "text": "The nest was finished. The bird returned to the same branch on three days."
+        "text": "The nest was finished. The bird returned to the same branch on three days.",
+        "headerEntry": true,
+        "recapVisible": true
       }
     },
     {
@@ -201,6 +275,42 @@
     },
     {
       "name": "narrow-portrait: panel fits viewport",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: repeated lights form one collapsed entry with a count",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: expanding keeps the notebook and disclosure anchored",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: clicking the same spot collapses the dates",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: expanding preserves every original timestamp in order",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: Close stays visible and clickable at the bottom of a long notebook",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: closing from the bottom returns focus to Field notes",
+      "pass": true
+    },
+    {
+      "name": "narrow-portrait: reopening starts at the current visit recap",
+      "pass": true
+    },
+    {
+      "name": "Small phone: the current event stays readable above its scrolling dates",
+      "pass": true
+    },
+    {
+      "name": "Small phone: scrolling past a group releases its event name",
       "pass": true
     },
     {
@@ -237,6 +347,22 @@
     },
     {
       "name": "Forget resets recap and preserves Follow",
+      "pass": true
+    },
+    {
+      "name": "Forget clears visit and spot while keeping keyboard focus on Undo",
+      "pass": true
+    },
+    {
+      "name": "Undo restores the recap, read progress, visit interval and cabin spot",
+      "pass": true
+    },
+    {
+      "name": "Restored visit and spot survive reload",
+      "pass": true
+    },
+    {
+      "name": "Closing Field notes discards Undo and leaves the spot forgotten",
       "pass": true
     },
     {

@@ -2,7 +2,7 @@
 
 Status: proposal for discussion, September 18, 2026. This is a design brief, not an implemented system. “A View” is a working title taken from the project directory.
 
-Implementation checkpoint: The Lakeside Cottage is now implemented and defaults to a walkable painterly 3D yard with an enterable, lit and furnished two-storey cabin interior (with live windows onto the shared yard and remembered indoor/outdoor place), while preserving the original fixed-camera 2D living painting as an automatic fallback and via `?space=0`. See [README.md](README.md) for what is implemented and its explicit limits, and `docs/superpowers/specs/` for the 3D yard and cabin interior design records. The broader multi-region architecture below remains the original September 18 proposal.
+Implementation checkpoint: The Lakeside Cottage is now implemented and defaults to a walkable painterly 3D yard with an enterable, lit and furnished two-storey cabin interior (with live windows onto the shared yard and remembered indoor/outdoor place), while preserving the original fixed-camera 2D living painting as an automatic fallback and via `?space=0`. See [README.md](README.md) for what is implemented and its explicit limits, and `docs/superpowers/specs/` for the 3D yard and cabin interior design records. Touch visitors can tap ground or the doorway to walk. Portrait arrival frames the path and front door, and Field notes opens from the header. The broader multi-region architecture below remains the original September 18 proposal.
 
 The experience is a place to return to: an oil painting that quietly lives, remembers what happened, and offers new things to notice. The landscape occupies the browser viewport. Its composition must be satisfying when nothing dramatic is happening.
 

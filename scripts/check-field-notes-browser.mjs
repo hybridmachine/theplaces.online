@@ -2,7 +2,7 @@ import {createRequire} from 'node:module';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {WorldStore} from '../src/store.js';
 import {identityOf,recapText} from '../shared/field-notes.js';
-import {MEMORY_KEY,SESSION_KEY} from '../public/visit-memory.js';
+import {MEMORY_KEY,SESSION_KEY,PLACE_KEY} from '../public/visit-memory.js';
 
 const {chromium}=createRequire(import.meta.url)('playwright');
 const base=process.env.SKY_PREVIEW_URL||'http://127.0.0.1:4175';
@@ -20,7 +20,8 @@ const browser=await chromium.launch({headless:true,
   ...(process.env.SKY_GPU==='metal'?{args:['--enable-gpu','--use-gl=angle','--use-angle=metal']}:{}),
 });
 async function fixture({previous,current,width=1440,fail=false,blocked=false}={}){
-  const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});
+  const height=width===320?568:width===390?844:900;
+  const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
   const state={current,fail,notesRequests:0,delay:null};
   await context.route('https://fonts.googleapis.com/**',r=>r.abort());
   await context.route('**/api/world',r=>r.fulfill({json:state.current}));
@@ -66,11 +67,44 @@ try{
     await open(page);
     const text=await page.locator('#recap-text').textContent();
     const expected=previous?recapText(store.notes(request(previous,current))):'This browser will remember your visit. Small changes will be gathered here when you return.';
-    check(`${name}: factual recap`,text===expected,{text});
+    const headerEntry=await page.locator('header #notes-button').isVisible();
+    const recapVisible=await page.locator('#visit-recap').isVisible();
+    check(`${name}: factual recap and notebook hierarchy`,text===expected&&headerEntry&&recapVisible===!!previous,{text,headerEntry,recapVisible});
     check(`${name}: quiet read`,await page.locator('#note-dot').isHidden());
     const fits=await page.locator('#notes-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth&&el.getBoundingClientRect().left>=0);
     check(`${name}: panel fits viewport`,fits);
     await page.screenshot({path:`${directory}/${name}.png`});
+    if(name==='cottage-only'||name==='portrait'||name==='narrow-portrait'){
+      const group=page.locator('#event-list details'),toggle=group.locator('summary');
+      check(`${name}: repeated lights form one collapsed entry with a count`,
+        await group.count()===1&&await page.locator('#event-list > li').count()===1&&
+        !(await group.evaluate(el=>el.open))&&(await toggle.innerText()).includes(`${current.events.length} times`));
+      await toggle.scrollIntoViewIfNeeded();await toggle.focus();
+      const dialog=page.locator('#notes-dialog'),before=await toggle.boundingBox(),paper=await dialog.boundingBox();
+      await page.keyboard.press('Enter');
+      const expanded=await toggle.boundingBox(),openedPaper=await dialog.boundingBox();
+      check(`${name}: expanding keeps the notebook and disclosure anchored`,
+        Math.abs(openedPaper.y-paper.y)<1&&Math.abs(expanded.y-before.y)<1&&Math.abs(expanded.x-before.x)<1);
+      await page.mouse.click(before.x+before.width/2,before.y+before.height/2);
+      check(`${name}: clicking the same spot collapses the dates`,!(await group.evaluate(el=>el.open)));
+      await toggle.press('Enter');
+      const dates=await group.locator('time:visible').evaluateAll(els=>els.map(el=>el.dateTime));
+      check(`${name}: expanding preserves every original timestamp in order`,
+        JSON.stringify(dates)===JSON.stringify(current.events.map(event=>new Date(event.at).toISOString())));
+      const closeButton=page.locator('#notes-dialog .close-panel'),top=(await closeButton.boundingBox()).y;
+      await page.locator('#forget-visits').scrollIntoViewIfNeeded();
+      check(`${name}: Close stays visible and clickable at the bottom of a long notebook`,
+        await page.locator('.notes-body').evaluate(el=>el.scrollTop>0)&&
+        await closeButton.evaluate((el,top)=>{
+          const r=el.getBoundingClientRect();
+          return Math.abs(r.y-top)<1&&r.height>=44&&el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+        },top));
+      await closeButton.click();
+      check(`${name}: closing from the bottom returns focus to Field notes`,
+        await page.locator('#notes-dialog').isHidden()&&await page.locator('#notes-button').evaluate(el=>el===document.activeElement));
+      await open(page);
+      check(`${name}: reopening starts at the current visit recap`,await page.locator('.notes-body').evaluate(el=>el.scrollTop===0));
+    }
     if(name==='long-absence'){
       check('Long absence is independent of recent-20 list',!await page.locator('#event-list').textContent().then(t=>t.includes('nest'))&&text.includes('nest'));
       await close(page);await page.reload();await page.waitForSelector('#painting.ready');await open(page);
@@ -80,6 +114,26 @@ try{
       check('Keyboard opening, Escape, and focus return',await page.locator('#notes-dialog').isHidden()&&await page.locator('#notes-button').evaluate(el=>el===document.activeElement));
       check('Recap fetched only on demand and cached during visit',state.notesRequests===2,{requests:state.notesRequests});
     }
+    await context.close();
+  }
+  {
+    const {context,page}=await fixture({current:day,width:320});
+    await open(page);
+    const groups=page.locator('#event-list details'),firstName=groups.first().locator('summary');
+    await firstName.click();
+    const body=page.locator('.notes-body');
+    await body.evaluate(el=>{
+      const dates=el.querySelector('details[open] .note-dates');
+      el.scrollTop+=dates.getBoundingClientRect().top-el.getBoundingClientRect().top+60;
+    });
+    check('Small phone: the current event stays readable above its scrolling dates',await firstName.evaluate(el=>{
+      const r=el.getBoundingClientRect(),top=el.closest('.notes-body').getBoundingClientRect().top;
+      return Math.abs(r.top-top)<1&&el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+    }));
+    await groups.last().locator('summary').click();
+    await body.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+    check('Small phone: scrolling past a group releases its event name',
+      await firstName.evaluate(el=>el.getBoundingClientRect().bottom<=el.closest('.notes-body').getBoundingClientRect().top));
     await context.close();
   }
   {
@@ -106,11 +160,25 @@ try{
     check('Failed recap leaves progress unread',await page.locator('#note-dot').isVisible());
     state.fail=false;await page.locator('#retry-notes').click();await page.waitForFunction(()=>document.querySelector('#recap-text').textContent.includes('nest was finished'));
     check('Explicit retry recovers history',await page.locator('#note-dot').isHidden());
-    await page.evaluate(()=>localStorage.setItem('a-view:follow:lakeside-cottage','true'));
+    const spot=JSON.stringify({version:2,place:'cabin',floor:1,position:[5,6],yaw:1,pitch:.2});
+    await page.evaluate(([key,spot])=>{
+      localStorage.setItem('a-view:follow:lakeside-cottage','true');localStorage.setItem(key,spot);
+    },[PLACE_KEY,spot]);
+    const visit=()=>page.evaluate(key=>sessionStorage.getItem(key),SESSION_KEY);
+    const place=()=>page.evaluate(key=>localStorage.getItem(key),PLACE_KEY);
+    const previousVisit=await visit(),previousHistory=await memory(page),recap=await page.locator('#recap-text').textContent();
     await page.locator('#forget-visits').click();
     await page.waitForFunction(()=>document.querySelector('#recap-heading').textContent==='A place to return to');
     check('Forget resets recap and preserves Follow',await page.evaluate(()=>localStorage.getItem('a-view:follow:lakeside-cottage')==='true')&&!(await page.locator('#recap-text').textContent()).includes('nest was finished'));
+    const undo=page.getByRole('button',{name:'Undo',exact:true});
+    check('Forget clears visit and spot while keeping keyboard focus on Undo',await visit()===null&&await memory(page)===null&&await place()===null&&await undo.evaluate(el=>el===document.activeElement));
+    await page.keyboard.press('Enter');
+    check('Undo restores the recap, read progress, visit interval and cabin spot',await visit()===previousVisit&&JSON.stringify(await memory(page))===JSON.stringify(previousHistory)&&await place()===spot&&await page.locator('#recap-text').textContent()===recap);
+    await page.reload();await page.waitForSelector('#painting.ready');await open(page);
+    check('Restored visit and spot survive reload',await visit()===previousVisit&&await place()===spot&&await page.locator('#recap-text').textContent()===recap);
+    await page.getByRole('button',{name:'Forget visit memory'}).click();await close(page);await open(page);
     await page.waitForFunction(()=>document.querySelector('#recap-text').textContent.startsWith('This browser will remember'));
+    check('Closing Field notes discards Undo and leaves the spot forgotten',await undo.count()===0&&await place()===null);
     check('Forget notice clears once the new baseline is saved',(await memory(page)).observed.at===month.serverTime);
     await context.close();
   }
@@ -120,7 +188,7 @@ try{
     const requested=page.waitForRequest('**/api/notes?*');
     await page.locator('#notes-button').click();await requested;
     state.current=nextStrand;await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
-    await page.waitForFunction(count=>document.querySelector('#event-list').children.length===count,nextStrand.events.length);
+    await page.waitForFunction(count=>document.querySelectorAll('#event-list time').length===count,nextStrand.events.length);
     state.delay=null;release();
     await page.waitForFunction(()=>!document.querySelector('#recap-text').textContent.includes('Looking back'));
     await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));

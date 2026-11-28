@@ -61,6 +61,21 @@ test('an indoor place is stored as version 2 and restored with its floor', () =>
   assert.equal(r.version, 2); assert.equal(r.place, 'cabin'); assert.equal(r.floor, 1);
   assert.deepEqual(new PlaceMemory({storage, space: S, interior: I}).load(), {place: 'cabin', floor: 1, position: [3, 9], yaw: 1, pitch: .1});
 });
+test('undo remembers a stop before autosave and respects a more recent saved spot', () => {
+  const storage = store(), memory = new PlaceMemory({storage, space: S, interior: I});
+  const cabin = {place: 'cabin', floor: 1, position: [3, 9], yaw: 1, pitch: .1};
+  memory.note(spot, false);
+  const restore = memory.forget(cabin);
+  memory.flush(cabin);
+  assert.equal(storage.writes, 0, 'the pending stop stays in memory until Undo');
+  assert.equal(storage.getItem(PLACE_KEY), null);
+  assert.equal(restore(), true);
+  assert.deepEqual(new PlaceMemory({storage, space: S, interior: I}).load(), cabin);
+  const again = memory.forget(cabin);
+  new PlaceMemory({storage, space: S}).flush(spot);
+  assert.equal(again(), false);
+  assert.deepEqual(new PlaceMemory({storage, space: S}).load(), {place: 'yard', ...spot});
+});
 test('without the interior an indoor record is ignored; a yard record still loads as version 1', () => {
   const storage = store(); new PlaceMemory({storage, space: S, interior: I}).flush({place: 'cabin', floor: 0, position: [9, 3], yaw: 0, pitch: 0});
   assert.equal(new PlaceMemory({storage, space: S}).load(), null);

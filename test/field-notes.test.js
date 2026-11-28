@@ -215,9 +215,27 @@ test('an observed replacement cannot overwrite a third history that superseded i
 
 function fakeRoot(){
   const elements=new Map();
-  const element=()=>({textContent:'',hidden:false,open:false,children:[],addEventListener(){},replaceChildren(){this.children=[];},append(...v){this.children.push(...v);}});
+  const element=()=>({textContent:'',hidden:false,open:false,children:[],addEventListener(type,fn){this['on'+type]=fn;},replaceChildren(...v){this.children=v;},append(...v){this.children.push(...v);}});
   return {querySelector(key){if(!elements.has(key))elements.set(key,element());return elements.get(key);},createElement:element};
 }
+test('repeated observations group across intervening events and preserve open dates on a live update',()=>{
+  const {a}=snapshots(),root=fakeRoot(),panel=new FieldNotes({root,memory:new VisitMemory({})});
+  const note=(seq,type,text)=>({seq,type,text,at:epoch+seq*1000});
+  const lights=seq=>note(seq,'cottage.light','The main room light comes on.');
+  const events=[lights(5),note(4,'nest.material-delivered','The nest is ready.'),lights(3),
+    note(2,'cottage.light','The second room light comes on.'),note(1,'other','The main room light comes on.')];
+  panel.update({...a,events});
+  const rows=root.querySelector('#event-list').children;
+  assert.equal(rows.length,4);
+  const group=rows[0].children[0],dates=group.children[1];
+  assert.equal(group.open,false);
+  assert.deepEqual(dates.children.map(row=>row.children[0].dateTime),[5,3].map(seq=>new Date(epoch+seq*1000).toISOString()));
+  assert.deepEqual(rows.slice(1).map(row=>row.children[1].textContent),[events[1].text,events[3].text,events[4].text]);
+  group.open=true;
+  panel.update({...a,events:[lights(6),...events]});
+  const updated=root.querySelector('#event-list').children[0].children[0];
+  assert.equal(updated.open,true);assert.equal(updated.children[1].children.length,3);
+});
 test('panel never observes hidden, paused, study, or invalid frames; pending/late replies never read newer notes',async()=>{
   const {a,b,c}=snapshots(),memory=new VisitMemory({local:storage(),session:storage()}),root=fakeRoot();
   memory.observe(a);memory.flush(true);
@@ -270,7 +288,12 @@ test('reset and forget notices clear only after a fresh live baseline is establi
     if(kind==='reset'){
       root.querySelector('#notes-dialog').open=true;panel.open();await new Promise(r=>setImmediate(r));
       assert.equal(panel.resetNotice,true);
-    }else{root.querySelector('#forget-visits').onclick();assert.equal(panel.forgot,true);}
+    }else{
+      const dialog=root.querySelector('#notes-dialog');dialog.open=true;
+      root.querySelector('#forget-visits').onclick();assert.equal(panel.forgot,true);
+      panel.update(b,{live:true,valid:true});assert.equal(memory.visit,null);
+      dialog.open=false;dialog.onclose();
+    }
     const notice=root.querySelector('#recap-text').textContent;
     panel.update(b,{paused:true,valid:true});assert.equal(root.querySelector('#recap-text').textContent,notice);
     panel.update(b,{live:true,valid:true});
@@ -279,14 +302,32 @@ test('reset and forget notices clear only after a fresh live baseline is establi
   }
 });
 
-test('the storage sentence mentions the yard only while the 3D view is the painter',()=>{
+test('undo merges newer read progress while preserving the original visit interval',()=>{
+  const {a,b,c}=snapshots(),local=storage();
+  new VisitMemory({local,session:storage()}).observe(a);
+  const tab=new VisitMemory({local,session:storage()});tab.observe(b);
+  const original=tab.interval,saved=tab.forgetWithUndo();
+  const other=new VisitMemory({local,session:storage()});other.observe(c);other.read(c.notes);
+  assert.equal(tab.restore(saved),true);
+  assert.deepEqual(tab.interval,original);
+  assert.deepEqual(tab.record.read,c.notes.head);
+  const replacement=new WorldStore(':memory:',epoch+100_000);
+  try{
+    const again=tab.forgetWithUndo(),different=replacement.snapshot(epoch+100_000);
+    other.observe(different);
+    assert.equal(tab.restore(again),false);
+    assert.equal(JSON.parse(local.getItem(MEMORY_KEY)).identity.id,different.notes.id);
+  }finally{replacement.close();}
+});
+
+test('the storage sentence includes the remembered position only in the walkable view',()=>{
   const {a}=snapshots(),root=fakeRoot(),panel=new FieldNotes({root,memory:new VisitMemory({local:storage(),session:storage()})});
   panel.update(a,{live:true,valid:true});
-  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory stays in this browser.');
+  assert.equal(root.querySelector('#visit-storage').textContent,'This browser remembers your visit for your next field notes.');
   panel.inYard=true;panel.render();
-  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory and your place in the yard stay in this browser.');
+  assert.equal(root.querySelector('#visit-storage').textContent,'This browser remembers your visit and where you stopped.');
   panel.inYard=false;panel.render();
-  assert.equal(root.querySelector('#visit-storage').textContent,'Visit memory stays in this browser.');
+  assert.equal(root.querySelector('#visit-storage').textContent,'This browser remembers your visit for your next field notes.');
   const unavailable=new FieldNotes({root:fakeRoot(),memory:new VisitMemory({})});unavailable.inYard=true;unavailable.update(a,{live:true,valid:true});
   assert.equal(unavailable.root.querySelector('#visit-storage').textContent,'Visits cannot be remembered on this browser. These notes are available for this visit.');
 });

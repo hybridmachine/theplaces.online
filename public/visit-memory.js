@@ -2,6 +2,18 @@ import {identityOf,sameCursor,sameIdentity,validCursor,validHistory,validIdentit
 
 export const MEMORY_KEY='a-view:notes:lakeside-cottage';
 export const SESSION_KEY=`${MEMORY_KEY}:visit`;
+export const PLACE_KEY='a-view:place:lakeside-cottage';
+// The painting can clear and restore a saved walk without loading the 3D view.
+export function forgetStoredPlace(storage, current) {
+  const saved=current ?? storage?.getItem(PLACE_KEY);
+  storage?.removeItem(PLACE_KEY);
+  if(!saved)return null;
+  return ()=>{
+    if(storage.getItem(PLACE_KEY)!==null)return false;
+    storage.setItem(PLACE_KEY,saved);
+    return true;
+  };
+}
 export const VISIT_GAP_MS=30*60_000;
 const WRITE_GAP_MS=10_000;
 const validObservation=v=>!!v&&validCursor(v.cursor)&&Number.isSafeInteger(v.at);
@@ -72,20 +84,20 @@ export class VisitMemory {
     if(history.head.seq>this.record.read.seq){this.record.read=clone(history.head);this.dirty=true;this.flush(true);}
   }
   flush(force=false) {
-    if(!this.record||!this.visit||!this.dirty||!force&&this.clock()-this.lastWrite<WRITE_GAP_MS)return;
+    if(!this.dirty||!force&&this.clock()-this.lastWrite<WRITE_GAP_MS)return;
     const stored=this.load(this.local,MEMORY_KEY,validRecord);
     // A tab paused on a replaced world can still read its old notes, but must
     // not overwrite the newer world's memory established by another tab.
-    if(stored&&!sameIdentity(stored.identity,this.record.identity)&&!sameIdentity(stored.identity,this.replacesIdentity)){
+    if(stored&&!sameIdentity(stored.identity,(this.record??this.visit)?.identity)&&!sameIdentity(stored.identity,this.replacesIdentity)){
       this.replacesIdentity=null;
       this.lastWrite=this.clock();this.dirty=false;return;
     }
     this.merge(stored);
     try{
       if(!this.local||!this.session)throw new Error('Storage unavailable');
-      this.local.setItem(MEMORY_KEY,JSON.stringify(this.record));
+      if(this.record)this.local.setItem(MEMORY_KEY,JSON.stringify(this.record));
       this.replacesIdentity=null;
-      this.session.setItem(SESSION_KEY,JSON.stringify(this.visit));
+      if(this.visit)this.session.setItem(SESSION_KEY,JSON.stringify(this.visit));
     }catch{this.available=false;}
     this.lastWrite=this.clock();this.dirty=false;
   }
@@ -102,6 +114,23 @@ export class VisitMemory {
   }
   reset(snapshot) {
     this.forget();this.observe(snapshot);
+  }
+  forgetWithUndo() {
+    const stored=this.load(this.local,MEMORY_KEY,validRecord);
+    if(stored&&!sameIdentity(stored.identity,this.record?.identity)){
+      this.record=stored;
+      if(!sameIdentity(stored.identity,this.visit?.identity))this.visit=null;
+    }else this.merge(stored);
+    const {record,visit}=this;
+    this.forget();
+    return record||visit?{record,visit}:null;
+  }
+  restore({record,visit}) {
+    const stored=this.load(this.local,MEMORY_KEY,validRecord);
+    if(stored&&!sameIdentity(stored.identity,(record??visit).identity))return false;
+    this.record=record??stored;this.visit=visit;this.generation++;
+    this.dirty=true;this.flush(true);
+    return true;
   }
   forget(removeLocal=true) {
     this.record=null;this.visit=null;this.dirty=false;this.generation++;this.lastWrite=-Infinity;this.replacesIdentity=null;
