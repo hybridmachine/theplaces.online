@@ -6,7 +6,7 @@ Field notes occupies the labeled header action. The notebook leads with current 
 
 ## As built
 
-All 902 Node tests passed during local verification. The HTTP catch-up test ran separately so its disposable server could bind to localhost.
+All 904 Node tests passed after review. Regression tests picked the furnished hall runner and doormat through shadow and light overlays, checked that the sofa blocked the same ray, and verified that a stalled walk released the saved-position timer. In Chromium touch emulation, the first tap on the scene dismissed Walking help and the next tap walked. A tap during a doorway fade produced no warning. An untouched portrait arrival survived Forget and Undo with no saved position, then reframed on a landscape reload.
 
 On a 390 × 844 Chromium touch viewport, the visitor tapped the path, opened Field notes while walking, closed the notebook at the same position, entered the cabin, dragged to turn around, tapped the doorway to leave and returned to the portrait starting view. Desktop checks exercised keyboard movement, notebook focus restoration and the painting's Keep dialog. No physical phone was available for verification.
 

@@ -75,7 +75,7 @@ export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Ma
 function arrivalForAspect(space, aspect) {
   const original = space.arrival;
   // Pan toward the door as the viewport narrows, without moving the landmarks.
-  if (aspect >= 1) return original;
+  if (!Number.isFinite(aspect) || aspect <= 0 || aspect >= 1) return original;
   return {...original, yaw: original.yaw - .48 * (1 - aspect)};
 }
 
@@ -131,7 +131,7 @@ export class SpaceView {
     };
     this.media.addEventListener('change', this.motionChanged);
     this.resize = () => {
-      if (!this.renderer) return;
+      if (!this.renderer || innerWidth <= 0 || innerHeight <= 0) return;
       const ratio = Math.min(devicePixelRatio || 1, 1.6);
       this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(innerWidth, innerHeight, false);
@@ -454,8 +454,9 @@ export class SpaceView {
     const door = touch ? 'Tap the front door' : 'Face the front door and walk forward';
     return `${movement} ${door} to ${indoors ? 'leave' : 'enter'}.`;
   }
-  flushPlace() { if (this.placed) this.memory.flush(this.state); }
-  forgetPlace() { return this.memory.forget(this.placed ? this.state : null); }
+  get hasPlaceToSave() { return this.placed && (this.awayFromArrival || !!this.memory.written); }
+  flushPlace() { if (this.hasPlaceToSave) this.memory.flush(this.state); }
+  forgetPlace() { return this.memory.forget(this.placed && this.awayFromArrival ? this.state : null); }
   // Advances the visitor by the real time since the previous frame; the world's clock (paused or studied) plays no part.
   step() {
     const t = performance.now(), dt = this.lastStep === null ? 0 : (t - this.lastStep) / 1000;
@@ -471,6 +472,7 @@ export class SpaceView {
     this.look = [0, 0]; this.looked = false;
     // While the passage carries the visitor across, walking and looking are ignored and the place is not recorded.
     const crossing = this.passage?.busy ?? false;
+    const previous = this.state.position;
     if (walking) this.glideFrom = null;
     // At the doorway the passage still needs forward intent while the walker waits on its side of the sill.
     const movement = {...keys, look};
@@ -482,6 +484,13 @@ export class SpaceView {
       this.state = pose(glide(this.glideFrom, this.arrival, k));
       if (k >= 1) this.glideFrom = null;
     } else this.state = pose(stepWalker(this.space, this.state, movement, dt));
+    if (this.route && !crossing && !keys.atDoor && dt > 0) {
+      const [x, y] = this.route.points[0];
+      const remaining = Math.hypot(x - this.state.position[0], y - this.state.position[1]);
+      const progress = Math.hypot(x - previous[0], y - previous[1]) - remaining;
+      // Stop below 1 cm/s toward the waypoint, including a slide along a blocked corner.
+      if (progress < .01 * Math.min(dt, WALK.maxStep)) this.stopTapWalk();
+    }
     let moved = false;
     if (this.passage) {
       const hadInside = !!this.inside;
@@ -502,7 +511,7 @@ export class SpaceView {
       this.door = this.inside ? door : 0; this.yard.setDoor(this.door);
       this.canvas.style.opacity = String(1 - veil);
     }
-    if (!this.passage?.busy) this.memory.note(this.state, walking || looked || moved || this.glideFrom !== null);
+    if (!this.passage?.busy && this.hasPlaceToSave) this.memory.note(this.state, walking || looked || moved || this.glideFrom !== null);
   }
   render(snapshot, now, study = null) {
     if (!this.renderer || this.disposed || this.failed || !snapshot) return;

@@ -155,9 +155,10 @@ const world = $('#world');
 let gesture = null;
 world.addEventListener('pointerdown', event => {
   if (!event.isPrimary || event.button !== 0) { gesture = null; return; }
+  const dismissingHelp = !walkingInstructions.hidden;
   setWalkingHelp(false);
   painter.stopTapWalk?.();
-  gesture = {id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false};
+  gesture = {id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, skipTap: dismissingHelp || painter.passage?.busy};
   world.setPointerCapture(event.pointerId);
 });
 world.addEventListener('pointermove', event => {
@@ -172,9 +173,9 @@ world.addEventListener('pointermove', event => {
 });
 world.addEventListener('pointerup', event => {
   if (gesture?.id !== event.pointerId) return;
-  const tapped = !gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 8;
+  const tapped = !gesture.skipTap && !gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 8;
   gesture = null;
-  if (tapped && event.pointerType !== 'mouse' && painter.shown && painter.walkToScreen) {
+  if (tapped && event.pointerType !== 'mouse' && painter.shown && !painter.passage?.busy && painter.walkToScreen) {
     if (!painter.walkToScreen(event.clientX, event.clientY)) {
       toast(painter.state.place === 'cabin' ? 'Tap a clear spot on the floor to walk there.' : 'Tap a clear spot on the ground to walk there.');
     }

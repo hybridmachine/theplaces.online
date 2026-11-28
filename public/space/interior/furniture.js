@@ -1719,6 +1719,9 @@ export function buildFurniture(THREE, {interior: I, art, light, flat = null, fac
     if (!list.length) continue;
     const g = mergeGeometries(THREE, list); for (const x of list) x.dispose();
     const m = new THREE.Mesh(g, material[k]); m.name = MESHES[k]; object.add(m);
+    // Ray hits retain the vertex indices of each piece in the merged mesh.
+    m.userData.walkOverRanges = entries.filter(e => KINDS[e.kind]?.standing === 'walk-over')
+      .flatMap(e => ranges.get(e.id) ?? []).filter(range => range.mesh === m.name);
   }
   // A piece's box in the interior frame {a, d, z}, from its own vertices; null for a piece not drawn.
   const pieceBox = id => {

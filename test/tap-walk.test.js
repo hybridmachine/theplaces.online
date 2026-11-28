@@ -4,6 +4,34 @@ import {tapInput, tapRoute} from '../public/space/tap-walk.js';
 import {LAKESIDE_SPACE as space} from '../shared/lakeside-space.js';
 import {LAKESIDE_INTERIOR as walkPlan} from '../shared/lakeside-interior.js';
 import {glideClear, stepWalker} from '../shared/walker.js';
+import {SpaceView} from '../public/space/space-view.js';
+import {PlaceMemory, PLACE_KEY, STILL_MS} from '../public/space/place-memory.js';
+
+test('arrival stays unsaved through idle frames, pagehide and Forget; a stalled tap still saves its stop', t => {
+  let now = 100;
+  t.mock.method(performance, 'now', () => now);
+  const records = new Map(), memory = new PlaceMemory({space, clock: () => now, storage: {
+    getItem: key => records.get(key) ?? null, removeItem: key => records.delete(key),
+    setItem: (key, value) => records.set(key, value),
+  }});
+  const view = Object.assign(Object.create(SpaceView.prototype), {
+    space, memory, placed: true, arrival: space.arrival, state: {place: 'yard', ...space.arrival},
+    keys: {input: () => ({}), moving: () => false}, lastStep: null, look: [0, 0], glideFrom: null,
+  });
+  view.step(); now += STILL_MS; view.step(); view.flushPlace();
+  assert.equal(records.size, 0);
+  assert.equal(view.forgetPlace(), null);
+  // This almost parallel approach to the western wall is legal but slows to a crawl.
+  view.state = {...view.state, position: [-13.999, 4]};
+  view.route = tapRoute(view, {point: [-13.9999, 5]});
+  assert.ok(view.route);
+  view.step();
+  assert.ok(view.route, 'a zero-duration frame does not cancel a walk');
+  now += 50; view.step();
+  assert.equal(view.route, null);
+  now += 50; view.step(); now += STILL_MS; view.step();
+  assert.deepEqual(JSON.parse(records.get(PLACE_KEY)).position, view.state.position);
+});
 
 test('a tap across the oak follows walkable segments and stops at the point without rotating the view', () => {
   const view = {space, state: {place: 'yard', position: [2, 4.5], yaw: .7, pitch: 0}};

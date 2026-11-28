@@ -14,6 +14,7 @@ import {sceneText} from '../public/scene-description.js';
 import {stepIndoors} from '../shared/walker.js';
 import {bareInterior, obstaclesOf, withoutRooms} from '../shared/furniture.js';
 import {canStep, floorArea} from '../shared/interior.js';
+import {pickDestination} from '../public/space/tap-walk.js';
 
 const close = (actual, expected, tolerance = 1e-6) => actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${actual} ≉ ${expected}`));
 const CLEAR = {cloud: .18, rain: 0}, RAIN = {cloud: .9, rain: .8};
@@ -256,6 +257,41 @@ const rig = async ({tier = 'full', stencil = true, extensions = [], interior = I
   return {THREE, view, log, renderer, frame, yardDraws, meter, D, failing};
 };
 const quietWarnings = t => { const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args)); return warnings; };
+
+test('indoor taps reach the hall runner and doormat through light and shadow, while the sofa blocks the floor', async () => {
+  const {THREE, view} = await rig();
+  view.canvas = {getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100})};
+  view.yard.parts = {};
+  function pick(id) {
+    const [x, depth] = I.furniture.find(piece => piece.id === id).at;
+    view.camera.position.set(x, 1.8, -depth);
+    view.camera.lookAt(x, 0, -depth);
+    view.camera.updateMatrixWorld();
+    view.inside.scene.updateMatrixWorld();
+    return pickDestination(view, 50, 50);
+  }
+  for (const name of ['grounding', 'lamp-light', 'fire-light']) {
+    const overlay = new THREE.Group();
+    overlay.name = name;
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(35, 35), new THREE.MeshBasicMaterial());
+    sheet.rotation.x = -Math.PI / 2;
+    sheet.position.set(9, 1.5, -5);
+    overlay.add(sheet);
+    view.inside.scene.add(overlay);
+    for (const id of ['doormat', 'runner']) {
+      const hit = pick(id);
+      assert.ok(hit?.height > 0 && hit.height < .03, id);
+    }
+    assert.equal(pick('sofa'), null);
+    overlay.removeFromParent();
+    sheet.geometry.dispose(); sheet.material.dispose();
+  }
+  view.canvas.getBoundingClientRect = () => ({width: 0, height: 100});
+  assert.equal(pickDestination(view, 50, 50), null);
+  view.inside.dispose(); view.inside = null;
+  view.canvas.getBoundingClientRect = () => ({width: 100, height: 100});
+  assert.equal(pickDestination(view, 50, 50), null);
+});
 
 test('outdoors nothing is live and the pass is given no views', async t => {
   const {view, log, frame, yardDraws} = await rig({state: {place: 'yard', position: [...S.arrival.position], yaw: S.arrival.yaw, pitch: S.arrival.pitch}});

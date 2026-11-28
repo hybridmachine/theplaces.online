@@ -12,6 +12,8 @@ const same = (a, b) => !!a && !!b && placeOf(a) === placeOf(b) && a.floor === b.
 const plain = s => placeOf(s) === 'cabin'
   ? {place: 'cabin', floor: s.floor, position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch}
   : {place: 'yard', position: [s.position[0], s.position[1]], yaw: s.yaw, pitch: s.pitch};
+const serialize = (s, savedAt) => JSON.stringify(s.place === 'cabin'
+  ? {version: 2, ...s, savedAt} : {version: 1, position: s.position, yaw: s.yaw, pitch: s.pitch, savedAt});
 
 // Remembers where a visitor stopped. Any storage failure ends all further storage use for this instance.
 export class PlaceMemory {
@@ -55,15 +57,15 @@ export class PlaceMemory {
     if (this.forgotten) { if (same(state, this.forgotten)) return; this.forgotten = null; }
     if (same(state, this.written)) return;
     const next = plain(state);
-    const ok = this.#use(s => (s.setItem(PLACE_KEY, JSON.stringify(next.place === 'cabin' ? {version: 2, ...next, savedAt: this.clock()} : {version: 1, position: next.position, yaw: next.yaw, pitch: next.pitch, savedAt: this.clock()})), true));
+    const ok = this.#use(s => (s.setItem(PLACE_KEY, serialize(next, this.clock())), true));
     if (ok) this.written = next;
   }
   forget(state) {
-    if (state) this.flush(state);
-    const written = this.written;
+    const pending = state && !same(state, this.written) && !same(state, this.forgotten) ? plain(state) : null;
+    const written = pending ?? this.written;
     this.forgotten = state ? plain(state) : this.noted ?? written;
     this.written = null; this.stillSince = null;
-    const restore = this.#use(forgetStoredPlace);
+    const restore = this.#use(storage => forgetStoredPlace(storage, pending && serialize(pending, this.clock())));
     if (!restore) return null;
     return () => {
       if (!this.#use(restore)) return false;

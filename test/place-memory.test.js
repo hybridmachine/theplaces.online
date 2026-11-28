@@ -67,6 +67,7 @@ test('undo remembers a stop before autosave and respects a more recent saved spo
   memory.note(spot, false);
   const restore = memory.forget(cabin);
   memory.flush(cabin);
+  assert.equal(storage.writes, 0, 'the pending stop stays in memory until Undo');
   assert.equal(storage.getItem(PLACE_KEY), null);
   assert.equal(restore(), true);
   assert.deepEqual(new PlaceMemory({storage, space: S, interior: I}).load(), cabin);

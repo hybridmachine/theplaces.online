@@ -4,8 +4,8 @@ export const MEMORY_KEY='a-view:notes:lakeside-cottage';
 export const SESSION_KEY=`${MEMORY_KEY}:visit`;
 export const PLACE_KEY='a-view:place:lakeside-cottage';
 // The painting can clear and restore a saved walk without loading the 3D view.
-export function forgetStoredPlace(storage) {
-  const saved=storage?.getItem(PLACE_KEY);
+export function forgetStoredPlace(storage, current) {
+  const saved=current ?? storage?.getItem(PLACE_KEY);
   storage?.removeItem(PLACE_KEY);
   if(!saved)return null;
   return ()=>{

@@ -10,13 +10,16 @@ const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 export function pickDestination(view, x, y) {
   const rect = view.canvas.getBoundingClientRect();
+  const inside = view.state.place === 'cabin';
+  if (!(rect.width > 0 && rect.height > 0) || (inside && !view.inside)) return null;
   const ray = new Raycaster();
   ray.setFromCamera({x: 2 * (x - rect.left) / rect.width - 1, y: 1 - 2 * (y - rect.top) / rect.height}, view.camera);
-  const inside = view.state.place === 'cabin';
   const {terrain, wall, cabin, lake, oak, garden, wheelbarrow} = view.yard.parts;
   const surfaces = inside ? view.inside.scene.children : [terrain, wall, cabin, lake, oak, garden, wheelbarrow];
-  const [hit] = ray.intersectObjects(surfaces).filter(({object}) => {
-    for (let part = object; part; part = part.parent) if (!part.visible) return false;
+  const hit = ray.intersectObjects(surfaces).find(({object}) => {
+    for (let part = object; part; part = part.parent) {
+      if (!part.visible || (inside && ['grounding', 'lamp-light', 'fire-light'].includes(part.name))) return false;
+    }
     return object.isMesh;
   });
   if (!hit) return null;
@@ -28,7 +31,8 @@ export function pickDestination(view, x, y) {
   }
   const point = [hit.point.x, -hit.point.z];
   if (!inside) return hit.object === terrain && walkable(view.space, point) ? {point} : null;
-  if (!['floors', 'stair'].includes(name) || hit.face.normal.y < .5) return null;
+  const covering = hit.object.userData.walkOverRanges?.some(({first, count}) => hit.face.a >= first && hit.face.a < first + count);
+  if ((!covering && name !== 'floors' && name !== 'stair') || hit.face.normal.y < .5) return null;
   return {point, height: hit.point.y};
 }
 
