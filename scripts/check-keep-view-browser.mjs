@@ -23,8 +23,8 @@ async function fixture({width=1280,height=800,fallback=false,unavailable=false,m
   await context.addInitScript(()=>{
     window.__elapsed=0;Object.defineProperty(performance,'now',{value:()=>10000+window.__elapsed});
     window.EventSource=class {close(){}};
-    window.__urls=new Set();const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
-    URL.createObjectURL=blob=>{const url=create(blob);window.__urls.add(url);return url;};
+    window.__urls=new Map();const create=URL.createObjectURL.bind(URL),revoke=URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL=blob=>{const url=create(blob);window.__urls.set(url,blob);return url;};
     URL.revokeObjectURL=url=>{window.__urls.delete(url);return revoke(url);};
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
@@ -35,6 +35,17 @@ async function fixture({width=1280,height=800,fallback=false,unavailable=false,m
   // Let optional layers finish. With a fixed client clock, these remain stable.
   await page.waitForTimeout(1700);
   return {context,page};
+}
+// Capture only the world. The production CSP disallows an injected screenshot stylesheet.
+async function worldScreenshot(page) {
+  const overlays=page.locator('.chrome,#toast,#welcome');
+  const previous=await overlays.evaluateAll(elements=>elements.map(el=>{
+    const visibility=el.style.visibility;
+    el.style.visibility='hidden';
+    return visibility;
+  }));
+  try { return await page.locator('#world').screenshot(); }
+  finally { await overlays.evaluateAll((elements,values)=>elements.forEach((el,i)=>el.style.visibility=values[i]),previous); }
 }
 async function ready(page){await page.waitForFunction(()=>!document.querySelector('#keep-download').disabled);}
 async function open(page){await page.locator('#keep-button').click();await ready(page);}
@@ -50,7 +61,7 @@ try{
   if(!extraOnly){
   {
     const {context,page}=await fixture({motion:'no-preference'});
-    const before=await page.locator('#world').screenshot({style:'.chrome,#toast,#welcome{visibility:hidden!important}'});
+    const before=await worldScreenshot(page);
     await open(page);const held=await preview(page),meta=await caption(page);
     const diff=await difference(before,dataBytes(held));
     check('Composite matches the displayed WebGL, life canvas and scene shading',diff.mean<.6&&diff.max<12,diff);
@@ -61,7 +72,7 @@ try{
     await page.setViewportSize({width:390,height:844});await page.waitForTimeout(100);
     check('Note editing, live clock advance and resize retain capture pixels and metadata',held===await preview(page)&&meta===await caption(page));
     const expectedURL=await page.locator('#keep-open-image').getAttribute('href');
-    const expected=await page.evaluate(async url=>Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())),expectedURL);
+    const expected=await page.evaluate(async url=>Array.from(new Uint8Array(await window.__urls.get(url).arrayBuffer())),expectedURL);
     const downloadEvent=page.waitForEvent('download');await page.locator('#keep-download').click();const download=await downloadEvent;
     const exported=await readFile(await download.path());await writeFile(`${directory}/keepsake.png`,exported);
     check('Download uses the prepared PNG bytes',exported.equals(Buffer.from(expected)));
@@ -105,7 +116,7 @@ try{
   }
   for(const unavailable of [false,true]){
     const {context,page}=await fixture({fallback:true,unavailable});
-    const before=await page.locator('#world').screenshot({style:'.chrome,#toast,#welcome{visibility:hidden!important}'});
+    const before=await worldScreenshot(page);
     await open(page);const diff=await difference(before,dataBytes(await preview(page)));
     check(`Fallback ${unavailable?'without':'with'} world: pixels match visible original painting and overlays`,diff.mean<.6&&diff.max<12,diff);
     check(`Fallback ${unavailable?'without':'with'} world: honest caption`,(await caption(page)).includes('Static painting')&&(!unavailable||(await caption(page)).includes('World date unavailable')));
@@ -159,7 +170,7 @@ try{
     const {context,page}=await fixture({width:390,height:844,fallback});
     await open(page);const original=await preview(page);await close(page);
     await page.mouse.move(190,390);await page.mouse.down();await page.mouse.move(335,390,{steps:5});await page.mouse.up();
-    const before=await page.locator('#world').screenshot({style:'.chrome,#toast,#welcome{visibility:hidden!important}'});
+    const before=await worldScreenshot(page);
     await open(page);const moved=await preview(page),diff=await difference(before,dataBytes(moved));
     check(`${fallback?'Fallback':'GPU'} portrait capture preserves visitor panning`,original!==moved&&diff.mean<.6&&diff.max<12,diff);
     await close(page);await context.close();

@@ -6,6 +6,7 @@ import { SceneDescriber } from './scene-description.js';
 import {cottageDescription} from '/shared/cottage.js';
 import {birdDescription} from '/shared/bird.js';
 import {FieldNotes} from './field-notes.js';
+import {forgetStoredPlace} from './visit-memory.js';
 import {KeepView} from './keep-view.js';
 
 const $=selector=>document.querySelector(selector);
@@ -27,7 +28,7 @@ icon($('#sound-button .icon'),'muted');
 let painter=new URLSearchParams(location.search).get('space')==='0'?new Painting($('#painting'),$('#life')):await openSpace();
 const audio=new Ambience();
 const client=new WorldClient({onSnapshot:accept});
-const fieldNotes=new FieldNotes();
+const fieldNotes=new FieldNotes({forgetPlace:storage=>painter.forgetPlace?painter.forgetPlace():forgetStoredPlace(storage)});
 const keepView=new KeepView({onDownload:url=>toast('Download started.',url)});
 let snapshot=null,pausedSnapshot=null,pausedAt=null,study=null,lastRender=0,lastLabels=0,connection='connecting',toastTimer,quietTimer;
 let followed=false;try{followed=localStorage.getItem('a-view:follow:lakeside-cottage')==='true';}catch{}
@@ -42,14 +43,30 @@ function toast(text,imageURL){
   };
   toastTimer=setTimeout(hide,imageURL?8000:3500);
 }
+const helpButton = $('#walk-help-button'), walkingInstructions = $('#walking-instructions');
+function setWalkingHelp(open) {
+  walkingInstructions.hidden = !open;
+  helpButton.setAttribute('aria-expanded', String(open));
+  const hintToast = $('#toast');
+  if (open && hintToast.textContent === walkingInstructions.textContent) hintToast.classList.remove('show');
+}
+helpButton.onclick = () => {
+  painter.stopTapWalk?.();
+  setWalkingHelp(walkingInstructions.hidden);
+  wake();
+};
+matchMedia('(pointer:coarse)').addEventListener('change', () => {
+  if (painter.shown) refreshWalkingHelp();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !walkingInstructions.hidden) setWalkingHelp(false);
+});
 function isDialogOpen(){return [...document.querySelectorAll('dialog')].some(d=>d.open);}
-function wake(){document.querySelectorAll('.chrome').forEach(e=>e.classList.remove('quiet'));clearTimeout(quietTimer);quietTimer=setTimeout(()=>{if(!isDialogOpen()&&!study&&!pausedAt&&connection==='live'&&!document.querySelector('.chrome :focus-visible'))document.querySelectorAll('.chrome').forEach(e=>e.classList.add('quiet'));},12_000);}
+function wake(){document.querySelectorAll('.chrome').forEach(e=>e.classList.remove('quiet'));clearTimeout(quietTimer);quietTimer=setTimeout(()=>{if(walkingInstructions.hidden&&!isDialogOpen()&&!study&&!pausedAt&&connection==='live'&&!document.querySelector('.chrome :focus-visible'))document.querySelectorAll('.chrome').forEach(e=>e.classList.add('quiet'));},12_000);}
 addEventListener('pointermove',wake,{passive:true});addEventListener('pointerdown',wake,{passive:true});addEventListener('keydown',wake);addEventListener('focusin',wake);
-function openPanel(id){$(id).showModal();wake();}
+function openPanel(id){setWalkingHelp(false);painter.stopTapWalk?.();$(id).showModal();wake();}
 $('#about-button').onclick=()=>openPanel('#about-dialog');
 $('#notes-button').onclick=()=>{openPanel('#notes-dialog');fieldNotes.open();};
-$('#explore-button').onclick=()=>openPanel('#explore-dialog');
-$('#current-place').onclick=()=>$('#explore-dialog').close();
 document.querySelectorAll('dialog').forEach(dialog=>{
   dialog.querySelector('.close-panel').onclick=()=>dialog.close();dialog.addEventListener('close',wake);
   dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
@@ -57,7 +74,6 @@ document.querySelectorAll('dialog').forEach(dialog=>{
 function updateFollow(){
   $('#follow-button').setAttribute('aria-pressed',String(followed));$('#follow-button').setAttribute('aria-label',followed?'Unfollow this place':'Follow this place');$('#follow-button').dataset.tip=followed?'Following this place':'Follow this place';
   $('#follow-button .tool-label').textContent=followed?'Following':'Follow';icon($('#follow-button .icon'),followed?'check':'bookmark');
-  $('#follow-status').textContent=followed?'Saved among your places on this device.':'Follow a place to keep it close.';
 }
 $('#follow-button').onclick=()=>{followed=!followed;try{localStorage.setItem('a-view:follow:lakeside-cottage',String(followed));}catch{toast('Following for this visit. Storage is unavailable.');updateFollow();return;}updateFollow();toast(followed?'A place to return to. Saved on this device.':'This place has been unfollowed.');};updateFollow();
 $('#sound-button').onclick=async()=>{
@@ -78,8 +94,6 @@ $('#fullscreen-button').onclick=async()=>{try{if(document.fullscreenElement)awai
 document.addEventListener('fullscreenchange',()=>{$('#fullscreen-button').setAttribute('aria-label',document.fullscreenElement?'Leave fullscreen':'Enter fullscreen');});
 document.querySelectorAll('[data-light]').forEach(button=>button.onclick=()=>{if(!snapshot)return;audio.hold();study=button.dataset.light;$('#about-dialog').close();document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateLabels();wake();});
 $('#arrival-button').onclick=()=>painter.returnToArrival?.();
-// FieldNotes owns the onclick; this also forgets the visitor's place in the yard, whichever painter is live.
-$('#forget-visits').addEventListener('click',()=>{try{localStorage.removeItem('a-view:place:lakeside-cottage');}catch{}painter.forgetPlace?.();});
 $('#return-live').onclick=()=>{study=null;document.querySelectorAll('[data-light]').forEach(b=>b.setAttribute('aria-pressed','false'));if(pausedAt!==null)$('#pause-button').click();updateLabels();wake();};
 
 const setText=(selector,text)=>{if($(selector).textContent!==text)$(selector).textContent=text;};
@@ -117,6 +131,15 @@ function frame(timestamp){
   if(snapshot){
     const displayedNow=now(),shown=pausedSnapshot??snapshot,result=painter.render(shown,displayedNow,study);
     rendered=result;
+    if (painter.shown && (painter.state.place !== helpPlace || painter.insideFailed !== helpInsideFailed)) {
+      refreshWalkingHelp();
+      wake();
+    }
+    const returnButton=$('#arrival-button'), hideReturn=!painter.awayFromArrival;
+    if(returnButton.hidden!==hideReturn){
+      if(hideReturn && document.activeElement===returnButton) $('#follow-button').focus({preventScroll:true});
+      returnButton.hidden=hideReturn;
+    }
     // Ripple visibility follows the drawn frame, not the four-second label timer.
     scene.rendered(shown,displayedNow,sceneOptions());
     fieldNotes.update(shown,{live:pausedAt===null&&!study,valid:!client.needsRefresh(),study:!!study,paused:pausedAt!==null,visible:!document.hidden});
@@ -128,11 +151,37 @@ function frame(timestamp){
   if(keepView.pending)keepView.rendered(painter,rendered,{study,paused:pausedAt!==null,disconnected:client.isExpired(),reconnecting:connection!=='live'});
   if(timestamp-lastLabels>4000){lastLabels=timestamp;updateLabels();}
 }
-let dragging=false,previousX=0,previousY=0;
-$('#world').addEventListener('pointerdown',e=>{dragging=true;previousX=e.clientX;previousY=e.clientY;$('#world').setPointerCapture(e.pointerId);});
-// The 3D view looks with a drag; the painting pans.
-$('#world').addEventListener('pointermove',e=>{if(dragging){const dx=e.clientX-previousX,dy=e.clientY-previousY;if(painter.lookBy)painter.lookBy(dx,dy);else painter.panBy(dx);previousX=e.clientX;previousY=e.clientY;}});
-$('#world').addEventListener('pointerup',()=>dragging=false);$('#world').addEventListener('pointercancel',()=>dragging=false);
+const world = $('#world');
+let gesture = null;
+world.addEventListener('pointerdown', event => {
+  if (!event.isPrimary || event.button !== 0) { gesture = null; return; }
+  setWalkingHelp(false);
+  painter.stopTapWalk?.();
+  gesture = {id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false};
+  world.setPointerCapture(event.pointerId);
+});
+world.addEventListener('pointermove', event => {
+  if (gesture?.id !== event.pointerId) return;
+  const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
+  if (!gesture.dragging && Math.hypot(dx, dy) < (event.pointerType === 'mouse' ? 2 : 8)) return;
+  gesture.dragging = true;
+  if (painter.lookBy) painter.lookBy(dx, dy);
+  else painter.panBy(dx);
+  gesture.x = event.clientX;
+  gesture.y = event.clientY;
+});
+world.addEventListener('pointerup', event => {
+  if (gesture?.id !== event.pointerId) return;
+  const tapped = !gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) < 8;
+  gesture = null;
+  if (tapped && event.pointerType !== 'mouse' && painter.shown && painter.walkToScreen) {
+    if (!painter.walkToScreen(event.clientX, event.clientY)) {
+      toast(painter.state.place === 'cabin' ? 'Tap a clear spot on the floor to walk there.' : 'Tap a clear spot on the ground to walk there.');
+    }
+  }
+});
+world.addEventListener('lostpointercapture', event => { if (gesture?.id === event.pointerId) gesture = null; });
+world.addEventListener('pointercancel', () => { gesture = null; });
 document.addEventListener('visibilitychange',()=>{
   audio.visibility().catch(error=>console.warn('Audio visibility update failed',error));
   if(document.hidden){painter.flushPlace?.();fieldNotes.visible=false;fieldNotes.cancel();fieldNotes.memory.flush(true);}
@@ -144,12 +193,33 @@ async function openSpace(){
   try{const {SpaceView}=await import('./space/space-view.js');return new SpaceView($('#space'),{onFailure:()=>usePainting().catch(error=>console.error(error))});}
   catch(error){console.warn('The 3D view is unavailable; showing the painting.',error);return new Painting($('#painting'),$('#life'));}
 }
-let walkHinted=false;
+let helpPlace, helpInsideFailed, helpRequest = 0;
+async function refreshWalkingHelp(announce = false) {
+  const view = painter, place = view.state.place;
+  const request = ++helpRequest;
+  helpPlace = place; helpInsideFailed = view.insideFailed;
+  const text = await view.walkHint();
+  if (request !== helpRequest || painter !== view || view.state.place !== place) return;
+  const previous = walkingInstructions.textContent;
+  $('#walk-help').textContent = walkingInstructions.textContent = text;
+  if (announce && walkingInstructions.hidden) toast(text);
+  else if (previous && $('#toast').classList.contains('show') && $('#toast').textContent === previous) {
+    $('#toast').textContent = text;
+  }
+}
 // Keep this view composites the 2D painting, so the 3D view does not offer it yet.
 function showSpace(on){
-  $('#space').hidden=!on;$('#arrival-button').hidden=!on;$('#keep-button').hidden=on;$('#world').classList.toggle('walkable',on);fieldNotes.inYard=on;fieldNotes.render();
-  if(on&&!walkHinted){walkHinted=true;painter.walkHint?.().then(text=>{if(painter.walkHint)toast(text);});}
-  for(const id of ['#painting','#life','#fallback'])$(id).hidden=on;}
+  $('#space').hidden = !on;
+  $('#arrival-button').hidden = !on || !painter.awayFromArrival;
+  helpButton.hidden = $('#walk-help').hidden = !on;
+  setWalkingHelp(false);
+  $('#keep-button').hidden = on;
+  $('#world').classList.toggle('walkable', on);
+  fieldNotes.inYard = on;
+  fieldNotes.render();
+  if (on) refreshWalkingHelp(true);
+  for (const id of ['#painting', '#life', '#fallback']) $(id).hidden = on;
+}
 function usePainting(){painter.dispose();showSpace(false);painter=new Painting($('#painting'),$('#life'));return painter.init();}
 async function startPainter(){
   if(painter instanceof Painting)return painter.init();

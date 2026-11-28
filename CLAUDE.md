@@ -43,6 +43,7 @@ The pages take `?check` for fixtures: `?check&tier=full|light|plain` locks a ren
 ### Three layers
 
 - **`shared/`** — pure, deterministic modules imported by both the server and the browser (served at `/shared/`). The rules of the world live here: clock and calendar, weather, wind, sky, bird, cottage, coincidences, and all geometry and validation for the 3D space. Files named `lakeside-*.js` are the authored data for this scene (blueprints, layouts, routes); the unprefixed neighbour holds the rules that read it (`interior.js` validates `lakeside-interior.js`, and so on).
+- **`public/space/tap-walk.js`** picks a screen destination against the yard or cabin geometry and supplies collision-checked movement to the existing walker and door passage.
 - **`src/`** — `server.js` (static files, `/api/world`, `/api/stream` SSE, `/api/notes`, security headers) and `store.js` (`WorldStore`: one JSON state row plus an `events` table in SQLite). GET/HEAD only; nothing a visitor does changes the world.
 - **`public/`** — the browser. `app.js` is the entry; `world-client.js` owns snapshot ordering and display time; `painting.js` and the `*-renderer.js` files are the 2D painting; `public/space/` is the 3D view.
 

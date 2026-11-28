@@ -19,6 +19,7 @@ import {SCENES, viewConditions} from '../../shared/world.js';
 import {SKY_CAMERA} from '../../shared/celestial-projection.js';
 import {sampleCloudLayers, skyBodies} from '../../shared/sky.js';
 import {SkyDome, overcast} from './sky-dome.js';
+import {pickDestination, tapRoute, tapInput} from './tap-walk.js';
 import {WalkKeys, walkHint} from './walk-keys.js';
 import {PlaceMemory} from './place-memory.js';
 import {PainterlyPass, canPaint} from './painterly-pass.js';
@@ -71,6 +72,13 @@ export function hidingSwitch(search = typeof location !== 'undefined' ? location
 }
 export const verticalFov = aspect => Math.min(MAX_VERTICAL_FOV, 2 * Math.atan(Math.tan(SKY_CAMERA.horizontalFov / 2) / aspect) * 180 / Math.PI);
 
+function arrivalForAspect(space, aspect) {
+  const original = space.arrival;
+  // Pan toward the door as the viewport narrows, without moving the landmarks.
+  if (aspect >= 1) return original;
+  return {...original, yaw: original.yaw - .48 * (1 - aspect)};
+}
+
 // The light's strengths for a calendar and weather: blend (night 0 to day 1), the hemisphere's intensity, whether the sun
 // (or else the moon) lights the yard, and the directional light's intensity before that body's own opacity and phase.
 export function lightLevels(calendar, weather) {
@@ -84,7 +92,8 @@ export function lightLevels(calendar, weather) {
 export class SpaceView {
   constructor(canvas, {space = LAKESIDE_SPACE, dressing = LAKESIDE_DRESSING, interior = interiorSwitch(), hideUnseen = hidingSwitch(), sky = SCENES[0].sky, onFailure} = {}) {
     this.canvas = canvas; this.space = space; this.dressing = dressing; this.interior = interior; this.hideUnseen = hideUnseen; this.skyConfig = sky; this.onFailure = onFailure;
-    this.state = pose(space.arrival);
+    this.arrival = arrivalForAspect(space, innerWidth / innerHeight);
+    this.state = pose(this.arrival);
     // Walking: held keys, drag deltas gathered since the last frame, an optional glide home, and the remembered place.
     this.keys = new WalkKeys(window, {blocked: () => [...document.querySelectorAll('dialog')].some(d => d.open)});
     let storage = null; try { storage = localStorage; } catch {}
@@ -101,9 +110,11 @@ export class SpaceView {
     this.budget = createViewBudget();
     this.passage = interior ? createPassage({space, dressing, interior, motion: () => this.motion}) : null;
     this.placed = false; this.look = [0, 0]; this.looked = false; this.glideFrom = null; this.glideStart = 0; this.lastStep = null;
-    this.visibility = () => { if (document.hidden) this.keys.release(); };
+    this.visibility = () => { if (document.hidden) { this.keys.release(); this.stopTapWalk(); } };
+    this.blur = () => this.stopTapWalk();
+    addEventListener('blur', this.blur);
     // Registered after WalkKeys, so a walking key tap shorter than a frame still cancels a glide.
-    this.keyCancel = () => { if (this.keys.moving()) this.glideFrom = null; };
+    this.keyCancel = () => { if (this.keys.moving()) { this.glideFrom = null; this.stopTapWalk(); } };
     document.addEventListener('visibilitychange', this.visibility); addEventListener('keydown', this.keyCancel);
     // What the yard's living things report, read by sound and the scene description; nothing is active until one is built and running.
     this.life = null; this.check = false; this.fixture = null;
@@ -125,7 +136,11 @@ export class SpaceView {
       this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(innerWidth, innerHeight, false);
       this.pass?.setSize(innerWidth, innerHeight, ratio);
-      this.camera.aspect = innerWidth / innerHeight; this.camera.fov = verticalFov(this.camera.aspect);
+      const atArrival = !this.awayFromArrival;
+      this.camera.aspect = innerWidth / innerHeight;
+      this.arrival = arrivalForAspect(this.space, this.camera.aspect);
+      if (atArrival) this.state = pose(this.arrival);
+      this.camera.fov = verticalFov(this.camera.aspect);
       this.camera.updateProjectionMatrix();
     };
     this.contextLost = event => {
@@ -142,7 +157,7 @@ export class SpaceView {
   get tier() { return this.meter.tier; }
   async init() {
     if (this.disposed) return false;
-    this.state = pose(this.memory.load() ?? this.space.arrival); this.placed = true;
+    this.state = pose(this.memory.load() ?? this.arrival); this.placed = true;
     // Opaque: with alpha the canvas would let the page show through wherever alpha-to-coverage leaves a card edge part covered.
     // A stencil only with the interior on, for the cabin's live panes when the rooms are drawn straight to the canvas.
     const gl = this.canvas.getContext('webgl2', {alpha: false, antialias: true, stencil: !!this.interior, powerPreference: 'low-power'});
@@ -212,7 +227,7 @@ export class SpaceView {
     }
     catch (error) {
       this.insideFailed = true; console.warn("The cabin's interior could not be built; its door stays shut.", error);
-      if (this.state.place === 'cabin') this.state = pose(this.space.arrival);
+      if (this.state.place === 'cabin') this.state = pose(this.arrival);
     }
   }
   // The views of the yard through the cabin's panes, made once when first wanted. A context without a stencil, or a set-up that
@@ -408,42 +423,71 @@ export class SpaceView {
     this.look[0] -= dx * LOOK_PER_PIXEL; this.look[1] += dy * LOOK_PER_PIXEL;
     this.looked = true; this.glideFrom = null;
   }
+  get awayFromArrival() {
+    const a = this.arrival, s = this.state;
+    return s.place === 'cabin' || Math.hypot(s.position[0] - a.position[0], s.position[1] - a.position[1]) > .035
+      || Math.abs(Math.sin((s.yaw - a.yaw) / 2)) > .009 || Math.abs(s.pitch - a.pitch) > .018;
+  }
+  stopTapWalk() { this.route = null; }
+  walkToScreen(x, y) {
+    if (!this.shown || this.passage?.busy) return false;
+    this.glideFrom = null;
+    this.route = tapRoute(this, pickDestination(this, x, y));
+    return !!this.route;
+  }
   returnToArrival() {
+    this.stopTapWalk();
     this.look = [0, 0];
     if (this.passage?.busy) return;
     // Indoors there is no straight way home: fade, then stand at the arrival pose.
-    if (this.state.place === 'cabin') { this.glideFrom = null; this.passage.send(pose(this.space.arrival)); return; }
+    if (this.state.place === 'cabin') { this.glideFrom = null; this.passage.send(pose(this.arrival)); return; }
     // A glide can be stopped partway, so it is taken only where the straight way home is all walkable; otherwise the visitor is set down there.
-    if (this.motion && glideClear(this.space, this.state.position, this.space.arrival.position)) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
-    else { this.glideFrom = null; this.state = pose(this.space.arrival); }
+    if (this.motion && glideClear(this.space, this.state.position, this.arrival.position)) { this.glideFrom = pose(this.state); this.glideStart = performance.now(); }
+    else { this.glideFrom = null; this.state = pose(this.arrival); }
   }
   // Before init has loaded the remembered place, the arrival pose must not overwrite it.
   // The first-visit hint, naming the walking keys as printed on this keyboard where the browser can tell.
-  walkHint() { return walkHint(); }
+  async walkHint() {
+    const touch = matchMedia('(pointer: coarse)').matches, indoors = this.state.place === 'cabin';
+    const movement = touch ? `Tap the ${indoors ? 'floor' : 'path'} to walk. Drag to look around.` : await walkHint();
+    if (!indoors && (!this.interior || this.insideFailed)) return movement;
+    const door = touch ? 'Tap the front door' : 'Face the front door and walk forward';
+    return `${movement} ${door} to ${indoors ? 'leave' : 'enter'}.`;
+  }
   flushPlace() { if (this.placed) this.memory.flush(this.state); }
-  forgetPlace() { this.memory.forget(); }
+  forgetPlace() { return this.memory.forget(this.placed ? this.state : null); }
   // Advances the visitor by the real time since the previous frame; the world's clock (paused or studied) plays no part.
   step() {
     const t = performance.now(), dt = this.lastStep === null ? 0 : (t - this.lastStep) / 1000;
     this.lastStep = t;
-    const keys = this.keys.input(), walking = this.keys.moving(), look = this.look, looked = this.looked;
+    let keys = this.keys.input(), walking = this.keys.moving(), look = this.look;
+    const looked = this.looked;
+    if (this.insideFailed && this.route?.heading !== undefined) this.stopTapWalk();
+    if (this.route && !this.passage?.busy) {
+      const input = tapInput(this.route, this.state, dt);
+      if (input) { keys = input; look = input.look ?? look; walking = true; }
+      else this.stopTapWalk();
+    }
     this.look = [0, 0]; this.looked = false;
     // While the passage carries the visitor across, walking and looking are ignored and the place is not recorded.
     const crossing = this.passage?.busy ?? false;
     if (walking) this.glideFrom = null;
+    // At the doorway the passage still needs forward intent while the walker waits on its side of the sill.
+    const movement = {...keys, look};
+    if (keys.atDoor) movement.forward = 0;
     if (crossing) { /* held where they are */ }
-    else if (this.state.place === 'cabin') this.state = stepIndoors(this.walkPlan, this.state, {...keys, look}, dt);
+    else if (this.state.place === 'cabin') this.state = stepIndoors(this.walkPlan, this.state, movement, dt);
     else if (this.glideFrom) {
       const k = (t - this.glideStart) / (WALK.glideSeconds * 1000);
-      this.state = pose(glide(this.glideFrom, this.space.arrival, k));
+      this.state = pose(glide(this.glideFrom, this.arrival, k));
       if (k >= 1) this.glideFrom = null;
-    } else this.state = pose(stepWalker(this.space, this.state, {...keys, look}, dt));
+    } else this.state = pose(stepWalker(this.space, this.state, movement, dt));
     let moved = false;
     if (this.passage) {
       const hadInside = !!this.inside;
       if (this.state.place === 'yard' && doorWanted(this.space, this.dressing, this.state)) this.buildInside();
       const {door, veil, move} = this.passage.frame(this.state, crossing ? {forward: 0} : keys, t / 1000, {ready: !!this.inside});
-      if (move) { this.state = pose(move); this.glideFrom = null; moved = true; }
+      if (move) { this.stopTapWalk(); this.state = pose(move); this.glideFrom = null; moved = true; }
       // (floor 0 flushes on entry; floor 1 drains quietly in background frames and flushes when approaching or climbing the stair)
       if (this.state.place === 'cabin' && this.inside) {
         const floor = this.state.floor;
@@ -520,7 +564,7 @@ export class SpaceView {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
-    this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
+    this.stopTapWalk(); removeEventListener('blur', this.blur); this.keys.dispose(); document.removeEventListener('visibilitychange', this.visibility); removeEventListener('keydown', this.keyCancel);
     this.media.removeEventListener('change', this.motionChanged);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost); this.canvas.style.opacity = '';
     this.releaseScene(this.renderer);

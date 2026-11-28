@@ -2,7 +2,8 @@ import {walkable} from '../../shared/space.js';
 import {WALK} from '../../shared/walker.js';
 import {floorArea, onStair} from '../../shared/interior.js';
 
-export const PLACE_KEY = 'a-view:place:lakeside-cottage';
+import {PLACE_KEY, forgetStoredPlace} from '../visit-memory.js';
+export {PLACE_KEY};
 export const STILL_MS = 3000;
 const MAX_TEXT = 512, TAU = Math.PI * 2;
 
@@ -57,8 +58,17 @@ export class PlaceMemory {
     const ok = this.#use(s => (s.setItem(PLACE_KEY, JSON.stringify(next.place === 'cabin' ? {version: 2, ...next, savedAt: this.clock()} : {version: 1, position: next.position, yaw: next.yaw, pitch: next.pitch, savedAt: this.clock()})), true));
     if (ok) this.written = next;
   }
-  forget() {
-    this.forgotten = this.noted ?? this.written; this.written = null; this.stillSince = null;
-    this.#use(s => s.removeItem(PLACE_KEY));
+  forget(state) {
+    if (state) this.flush(state);
+    const written = this.written;
+    this.forgotten = state ? plain(state) : this.noted ?? written;
+    this.written = null; this.stillSince = null;
+    const restore = this.#use(forgetStoredPlace);
+    if (!restore) return null;
+    return () => {
+      if (!this.#use(restore)) return false;
+      this.written = written; this.forgotten = null;
+      return true;
+    };
   }
 }

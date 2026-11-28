@@ -6,13 +6,15 @@ Validated September 22, 2026, with review fixes checked September 23, using Node
 | --- | --- |
 | `npm run check` | Passed |
 | `npm test` | 103 passed, including 17 field-note tests |
-| [Field-note browser checks](browser-results.json) | 60 passed; no uncaught browser errors |
+| [Field-note browser checks](browser-results.json) | 87 passed; no uncaught browser errors |
 | [Existing visitor-display checks](display-results.json) | 12 passed |
 | [Existing bird checks](bird-browser-results.json) | 18 passed, including quiet notes, pause, studies, and sound |
 
+The Field notes browser report and its four representative captures were refreshed on November 27, 2026, in Chrome 158. All 87 checks passed, including the labeled header entry, first-visit observations and returning-visit recap at desktop and portrait widths. Undo restored the original recap, reading progress and saved spot after reload. Closing Field notes discarded the Undo action. A separate phone-sized 3D check confirmed the return position and viewing direction in the yard and upstairs in the cabin. The September unit, display and bird counts describe their original runs.
+
 ## Panel and copy
 
-The fixture pilot covers first visit, additional nest material, completed nest, established bird habit, cottage-only history, no new selected changes, and long absence. Representative captures show the [first visit](first-visit.png), [long absence on desktop](long-absence.png), [390-pixel portrait](portrait.png), and [320-pixel portrait](narrow-portrait.png). Captures were inspected at their native sizes. The recap is a short serif passage above the existing current observations; historical and present-tense sections are visually distinct. The dialog scrolls vertically on small screens without horizontal overflow.
+The fixture pilot covers first visit, additional nest material, completed nest, established bird habit, cottage-only history, no new selected changes, and long absence. Representative captures show the [first visit](first-visit.png), [long absence on desktop](long-absence.png), [390-pixel portrait](portrait.png), and [320-pixel portrait](narrow-portrait.png). Captures were inspected at their native sizes. First visits open with current observations. On return, a short serif recap precedes those observations. Matching observations share a count and a world-date range. The 320 × 568 and 390 × 844 checks expanded a group of 20 events and verified every original timestamp in order. At 1440, 390 and 320 pixels wide, the notebook and disclosure held their positions through expansion, and clicking the same spot collapsed the group. At 320 pixels the open event name stayed above its scrolling dates and moved away at the end of the group. The Close button stayed visible at the bottom of the scrolling entries, returned focus to Field notes, and the next opening started at the top.
 
 Browser checks verify that the panel never opens automatically, the recap matches the supported interval facts, and reading clears the dot only after a successful recap. Reloads preserve the recap. Keyboard opening, Escape, and focus return pass. The pilot uses reduced motion; the existing display suite separately checks moving live/pause behavior.
 

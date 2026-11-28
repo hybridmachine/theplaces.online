@@ -151,7 +151,7 @@ test('the painterly pass builds its depth-stencil scene target only when asked; 
 test('the canvas asks for a stencil only with the interior switched on', async () => {
   const asked = [], canvas = {getContext(kind, attributes) { asked.push([kind, attributes]); return null; }};
   for (const interior of [null, I]) {
-    const view = {disposed: false, memory: {load: () => null}, space: S, canvas, interior};
+    const view = {disposed: false, memory: {load: () => null}, space: S, arrival: S.arrival, canvas, interior};
     assert.equal(await SpaceView.prototype.init.call(view), false);
   }
   assert.deepEqual(asked, [['webgl2', {alpha: false, antialias: true, stencil: false, powerPreference: 'low-power'}],
@@ -161,7 +161,7 @@ test('the canvas asks for a stencil only with the interior switched on', async (
 test('an interior that fails to build is warned of once, keeps the door shut and sets an indoor visitor down at arrival', t => {
   const warnings = []; t.mock.method(console, 'warn', (...args) => warnings.push(args));
   // No art: the build reads the brushwork texture from it and throws.
-  const view = {interior: I, art: null, space: S, inside: null, insideFailed: false,
+  const view = {interior: I, art: null, space: S, arrival: S.arrival, inside: null, insideFailed: false,
     state: {place: 'cabin', floor: 1, position: [3, 9], yaw: .4, pitch: .1}};
   SpaceView.prototype.buildInside.call(view);
   assert.equal(view.insideFailed, true); assert.equal(view.inside, null);

@@ -24,7 +24,7 @@
 
   <header class="chrome topbar">
     <button class="wordmark" id="about-button" aria-label="About A View"><span class="mark" aria-hidden="true">◒</span> a view<span class="wordmark-dot">.</span></button>
-    <button class="explore-button" id="explore-button"><span class="four-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>Other places</span></button>
+    <button class="notes-trigger" id="notes-button" aria-haspopup="dialog" aria-controls="notes-dialog"><span class="icon" data-icon="book" aria-hidden="true"></span>Field notes<span id="note-dot" hidden></span></button>
   </header>
 
   <div class="chrome live-status"><span class="live-dot" id="live-dot"></span><span id="live-label">Finding the present</span><button id="return-live" hidden>Return to live <span aria-hidden="true">↗</span></button></div>
@@ -33,12 +33,19 @@
     <div class="scene-caption">
       <div class="eyebrow">STILLWATER VALLEY <span class="small-rule"></span> VIEW 01</div>
       <h1>The Lakeside Cottage</h1>
-      <p class="conditions"><span id="season">Late spring</span><span class="separator">·</span><span id="weather">A gentle afternoon</span><span class="separator">·</span><time id="world-time">15:30</time></p>
+      <div class="caption-details">
+        <p class="conditions"><span id="season">Late spring</span><span class="separator">·</span><span id="weather">A gentle afternoon</span><span class="separator">·</span><time id="world-time">15:30</time></p>
+        <button id="walk-help-button" aria-expanded="false" aria-controls="walking-instructions" hidden>Walking help</button>
+      </div>
+      <p id="walking-instructions" hidden></p>
     </div>
     <div class="tools" role="group" aria-label="View controls">
-      <button class="tool" id="arrival-button" aria-label="Return to the painting's view" data-tip="Return to the painting's view" hidden><span class="icon" data-icon="frame"></span><span class="tool-label">Return</span></button>
+      <button class="tool" id="arrival-button" data-tip="Return to the painting's view" hidden>
+        <span class="icon" data-icon="frame" aria-hidden="true"></span>
+        <span class="tool-label">Return<span class="sr-only"> to the painting's view</span></span>
+        <span class="phone-return-label">Back to view</span>
+      </button>
       <button class="tool" id="follow-button" aria-label="Follow this place" aria-pressed="false" data-tip="Follow this place"><span class="icon" data-icon="bookmark"></span><span class="tool-label">Follow</span></button>
-      <button class="tool" id="notes-button" aria-label="Open field notes" data-tip="Field notes"><span class="icon" data-icon="book"></span><span class="tool-label">Field notes</span><span id="note-dot" hidden></span></button>
       <button class="tool" id="keep-button" aria-label="Keep this view" data-tip="Keep this view"><span class="icon" data-icon="camera"></span><span class="tool-label">Keep this view</span></button>
       <span class="tool-divider"></span>
       <button class="tool icon-only" id="sound-button" aria-label="Turn on sound" aria-pressed="false" data-tip="Sound off"><span class="icon" data-icon="sound"></span></button>
@@ -81,39 +88,35 @@
     <p>Everyone looks into the same world. It carries on while you are away.</p>
     <div class="time-note"><span>One year here</span><span>30 days in your world</span></div>
     <p class="subtle">The seasons turn a little faster. The small movements of life take their own time.</p>
+    <p id="walk-help" hidden></p>
     <div class="study-section"><span class="panel-eyebrow">STUDY THE LIGHT</span><p class="subtle">A private look at the painting through the day.</p><div id="light-options" class="light-options"><button data-light="dawn">Dawn</button><button data-light="day">Day</button><button data-light="dusk">Dusk</button><button data-light="night">Night</button><button data-light="rain">Rain</button></div></div>
     <p class="prototype-note">First scene study · Spring artwork<br>Seasonal artwork and the wider ecosystem are still to come.</p>
   </dialog>
 
   <dialog id="notes-dialog" class="panel notes-panel" aria-labelledby="notes-heading">
-    <button class="close-panel" aria-label="Close"><span class="icon" data-icon="close"></span></button>
-    <span class="panel-eyebrow">STILLWATER VALLEY</span>
-    <h2 id="notes-heading">Field notes</h2>
-    <p class="subtle">Small things, noticed over time.</p>
-    <section class="visit-recap" aria-labelledby="recap-heading">
-      <h3 id="recap-heading">A place to return to</h3>
-      <p id="recap-text">This browser will remember your visit.</p>
-      <button id="retry-notes" class="notes-link" hidden>Try again</button>
-    </section>
-    <p id="notes-mode" class="subtle" hidden></p>
-    <h3 class="notes-section-heading">In this view</h3>
-    <div class="nest-observation"><span class="nest-drawing" aria-hidden="true">⌒</span><div><h3>In the old oak</h3><p id="nest-detail">A nest is taking shape.</p><p id="bird-detail"></p></div></div>
-    <div class="nest-observation"><span class="nest-drawing" aria-hidden="true">⌂</span><div><h3>At the cottage</h3><p id="cottage-detail">A quiet cottage beside the lake.</p></div></div>
-    <h3 class="notes-section-heading">Recent notes</h3>
-    <ol id="event-list" class="event-list"></ol>
-    <p class="panel-footnote">These notes follow what has happened in the shared world.</p>
-    <p id="visit-storage" class="subtle">Visit memory stays in this browser.</p>
-    <button id="forget-visits" class="notes-link">Forget visit memory</button>
+    <header class="notes-header">
+      <button class="close-panel" aria-label="Close"><span class="icon" data-icon="close"></span></button>
+      <span class="panel-eyebrow">STILLWATER VALLEY</span>
+      <h2 id="notes-heading">Field notes</h2>
+    </header>
+    <div class="notes-body" role="region" aria-label="Notebook entries" tabindex="0">
+      <section id="visit-recap" hidden class="visit-recap" aria-labelledby="recap-heading">
+        <h3 id="recap-heading">A place to return to</h3>
+        <p id="recap-text">This browser will remember your visit.</p>
+        <button id="retry-notes" class="notes-link" hidden>Try again</button>
+      </section>
+      <p id="notes-mode" class="subtle" hidden></p>
+      <section class="observations" aria-label="In this view">
+        <div class="nest-observation"><span class="nest-drawing" aria-hidden="true">⌒</span><div><h3>In the old oak</h3><p id="nest-detail">A nest is taking shape.</p><p id="bird-detail"></p></div></div>
+        <div class="nest-observation"><span class="cottage-drawing" aria-hidden="true">⌂</span><div><h3>At the cottage</h3><p id="cottage-detail">A quiet cottage beside the lake.</p></div></div>
+      </section>
+      <h3 class="notes-section-heading">Recent notes</h3>
+      <ol id="event-list" class="event-list"></ol>
+      <p id="visit-storage" class="subtle" role="status">Visit memory stays in this browser.</p>
+      <button id="forget-visits" class="notes-link" aria-describedby="visit-storage">Forget visit memory</button>
+    </div>
   </dialog>
 
-  <dialog id="explore-dialog" class="panel explore-panel" aria-labelledby="explore-heading">
-    <button class="close-panel" aria-label="Close"><span class="icon" data-icon="close"></span></button>
-    <span class="panel-eyebrow">A WORLD OF PLACES</span>
-    <h2 id="explore-heading">Somewhere to linger.</h2>
-    <button class="place-card" id="current-place"><img src="/assets/lakeside-day.png" alt="The Lakeside Cottage"><span class="place-card-copy"><span class="panel-eyebrow">STILLWATER VALLEY · 01</span><strong>The Lakeside Cottage</strong><span class="place-status">You are here <span aria-hidden="true">↗</span></span></span></button>
-    <p class="subtle">Our first window into the world.<br>Other paths will open in time.</p>
-    <div id="follow-status" class="panel-footnote">Follow a place to keep it close.</div>
-  </dialog>
   <noscript><div class="no-script">The painting is here. Enable JavaScript to watch it come to life.</div></noscript>
 </body>
 </html>
